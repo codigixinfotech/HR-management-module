@@ -15,9 +15,16 @@ export declare class DepartmentsService {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
+        manager: string | null;
         branchId: string | null;
+        type: string;
         parentDepartmentId: string | null;
+        costCenter: string | null;
+        headcountCapacity: number;
+        annualBudget: number | null;
+        effectiveFrom: Date;
     })[]>;
     findById(id: string): Promise<{
         parentDepartment: {
@@ -31,9 +38,16 @@ export declare class DepartmentsService {
             createdAt: Date;
             updatedAt: Date;
             name: string;
+            description: string | null;
             code: string;
+            manager: string | null;
             branchId: string | null;
+            type: string;
             parentDepartmentId: string | null;
+            costCenter: string | null;
+            headcountCapacity: number;
+            annualBudget: number | null;
+            effectiveFrom: Date;
         }[];
     } & {
         id: string;
@@ -42,9 +56,16 @@ export declare class DepartmentsService {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
+        manager: string | null;
         branchId: string | null;
+        type: string;
         parentDepartmentId: string | null;
+        costCenter: string | null;
+        headcountCapacity: number;
+        annualBudget: number | null;
+        effectiveFrom: Date;
     }>;
     create(dto: CreateDepartmentDto): Promise<{
         id: string;
@@ -53,9 +74,16 @@ export declare class DepartmentsService {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
+        manager: string | null;
         branchId: string | null;
+        type: string;
         parentDepartmentId: string | null;
+        costCenter: string | null;
+        headcountCapacity: number;
+        annualBudget: number | null;
+        effectiveFrom: Date;
     }>;
     update(id: string, dto: UpdateDepartmentDto): Promise<{
         id: string;
@@ -64,9 +92,16 @@ export declare class DepartmentsService {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
+        manager: string | null;
         branchId: string | null;
+        type: string;
         parentDepartmentId: string | null;
+        costCenter: string | null;
+        headcountCapacity: number;
+        annualBudget: number | null;
+        effectiveFrom: Date;
     }>;
     remove(id: string): Promise<{
         success: boolean;

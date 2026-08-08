@@ -51,7 +51,7 @@ let DashboardService = class DashboardService {
             this.prisma.branch.count(companyId ? { where: { companyId } } : undefined),
             this.prisma.department.count(companyId ? { where: { companyId } } : undefined),
             this.prisma.employee.count({ where: employeeWhere }),
-            this.prisma.employee.count({ where: { ...employeeWhere, status: client_1.EmployeeStatus.ACTIVE } }),
+            this.prisma.employee.count({ where: { ...employeeWhere, status: { in: [client_1.EmployeeStatus.ACTIVE, client_1.EmployeeStatus.PROBATION, client_1.EmployeeStatus.NOTICE_PERIOD] } } }),
             this.prisma.employee.count({ where: { ...employeeWhere, status: client_1.EmployeeStatus.ON_LEAVE } }),
             this.prisma.jobOpening.count({ where: jobOpeningWhere }),
             this.prisma.employeeOnboardingTask.count({ where: { status: client_1.ApprovalStatus.PENDING } }),
@@ -138,7 +138,7 @@ let DashboardService = class DashboardService {
         };
     }
     async getUpcomingEvents(companyId, today) {
-        const employeeWhere = { ...(companyId ? { companyId } : {}), status: client_1.EmployeeStatus.ACTIVE };
+        const employeeWhere = { ...(companyId ? { companyId } : {}), status: { in: [client_1.EmployeeStatus.ACTIVE, client_1.EmployeeStatus.PROBATION, client_1.EmployeeStatus.NOTICE_PERIOD] } };
         const [birthdayCandidates, anniversaryCandidates, onboardingTasks, holidays] = await Promise.all([
             this.prisma.employee.findMany({
                 where: { ...employeeWhere, dateOfBirth: { not: null } },

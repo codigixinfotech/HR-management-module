@@ -8,21 +8,9 @@ export declare class DesignationsController {
             id: string;
             name: string;
         } | null;
-    } & {
-        id: string;
-        companyId: string;
-        isActive: boolean;
-        createdAt: Date;
-        updatedAt: Date;
-        code: string;
-        departmentId: string | null;
-        title: string;
-        grade: string | null;
-    })[]>;
-    findOne(id: string): Promise<{
-        department: {
+        reportingDesignation: {
             id: string;
-            name: string;
+            title: string;
         } | null;
     } & {
         id: string;
@@ -30,10 +18,44 @@ export declare class DesignationsController {
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
         code: string;
+        effectiveFrom: Date;
         departmentId: string | null;
         title: string;
         grade: string | null;
+        jobFamily: string | null;
+        reportingDesignationId: string | null;
+        employmentType: string | null;
+        minSalary: number | null;
+        maxSalary: number | null;
+    })[]>;
+    findOne(id: string): Promise<{
+        department: {
+            id: string;
+            name: string;
+        } | null;
+        reportingDesignation: {
+            id: string;
+            title: string;
+        } | null;
+    } & {
+        id: string;
+        companyId: string;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string | null;
+        code: string;
+        effectiveFrom: Date;
+        departmentId: string | null;
+        title: string;
+        grade: string | null;
+        jobFamily: string | null;
+        reportingDesignationId: string | null;
+        employmentType: string | null;
+        minSalary: number | null;
+        maxSalary: number | null;
     }>;
     create(dto: CreateDesignationDto): Promise<{
         id: string;
@@ -41,10 +63,17 @@ export declare class DesignationsController {
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
         code: string;
+        effectiveFrom: Date;
         departmentId: string | null;
         title: string;
         grade: string | null;
+        jobFamily: string | null;
+        reportingDesignationId: string | null;
+        employmentType: string | null;
+        minSalary: number | null;
+        maxSalary: number | null;
     }>;
     update(id: string, dto: UpdateDesignationDto): Promise<{
         id: string;
@@ -52,10 +81,17 @@ export declare class DesignationsController {
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
         code: string;
+        effectiveFrom: Date;
         departmentId: string | null;
         title: string;
         grade: string | null;
+        jobFamily: string | null;
+        reportingDesignationId: string | null;
+        employmentType: string | null;
+        minSalary: number | null;
+        maxSalary: number | null;
     }>;
     remove(id: string): Promise<{
         success: boolean;

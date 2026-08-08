@@ -9,9 +9,9 @@ export declare class CandidatesService {
         email: string;
         createdAt: Date;
         updatedAt: Date;
+        phone: string | null;
         firstName: string;
         lastName: string;
-        phone: string | null;
         jobOpeningId: string;
         notes: string | null;
         stage: import("@prisma/client").$Enums.CandidateStage;
@@ -23,9 +23,9 @@ export declare class CandidatesService {
         email: string;
         createdAt: Date;
         updatedAt: Date;
+        phone: string | null;
         firstName: string;
         lastName: string;
-        phone: string | null;
         jobOpeningId: string;
         notes: string | null;
         stage: import("@prisma/client").$Enums.CandidateStage;
@@ -37,9 +37,9 @@ export declare class CandidatesService {
         email: string;
         createdAt: Date;
         updatedAt: Date;
+        phone: string | null;
         firstName: string;
         lastName: string;
-        phone: string | null;
         jobOpeningId: string;
         notes: string | null;
         stage: import("@prisma/client").$Enums.CandidateStage;
@@ -51,9 +51,9 @@ export declare class CandidatesService {
         email: string;
         createdAt: Date;
         updatedAt: Date;
+        phone: string | null;
         firstName: string;
         lastName: string;
-        phone: string | null;
         jobOpeningId: string;
         notes: string | null;
         stage: import("@prisma/client").$Enums.CandidateStage;

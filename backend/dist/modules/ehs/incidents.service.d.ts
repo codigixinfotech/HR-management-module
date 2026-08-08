@@ -11,13 +11,13 @@ export declare class IncidentsService {
             lastName: string;
         } | null;
     } & {
+        location: string;
         id: string;
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
         status: import("@prisma/client").$Enums.IncidentStatus;
-        location: string;
         incidentType: string;
         severity: import("@prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
@@ -31,13 +31,13 @@ export declare class IncidentsService {
             lastName: string;
         } | null;
     } & {
+        location: string;
         id: string;
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
         status: import("@prisma/client").$Enums.IncidentStatus;
-        location: string;
         incidentType: string;
         severity: import("@prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
@@ -51,13 +51,13 @@ export declare class IncidentsService {
             lastName: string;
         } | null;
     } & {
+        location: string;
         id: string;
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
         status: import("@prisma/client").$Enums.IncidentStatus;
-        location: string;
         incidentType: string;
         severity: import("@prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
@@ -71,13 +71,13 @@ export declare class IncidentsService {
             lastName: string;
         } | null;
     } & {
+        location: string;
         id: string;
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
         status: import("@prisma/client").$Enums.IncidentStatus;
-        location: string;
         incidentType: string;
         severity: import("@prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;

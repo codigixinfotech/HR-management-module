@@ -36,6 +36,7 @@ export default function OrganizationPage() {
   const { data: branches } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list() });
   const { data: departments } = useQuery({ queryKey: ['departments'], queryFn: () => departmentsApi.list() });
   const [companyId, setCompanyId] = useState<string | undefined>(undefined);
+  const [triggerAddBranchCompanyId, setTriggerAddBranchCompanyId] = useState<string | null>(null);
 
   const getPageHeaderInfo = () => {
     switch (activeTab) {
@@ -156,8 +157,13 @@ export default function OrganizationPage() {
           </div>
 
           <div className="space-y-6">
-            <CompaniesTab />
-            <BranchesTab companyId={companyId} companies={companies ?? []} />
+            <CompaniesTab onCompanyCreated={(id) => setTriggerAddBranchCompanyId(id)} />
+            <BranchesTab
+              companyId={companyId}
+              companies={companies ?? []}
+              triggerOpenWithCompanyId={triggerAddBranchCompanyId}
+              onTriggerHandled={() => setTriggerAddBranchCompanyId(null)}
+            />
           </div>
         </div>
       )}

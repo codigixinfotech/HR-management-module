@@ -13,12 +13,16 @@ export class BranchesService {
   list(companyId?: string) {
     return this.prisma.branch.findMany({
       where: companyId ? { companyId } : undefined,
+      include: { locations: true, employees: true },
       orderBy: { name: 'asc' },
     });
   }
 
   async findById(id: string) {
-    const branch = await this.prisma.branch.findUnique({ where: { id } });
+    const branch = await this.prisma.branch.findUnique({
+      where: { id },
+      include: { locations: true, employees: true },
+    });
     if (!branch) throw new NotFoundException('Branch not found');
     return branch;
   }
@@ -42,6 +46,44 @@ export class BranchesService {
   async remove(id: string) {
     await this.findById(id);
     await this.prisma.branch.delete({ where: { id } });
+    return { success: true };
+  }
+
+  // Locations CRUD Support
+  async listLocations(branchId: string) {
+    return this.prisma.location.findMany({
+      where: { branchId },
+      orderBy: { code: 'asc' },
+    });
+  }
+
+  async findLocationById(id: string) {
+    const location = await this.prisma.location.findUnique({ where: { id } });
+    if (!location) throw new NotFoundException('Location not found');
+    return location;
+  }
+
+  async createLocation(branchId: string, dto: any) {
+    const existing = await this.prisma.location.findFirst({
+      where: { branchId, code: dto.code },
+    });
+    if (existing)
+      throw new ConflictException(
+        'A location with this code already exists for this branch',
+      );
+    return this.prisma.location.create({
+      data: { ...dto, branchId },
+    });
+  }
+
+  async updateLocation(id: string, dto: any) {
+    await this.findLocationById(id);
+    return this.prisma.location.update({ where: { id }, data: dto });
+  }
+
+  async removeLocation(id: string) {
+    await this.findLocationById(id);
+    await this.prisma.location.delete({ where: { id } });
     return { success: true };
   }
 }

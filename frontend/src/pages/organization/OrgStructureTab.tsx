@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { employeesApi } from '@/api/employees';
 import {
   Building2,
   Users,
@@ -223,6 +225,62 @@ export function OrgStructureTab() {
     'coo-1': true,
   });
 
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', 1, ''],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+  });
+
+  const activeTree = useMemo(() => {
+    if (!employeesData?.items) return ORG_TREE;
+
+    const isSeededEmployee = (emp: any) => {
+      if (!emp.employeeCode) return false;
+      return /^EMP00[0-2][0-9]$/.test(emp.employeeCode);
+    };
+
+    const customEmployees = employeesData.items.filter((emp: any) => !isSeededEmployee(emp));
+
+    const addCustomEmployees = (node: OrgNode): OrgNode => {
+      // Find custom employees reporting to this node (either by manager ID or matching name)
+      const matchingReports = customEmployees.filter(
+        (emp: any) =>
+          emp.reportingManagerId === node.id ||
+          (emp.reportingManager &&
+            `${emp.reportingManager.firstName} ${emp.reportingManager.lastName}`.toLowerCase() ===
+              node.name.toLowerCase()) ||
+          (node.id === 'ceo-1' && !emp.reportingManagerId) // Fallback to CEO if no manager specified
+      );
+
+      const updatedChildren = node.children
+        ? node.children.map((child) => addCustomEmployees(child))
+        : [];
+
+      const newChildren = [
+        ...updatedChildren,
+        ...matchingReports.map((emp: any) => ({
+          id: emp.id,
+          name: `${emp.firstName} ${emp.lastName}`,
+          title: emp.designation?.title ?? 'Associate',
+          dept: emp.department?.name ?? 'General Corporate',
+          code: emp.employeeCode,
+          avatar: `${emp.firstName[0]}${emp.lastName[0]}`.toUpperCase(),
+          reportsCount: 0,
+          location: emp.location ?? 'New York HQ',
+          email: emp.workEmail ?? '',
+          children: [],
+        })),
+      ];
+
+      return {
+        ...node,
+        reportsCount: node.reportsCount + matchingReports.length,
+        children: newChildren.length > 0 ? newChildren : undefined,
+      };
+    };
+
+    return addCustomEmployees(ORG_TREE);
+  }, [employeesData]);
+
   const toggleNode = (id: string) => {
     setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -381,23 +439,23 @@ export function OrgStructureTab() {
             <div className="relative flex flex-col items-center rounded-2xl bg-gradient-to-b from-primary/15 to-card border-2 border-primary p-4 shadow-md w-72 transition-all hover:scale-105">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-semibold text-sm shadow-md shadow-primary/30 shrink-0">
-                  {ORG_TREE.avatar}
+                  {activeTree.avatar}
                 </div>
                 <div className="truncate min-w-0">
                   <div className="flex items-center gap-1">
-                    <span className="font-semibold text-sm text-foreground truncate">{ORG_TREE.name}</span>
+                    <span className="font-semibold text-sm text-foreground truncate">{activeTree.name}</span>
                     <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
                   </div>
-                  <p className="text-xs font-medium text-primary truncate">{ORG_TREE.title}</p>
+                  <p className="text-xs font-medium text-primary truncate">{activeTree.title}</p>
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <MapPin className="h-3 w-3" /> {ORG_TREE.location}
+                    <MapPin className="h-3 w-3" /> {activeTree.location}
                   </p>
                 </div>
               </div>
               <div className="mt-3 w-full flex items-center justify-between border-t border-border/60 pt-2 text-[10px]">
-                <span className="font-mono font-semibold text-muted-foreground">{ORG_TREE.code}</span>
+                <span className="font-mono font-semibold text-muted-foreground">{activeTree.code}</span>
                 <Badge className="bg-primary/20 text-primary border-none text-[9.5px] font-semibold">
-                  {ORG_TREE.reportsCount} Direct Reports
+                  {activeTree.reportsCount} Direct Reports
                 </Badge>
               </div>
             </div>
@@ -412,7 +470,7 @@ export function OrgStructureTab() {
 
             {/* LEVEL 2: EXECUTIVE CXO GRID */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5 w-full">
-              {ORG_TREE.children?.map((cxo) => {
+              {activeTree.children?.map((cxo) => {
                 const isExpanded = Boolean(expandedNodes[cxo.id]);
                 const hasChildren = cxo.children && cxo.children.length > 0;
 

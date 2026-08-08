@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateDesignationDto {
   @IsString()
@@ -18,6 +18,34 @@ export class CreateDesignationDto {
   @IsOptional()
   @IsString()
   grade?: string;
+
+  @IsOptional()
+  @IsString()
+  jobFamily?: string;
+
+  @IsOptional()
+  @IsString()
+  reportingDesignationId?: string;
+
+  @IsOptional()
+  @IsString()
+  employmentType?: string;
+
+  @IsOptional()
+  @IsNumber()
+  minSalary?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxSalary?: number;
+
+  @IsOptional()
+  @IsString()
+  effectiveFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @IsOptional()
   @IsBoolean()

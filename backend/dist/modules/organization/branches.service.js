@@ -20,11 +20,15 @@ let BranchesService = class BranchesService {
     list(companyId) {
         return this.prisma.branch.findMany({
             where: companyId ? { companyId } : undefined,
+            include: { locations: true, employees: true },
             orderBy: { name: 'asc' },
         });
     }
     async findById(id) {
-        const branch = await this.prisma.branch.findUnique({ where: { id } });
+        const branch = await this.prisma.branch.findUnique({
+            where: { id },
+            include: { locations: true, employees: true },
+        });
         if (!branch)
             throw new common_1.NotFoundException('Branch not found');
         return branch;
@@ -44,6 +48,37 @@ let BranchesService = class BranchesService {
     async remove(id) {
         await this.findById(id);
         await this.prisma.branch.delete({ where: { id } });
+        return { success: true };
+    }
+    async listLocations(branchId) {
+        return this.prisma.location.findMany({
+            where: { branchId },
+            orderBy: { code: 'asc' },
+        });
+    }
+    async findLocationById(id) {
+        const location = await this.prisma.location.findUnique({ where: { id } });
+        if (!location)
+            throw new common_1.NotFoundException('Location not found');
+        return location;
+    }
+    async createLocation(branchId, dto) {
+        const existing = await this.prisma.location.findFirst({
+            where: { branchId, code: dto.code },
+        });
+        if (existing)
+            throw new common_1.ConflictException('A location with this code already exists for this branch');
+        return this.prisma.location.create({
+            data: { ...dto, branchId },
+        });
+    }
+    async updateLocation(id, dto) {
+        await this.findLocationById(id);
+        return this.prisma.location.update({ where: { id }, data: dto });
+    }
+    async removeLocation(id) {
+        await this.findLocationById(id);
+        await this.prisma.location.delete({ where: { id } });
         return { success: true };
     }
 };

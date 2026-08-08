@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { Branch, Company, Department, Designation } from './types';
+import type { Branch, Company, Department, Designation, Location } from './types';
 
 export const companiesApi = {
   list: async () => (await apiClient.get<Company[]>('/organization/companies')).data,
@@ -16,6 +16,15 @@ export const branchesApi = {
   update: async (id: string, payload: Partial<Branch>) =>
     (await apiClient.patch<Branch>(`/organization/branches/${id}`, payload)).data,
   remove: async (id: string) => (await apiClient.delete(`/organization/branches/${id}`)).data,
+};
+
+export const locationsApi = {
+  list: async (branchId: string) => (await apiClient.get<Location[]>(`/organization/branches/${branchId}/locations`)).data,
+  create: async (branchId: string, payload: Partial<Location>) =>
+    (await apiClient.post<Location>(`/organization/branches/${branchId}/locations`, payload)).data,
+  update: async (id: string, payload: Partial<Location>) =>
+    (await apiClient.patch<Location>(`/organization/branches/locations/${id}`, payload)).data,
+  remove: async (id: string) => (await apiClient.delete(`/organization/branches/locations/${id}`)).data,
 };
 
 export const departmentsApi = {

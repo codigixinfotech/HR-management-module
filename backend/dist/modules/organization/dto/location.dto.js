@@ -9,153 +9,106 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UpdateCompanyDto = exports.CreateCompanyDto = void 0;
+exports.UpdateLocationDto = exports.CreateLocationDto = void 0;
 const mapped_types_1 = require("@nestjs/mapped-types");
 const class_validator_1 = require("class-validator");
-class CreateCompanyDto {
+class CreateLocationDto {
+    branchId;
     code;
     name;
-    legalName;
-    shortName;
-    entityType;
-    parentCompanyId;
-    cin;
-    gst;
-    pan;
-    tan;
-    msme;
-    country;
-    state;
+    buildingName;
+    floor;
+    wing;
+    roomCabin;
+    address;
     city;
-    timezone;
-    currency;
-    registeredAddress;
+    state;
+    country;
     pincode;
-    email;
-    phone;
-    website;
-    businessUnit;
-    defaultBranchId;
+    gps;
+    workingHours;
+    shift;
     isActive;
 }
-exports.CreateCompanyDto = CreateCompanyDto;
+exports.CreateLocationDto = CreateLocationDto;
 __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "code", void 0);
+], CreateLocationDto.prototype, "branchId", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "name", void 0);
+], CreateLocationDto.prototype, "code", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "legalName", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCompanyDto.prototype, "shortName", void 0);
+], CreateLocationDto.prototype, "name", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "entityType", void 0);
+], CreateLocationDto.prototype, "buildingName", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "parentCompanyId", void 0);
+], CreateLocationDto.prototype, "floor", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "cin", void 0);
+], CreateLocationDto.prototype, "wing", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "gst", void 0);
+], CreateLocationDto.prototype, "roomCabin", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "pan", void 0);
+], CreateLocationDto.prototype, "address", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "tan", void 0);
+], CreateLocationDto.prototype, "city", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "msme", void 0);
-__decorate([
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCompanyDto.prototype, "country", void 0);
+], CreateLocationDto.prototype, "state", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "state", void 0);
+], CreateLocationDto.prototype, "country", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "city", void 0);
+], CreateLocationDto.prototype, "pincode", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "timezone", void 0);
-__decorate([
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCompanyDto.prototype, "currency", void 0);
+], CreateLocationDto.prototype, "gps", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "registeredAddress", void 0);
+], CreateLocationDto.prototype, "workingHours", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateCompanyDto.prototype, "pincode", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCompanyDto.prototype, "email", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCompanyDto.prototype, "phone", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCompanyDto.prototype, "website", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCompanyDto.prototype, "businessUnit", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateCompanyDto.prototype, "defaultBranchId", void 0);
+], CreateLocationDto.prototype, "shift", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
-], CreateCompanyDto.prototype, "isActive", void 0);
-class UpdateCompanyDto extends (0, mapped_types_1.PartialType)(CreateCompanyDto) {
+], CreateLocationDto.prototype, "isActive", void 0);
+class UpdateLocationDto extends (0, mapped_types_1.PartialType)(CreateLocationDto) {
 }
-exports.UpdateCompanyDto = UpdateCompanyDto;
-//# sourceMappingURL=company.dto.js.map
+exports.UpdateLocationDto = UpdateLocationDto;
+//# sourceMappingURL=location.dto.js.map

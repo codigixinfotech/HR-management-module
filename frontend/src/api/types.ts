@@ -3,9 +3,35 @@ export interface Company {
   code: string;
   name: string;
   legalName?: string | null;
+  shortName?: string | null;
+  entityType?: string | null;
+  parentCompanyId?: string | null;
+
+  // Registration Details
+  cin?: string | null;
+  gst?: string | null;
+  pan?: string | null;
+  tan?: string | null;
+  msme?: string | null;
+
+  // Location
   country: string;
-  currency: string;
+  state?: string | null;
+  city?: string | null;
   timezone: string;
+  currency: string;
+  registeredAddress?: string | null;
+  pincode?: string | null;
+
+  // Contact Information
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+
+  // Organization
+  businessUnit?: string | null;
+  defaultBranchId?: string | null;
+
   isActive: boolean;
 }
 
@@ -14,9 +40,42 @@ export interface Branch {
   companyId: string;
   code: string;
   name: string;
+  businessUnit?: string | null;
+  branchType?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   city?: string | null;
   state?: string | null;
   country?: string | null;
+  pincode?: string | null;
+  manager?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  timezone?: string | null;
+  workingCalendar?: string | null;
+  shiftGroup?: string | null;
+  maxCapacity?: number | null;
+  isActive: boolean;
+  locations?: Location[];
+}
+
+export interface Location {
+  id: string;
+  branchId: string;
+  code: string;
+  name: string;
+  buildingName?: string | null;
+  floor?: string | null;
+  wing?: string | null;
+  roomCabin?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  pincode?: string | null;
+  gps?: string | null;
+  workingHours?: string | null;
+  shift?: string | null;
   isActive: boolean;
 }
 
@@ -26,8 +85,15 @@ export interface Department {
   branchId?: string | null;
   code: string;
   name: string;
+  type?: string | null;
   parentDepartmentId?: string | null;
   parentDepartment?: { id: string; name: string } | null;
+  manager?: string | null;
+  costCenter?: string | null;
+  headcountCapacity: number;
+  annualBudget?: number | null;
+  effectiveFrom: string;
+  description?: string | null;
   isActive: boolean;
 }
 
@@ -39,10 +105,18 @@ export interface Designation {
   code: string;
   title: string;
   grade?: string | null;
+  jobFamily?: string | null;
+  reportingDesignationId?: string | null;
+  reportingDesignation?: { id: string; title: string } | null;
+  employmentType?: string | null;
+  minSalary?: number | null;
+  maxSalary?: number | null;
+  effectiveFrom: string;
+  description?: string | null;
   isActive: boolean;
 }
 
-export type EmployeeStatus = 'ACTIVE' | 'ON_LEAVE' | 'SUSPENDED' | 'RESIGNED' | 'TERMINATED';
+export type EmployeeStatus = 'ACTIVE' | 'ON_LEAVE' | 'SUSPENDED' | 'RESIGNED' | 'TERMINATED' | 'PROBATION' | 'NOTICE_PERIOD';
 export type EmploymentType = 'PERMANENT' | 'CONTRACT' | 'INTERN' | 'CONSULTANT' | 'PART_TIME';
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
 
@@ -65,6 +139,23 @@ export interface Employee {
   dateOfJoining?: string | null;
   employmentType: EmploymentType;
   status: EmployeeStatus;
+
+  // New enterprise fields
+  businessUnit?: string | null;
+  location?: string | null;
+  grade?: string | null;
+  level?: string | null;
+  shift?: string | null;
+  costCenter?: string | null;
+  employeeCategory?: string | null;
+  workPhone?: string | null;
+  workMode?: string | null;
+  probationPeriod?: string | null;
+  confirmationDate?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  emergencyContactRelationship?: string | null;
+
   company?: { id: string; name: string };
   branch?: { id: string; name: string } | null;
   department?: { id: string; name: string } | null;

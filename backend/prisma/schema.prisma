@@ -35,6 +35,8 @@ enum EmployeeStatus {
   SUSPENDED
   RESIGNED
   TERMINATED
+  PROBATION
+  NOTICE_PERIOD
 }
 
 enum ApprovalStatus {
@@ -230,16 +232,44 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model Company {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  legalName String?
-  country   String
-  currency  String
-  timezone  String   @default("Asia/Kolkata")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                      String                   @id @default(cuid())
+  code                    String                   @unique
+  name                    String
+  legalName               String?
+  shortName               String?
+  entityType              String?
+  parentCompanyId         String?
+  parentCompany           Company?                 @relation("ParentCompany", fields: [parentCompanyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subsidiaries            Company[]                @relation("ParentCompany")
+
+  // Registration Details
+  cin                     String?
+  gst                     String?
+  pan                     String?
+  tan                     String?
+  msme                    String?
+
+  // Location
+  country                 String
+  state                   String?
+  city                    String?
+  timezone                String?                  @default("Asia/Kolkata")
+  currency                String
+  registeredAddress       String?
+  pincode                 String?
+
+  // Contact Information
+  email                   String?
+  phone                   String?
+  website                 String?
+
+  // Organization
+  businessUnit            String?
+  defaultBranchId         String?
+
+  isActive                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 
   branches                Branch[]
   departments             Department[]
@@ -268,26 +298,67 @@ model Company {
 }
 
 model Branch {
-  id           String   @id @default(cuid())
-  companyId    String
-  code         String
-  name         String
-  addressLine1 String?
-  addressLine2 String?
-  city         String?
-  state        String?
-  country      String?
-  pincode      String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  companyId       String
+  code            String
+  name            String
+  businessUnit    String?
+  branchType      String?
+  addressLine1    String?
+  addressLine2    String?
+  city            String?
+  state           String?
+  country         String?
+  pincode         String?
+  manager         String?
+  phone           String?
+  email           String?
+  timezone        String?
+  workingCalendar String?
+  shiftGroup      String?
+  maxCapacity     Int?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   departments Department[]
   employees   Employee[]
+  locations   Location[]
 
   @@unique([companyId, code])
   @@map("branches")
+}
+
+model Location {
+  id           String   @id @default(cuid())
+  branchId     String
+  code         String
+  name         String
+  buildingName String?
+  floor        String?
+  wing         String?
+  roomCabin    String?
+  
+  // Address
+  address      String?
+  city         String?
+  state        String?
+  country      String?
+  pincode      String?
+  
+  // Operations
+  gps          String?
+  workingHours String?
+  shift        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, code])
+  @@map("locations")
 }
 
 model Department {
@@ -296,7 +367,14 @@ model Department {
   branchId           String?
   code               String
   name               String
+  type               String   @default("Functional")
   parentDepartmentId String?
+  manager            String?
+  costCenter         String?
+  headcountCapacity  Int      @default(10)
+  annualBudget       Float?
+  effectiveFrom      DateTime @default(now())
+  description        String?
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -315,20 +393,29 @@ model Department {
 }
 
 model Designation {
-  id           String   @id @default(cuid())
-  companyId    String
-  departmentId String?
-  code         String
-  title        String
-  grade        String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                     String        @id @default(cuid())
+  companyId              String
+  departmentId           String?
+  code                   String
+  title                  String
+  grade                  String?
+  jobFamily              String?
+  reportingDesignationId String?
+  employmentType         String?
+  minSalary              Float?
+  maxSalary              Float?
+  effectiveFrom          DateTime      @default(now())
+  description            String?
+  isActive               Boolean       @default(true)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  department  Department?  @relation(fields: [departmentId], references: [id])
-  employees   Employee[]
-  jobOpenings JobOpening[]
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department           Department?   @relation(fields: [departmentId], references: [id])
+  reportingDesignation Designation?  @relation("DesignationHierarchy", fields: [reportingDesignationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subDesignations      Designation[] @relation("DesignationHierarchy")
+  employees            Employee[]
+  jobOpenings          JobOpening[]
 
   @@unique([companyId, code])
   @@index([departmentId])
@@ -364,6 +451,19 @@ model Employee {
   employmentType EmploymentType @default(PERMANENT)
   status         EmployeeStatus @default(ACTIVE)
   dateOfExit     DateTime?
+
+  businessUnit                 String?
+  location                     String?
+  grade                        String?
+  level                        String?
+  shift                        String?
+  costCenter                   String?
+  employeeCategory             String?
+  workPhone                    String?
+  workMode                     String?   @default("Onsite")
+  probationPeriod              String?
+  confirmationDate             DateTime?
+  emergencyContactRelationship String?
 
   addressLine1 String?
   addressLine2 String?

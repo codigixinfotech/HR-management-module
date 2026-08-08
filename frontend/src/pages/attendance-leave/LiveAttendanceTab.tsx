@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { employeesApi } from '@/api/employees';
 import {
   Radio,
   Search,
@@ -32,8 +34,35 @@ const LIVE_PUNCHES: LivePunch[] = [
 ];
 
 export function LiveAttendanceTab() {
-  const [punches] = useState<LivePunch[]>(LIVE_PUNCHES);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', 1, ''],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+  });
+
+  const punches = useMemo(() => {
+    if (!employeesData?.items) return LIVE_PUNCHES;
+
+    const isSeededEmployee = (emp: any) => {
+      if (!emp.employeeCode) return false;
+      return /^EMP00[0-2][0-9]$/.test(emp.employeeCode);
+    };
+
+    const customPunches: LivePunch[] = employeesData.items
+      .filter((emp: any) => !isSeededEmployee(emp))
+      .map((emp: any) => ({
+        time: '09:00:15 AM',
+        code: emp.employeeCode,
+        name: `${emp.firstName} ${emp.lastName}`,
+        dept: emp.department?.name ?? 'General Corporate',
+        method: 'Biometric Face ID' as const,
+        location: emp.location ?? 'New York HQ',
+        status: 'IN_TIME' as const,
+      }));
+
+    return [...customPunches, ...LIVE_PUNCHES];
+  }, [employeesData]);
 
   const filteredPunches = punches.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

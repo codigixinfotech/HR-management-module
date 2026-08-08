@@ -16,7 +16,10 @@ export class DesignationsService {
   list(companyId?: string) {
     return this.prisma.designation.findMany({
       where: companyId ? { companyId } : undefined,
-      include: { department: { select: { id: true, name: true } } },
+      include: {
+        department: { select: { id: true, name: true } },
+        reportingDesignation: { select: { id: true, title: true } },
+      },
       orderBy: { title: 'asc' },
     });
   }
@@ -24,7 +27,10 @@ export class DesignationsService {
   async findById(id: string) {
     const designation = await this.prisma.designation.findUnique({
       where: { id },
-      include: { department: { select: { id: true, name: true } } },
+      include: {
+        department: { select: { id: true, name: true } },
+        reportingDesignation: { select: { id: true, title: true } },
+      },
     });
     if (!designation) throw new NotFoundException('Designation not found');
     return designation;

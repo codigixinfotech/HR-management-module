@@ -22,9 +22,9 @@ export declare class ShiftAssignmentsController {
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        effectiveFrom: Date;
         employeeId: string;
         shiftTypeId: string;
-        effectiveFrom: Date;
         effectiveTo: Date | null;
     })[]>;
     findOne(id: string): Promise<{
@@ -46,9 +46,9 @@ export declare class ShiftAssignmentsController {
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        effectiveFrom: Date;
         employeeId: string;
         shiftTypeId: string;
-        effectiveFrom: Date;
         effectiveTo: Date | null;
     }>;
     create(dto: CreateShiftAssignmentDto): import("@prisma/client").Prisma.Prisma__ShiftAssignmentClient<{
@@ -70,9 +70,9 @@ export declare class ShiftAssignmentsController {
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        effectiveFrom: Date;
         employeeId: string;
         shiftTypeId: string;
-        effectiveFrom: Date;
         effectiveTo: Date | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdateShiftAssignmentDto): Promise<{
@@ -94,9 +94,9 @@ export declare class ShiftAssignmentsController {
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        effectiveFrom: Date;
         employeeId: string;
         shiftTypeId: string;
-        effectiveFrom: Date;
         effectiveTo: Date | null;
     }>;
     remove(id: string): Promise<{

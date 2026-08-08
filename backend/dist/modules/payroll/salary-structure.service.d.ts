@@ -16,8 +16,8 @@ export declare class SalaryStructureService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        employeeId: string;
         effectiveFrom: Date;
+        employeeId: string;
         salaryComponentId: string;
         monthlyAmount: number;
     })[]>;
@@ -33,8 +33,8 @@ export declare class SalaryStructureService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        employeeId: string;
         effectiveFrom: Date;
+        employeeId: string;
         salaryComponentId: string;
         monthlyAmount: number;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;

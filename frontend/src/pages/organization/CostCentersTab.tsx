@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   ShieldCheck,
@@ -13,6 +14,8 @@ import {
   CheckCircle2,
   Award,
   Building2,
+  Calendar,
+  Briefcase,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,103 +25,281 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { companiesApi, branchesApi, departmentsApi } from '@/api/organization';
+import { employeesApi } from '@/api/employees';
 
 interface CostCenterItem {
+  id: string;
+  companyId: string;
   code: string;
   name: string;
-  dept: string;
-  budget: string;
-  rawBudget: number;
-  manager: string;
-  headcount: number;
-  maxCapacity: number;
-  color: string;
+  type: string; // Department / Project / Production / Support
+  deptId: string;
+  branchId: string;
+  managerId: string;
+  budget: number;
+  capacity: number;
+  effectiveFrom: string;
+  status: 'Active' | 'Inactive';
+  description: string;
 }
 
 interface PayGradeItem {
-  grade: string;
-  ctcRange: string;
-  notice: string;
-  probation: string;
-  level: string;
-  badgeColor: string;
+  id: string;
+  companyId: string;
+  gradeCode: string;
+  gradeName: string;
+  level: string; // L1, L2, etc.
+  jobFamily: string;
+  minSalary: number;
+  maxSalary: number;
+  effectiveFrom: string;
+  status: 'Active' | 'Inactive';
+  description: string;
 }
 
 const INITIAL_COST_CENTERS: CostCenterItem[] = [
-  { code: 'CC-101', name: 'Corporate HQ - HR & Admin', dept: 'Human Resources', budget: '₹4,50,00,000', rawBudget: 45000000, manager: 'Admin User (CPO)', headcount: 14, maxCapacity: 16, color: 'bg-violet-500' },
-  { code: 'CC-102', name: 'R&D Product Engineering', dept: 'Engineering', budget: '₹12,80,00,000', rawBudget: 128000000, manager: 'Rajesh Sharma (CTO)', headcount: 45, maxCapacity: 50, color: 'bg-primary' },
-  { code: 'CC-103', name: 'Global Sales & Marketing', dept: 'Sales', budget: '₹8,20,00,000', rawBudget: 82000000, manager: 'Priya Verma (CCO)', headcount: 28, maxCapacity: 35, color: 'bg-amber-500' },
-  { code: 'CC-104', name: 'Plant Operations Pune', dept: 'Operations', budget: '₹15,40,00,000', rawBudget: 154000000, manager: 'Amit Patel (CFO)', headcount: 61, maxCapacity: 70, color: 'bg-emerald-500' },
+  { id: '1', companyId: '', code: 'CC-101', name: 'Corporate HQ - HR & Admin', type: 'Support', deptId: '', branchId: '', managerId: '', budget: 45000000, capacity: 16, effectiveFrom: '2026-04-01', status: 'Active', description: 'Headquarters HR & Administrative staff expenses' },
+  { id: '2', companyId: '', code: 'CC-102', name: 'R&D Product Engineering', type: 'Department', deptId: '', branchId: '', managerId: '', budget: 128000000, capacity: 50, effectiveFrom: '2026-04-01', status: 'Active', description: 'Core product research, development, and engineering expenses' },
+  { id: '3', companyId: '', code: 'CC-103', name: 'Global Sales & Marketing', type: 'Project', deptId: '', branchId: '', managerId: '', budget: 82000000, capacity: 35, effectiveFrom: '2026-04-01', status: 'Active', description: 'Sales and marketing outreach expenses' },
+  { id: '4', companyId: '', code: 'CC-104', name: 'Plant Operations Pune', type: 'Production', deptId: '', branchId: '', managerId: '', budget: 154000000, capacity: 70, effectiveFrom: '2026-04-01', status: 'Active', description: 'Pune plant manufacturing and maintenance operations' },
 ];
 
 const INITIAL_PAY_GRADES: PayGradeItem[] = [
-  { grade: 'Executive Band (E1 - E4)', ctcRange: '₹4,00,000 - ₹12,00,000', notice: '30 Days', probation: '6 Months', level: 'Junior - Mid Level', badgeColor: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
-  { grade: 'Managerial Band (M1 - M3)', ctcRange: '₹14,00,000 - ₹28,00,000', notice: '60 Days', probation: '3 Months', level: 'Managerial', badgeColor: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
-  { grade: 'Leadership Band (L1 - L2)', ctcRange: '₹32,00,000 - ₹65,00,000', notice: '90 Days', probation: 'Confirmed', level: 'Senior Leadership / VP', badgeColor: 'bg-violet-500/10 text-violet-600 border-violet-500/20' },
+  { id: '1', companyId: '', gradeCode: 'E1', gradeName: 'Executive E1', level: 'L1', jobFamily: 'Entry / Junior', minSalary: 25000, maxSalary: 40000, effectiveFrom: '2026-04-01', status: 'Active', description: 'Entry level engineers and coordinators' },
+  { id: '2', companyId: '', gradeCode: 'E2', gradeName: 'Executive E2', level: 'L2', jobFamily: 'Engineering', minSalary: 40000, maxSalary: 60000, effectiveFrom: '2026-04-01', status: 'Active', description: 'Professional level software developers and analysts' },
+  { id: '3', companyId: '', gradeCode: 'M1', gradeName: 'Manager M1', level: 'L3', jobFamily: 'Management', minSalary: 60000, maxSalary: 90000, effectiveFrom: '2026-04-01', status: 'Active', description: 'Department leads and project managers' },
+  { id: '4', companyId: '', gradeCode: 'M2', gradeName: 'Senior Manager M2', level: 'L4', jobFamily: 'Management', minSalary: 90000, maxSalary: 150000, effectiveFrom: '2026-04-01', status: 'Active', description: 'Program managers and group heads' },
 ];
 
 export function CostCentersTab() {
   const [costCenters, setCostCenters] = useState<CostCenterItem[]>(INITIAL_COST_CENTERS);
-  const [payGrades] = useState<PayGradeItem[]>(INITIAL_PAY_GRADES);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [payGrades, setPayGrades] = useState<PayGradeItem[]>(INITIAL_PAY_GRADES);
+  const [searchCcQuery, setSearchCcQuery] = useState('');
+  const [searchGradeQuery, setSearchGradeQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
 
-  // Dialog State
+  // Load backend dropdown models
+  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
+  const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: () => employeesApi.list({ page: 1, pageSize: 200 }) });
+
+  const companyIdForLists = companies?.[0]?.id ?? '';
+  const { data: branches } = useQuery({
+    queryKey: ['branches', companyIdForLists],
+    queryFn: () => branchesApi.list(companyIdForLists),
+    enabled: !!companyIdForLists,
+  });
+  const { data: departments } = useQuery({
+    queryKey: ['departments', companyIdForLists],
+    queryFn: () => departmentsApi.list(companyIdForLists),
+    enabled: !!companyIdForLists,
+  });
+
+  // Align static dataset IDs with database relations once loaded
+  useEffect(() => {
+    if (companies && companies.length > 0 && branches && departments && employees?.items) {
+      setCostCenters(prev =>
+        prev.map((cc, idx) => {
+          if (cc.companyId) return cc;
+          
+          const companyId = companies[0].id;
+          const branchId = branches[0]?.id ?? '';
+          
+          let deptId = '';
+          if (idx === 0) {
+            deptId = departments.find((d: any) => d.name.includes('HR') || d.name.includes('Resources'))?.id ?? '';
+          } else if (idx === 1) {
+            deptId = departments.find((d: any) => d.name.includes('Engineering') || d.name.includes('Technology'))?.id ?? '';
+          } else if (idx === 2) {
+            deptId = departments.find((d: any) => d.name.includes('Sales') || d.name.includes('Marketing'))?.id ?? '';
+          } else {
+            deptId = departments[0]?.id ?? '';
+          }
+
+          let managerId = '';
+          if (idx === 1) {
+            managerId = employees.items.find((e: any) => e.lastName === 'Sharma' || e.firstName === 'Rajesh')?.id ?? '';
+          } else if (idx === 2) {
+            managerId = employees.items.find((e: any) => e.lastName === 'Verma' || e.firstName === 'Priya')?.id ?? '';
+          } else if (idx === 3) {
+            managerId = employees.items.find((e: any) => e.lastName === 'Patel' || e.firstName === 'Amit')?.id ?? '';
+          } else {
+            managerId = employees.items[0]?.id ?? '';
+          }
+
+          return { ...cc, companyId, branchId, deptId, managerId };
+        })
+      );
+
+      setPayGrades(prev =>
+        prev.map(g => {
+          if (g.companyId) return g;
+          return { ...g, companyId: companies[0].id };
+        })
+      );
+    }
+  }, [companies, branches, departments, employees]);
+
+  // Headcount calculation dynamically mapped from real Employee Master list
+  const headcountMap = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!employees?.items) return counts;
+    employees.items.forEach((emp: any) => {
+      if (emp.departmentId) {
+        counts[emp.departmentId] = (counts[emp.departmentId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [employees]);
+
+  // Employee count matching job grades dynamically
+  const gradeCountMap = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!employees?.items) return counts;
+    employees.items.forEach((emp: any) => {
+      if (emp.grade) {
+        counts[emp.grade] = (counts[emp.grade] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [employees]);
+
+  // Cost Center Dialog Form State
   const [isCcOpen, setIsCcOpen] = useState(false);
   const [editingCc, setEditingCc] = useState<CostCenterItem | null>(null);
-  const [formCcCode, setFormCcCode] = useState('');
-  const [formCcName, setFormCcName] = useState('');
-  const [formCcDept, setFormCcDept] = useState('');
-  const [formCcBudget, setFormCcBudget] = useState('');
-  const [formCcManager, setFormCcManager] = useState('');
+  
+  const [ccCompanyId, setCcCompanyId] = useState('');
+  const [ccCode, setCcCode] = useState('');
+  const [ccName, setCcName] = useState('');
+  const [ccType, setCcType] = useState('Department');
+  const [ccDeptId, setCcDeptId] = useState('');
+  const [ccBranchId, setCcBranchId] = useState('');
+  const [ccManagerId, setCcManagerId] = useState('');
+  const [ccBudget, setCcBudget] = useState(25000000);
+  const [ccCapacity, setCcCapacity] = useState(15);
+  const [ccEffectiveFrom, setCcEffectiveFrom] = useState('');
+  const [ccStatus, setCcStatus] = useState<'Active' | 'Inactive'>('Active');
+  const [ccDescription, setCcDescription] = useState('');
 
+  // Grade Dialog Form State
+  const [isGradeOpen, setIsGradeOpen] = useState(false);
+  const [editingGrade, setEditingGrade] = useState<PayGradeItem | null>(null);
+
+  const [gradeCompanyId, setGradeCompanyId] = useState('');
+  const [gradeCode, setGradeCode] = useState('');
+  const [gradeName, setGradeName] = useState('');
+  const [gradeLevel, setGradeLevel] = useState('L1');
+  const [gradeJobFamily, setGradeJobFamily] = useState('');
+  const [gradeMinSalary, setGradeMinSalary] = useState(30000);
+  const [gradeMaxSalary, setGradeMaxSalary] = useState(60000);
+  const [gradeEffectiveFrom, setGradeEffectiveFrom] = useState('');
+  const [gradeStatus, setGradeStatus] = useState<'Active' | 'Inactive'>('Active');
+  const [gradeDescription, setGradeDescription] = useState('');
+
+  // Currency Formatter
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(val);
+  };
+
+  // Salary scale formatting (e.g. ₹25K–₹40K)
+  const formatSalaryRange = (min: number, max: number) => {
+    const formatK = (val: number) => {
+      if (val >= 100000) {
+        return `₹${(val / 100000).toFixed(0)}L`;
+      }
+      if (val >= 1000) {
+        return `₹${(val / 1000).toFixed(0)}K`;
+      }
+      return `₹${val}`;
+    };
+    return `${formatK(min)}–${formatK(max)}`;
+  };
+
+  // Cost Center Actions
   const openAddCc = () => {
     setEditingCc(null);
-    setFormCcCode('');
-    setFormCcName('');
-    setFormCcDept('Engineering');
-    setFormCcBudget('₹2,50,00,000');
-    setFormCcManager('');
+    setCcCompanyId(companies?.[0]?.id ?? '');
+    setCcCode('');
+    setCcName('');
+    setCcType('Department');
+    setCcDeptId(departments?.[0]?.id ?? '');
+    setCcBranchId(branches?.[0]?.id ?? '');
+    setCcManagerId(employees?.items?.[0]?.id ?? '');
+    setCcBudget(25000000);
+    setCcCapacity(15);
+    setCcEffectiveFrom(new Date().toISOString().split('T')[0]);
+    setCcStatus('Active');
+    setCcDescription('');
     setIsCcOpen(true);
   };
 
   const openEditCc = (item: CostCenterItem) => {
     setEditingCc(item);
-    setFormCcCode(item.code);
-    setFormCcName(item.name);
-    setFormCcDept(item.dept);
-    setFormCcBudget(item.budget);
-    setFormCcManager(item.manager);
+    setCcCompanyId(item.companyId);
+    setCcCode(item.code);
+    setCcName(item.name);
+    setCcType(item.type);
+    setCcDeptId(item.deptId);
+    setCcBranchId(item.branchId);
+    setCcManagerId(item.managerId);
+    setCcBudget(item.budget);
+    setCcCapacity(item.capacity);
+    setCcEffectiveFrom(item.effectiveFrom);
+    setCcStatus(item.status);
+    setCcDescription(item.description);
     setIsCcOpen(true);
   };
 
   const handleSaveCc = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formCcCode || !formCcName) {
-      toast.error('Code and Name are required');
+    if (!ccName) {
+      toast.error('Cost Center Name is required');
       return;
     }
+    const nextCode = ccCode || 'CC-' + String(costCenters.length + 101);
 
     if (editingCc) {
       setCostCenters(prev =>
         prev.map(c =>
-          c.code === editingCc.code
-            ? { ...c, code: formCcCode, name: formCcName, dept: formCcDept, budget: formCcBudget, manager: formCcManager }
-            : c,
-        ),
+          c.id === editingCc.id
+            ? {
+                ...c,
+                companyId: ccCompanyId,
+                code: nextCode,
+                name: ccName,
+                type: ccType,
+                deptId: ccDeptId,
+                branchId: ccBranchId,
+                managerId: ccManagerId,
+                budget: Number(ccBudget),
+                capacity: Number(ccCapacity),
+                effectiveFrom: ccEffectiveFrom,
+                status: ccStatus,
+                description: ccDescription,
+              }
+            : c
+        )
       );
       toast.success('Cost Center updated successfully');
     } else {
       const newCc: CostCenterItem = {
-        code: formCcCode,
-        name: formCcName,
-        dept: formCcDept,
-        budget: formCcBudget,
-        rawBudget: 25000000,
-        manager: formCcManager || 'Unassigned',
-        headcount: 10,
-        maxCapacity: 15,
-        color: 'bg-primary',
+        id: String(Date.now()),
+        companyId: ccCompanyId,
+        code: nextCode,
+        name: ccName,
+        type: ccType,
+        deptId: ccDeptId,
+        branchId: ccBranchId,
+        managerId: ccManagerId,
+        budget: Number(ccBudget),
+        capacity: Number(ccCapacity),
+        effectiveFrom: ccEffectiveFrom || new Date().toISOString().split('T')[0],
+        status: ccStatus,
+        description: ccDescription,
       };
       setCostCenters(prev => [...prev, newCc]);
       toast.success('Cost Center created successfully');
@@ -126,28 +307,140 @@ export function CostCentersTab() {
     setIsCcOpen(false);
   };
 
-  const handleDeleteCc = (code: string) => {
-    setCostCenters(prev => prev.filter(c => c.code !== code));
+  const handleDeleteCc = (id: string) => {
+    setCostCenters(prev => prev.filter(c => c.id !== id));
     toast.success('Cost Center deleted');
   };
 
+  // Grade Actions
+  const openAddGrade = () => {
+    setEditingGrade(null);
+    setGradeCompanyId(companies?.[0]?.id ?? '');
+    setGradeCode('');
+    setGradeName('');
+    setGradeLevel('L1');
+    setGradeJobFamily('Engineering');
+    setGradeMinSalary(30000);
+    setGradeMaxSalary(60000);
+    setGradeEffectiveFrom(new Date().toISOString().split('T')[0]);
+    setGradeStatus('Active');
+    setGradeDescription('');
+    setIsGradeOpen(true);
+  };
+
+  const openEditGrade = (item: PayGradeItem) => {
+    setEditingGrade(item);
+    setGradeCompanyId(item.companyId);
+    setGradeCode(item.gradeCode);
+    setGradeName(item.gradeName);
+    setGradeLevel(item.level);
+    setGradeJobFamily(item.jobFamily);
+    setGradeMinSalary(item.minSalary);
+    setGradeMaxSalary(item.maxSalary);
+    setGradeEffectiveFrom(item.effectiveFrom);
+    setGradeStatus(item.status);
+    setGradeDescription(item.description);
+    setIsGradeOpen(true);
+  };
+
+  const handleSaveGrade = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gradeCode || !gradeName) {
+      toast.error('Grade Code and Grade Name are required');
+      return;
+    }
+
+    if (editingGrade) {
+      setPayGrades(prev =>
+        prev.map(g =>
+          g.id === editingGrade.id
+            ? {
+                ...g,
+                companyId: gradeCompanyId,
+                gradeCode,
+                gradeName,
+                level: gradeLevel,
+                jobFamily: gradeJobFamily,
+                minSalary: Number(gradeMinSalary),
+                maxSalary: Number(gradeMaxSalary),
+                effectiveFrom: gradeEffectiveFrom,
+                status: gradeStatus,
+                description: gradeDescription,
+              }
+            : g
+        )
+      );
+      toast.success('Job Grade updated successfully');
+    } else {
+      const newGrade: PayGradeItem = {
+        id: String(Date.now()),
+        companyId: gradeCompanyId,
+        gradeCode,
+        gradeName,
+        level: gradeLevel,
+        jobFamily: gradeJobFamily,
+        minSalary: Number(gradeMinSalary),
+        maxSalary: Number(gradeMaxSalary),
+        effectiveFrom: gradeEffectiveFrom || new Date().toISOString().split('T')[0],
+        status: gradeStatus,
+        description: gradeDescription,
+      };
+      setPayGrades(prev => [...prev, newGrade]);
+      toast.success('Job Grade created successfully');
+    }
+    setIsGradeOpen(false);
+  };
+
+  const handleDeleteGrade = (id: string) => {
+    setPayGrades(prev => prev.filter(g => g.id !== id));
+    toast.success('Job Grade deleted');
+  };
+
+  // Search/Filter calculations
   const filteredCostCenters = useMemo(() => {
-    if (!searchQuery.trim()) return costCenters;
-    const q = searchQuery.toLowerCase();
+    if (!searchCcQuery.trim()) return costCenters;
+    const q = searchCcQuery.toLowerCase();
     return costCenters.filter(
-      c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.dept.toLowerCase().includes(q) || c.manager.toLowerCase().includes(q),
+      c =>
+        c.name.toLowerCase().includes(q) ||
+        c.code.toLowerCase().includes(q) ||
+        c.type.toLowerCase().includes(q)
     );
-  }, [costCenters, searchQuery]);
+  }, [costCenters, searchCcQuery]);
+
+  const filteredPayGrades = useMemo(() => {
+    if (!searchGradeQuery.trim()) return payGrades;
+    const q = searchGradeQuery.toLowerCase();
+    return payGrades.filter(
+      g =>
+        g.gradeName.toLowerCase().includes(q) ||
+        g.gradeCode.toLowerCase().includes(q) ||
+        g.level.toLowerCase().includes(q) ||
+        g.jobFamily.toLowerCase().includes(q)
+    );
+  }, [payGrades, searchGradeQuery]);
+
+  // Dashboard Stats Calculations
+  const totalBudget = useMemo(() => {
+    return costCenters.reduce((sum, c) => sum + c.budget, 0);
+  }, [costCenters]);
+
+  const formattedTotalBudget = useMemo(() => {
+    if (totalBudget >= 10000000) {
+      return `₹${(totalBudget / 10000000).toFixed(1)} Cr`;
+    }
+    return `₹${(totalBudget / 100000).toFixed(0)} L`;
+  }, [totalBudget]);
 
   return (
     <div className="space-y-6">
-      {/* ── 1. Top Performance & Financial KPI Cards ── */}
+      {/* ── Top Performance & Financial KPI Cards ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Cost Centers</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">{costCenters.length} Accounts</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Cost Centers</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{costCenters.length} Accounts</p>
               <p className="text-[10px] text-emerald-600 font-semibold mt-1">100% Fully Allocated</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -159,9 +452,9 @@ export function CostCentersTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Annual Budget</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">₹40.9 Cr</p>
-              <p className="text-[10px] text-primary font-semibold mt-1">FY 2026-27 Approved</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Annual Budget</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{formattedTotalBudget}</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Approved & Verified</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
               <DollarSign className="h-5 w-5" />
@@ -172,9 +465,9 @@ export function CostCentersTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pay Grade Scale Bands</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">{payGrades.length} Tiers</p>
-              <p className="text-[10px] text-violet-600 font-semibold mt-1">E1 - L2 Bands Active</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Grade Bands</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{payGrades.length} Tiers</p>
+              <p className="text-[10px] text-violet-600 font-semibold mt-1">E1 - L4 Levels Configured</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
               <Award className="h-5 w-5" />
@@ -186,7 +479,7 @@ export function CostCentersTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Budget Variance</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">-2.8%</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">-2.8%</p>
               <p className="text-[10px] text-amber-600 font-semibold mt-1">Under Operating Budget</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 shrink-0">
@@ -196,7 +489,7 @@ export function CostCentersTab() {
         </Card>
       </div>
 
-      {/* ── 2. Cost Centers Management Panel ── */}
+      {/* ── 1. Cost Centers Management Panel ── */}
       <Card className="shadow-xs border-border/80">
         <CardHeader className="pb-3 border-b border-border/60">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -234,8 +527,8 @@ export function CostCentersTab() {
                 <Input
                   type="text"
                   placeholder="Filter cost centers..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  value={searchCcQuery}
+                  onChange={e => setSearchCcQuery(e.target.value)}
                   className="h-8 pl-8 text-xs bg-background"
                 />
               </div>
@@ -247,66 +540,174 @@ export function CostCentersTab() {
                     <Plus className="h-3.5 w-3.5" /> Add Cost Center
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{editingCc ? 'Edit Cost Center' : 'Create New Cost Center'}</DialogTitle>
                   </DialogHeader>
-                  <form className="space-y-4" onSubmit={handleSaveCc}>
+                  <form className="space-y-4 text-xs" onSubmit={handleSaveCc}>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Cost Center Code</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Company Entity *</Label>
+                        <Select value={ccCompanyId} onValueChange={setCcCompanyId}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Company" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {companies?.map((c: any) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs">
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Cost Center Code (Auto Generated) *</Label>
                         <Input
                           placeholder="e.g. CC-105"
-                          value={formCcCode}
-                          onChange={e => setFormCcCode(e.target.value)}
+                          value={ccCode}
+                          onChange={e => setCcCode(e.target.value)}
                           className="h-9 text-xs font-mono"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Department</Label>
-                        <Select value={formCcDept} onValueChange={setFormCcDept}>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Cost Center Name *</Label>
+                        <Input
+                          placeholder="e.g. R&D Infrastructure"
+                          value={ccName}
+                          onChange={e => setCcName(e.target.value)}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Cost Center Type *</Label>
+                        <Select value={ccType} onValueChange={setCcType}>
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select dept" />
+                            <SelectValue placeholder="Select Type" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Engineering" className="text-xs">Engineering</SelectItem>
-                            <SelectItem value="Human Resources" className="text-xs">Human Resources</SelectItem>
-                            <SelectItem value="Sales" className="text-xs">Sales</SelectItem>
-                            <SelectItem value="Operations" className="text-xs">Operations</SelectItem>
-                            <SelectItem value="Finance" className="text-xs">Finance</SelectItem>
+                            <SelectItem value="Department" className="text-xs">Department</SelectItem>
+                            <SelectItem value="Project" className="text-xs">Project</SelectItem>
+                            <SelectItem value="Production" className="text-xs">Production</SelectItem>
+                            <SelectItem value="Support" className="text-xs">Support</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Cost Center Title</Label>
-                      <Input
-                        placeholder="e.g. R&D Cloud Infrastructure"
-                        value={formCcName}
-                        onChange={e => setFormCcName(e.target.value)}
-                        className="h-9 text-xs"
-                      />
-                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Annual Budget</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Mapped Department *</Label>
+                        <Select value={ccDeptId} onValueChange={setCcDeptId}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments?.map((d: any) => (
+                              <SelectItem key={d.id} value={d.id} className="text-xs">
+                                {d.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Branch / Location *</Label>
+                        <Select value={ccBranchId} onValueChange={setCcBranchId}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Location" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {branches?.map((b: any) => (
+                              <SelectItem key={b.id} value={b.id} className="text-xs">
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Cost Center Head *</Label>
+                        <Select value={ccManagerId} onValueChange={setCcManagerId}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Responsible Head" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {employees?.items?.map((emp: any) => (
+                              <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                                {emp.firstName} {emp.lastName} ({emp.designation?.title ?? 'Personnel'})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Annual Allocation Budget (INR) *</Label>
                         <Input
-                          placeholder="e.g. ₹5,00,00,000"
-                          value={formCcBudget}
-                          onChange={e => setFormCcBudget(e.target.value)}
+                          type="number"
+                          value={ccBudget}
+                          onChange={e => setCcBudget(Number(e.target.value))}
                           className="h-9 text-xs font-mono"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Cost Center Head</Label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Headcount Capacity Limit *</Label>
                         <Input
-                          placeholder="Manager Name"
-                          value={formCcManager}
-                          onChange={e => setFormCcManager(e.target.value)}
+                          type="number"
+                          value={ccCapacity}
+                          onChange={e => setCcCapacity(Number(e.target.value))}
+                          className="h-9 text-xs font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Effective From Date *</Label>
+                        <Input
+                          type="date"
+                          value={ccEffectiveFrom}
+                          onChange={e => setCcEffectiveFrom(e.target.value)}
                           className="h-9 text-xs"
                         />
                       </div>
                     </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Status *</Label>
+                      <Select value={ccStatus} onValueChange={(v: any) => setCcStatus(v)}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Select Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Active" className="text-xs">Active</SelectItem>
+                          <SelectItem value="Inactive" className="text-xs">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Description / Notes</Label>
+                      <textarea
+                        rows={2}
+                        value={ccDescription}
+                        onChange={e => setCcDescription(e.target.value)}
+                        placeholder="Provide details about the budget scope..."
+                        className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </div>
+
                     <DialogFooter>
                       <Button type="submit" size="sm" className="text-xs">
                         {editingCc ? 'Save Changes' : 'Create Cost Center'}
@@ -323,45 +724,68 @@ export function CostCentersTab() {
           {displayMode === 'grid' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
               {filteredCostCenters.map(cc => {
-                const percentage = Math.round((cc.headcount / cc.maxCapacity) * 100);
+                const currentStaffCount = headcountMap[cc.deptId] || 0;
+                const percentage = cc.capacity > 0 ? Math.round((currentStaffCount / cc.capacity) * 100) : 0;
+                
+                // Mapped department name
+                const deptName = departments?.find((d: any) => d.id === cc.deptId)?.name ?? cc.type;
+                // Mapped manager name
+                const head = employees?.items?.find((e: any) => e.id === cc.managerId);
+                const headName = head ? `${head.firstName} ${head.lastName}` : 'Unassigned';
 
                 return (
                   <div
-                    key={cc.code}
+                    key={cc.id}
                     className="flex flex-col justify-between rounded-xl border border-border/80 bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md group"
                   >
                     <div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className={`h-2.5 w-2.5 rounded-full ${cc.color}`} />
+                          <span className={`h-2.5 w-2.5 rounded-full ${cc.status === 'Active' ? 'bg-primary' : 'bg-muted-foreground'}`} />
                           <span className="font-mono text-xs font-semibold text-primary">{cc.code}</span>
                           <Badge variant="outline" className="text-[10px] font-semibold">
-                            {cc.dept}
+                            {deptName}
                           </Badge>
+                          {cc.status === 'Inactive' && (
+                            <Badge variant="destructive" className="text-[9px] h-4 py-0 font-medium">Inactive</Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditCc(cc)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteCc(cc.code)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteCc(cc.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
 
-                      <h3 className=" text-base font-semibold text-foreground mt-2 group-hover:text-primary transition-colors">
+                      <h3 className="text-base font-semibold text-foreground mt-2 group-hover:text-primary transition-colors">
                         {cc.name}
                       </h3>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                        <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span>Head: <strong className="text-foreground">{cc.manager}</strong></span>
-                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-2 mt-2 text-[11px] text-muted-foreground">
+                        <p className="flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span>Head: <strong className="text-foreground">{headName}</strong></span>
+                        </p>
+                        <p className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span>Effective: <strong className="text-foreground">{cc.effectiveFrom}</strong></span>
+                        </p>
+                      </div>
+                      
+                      {cc.description && (
+                        <p className="text-[11px] text-muted-foreground bg-muted/40 rounded-lg p-2 mt-2.5 italic">
+                          {cc.description}
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-4 space-y-3 border-t border-border/50 pt-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Annual Allocation</span>
-                        <span className="font-mono font-semibold text-sm text-foreground">{cc.budget}</span>
+                        <span className="font-mono font-semibold text-sm text-foreground">{formatCurrency(cc.budget)}</span>
                       </div>
 
                       {/* Headcount Consumption Progress Bar */}
@@ -371,11 +795,11 @@ export function CostCentersTab() {
                             <Users className="h-3 w-3" /> Staff Allocation
                           </span>
                           <span className="font-mono font-semibold text-foreground">
-                            {cc.headcount} / {cc.maxCapacity} Staff ({percentage}%)
+                            {currentStaffCount} / {cc.capacity} Staff ({percentage}%)
                           </span>
                         </div>
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                          <div className={`h-full rounded-full ${cc.color}`} style={{ width: `${percentage}%` }} />
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(percentage, 100)}%` }} />
                         </div>
                       </div>
                     </div>
@@ -391,86 +815,271 @@ export function CostCentersTab() {
                 <TableRow>
                   <TableHead className="text-xs">CC Code</TableHead>
                   <TableHead className="text-xs">Cost Center Name</TableHead>
-                  <TableHead className="text-xs">Department</TableHead>
+                  <TableHead className="text-xs">Type</TableHead>
+                  <TableHead className="text-xs">Mapped Department</TableHead>
                   <TableHead className="text-xs">Annual Budget</TableHead>
-                  <TableHead className="text-xs">Cost Center Head</TableHead>
+                  <TableHead className="text-xs">Responsible Head</TableHead>
                   <TableHead className="text-xs">Headcount</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
                   <TableHead className="text-right text-xs">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCostCenters.map(cc => (
-                  <TableRow key={cc.code} className="hover:bg-muted/40 transition-colors">
-                    <TableCell className="font-mono text-xs font-semibold text-primary">{cc.code}</TableCell>
-                    <TableCell className="font-semibold text-xs text-foreground">{cc.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{cc.dept}</TableCell>
-                    <TableCell className="text-xs font-mono font-semibold text-foreground">{cc.budget}</TableCell>
-                    <TableCell className="text-xs font-medium">{cc.manager}</TableCell>
-                    <TableCell className="text-xs font-mono">{cc.headcount} / {cc.maxCapacity} Staff</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditCc(cc)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteCc(cc.code)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredCostCenters.map(cc => {
+                  const currentStaffCount = headcountMap[cc.deptId] || 0;
+                  const deptName = departments?.find((d: any) => d.id === cc.deptId)?.name ?? cc.type;
+                  const head = employees?.items?.find((e: any) => e.id === cc.managerId);
+                  const headName = head ? `${head.firstName} ${head.lastName}` : 'Unassigned';
+
+                  return (
+                    <TableRow key={cc.id} className="hover:bg-muted/40 transition-colors">
+                      <TableCell className="font-mono text-xs font-semibold text-primary">{cc.code}</TableCell>
+                      <TableCell className="font-semibold text-xs text-foreground">{cc.name}</TableCell>
+                      <TableCell className="text-xs font-medium text-muted-foreground">{cc.type}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{deptName}</TableCell>
+                      <TableCell className="text-xs font-mono font-semibold text-foreground">{formatCurrency(cc.budget)}</TableCell>
+                      <TableCell className="text-xs font-medium">{headName}</TableCell>
+                      <TableCell className="text-xs font-mono">{currentStaffCount} / {cc.capacity} Staff</TableCell>
+                      <TableCell className="text-xs">
+                        <Badge variant={cc.status === 'Active' ? 'default' : 'secondary'} className="text-[10px] font-semibold py-0.5">
+                          {cc.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditCc(cc)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteCc(cc.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
 
-      {/* ── 3. Compensation Scale & Pay Grade Framework Panel ── */}
+      {/* ── 2. Job Grades & Level Bands Section ── */}
       <Card className="shadow-xs border-border/80">
         <CardHeader className="pb-3 border-b border-border/60">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Award className="h-4 w-4 text-amber-500" /> Compensation Band & Pay Grade Framework
+                <Award className="h-4 w-4 text-violet-500" /> Job Grades & Level Bands
               </CardTitle>
               <CardDescription className="text-xs">
-                Standardized salary CTC bands, probation terms & notice periods per executive level
+                Standardized salary Scale CTC bands, job level hierarchies, and reporting category assignments
               </CardDescription>
             </div>
-            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => alert('Add Pay Grade Band clicked')}>
-              <Plus className="h-3.5 w-3.5" /> Add Grade Band
-            </Button>
+            
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="relative w-48 sm:w-60">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Filter grades..."
+                  value={searchGradeQuery}
+                  onChange={e => setSearchGradeQuery(e.target.value)}
+                  className="h-8 pl-8 text-xs bg-background"
+                />
+              </div>
+
+              {/* Add Grade Dialog */}
+              <Dialog open={isGradeOpen} onOpenChange={setIsGradeOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openAddGrade}>
+                    <Plus className="h-3.5 w-3.5" /> Add Job Grade
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingGrade ? 'Edit Job Grade' : 'Create New Job Grade'}</DialogTitle>
+                  </DialogHeader>
+                  <form className="space-y-4 text-xs" onSubmit={handleSaveGrade}>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Company Entity *</Label>
+                      <Select value={gradeCompanyId} onValueChange={setGradeCompanyId}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Select Company" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies?.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id} className="text-xs">
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Grade Code *</Label>
+                        <Input
+                          placeholder="e.g. E2"
+                          value={gradeCode}
+                          onChange={e => setGradeCode(e.target.value)}
+                          className="h-9 text-xs font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Grade Name *</Label>
+                        <Input
+                          placeholder="e.g. Executive E2"
+                          value={gradeName}
+                          onChange={e => setGradeName(e.target.value)}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Job Level *</Label>
+                        <Select value={gradeLevel} onValueChange={setGradeLevel}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="L1" className="text-xs font-semibold">Level 1 (L1)</SelectItem>
+                            <SelectItem value="L2" className="text-xs font-semibold">Level 2 (L2)</SelectItem>
+                            <SelectItem value="L3" className="text-xs font-semibold">Level 3 (L3)</SelectItem>
+                            <SelectItem value="L4" className="text-xs font-semibold">Level 4 (L4)</SelectItem>
+                            <SelectItem value="L5" className="text-xs font-semibold">Level 5 (L5)</SelectItem>
+                            <SelectItem value="L6" className="text-xs font-semibold">Level 6 (L6)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Job Family</Label>
+                        <Input
+                          placeholder="e.g. Engineering / HR"
+                          value={gradeJobFamily}
+                          onChange={e => setGradeJobFamily(e.target.value)}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Minimum Salary (CTC) *</Label>
+                        <Input
+                          type="number"
+                          value={gradeMinSalary}
+                          onChange={e => setGradeMinSalary(Number(e.target.value))}
+                          className="h-9 text-xs font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Maximum Salary (CTC) *</Label>
+                        <Input
+                          type="number"
+                          value={gradeMaxSalary}
+                          onChange={e => setGradeMaxSalary(Number(e.target.value))}
+                          className="h-9 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Effective From *</Label>
+                        <Input
+                          type="date"
+                          value={gradeEffectiveFrom}
+                          onChange={e => setGradeEffectiveFrom(e.target.value)}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Status *</Label>
+                        <Select value={gradeStatus} onValueChange={(v: any) => setGradeStatus(v)}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Active" className="text-xs">Active</SelectItem>
+                            <SelectItem value="Inactive" className="text-xs">Inactive</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Description</Label>
+                      <textarea
+                        rows={2}
+                        value={gradeDescription}
+                        onChange={e => setGradeDescription(e.target.value)}
+                        placeholder="Write description about compensation parameters..."
+                        className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </div>
+
+                    <DialogFooter>
+                      <Button type="submit" size="sm" className="text-xs">
+                        {editingGrade ? 'Save Changes' : 'Create Job Grade'}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs">Grade Level Band</TableHead>
-                <TableHead className="text-xs">CTC Scale Range</TableHead>
-                <TableHead className="text-xs">Notice Period</TableHead>
-                <TableHead className="text-xs">Probation Terms</TableHead>
-                <TableHead className="text-xs">Level Category</TableHead>
+                <TableHead className="text-xs">Grade Code</TableHead>
+                <TableHead className="text-xs">Grade Name</TableHead>
+                <TableHead className="text-xs">Level Hierarchy</TableHead>
+                <TableHead className="text-xs">Job Family</TableHead>
+                <TableHead className="text-xs">Salary CTC Range</TableHead>
+                <TableHead className="text-xs text-center">Active Employees</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
                 <TableHead className="text-right text-xs">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payGrades.map((g, idx) => (
-                <TableRow key={idx} className="hover:bg-muted/40 transition-colors">
-                  <TableCell className="font-semibold text-xs text-foreground">{g.grade}</TableCell>
-                  <TableCell className="text-xs font-mono font-semibold text-primary">{g.ctcRange}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground font-semibold">{g.notice}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{g.probation}</TableCell>
-                  <TableCell className="text-xs">
-                    <Badge className={`text-[10px] font-semibold ${g.badgeColor}`}>
-                      {g.level}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredPayGrades.map(g => {
+                const count = gradeCountMap[g.gradeCode] || 0;
+                return (
+                  <TableRow key={g.id} className="hover:bg-muted/40 transition-colors">
+                    <TableCell className="font-mono text-xs font-bold text-violet-600">{g.gradeCode}</TableCell>
+                    <TableCell className="font-semibold text-xs text-foreground">{g.gradeName}</TableCell>
+                    <TableCell className="text-xs font-semibold text-muted-foreground">{g.level}</TableCell>
+                    <TableCell className="text-xs font-semibold text-muted-foreground">{g.jobFamily}</TableCell>
+                    <TableCell className="text-xs font-mono font-semibold text-primary">{formatSalaryRange(g.minSalary, g.maxSalary)}</TableCell>
+                    <TableCell className="text-xs font-mono font-semibold text-center text-muted-foreground">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] text-foreground font-semibold">
+                        {count}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <Badge variant={g.status === 'Active' ? 'default' : 'secondary'} className="text-[10px] font-semibold py-0.5">
+                        {g.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditGrade(g)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteGrade(g.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

@@ -60,7 +60,7 @@ export class DashboardService {
       this.prisma.branch.count(companyId ? { where: { companyId } } : undefined),
       this.prisma.department.count(companyId ? { where: { companyId } } : undefined),
       this.prisma.employee.count({ where: employeeWhere }),
-      this.prisma.employee.count({ where: { ...employeeWhere, status: EmployeeStatus.ACTIVE } }),
+      this.prisma.employee.count({ where: { ...employeeWhere, status: { in: [EmployeeStatus.ACTIVE, EmployeeStatus.PROBATION, EmployeeStatus.NOTICE_PERIOD] } } }),
       this.prisma.employee.count({ where: { ...employeeWhere, status: EmployeeStatus.ON_LEAVE } }),
       this.prisma.jobOpening.count({ where: jobOpeningWhere }),
       this.prisma.employeeOnboardingTask.count({ where: { status: ApprovalStatus.PENDING } }),
@@ -158,7 +158,7 @@ export class DashboardService {
   }
 
   private async getUpcomingEvents(companyId: string | undefined, today: Date) {
-    const employeeWhere = { ...(companyId ? { companyId } : {}), status: EmployeeStatus.ACTIVE };
+    const employeeWhere = { ...(companyId ? { companyId } : {}), status: { in: [EmployeeStatus.ACTIVE, EmployeeStatus.PROBATION, EmployeeStatus.NOTICE_PERIOD] } };
 
     const [birthdayCandidates, anniversaryCandidates, onboardingTasks, holidays] = await Promise.all([
       this.prisma.employee.findMany({

@@ -20,14 +20,20 @@ let DesignationsService = class DesignationsService {
     list(companyId) {
         return this.prisma.designation.findMany({
             where: companyId ? { companyId } : undefined,
-            include: { department: { select: { id: true, name: true } } },
+            include: {
+                department: { select: { id: true, name: true } },
+                reportingDesignation: { select: { id: true, title: true } },
+            },
             orderBy: { title: 'asc' },
         });
     }
     async findById(id) {
         const designation = await this.prisma.designation.findUnique({
             where: { id },
-            include: { department: { select: { id: true, name: true } } },
+            include: {
+                department: { select: { id: true, name: true } },
+                reportingDesignation: { select: { id: true, title: true } },
+            },
         });
         if (!designation)
             throw new common_1.NotFoundException('Designation not found');

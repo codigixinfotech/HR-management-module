@@ -9,8 +9,8 @@ export declare class HolidaysController {
         isActive: boolean;
         createdAt: Date;
         name: string;
-        date: Date;
         type: string;
+        date: Date;
     }[]>;
     findOne(id: string): Promise<{
         id: string;
@@ -18,8 +18,8 @@ export declare class HolidaysController {
         isActive: boolean;
         createdAt: Date;
         name: string;
-        date: Date;
         type: string;
+        date: Date;
     }>;
     create(dto: CreateHolidayDto): import("@prisma/client").Prisma.Prisma__HolidayClient<{
         id: string;
@@ -27,8 +27,8 @@ export declare class HolidaysController {
         isActive: boolean;
         createdAt: Date;
         name: string;
-        date: Date;
         type: string;
+        date: Date;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdateHolidayDto): Promise<{
         id: string;
@@ -36,8 +36,8 @@ export declare class HolidaysController {
         isActive: boolean;
         createdAt: Date;
         name: string;
-        date: Date;
         type: string;
+        date: Date;
     }>;
     remove(id: string): Promise<{
         success: boolean;

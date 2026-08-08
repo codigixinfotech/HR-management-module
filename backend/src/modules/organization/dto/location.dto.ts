@@ -1,9 +1,9 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
-export class CreateBranchDto {
+export class CreateLocationDto {
   @IsString()
-  companyId: string;
+  branchId: string;
 
   @IsString()
   code: string;
@@ -13,19 +13,23 @@ export class CreateBranchDto {
 
   @IsOptional()
   @IsString()
-  businessUnit?: string;
+  buildingName?: string;
 
   @IsOptional()
   @IsString()
-  branchType?: string;
+  floor?: string;
 
   @IsOptional()
   @IsString()
-  addressLine1?: string;
+  wing?: string;
 
   @IsOptional()
   @IsString()
-  addressLine2?: string;
+  roomCabin?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
 
   @IsOptional()
   @IsString()
@@ -45,35 +49,19 @@ export class CreateBranchDto {
 
   @IsOptional()
   @IsString()
-  manager?: string;
+  gps?: string;
 
   @IsOptional()
   @IsString()
-  phone?: string;
+  workingHours?: string;
 
   @IsOptional()
   @IsString()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  timezone?: string;
-
-  @IsOptional()
-  @IsString()
-  workingCalendar?: string;
-
-  @IsOptional()
-  @IsString()
-  shiftGroup?: string;
-
-  @IsOptional()
-  @IsNumber()
-  maxCapacity?: number;
+  shift?: string;
 
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
 
-export class UpdateBranchDto extends PartialType(CreateBranchDto) {}
+export class UpdateLocationDto extends PartialType(CreateLocationDto) {}

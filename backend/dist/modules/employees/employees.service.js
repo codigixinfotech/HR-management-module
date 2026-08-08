@@ -81,6 +81,9 @@ let EmployeesService = class EmployeesService {
                 dateOfJoining: dto.dateOfJoining
                     ? new Date(dto.dateOfJoining)
                     : undefined,
+                confirmationDate: dto.confirmationDate
+                    ? new Date(dto.confirmationDate)
+                    : undefined,
             },
             include: this.listInclude,
         });
@@ -94,6 +97,9 @@ let EmployeesService = class EmployeesService {
                 dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
                 dateOfJoining: dto.dateOfJoining
                     ? new Date(dto.dateOfJoining)
+                    : undefined,
+                confirmationDate: dto.confirmationDate
+                    ? new Date(dto.confirmationDate)
                     : undefined,
             },
             include: this.listInclude,
