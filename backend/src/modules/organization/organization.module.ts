@@ -7,6 +7,10 @@ import { DepartmentsController } from './departments.controller';
 import { DepartmentsService } from './departments.service';
 import { DesignationsController } from './designations.controller';
 import { DesignationsService } from './designations.service';
+import { CostCentersController } from './cost-centers.controller';
+import { CostCentersService } from './cost-centers.service';
+import { PayGradesController } from './pay-grades.controller';
+import { PayGradesService } from './pay-grades.service';
 
 @Module({
   controllers: [
@@ -14,18 +18,24 @@ import { DesignationsService } from './designations.service';
     BranchesController,
     DepartmentsController,
     DesignationsController,
+    CostCentersController,
+    PayGradesController,
   ],
   providers: [
     CompaniesService,
     BranchesService,
     DepartmentsService,
     DesignationsService,
+    CostCentersService,
+    PayGradesService,
   ],
   exports: [
     CompaniesService,
     BranchesService,
     DepartmentsService,
     DesignationsService,
+    CostCentersService,
+    PayGradesService,
   ],
 })
 export class OrganizationModule {}

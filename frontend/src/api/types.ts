@@ -57,6 +57,7 @@ export interface Branch {
   maxCapacity?: number | null;
   isActive: boolean;
   locations?: Location[];
+  employees?: { id: string; employeeCode: string; firstName: string; lastName: string }[];
 }
 
 export interface Location {

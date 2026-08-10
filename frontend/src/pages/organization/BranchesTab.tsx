@@ -20,6 +20,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { branchesApi, locationsApi } from '@/api/organization';
+import { employeesApi } from '@/api/employees';
 import type { Branch, Company, Location } from '@/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,16 @@ const branchSchema = z.object({
 });
 
 type BranchFormValues = z.infer<typeof branchSchema>;
+
+// ── SHIFT MASTER — Single source of truth for shift timings ──
+const SHIFT_MASTER: Record<string, { label: string; workingHours: string; note?: string }> = {
+  'General Shift':  { label: 'General Shift (9 AM – 6 PM)',    workingHours: '09:00 AM – 06:00 PM' },
+  'Morning Shift':  { label: 'Morning Shift (6 AM – 2 PM)',    workingHours: '06:00 AM – 02:00 PM' },
+  'Evening Shift':  { label: 'Evening Shift (2 PM – 10 PM)',   workingHours: '02:00 PM – 10:00 PM' },
+  'Night Shift':    { label: 'Night Shift (10 PM – 6 AM)',     workingHours: '10:00 PM – 06:00 AM', note: 'Cross-midnight' },
+  'Flexible':       { label: 'Flexible Hours',                   workingHours: 'Based on configured rules' },
+  'Rotational':     { label: 'Rotational Shift',                 workingHours: 'Based on assigned schedule' },
+};
 
 // ── 2. LOCATION SCHEMA ──
 const locationSchema = z.object({
@@ -100,11 +111,20 @@ export function BranchesTab({
   const [shouldAddLocationAfterSave, setShouldAddLocationAfterSave] = useState(false);
   const [shouldAddAnotherLocation, setShouldAddAnotherLocation] = useState(false);
   const [activeBranchForLocation, setActiveBranchForLocation] = useState<Branch | null>(null);
+  const [addressOverridden, setAddressOverridden] = useState(false);
+
 
   const { data: branches, isLoading } = useQuery({
     queryKey: ['branches', companyId],
     queryFn: () => branchesApi.list(companyId),
   });
+
+  // Fetch all employees for the Facility Manager dropdown
+  const { data: employeeData } = useQuery({
+    queryKey: ['employees-all'],
+    queryFn: () => employeesApi.list({ pageSize: 500 }),
+  });
+  const allEmployees = employeeData?.items ?? [];
 
   const form = useForm<BranchFormValues>({
     resolver: zodResolver(branchSchema),
@@ -218,6 +238,7 @@ export function BranchesTab({
       queryClient.invalidateQueries({ queryKey: ['branches'] });
       toast.success('Branch deleted');
     },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
   });
 
   const createLocationMutation = useMutation({
@@ -500,8 +521,27 @@ export function BranchesTab({
                     <TabsContent value="contact" className="space-y-4 mt-3">
                       <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Manager</Label>
-                          <Input placeholder="e.g. Rajesh Sharma" {...form.register('manager')} className="h-9 text-xs" />
+                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Facility Manager</Label>
+                          <Select
+                            value={form.watch('manager') ?? '__none__'}
+                            onValueChange={(v) => form.setValue('manager', v === '__none__' ? '' : v)}
+                          >
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Not Assigned" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__" className="text-xs text-muted-foreground italic">Not Assigned</SelectItem>
+                              {allEmployees.map((emp) => (
+                                <SelectItem
+                                  key={emp.id}
+                                  value={`${emp.firstName} ${emp.lastName}`}
+                                  className="text-xs"
+                                >
+                                  {emp.employeeCode} – {emp.firstName} {emp.lastName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Phone Number</Label>
@@ -509,7 +549,7 @@ export function BranchesTab({
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Official Email</Label>
-                          <Input placeholder="e.g. pune@company.com" {...form.register('email')} className="h-9 text-xs" />
+                          <Input placeholder="e.g. branch@company.com" {...form.register('email')} className="h-9 text-xs" />
                         </div>
                       </div>
                     </TabsContent>
@@ -578,7 +618,7 @@ export function BranchesTab({
             </Dialog>
 
             {/* ── 3. SEPARATE LOCATION CREATION DIALOG ── */}
-            <Dialog open={locationOpen} onOpenChange={setLocationOpen}>
+            <Dialog open={locationOpen} onOpenChange={(v) => { setLocationOpen(v); if (!v) setAddressOverridden(false); }}>
               <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto text-xs">
                 <DialogHeader>
                   <DialogTitle>Add Physical Location inside Branch</DialogTitle>
@@ -594,12 +634,55 @@ export function BranchesTab({
                       <TabsTrigger value="ops">Operations</TabsTrigger>
                     </TabsList>
 
+                    {/* ── TAB 1: GENERAL INFO ── */}
                     <TabsContent value="info" className="space-y-4 mt-3">
+                      {/* Branch Context Banner */}
+                      {activeBranchForLocation && (() => {
+                        const b = activeBranchForLocation;
+                        const company = companies.find(c => c.id === b.companyId);
+                        return (
+                          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 space-y-1">
+                            <p className="text-[10px] uppercase font-bold text-primary tracking-wide">Inherited Context</p>
+                            <div className="grid grid-cols-3 gap-2 text-[11px] mt-1">
+                              <div>
+                                <span className="text-muted-foreground block">Company</span>
+                                <span className="font-semibold text-foreground">{company?.name ?? '—'}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground block">Business Unit</span>
+                                <span className="font-semibold text-foreground">{b.businessUnit ?? company?.businessUnit ?? '—'}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground block">Branch</span>
+                                <span className="font-semibold text-foreground">{b.name}</span>
+                              </div>
+                            </div>
+                            {(b.city || b.state || b.country) && (
+                              <p className="text-[10px] text-muted-foreground mt-1">
+                                📍 {[b.addressLine1, b.city, b.state, b.country].filter(Boolean).join(', ')}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Target Branch *</Label>
                         <Select
                           value={locationForm.watch('branchId')}
-                          onValueChange={(val) => locationForm.setValue('branchId', val)}
+                          onValueChange={(val) => {
+                            locationForm.setValue('branchId', val);
+                            const selected = branches?.find(b => b.id === val) ?? null;
+                            setActiveBranchForLocation(selected);
+                            setAddressOverridden(false);
+                            if (selected) {
+                              locationForm.setValue('address', selected.addressLine1 ?? '');
+                              locationForm.setValue('city', selected.city ?? '');
+                              locationForm.setValue('state', selected.state ?? '');
+                              locationForm.setValue('country', selected.country ?? '');
+                              locationForm.setValue('pincode', selected.pincode ?? '');
+                            }
+                          }}
                         >
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Select target branch" />
@@ -607,7 +690,7 @@ export function BranchesTab({
                           <SelectContent>
                             {branches?.map((b) => (
                               <SelectItem key={b.id} value={b.id}>
-                                {b.name}
+                                {b.code} – {b.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -616,15 +699,16 @@ export function BranchesTab({
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Code (Auto Generate)</Label>
-                          <Input placeholder="e.g. HYD-F1" {...locationForm.register('code')} className="h-9 text-xs font-mono" />
+                          <Input placeholder="e.g. BR-58-LOC-01" {...locationForm.register('code')} className="h-9 text-xs font-mono" />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Name *</Label>
-                          <Input placeholder="e.g. 5th Floor - Engineering Block" {...locationForm.register('name')} className="h-9 text-xs" />
+                          <Input placeholder="e.g. Hyderabad Development Center" {...locationForm.register('name')} className="h-9 text-xs" />
                         </div>
                       </div>
                     </TabsContent>
 
+                    {/* ── TAB 2: BUILDING DETAILS ── */}
                     <TabsContent value="building" className="space-y-4 mt-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
@@ -646,34 +730,138 @@ export function BranchesTab({
                           <Input placeholder="e.g. Room 502" {...locationForm.register('roomCabin')} className="h-9 text-xs" />
                         </div>
                       </div>
-                      <div className="border-t pt-3 mt-3 grid grid-cols-3 gap-3">
-                        <div className="space-y-1.5 col-span-2">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Address Override</Label>
-                          <Input placeholder="Leave blank to inherit branch address" {...locationForm.register('address')} className="h-9 text-xs" />
+
+                      {/* Address Section with Inherited Indicator */}
+                      <div className="border-t pt-3 mt-1 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground">Location Address</p>
+                            {!addressOverridden && activeBranchForLocation && (
+                              <p className="text-[10px] text-primary mt-0.5">
+                                ↳ Inherited from {activeBranchForLocation.name}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddressOverridden(!addressOverridden);
+                              if (addressOverridden && activeBranchForLocation) {
+                                // restore branch defaults
+                                locationForm.setValue('address', activeBranchForLocation.addressLine1 ?? '');
+                                locationForm.setValue('city', activeBranchForLocation.city ?? '');
+                                locationForm.setValue('state', activeBranchForLocation.state ?? '');
+                                locationForm.setValue('country', activeBranchForLocation.country ?? '');
+                                locationForm.setValue('pincode', activeBranchForLocation.pincode ?? '');
+                              }
+                            }}
+                            className={`text-[10px] font-semibold px-2 py-1 rounded border transition-colors ${
+                              addressOverridden
+                                ? 'border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/10'
+                                : 'border-primary/30 text-primary bg-primary/5 hover:bg-primary/10'
+                            }`}
+                          >
+                            {addressOverridden ? '✕ Reset to Branch Address' : '✏ Override Address'}
+                          </button>
                         </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PIN Code</Label>
-                          <Input placeholder="PIN" {...locationForm.register('pincode')} className="h-9 text-xs font-mono" />
-                        </div>
+
+                        {!addressOverridden ? (
+                          /* Read-only inherited address view */
+                          <div className="rounded-md bg-muted/30 border border-border px-3 py-2.5 text-[11px] text-muted-foreground">
+                            {activeBranchForLocation ? (
+                              <span>
+                                {[activeBranchForLocation.addressLine1, activeBranchForLocation.city, activeBranchForLocation.state, activeBranchForLocation.country].filter(Boolean).join(', ')}
+                                {activeBranchForLocation.pincode && ` – ${activeBranchForLocation.pincode}`}
+                              </span>
+                            ) : (
+                              <span className="italic">Select a branch to auto-fill address</span>
+                            )}
+                          </div>
+                        ) : (
+                          /* Editable override fields */
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5 col-span-2">
+                                <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Street Address</Label>
+                                <Input placeholder="e.g. Plot 42, Hitech City" {...locationForm.register('address')} className="h-9 text-xs" />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div className="space-y-1.5 col-span-2">
+                                <Label className="text-[10px] font-semibold uppercase text-muted-foreground">City</Label>
+                                <Input placeholder="e.g. Hyderabad" {...locationForm.register('city')} className="h-9 text-xs" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-semibold uppercase text-muted-foreground">State</Label>
+                                <Input placeholder="e.g. Telangana" {...locationForm.register('state')} className="h-9 text-xs" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PIN Code</Label>
+                                <Input placeholder="500081" {...locationForm.register('pincode')} className="h-9 text-xs font-mono" />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </TabsContent>
 
+                    {/* ── TAB 3: OPERATIONS ── */}
                     <TabsContent value="ops" className="space-y-4 mt-3">
-                      <div className="grid grid-cols-3 gap-3">
+                      {/* Shift Group first — drives Working Hours */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Shift Group *</Label>
+                          <Select
+                            value={locationForm.watch('shift') ?? ''}
+                            onValueChange={(v) => {
+                              locationForm.setValue('shift', v);
+                              // Auto-fill Working Hours from Shift Master
+                              const master = SHIFT_MASTER[v];
+                              if (master) locationForm.setValue('workingHours', master.workingHours);
+                            }}
+                          >
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Select shift group..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(SHIFT_MASTER).map(([key, s]) => (
+                                <SelectItem key={key} value={key} className="text-xs">
+                                  {s.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Working Hours — auto-populated, read-only */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Working Hours</Label>
+                            {locationForm.watch('shift') && (
+                              <span className="text-[9px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">
+                                Auto from Shift
+                              </span>
+                            )}
+                          </div>
+                          <Input
+                            readOnly
+                            value={locationForm.watch('workingHours') ?? ''}
+                            placeholder="Select a shift to auto-fill"
+                            className="h-9 text-xs font-mono bg-muted/40 cursor-not-allowed text-muted-foreground"
+                          />
+                          {locationForm.watch('shift') && SHIFT_MASTER[locationForm.watch('shift')!]?.note && (
+                            <p className="text-[9.5px] text-amber-600 font-medium">
+                              ⚠ {SHIFT_MASTER[locationForm.watch('shift')!]!.note}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">GPS Coordinates (Optional)</Label>
                           <Input placeholder="e.g. 17.4485, 78.3741" {...locationForm.register('gps')} className="h-9 text-xs font-mono" />
                         </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Working Hours</Label>
-                          <Input placeholder="09:00 AM - 06:00 PM" {...locationForm.register('workingHours')} className="h-9 text-xs font-mono" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Shift Group</Label>
-                          <Input placeholder="General Shift" {...locationForm.register('shift')} className="h-9 text-xs" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Status</Label>
                           <Select
@@ -694,7 +882,7 @@ export function BranchesTab({
                   </Tabs>
 
                   <DialogFooter className="flex items-center gap-2 border-t pt-3 mt-3">
-                    <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => setLocationOpen(false)}>
+                    <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => { setLocationOpen(false); setAddressOverridden(false); }}>
                       Cancel
                     </Button>
                     <Button
@@ -731,8 +919,8 @@ export function BranchesTab({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
             {filteredBranches.map((branch) => {
               const baseCount = branch.maxCapacity ?? 100;
-              const registeredStaff = branch.employees?.length ?? Math.floor(Math.random() * 20 + 10);
-              const percentage = Math.round((registeredStaff / baseCount) * 100);
+              const registeredStaff = branch.employees?.length ?? 0;
+              const percentage = baseCount > 0 ? Math.round((registeredStaff / baseCount) * 100) : 0;
 
               return (
                 <div
@@ -784,11 +972,15 @@ export function BranchesTab({
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-[10px] uppercase font-semibold text-muted-foreground">Facility Manager</span>
-                        <p className="font-semibold text-foreground truncate">{branch.manager ?? 'Rajesh Sharma'}</p>
+                        <p className={`font-semibold truncate ${branch.manager ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+                          {branch.manager ?? 'Not Assigned'}
+                        </p>
                       </div>
                       <div>
                         <span className="text-[10px] uppercase font-semibold text-muted-foreground">Direct Contact</span>
-                        <p className="font-mono text-foreground text-[11px]">{branch.phone ?? '+91 20 6789 0100'}</p>
+                        <p className={`font-mono text-[11px] ${branch.phone ? 'text-foreground' : 'text-muted-foreground'}`}>
+                          {branch.phone ?? '—'}
+                        </p>
                       </div>
                     </div>
 
@@ -873,7 +1065,7 @@ export function BranchesTab({
             <TableBody>
               {filteredBranches.map((branch) => {
                 const baseCount = branch.maxCapacity ?? 100;
-                const registeredStaff = branch.employees?.length ?? 24;
+                const registeredStaff = branch.employees?.length ?? 0;
 
                 return (
                   <TableRow key={branch.id}>

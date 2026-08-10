@@ -125,6 +125,9 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
     mutationFn: (id: string) => companiesApi.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      queryClient.invalidateQueries({ queryKey: ['designations'] });
       toast.success('Corporate Entity deleted');
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),

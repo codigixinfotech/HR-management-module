@@ -16,9 +16,9 @@ export declare class AssetsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
         notes: string | null;
-        category: string;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -55,9 +55,9 @@ export declare class AssetsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
         notes: string | null;
-        category: string;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -77,9 +77,9 @@ export declare class AssetsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
         notes: string | null;
-        category: string;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -99,9 +99,9 @@ export declare class AssetsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
         notes: string | null;
-        category: string;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -124,9 +124,9 @@ export declare class AssetsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
         notes: string | null;
-        category: string;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -146,9 +146,9 @@ export declare class AssetsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
         notes: string | null;
-        category: string;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;

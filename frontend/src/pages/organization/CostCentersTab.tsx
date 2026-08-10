@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   ShieldCheck,
@@ -27,63 +27,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { companiesApi, branchesApi, departmentsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
+import { costCentersApi, payGradesApi, type CostCenter, type PayGrade } from '@/api/cost-grades';
 
-interface CostCenterItem {
-  id: string;
-  companyId: string;
-  code: string;
-  name: string;
-  type: string; // Department / Project / Production / Support
-  deptId: string;
-  branchId: string;
-  managerId: string;
-  budget: number;
-  capacity: number;
-  effectiveFrom: string;
-  status: 'Active' | 'Inactive';
-  description: string;
-}
 
-interface PayGradeItem {
-  id: string;
-  companyId: string;
-  gradeCode: string;
-  gradeName: string;
-  level: string; // L1, L2, etc.
-  jobFamily: string;
-  minSalary: number;
-  maxSalary: number;
-  effectiveFrom: string;
-  status: 'Active' | 'Inactive';
-  description: string;
-}
-
-const INITIAL_COST_CENTERS: CostCenterItem[] = [
-  { id: '1', companyId: '', code: 'CC-101', name: 'Corporate HQ - HR & Admin', type: 'Support', deptId: '', branchId: '', managerId: '', budget: 45000000, capacity: 16, effectiveFrom: '2026-04-01', status: 'Active', description: 'Headquarters HR & Administrative staff expenses' },
-  { id: '2', companyId: '', code: 'CC-102', name: 'R&D Product Engineering', type: 'Department', deptId: '', branchId: '', managerId: '', budget: 128000000, capacity: 50, effectiveFrom: '2026-04-01', status: 'Active', description: 'Core product research, development, and engineering expenses' },
-  { id: '3', companyId: '', code: 'CC-103', name: 'Global Sales & Marketing', type: 'Project', deptId: '', branchId: '', managerId: '', budget: 82000000, capacity: 35, effectiveFrom: '2026-04-01', status: 'Active', description: 'Sales and marketing outreach expenses' },
-  { id: '4', companyId: '', code: 'CC-104', name: 'Plant Operations Pune', type: 'Production', deptId: '', branchId: '', managerId: '', budget: 154000000, capacity: 70, effectiveFrom: '2026-04-01', status: 'Active', description: 'Pune plant manufacturing and maintenance operations' },
-];
-
-const INITIAL_PAY_GRADES: PayGradeItem[] = [
-  { id: '1', companyId: '', gradeCode: 'E1', gradeName: 'Executive E1', level: 'L1', jobFamily: 'Entry / Junior', minSalary: 25000, maxSalary: 40000, effectiveFrom: '2026-04-01', status: 'Active', description: 'Entry level engineers and coordinators' },
-  { id: '2', companyId: '', gradeCode: 'E2', gradeName: 'Executive E2', level: 'L2', jobFamily: 'Engineering', minSalary: 40000, maxSalary: 60000, effectiveFrom: '2026-04-01', status: 'Active', description: 'Professional level software developers and analysts' },
-  { id: '3', companyId: '', gradeCode: 'M1', gradeName: 'Manager M1', level: 'L3', jobFamily: 'Management', minSalary: 60000, maxSalary: 90000, effectiveFrom: '2026-04-01', status: 'Active', description: 'Department leads and project managers' },
-  { id: '4', companyId: '', gradeCode: 'M2', gradeName: 'Senior Manager M2', level: 'L4', jobFamily: 'Management', minSalary: 90000, maxSalary: 150000, effectiveFrom: '2026-04-01', status: 'Active', description: 'Program managers and group heads' },
-];
 
 export function CostCentersTab() {
-  const [costCenters, setCostCenters] = useState<CostCenterItem[]>(INITIAL_COST_CENTERS);
-  const [payGrades, setPayGrades] = useState<PayGradeItem[]>(INITIAL_PAY_GRADES);
+  const queryClient = useQueryClient();
   const [searchCcQuery, setSearchCcQuery] = useState('');
   const [searchGradeQuery, setSearchGradeQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
 
-  // Load backend dropdown models
+  // ── Real API queries ──
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: () => employeesApi.list({ page: 1, pageSize: 200 }) });
 
   const companyIdForLists = companies?.[0]?.id ?? '';
+
   const { data: branches } = useQuery({
     queryKey: ['branches', companyIdForLists],
     queryFn: () => branchesApi.list(companyIdForLists),
@@ -95,50 +54,58 @@ export function CostCentersTab() {
     enabled: !!companyIdForLists,
   });
 
-  // Align static dataset IDs with database relations once loaded
-  useEffect(() => {
-    if (companies && companies.length > 0 && branches && departments && employees?.items) {
-      setCostCenters(prev =>
-        prev.map((cc, idx) => {
-          if (cc.companyId) return cc;
-          
-          const companyId = companies[0].id;
-          const branchId = branches[0]?.id ?? '';
-          
-          let deptId = '';
-          if (idx === 0) {
-            deptId = departments.find((d: any) => d.name.includes('HR') || d.name.includes('Resources'))?.id ?? '';
-          } else if (idx === 1) {
-            deptId = departments.find((d: any) => d.name.includes('Engineering') || d.name.includes('Technology'))?.id ?? '';
-          } else if (idx === 2) {
-            deptId = departments.find((d: any) => d.name.includes('Sales') || d.name.includes('Marketing'))?.id ?? '';
-          } else {
-            deptId = departments[0]?.id ?? '';
-          }
+  // Real cost centers and pay grades from DB
+  const { data: costCenters = [], isLoading: ccLoading } = useQuery({
+    queryKey: ['cost-centers', companyIdForLists],
+    queryFn: () => costCentersApi.list(companyIdForLists),
+    enabled: !!companyIdForLists,
+  });
+  const { data: payGrades = [], isLoading: gradeLoading } = useQuery({
+    queryKey: ['pay-grades', companyIdForLists],
+    queryFn: () => payGradesApi.list(companyIdForLists),
+    enabled: !!companyIdForLists,
+  });
 
-          let managerId = '';
-          if (idx === 1) {
-            managerId = employees.items.find((e: any) => e.lastName === 'Sharma' || e.firstName === 'Rajesh')?.id ?? '';
-          } else if (idx === 2) {
-            managerId = employees.items.find((e: any) => e.lastName === 'Verma' || e.firstName === 'Priya')?.id ?? '';
-          } else if (idx === 3) {
-            managerId = employees.items.find((e: any) => e.lastName === 'Patel' || e.firstName === 'Amit')?.id ?? '';
-          } else {
-            managerId = employees.items[0]?.id ?? '';
-          }
+  // ── Mutations ──
+  const ccUpsertMutation = useMutation({
+    mutationFn: (payload: { id?: string; data: Partial<CostCenter> }) =>
+      payload.id ? costCentersApi.update(payload.id, payload.data) : costCentersApi.create(payload.data),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['cost-centers'] });
+      toast.success(vars.id ? 'Cost Center updated' : 'Cost Center created');
+      setIsCcOpen(false);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to save Cost Center'),
+  });
 
-          return { ...cc, companyId, branchId, deptId, managerId };
-        })
-      );
+  const ccDeleteMutation = useMutation({
+    mutationFn: (id: string) => costCentersApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cost-centers'] });
+      toast.success('Cost Center deleted permanently');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to delete Cost Center'),
+  });
 
-      setPayGrades(prev =>
-        prev.map(g => {
-          if (g.companyId) return g;
-          return { ...g, companyId: companies[0].id };
-        })
-      );
-    }
-  }, [companies, branches, departments, employees]);
+  const gradeUpsertMutation = useMutation({
+    mutationFn: (payload: { id?: string; data: Partial<PayGrade> }) =>
+      payload.id ? payGradesApi.update(payload.id, payload.data) : payGradesApi.create(payload.data),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['pay-grades'] });
+      toast.success(vars.id ? 'Pay Grade updated' : 'Pay Grade created');
+      setIsGradeOpen(false);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to save Pay Grade'),
+  });
+
+  const gradeDeleteMutation = useMutation({
+    mutationFn: (id: string) => payGradesApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pay-grades'] });
+      toast.success('Pay Grade deleted permanently');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to delete Pay Grade'),
+  });
 
   // Headcount calculation dynamically mapped from real Employee Master list
   const headcountMap = useMemo(() => {
@@ -166,8 +133,8 @@ export function CostCentersTab() {
 
   // Cost Center Dialog Form State
   const [isCcOpen, setIsCcOpen] = useState(false);
-  const [editingCc, setEditingCc] = useState<CostCenterItem | null>(null);
-  
+  const [editingCc, setEditingCc] = useState<CostCenter | null>(null);
+
   const [ccCompanyId, setCcCompanyId] = useState('');
   const [ccCode, setCcCode] = useState('');
   const [ccName, setCcName] = useState('');
@@ -175,6 +142,7 @@ export function CostCentersTab() {
   const [ccDeptId, setCcDeptId] = useState('');
   const [ccBranchId, setCcBranchId] = useState('');
   const [ccManagerId, setCcManagerId] = useState('');
+  const [ccManagerName, setCcManagerName] = useState('');
   const [ccBudget, setCcBudget] = useState(25000000);
   const [ccCapacity, setCcCapacity] = useState(15);
   const [ccEffectiveFrom, setCcEffectiveFrom] = useState('');
@@ -183,15 +151,19 @@ export function CostCentersTab() {
 
   // Grade Dialog Form State
   const [isGradeOpen, setIsGradeOpen] = useState(false);
-  const [editingGrade, setEditingGrade] = useState<PayGradeItem | null>(null);
+  const [editingGrade, setEditingGrade] = useState<PayGrade | null>(null);
 
   const [gradeCompanyId, setGradeCompanyId] = useState('');
+  const [gradeBusinessUnit, setGradeBusinessUnit] = useState('');
   const [gradeCode, setGradeCode] = useState('');
   const [gradeName, setGradeName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('L1');
+  const [gradeCategory, setGradeCategory] = useState('Professional');
   const [gradeJobFamily, setGradeJobFamily] = useState('');
+  const [gradeDepartmentId, setGradeDepartmentId] = useState('');
   const [gradeMinSalary, setGradeMinSalary] = useState(30000);
   const [gradeMaxSalary, setGradeMaxSalary] = useState(60000);
+  const [gradeCurrency, setGradeCurrency] = useState('INR');
   const [gradeEffectiveFrom, setGradeEffectiveFrom] = useState('');
   const [gradeStatus, setGradeStatus] = useState<'Active' | 'Inactive'>('Active');
   const [gradeDescription, setGradeDescription] = useState('');
@@ -228,7 +200,8 @@ export function CostCentersTab() {
     setCcType('Department');
     setCcDeptId(departments?.[0]?.id ?? '');
     setCcBranchId(branches?.[0]?.id ?? '');
-    setCcManagerId(employees?.items?.[0]?.id ?? '');
+    setCcManagerId('');
+    setCcManagerName('');
     setCcBudget(25000000);
     setCcCapacity(15);
     setCcEffectiveFrom(new Date().toISOString().split('T')[0]);
@@ -237,163 +210,128 @@ export function CostCentersTab() {
     setIsCcOpen(true);
   };
 
-  const openEditCc = (item: CostCenterItem) => {
+  const openEditCc = (item: CostCenter) => {
     setEditingCc(item);
     setCcCompanyId(item.companyId);
     setCcCode(item.code);
     setCcName(item.name);
     setCcType(item.type);
-    setCcDeptId(item.deptId);
-    setCcBranchId(item.branchId);
-    setCcManagerId(item.managerId);
-    setCcBudget(item.budget);
-    setCcCapacity(item.capacity);
-    setCcEffectiveFrom(item.effectiveFrom);
-    setCcStatus(item.status);
-    setCcDescription(item.description);
+    setCcDeptId(item.departmentId ?? '');
+    setCcBranchId(item.branchId ?? '');
+    setCcManagerId(item.managerId ?? '');
+    setCcManagerName(item.managerName ?? '');
+    setCcBudget(Number(item.budget));
+    setCcCapacity(item.headcountCapacity);
+    setCcEffectiveFrom(item.effectiveFrom?.split('T')[0] ?? '');
+    setCcStatus(item.isActive ? 'Active' : 'Inactive');
+    setCcDescription(item.description ?? '');
     setIsCcOpen(true);
   };
 
   const handleSaveCc = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ccName) {
-      toast.error('Cost Center Name is required');
-      return;
-    }
-    const nextCode = ccCode || 'CC-' + String(costCenters.length + 101);
-
-    if (editingCc) {
-      setCostCenters(prev =>
-        prev.map(c =>
-          c.id === editingCc.id
-            ? {
-                ...c,
-                companyId: ccCompanyId,
-                code: nextCode,
-                name: ccName,
-                type: ccType,
-                deptId: ccDeptId,
-                branchId: ccBranchId,
-                managerId: ccManagerId,
-                budget: Number(ccBudget),
-                capacity: Number(ccCapacity),
-                effectiveFrom: ccEffectiveFrom,
-                status: ccStatus,
-                description: ccDescription,
-              }
-            : c
-        )
-      );
-      toast.success('Cost Center updated successfully');
-    } else {
-      const newCc: CostCenterItem = {
-        id: String(Date.now()),
-        companyId: ccCompanyId,
-        code: nextCode,
-        name: ccName,
-        type: ccType,
-        deptId: ccDeptId,
-        branchId: ccBranchId,
-        managerId: ccManagerId,
-        budget: Number(ccBudget),
-        capacity: Number(ccCapacity),
-        effectiveFrom: ccEffectiveFrom || new Date().toISOString().split('T')[0],
-        status: ccStatus,
-        description: ccDescription,
-      };
-      setCostCenters(prev => [...prev, newCc]);
-      toast.success('Cost Center created successfully');
-    }
-    setIsCcOpen(false);
+    if (!ccName) { toast.error('Cost Center Name is required'); return; }
+    const managerEmployee = employees?.items?.find((emp: any) => emp.id === ccManagerId);
+    ccUpsertMutation.mutate({
+      id: editingCc?.id,
+      data: {
+        companyId:         ccCompanyId,
+        code:              ccCode || `CC-${String(costCenters.length + 101).padStart(3, '0')}`,
+        name:              ccName,
+        type:              ccType,
+        branchId:          ccBranchId || undefined,
+        departmentId:      ccDeptId || undefined,
+        managerId:         ccManagerId || undefined,
+        managerName:       managerEmployee ? `${managerEmployee.firstName} ${managerEmployee.lastName}` : ccManagerName || undefined,
+        budget:            Number(ccBudget),
+        headcountCapacity: Number(ccCapacity),
+        effectiveFrom:     ccEffectiveFrom || new Date().toISOString().split('T')[0],
+        description:       ccDescription,
+        isActive:          ccStatus === 'Active',
+      },
+    });
   };
 
   const handleDeleteCc = (id: string) => {
-    setCostCenters(prev => prev.filter(c => c.id !== id));
-    toast.success('Cost Center deleted');
+    if (window.confirm('Permanently delete this Cost Center?')) {
+      ccDeleteMutation.mutate(id);
+    }
   };
 
   // Grade Actions
   const openAddGrade = () => {
     setEditingGrade(null);
     setGradeCompanyId(companies?.[0]?.id ?? '');
+    setGradeBusinessUnit(companies?.[0]?.businessUnit ?? '');
     setGradeCode('');
     setGradeName('');
     setGradeLevel('L1');
+    setGradeCategory('Professional');
     setGradeJobFamily('Engineering');
+    setGradeDepartmentId(departments?.[0]?.id ?? '');
     setGradeMinSalary(30000);
     setGradeMaxSalary(60000);
+    setGradeCurrency(companies?.[0]?.currency ?? 'INR');
     setGradeEffectiveFrom(new Date().toISOString().split('T')[0]);
     setGradeStatus('Active');
     setGradeDescription('');
     setIsGradeOpen(true);
   };
 
-  const openEditGrade = (item: PayGradeItem) => {
+  const openEditGrade = (item: PayGrade) => {
     setEditingGrade(item);
     setGradeCompanyId(item.companyId);
+    setGradeBusinessUnit(item.businessUnit ?? '');
     setGradeCode(item.gradeCode);
     setGradeName(item.gradeName);
     setGradeLevel(item.level);
-    setGradeJobFamily(item.jobFamily);
-    setGradeMinSalary(item.minSalary);
-    setGradeMaxSalary(item.maxSalary);
-    setGradeEffectiveFrom(item.effectiveFrom);
-    setGradeStatus(item.status);
-    setGradeDescription(item.description);
+    setGradeCategory(item.category ?? 'Professional');
+    setGradeJobFamily(item.jobFamily ?? '');
+    setGradeDepartmentId(item.departmentId ?? '');
+    setGradeMinSalary(Number(item.minSalary));
+    setGradeMaxSalary(Number(item.maxSalary));
+    setGradeCurrency(item.currency ?? 'INR');
+    setGradeEffectiveFrom(item.effectiveFrom?.split('T')[0] ?? '');
+    setGradeStatus(item.isActive ? 'Active' : 'Inactive');
+    setGradeDescription(item.description ?? '');
     setIsGradeOpen(true);
   };
 
   const handleSaveGrade = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gradeCode || !gradeName) {
-      toast.error('Grade Code and Grade Name are required');
-      return;
+    if (!gradeCode || !gradeName) { toast.error('Grade Code and Grade Name are required'); return; }
+    
+    // Automatically match L1/E2 etc. if E2 is L2, otherwise maintain consistency
+    let finalLevel = gradeLevel;
+    if (gradeCode.toUpperCase().startsWith('E2') && gradeLevel === 'L1') {
+      finalLevel = 'L2';
     }
 
-    if (editingGrade) {
-      setPayGrades(prev =>
-        prev.map(g =>
-          g.id === editingGrade.id
-            ? {
-                ...g,
-                companyId: gradeCompanyId,
-                gradeCode,
-                gradeName,
-                level: gradeLevel,
-                jobFamily: gradeJobFamily,
-                minSalary: Number(gradeMinSalary),
-                maxSalary: Number(gradeMaxSalary),
-                effectiveFrom: gradeEffectiveFrom,
-                status: gradeStatus,
-                description: gradeDescription,
-              }
-            : g
-        )
-      );
-      toast.success('Job Grade updated successfully');
-    } else {
-      const newGrade: PayGradeItem = {
-        id: String(Date.now()),
-        companyId: gradeCompanyId,
+    gradeUpsertMutation.mutate({
+      id: editingGrade?.id,
+      data: {
+        companyId:     gradeCompanyId,
+        businessUnit:  gradeBusinessUnit || undefined,
         gradeCode,
         gradeName,
-        level: gradeLevel,
-        jobFamily: gradeJobFamily,
-        minSalary: Number(gradeMinSalary),
-        maxSalary: Number(gradeMaxSalary),
+        level:         finalLevel,
+        category:      gradeCategory,
+        jobFamily:     gradeJobFamily || undefined,
+        departmentId:  gradeDepartmentId || undefined,
+        minSalary:     Number(gradeMinSalary),
+        maxSalary:     Number(gradeMaxSalary),
+        currency:      gradeCurrency,
         effectiveFrom: gradeEffectiveFrom || new Date().toISOString().split('T')[0],
-        status: gradeStatus,
-        description: gradeDescription,
-      };
-      setPayGrades(prev => [...prev, newGrade]);
-      toast.success('Job Grade created successfully');
-    }
-    setIsGradeOpen(false);
+        description:   gradeDescription,
+        isActive:      gradeStatus === 'Active',
+      },
+    });
   };
 
   const handleDeleteGrade = (id: string) => {
-    setPayGrades(prev => prev.filter(g => g.id !== id));
-    toast.success('Job Grade deleted');
+    if (window.confirm('Permanently delete this Pay Grade?')) {
+      gradeDeleteMutation.mutate(id);
+    }
   };
 
   // Search/Filter calculations
@@ -416,7 +354,8 @@ export function CostCentersTab() {
         g.gradeName.toLowerCase().includes(q) ||
         g.gradeCode.toLowerCase().includes(q) ||
         g.level.toLowerCase().includes(q) ||
-        g.jobFamily.toLowerCase().includes(q)
+        (g.jobFamily?.toLowerCase() ?? '').includes(q) ||
+        (g.category?.toLowerCase() ?? '').includes(q)
     );
   }, [payGrades, searchGradeQuery]);
 
@@ -724,11 +663,11 @@ export function CostCentersTab() {
           {displayMode === 'grid' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
               {filteredCostCenters.map(cc => {
-                const currentStaffCount = headcountMap[cc.deptId] || 0;
-                const percentage = cc.capacity > 0 ? Math.round((currentStaffCount / cc.capacity) * 100) : 0;
+                const currentStaffCount = headcountMap[cc.departmentId || ''] || 0;
+                const percentage = cc.headcountCapacity > 0 ? Math.round((currentStaffCount / cc.headcountCapacity) * 100) : 0;
                 
                 // Mapped department name
-                const deptName = departments?.find((d: any) => d.id === cc.deptId)?.name ?? cc.type;
+                const deptName = departments?.find((d: any) => d.id === cc.departmentId)?.name ?? cc.type;
                 // Mapped manager name
                 const head = employees?.items?.find((e: any) => e.id === cc.managerId);
                 const headName = head ? `${head.firstName} ${head.lastName}` : 'Unassigned';
@@ -741,12 +680,12 @@ export function CostCentersTab() {
                     <div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className={`h-2.5 w-2.5 rounded-full ${cc.status === 'Active' ? 'bg-primary' : 'bg-muted-foreground'}`} />
+                          <span className={`h-2.5 w-2.5 rounded-full ${cc.isActive ? 'bg-primary' : 'bg-muted-foreground'}`} />
                           <span className="font-mono text-xs font-semibold text-primary">{cc.code}</span>
                           <Badge variant="outline" className="text-[10px] font-semibold">
                             {deptName}
                           </Badge>
-                          {cc.status === 'Inactive' && (
+                          {!cc.isActive && (
                             <Badge variant="destructive" className="text-[9px] h-4 py-0 font-medium">Inactive</Badge>
                           )}
                         </div>
@@ -771,7 +710,7 @@ export function CostCentersTab() {
                         </p>
                         <p className="flex items-center gap-1.5">
                           <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
-                          <span>Effective: <strong className="text-foreground">{cc.effectiveFrom}</strong></span>
+                          <span>Effective: <strong className="text-foreground">{cc.effectiveFrom?.split('T')[0]}</strong></span>
                         </p>
                       </div>
                       
@@ -795,7 +734,7 @@ export function CostCentersTab() {
                             <Users className="h-3 w-3" /> Staff Allocation
                           </span>
                           <span className="font-mono font-semibold text-foreground">
-                            {currentStaffCount} / {cc.capacity} Staff ({percentage}%)
+                            {currentStaffCount} / {cc.headcountCapacity} Staff ({percentage}%)
                           </span>
                         </div>
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -826,8 +765,8 @@ export function CostCentersTab() {
               </TableHeader>
               <TableBody>
                 {filteredCostCenters.map(cc => {
-                  const currentStaffCount = headcountMap[cc.deptId] || 0;
-                  const deptName = departments?.find((d: any) => d.id === cc.deptId)?.name ?? cc.type;
+                  const currentStaffCount = headcountMap[cc.departmentId || ''] || 0;
+                  const deptName = departments?.find((d: any) => d.id === cc.departmentId)?.name ?? cc.type;
                   const head = employees?.items?.find((e: any) => e.id === cc.managerId);
                   const headName = head ? `${head.firstName} ${head.lastName}` : 'Unassigned';
 
@@ -839,10 +778,10 @@ export function CostCentersTab() {
                       <TableCell className="text-xs text-muted-foreground">{deptName}</TableCell>
                       <TableCell className="text-xs font-mono font-semibold text-foreground">{formatCurrency(cc.budget)}</TableCell>
                       <TableCell className="text-xs font-medium">{headName}</TableCell>
-                      <TableCell className="text-xs font-mono">{currentStaffCount} / {cc.capacity} Staff</TableCell>
+                      <TableCell className="text-xs font-mono">{currentStaffCount} / {cc.headcountCapacity} Staff</TableCell>
                       <TableCell className="text-xs">
-                        <Badge variant={cc.status === 'Active' ? 'default' : 'secondary'} className="text-[10px] font-semibold py-0.5">
-                          {cc.status}
+                        <Badge variant={cc.isActive ? 'default' : 'secondary'} className="text-[10px] font-semibold py-0.5">
+                          {cc.isActive ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -899,20 +838,39 @@ export function CostCentersTab() {
                     <DialogTitle>{editingGrade ? 'Edit Job Grade' : 'Create New Job Grade'}</DialogTitle>
                   </DialogHeader>
                   <form className="space-y-4 text-xs" onSubmit={handleSaveGrade}>
-                    <div className="space-y-1">
-                      <Label className="text-[11px] font-semibold">Company Entity *</Label>
-                      <Select value={gradeCompanyId} onValueChange={setGradeCompanyId}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select Company" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {companies?.map((c: any) => (
-                            <SelectItem key={c.id} value={c.id} className="text-xs">
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Company Entity *</Label>
+                        <Select value={gradeCompanyId} onValueChange={(val) => {
+                          setGradeCompanyId(val);
+                          const comp = companies?.find(c => c.id === val);
+                          if (comp) {
+                            setGradeBusinessUnit(comp.businessUnit ?? '');
+                            setGradeCurrency(comp.currency ?? 'INR');
+                          }
+                        }}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Company" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {companies?.map((c: any) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs">
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Business Unit</Label>
+                        <Input
+                          placeholder="e.g. Technology Services"
+                          value={gradeBusinessUnit}
+                          onChange={e => setGradeBusinessUnit(e.target.value)}
+                          className="h-9 text-xs"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -956,6 +914,24 @@ export function CostCentersTab() {
                       </div>
 
                       <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Grade Category *</Label>
+                        <Select value={gradeCategory} onValueChange={setGradeCategory}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Executive" className="text-xs">Executive</SelectItem>
+                            <SelectItem value="Management" className="text-xs">Management</SelectItem>
+                            <SelectItem value="Professional" className="text-xs">Professional</SelectItem>
+                            <SelectItem value="Staff" className="text-xs">Staff</SelectItem>
+                            <SelectItem value="Worker" className="text-xs">Worker</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
                         <Label className="text-[11px] font-semibold">Job Family</Label>
                         <Input
                           placeholder="e.g. Engineering / HR"
@@ -964,11 +940,37 @@ export function CostCentersTab() {
                           className="h-9 text-xs"
                         />
                       </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Department Mapping</Label>
+                        <Select value={gradeDepartmentId} onValueChange={setGradeDepartmentId}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__" className="text-xs text-muted-foreground italic">None (Global)</SelectItem>
+                            {departments?.map((d: any) => (
+                              <SelectItem key={d.id} value={d.id} className="text-xs">
+                                {d.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Minimum Salary (CTC) *</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1 col-span-1">
+                        <Label className="text-[11px] font-semibold">Currency</Label>
+                        <Input
+                          readOnly
+                          value={gradeCurrency}
+                          className="h-9 text-xs font-mono bg-muted/40 cursor-not-allowed text-muted-foreground"
+                        />
+                      </div>
+
+                      <div className="space-y-1 col-span-1">
+                        <Label className="text-[11px] font-semibold">Min Salary (CTC) *</Label>
                         <Input
                           type="number"
                           value={gradeMinSalary}
@@ -977,8 +979,8 @@ export function CostCentersTab() {
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Maximum Salary (CTC) *</Label>
+                      <div className="space-y-1 col-span-1">
+                        <Label className="text-[11px] font-semibold">Max Salary (CTC) *</Label>
                         <Input
                           type="number"
                           value={gradeMaxSalary}
@@ -1041,8 +1043,10 @@ export function CostCentersTab() {
               <TableRow>
                 <TableHead className="text-xs">Grade Code</TableHead>
                 <TableHead className="text-xs">Grade Name</TableHead>
-                <TableHead className="text-xs">Level Hierarchy</TableHead>
+                <TableHead className="text-xs">Level</TableHead>
+                <TableHead className="text-xs">Category</TableHead>
                 <TableHead className="text-xs">Job Family</TableHead>
+                <TableHead className="text-xs">Mapped Dept</TableHead>
                 <TableHead className="text-xs">Salary CTC Range</TableHead>
                 <TableHead className="text-xs text-center">Active Employees</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
@@ -1057,7 +1061,11 @@ export function CostCentersTab() {
                     <TableCell className="font-mono text-xs font-bold text-violet-600">{g.gradeCode}</TableCell>
                     <TableCell className="font-semibold text-xs text-foreground">{g.gradeName}</TableCell>
                     <TableCell className="text-xs font-semibold text-muted-foreground">{g.level}</TableCell>
-                    <TableCell className="text-xs font-semibold text-muted-foreground">{g.jobFamily}</TableCell>
+                    <TableCell className="text-xs font-medium">{g.category ?? '—'}</TableCell>
+                    <TableCell className="text-xs font-semibold text-muted-foreground">{g.jobFamily ?? '—'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {departments?.find((d: any) => d.id === g.departmentId)?.name ?? 'Global'}
+                    </TableCell>
                     <TableCell className="text-xs font-mono font-semibold text-primary">{formatSalaryRange(g.minSalary, g.maxSalary)}</TableCell>
                     <TableCell className="text-xs font-mono font-semibold text-center text-muted-foreground">
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] text-foreground font-semibold">
@@ -1065,8 +1073,8 @@ export function CostCentersTab() {
                       </span>
                     </TableCell>
                     <TableCell className="text-xs">
-                      <Badge variant={g.status === 'Active' ? 'default' : 'secondary'} className="text-[10px] font-semibold py-0.5">
-                        {g.status}
+                      <Badge variant={g.isActive ? 'default' : 'secondary'} className="text-[10px] font-semibold py-0.5">
+                        {g.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">

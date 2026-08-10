@@ -114,7 +114,7 @@ async function main() {
     create: {
       email: 'admin@ehcm.local',
       passwordHash: adminPasswordHash,
-      companyId: company.id,
+      companyId: null,
       roles: { create: [{ roleId: superAdminRole.id }] },
     },
   });

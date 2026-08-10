@@ -9,6 +9,7 @@ export declare class DepartmentsController {
             name: string;
         } | null;
     } & {
+        costCenter: string | null;
         id: string;
         companyId: string;
         isActive: boolean;
@@ -21,7 +22,6 @@ export declare class DepartmentsController {
         branchId: string | null;
         type: string;
         parentDepartmentId: string | null;
-        costCenter: string | null;
         headcountCapacity: number;
         annualBudget: number | null;
         effectiveFrom: Date;
@@ -32,6 +32,7 @@ export declare class DepartmentsController {
             name: string;
         } | null;
         childDepartments: {
+            costCenter: string | null;
             id: string;
             companyId: string;
             isActive: boolean;
@@ -44,12 +45,12 @@ export declare class DepartmentsController {
             branchId: string | null;
             type: string;
             parentDepartmentId: string | null;
-            costCenter: string | null;
             headcountCapacity: number;
             annualBudget: number | null;
             effectiveFrom: Date;
         }[];
     } & {
+        costCenter: string | null;
         id: string;
         companyId: string;
         isActive: boolean;
@@ -62,12 +63,12 @@ export declare class DepartmentsController {
         branchId: string | null;
         type: string;
         parentDepartmentId: string | null;
-        costCenter: string | null;
         headcountCapacity: number;
         annualBudget: number | null;
         effectiveFrom: Date;
     }>;
     create(dto: CreateDepartmentDto): Promise<{
+        costCenter: string | null;
         id: string;
         companyId: string;
         isActive: boolean;
@@ -80,12 +81,12 @@ export declare class DepartmentsController {
         branchId: string | null;
         type: string;
         parentDepartmentId: string | null;
-        costCenter: string | null;
         headcountCapacity: number;
         annualBudget: number | null;
         effectiveFrom: Date;
     }>;
     update(id: string, dto: UpdateDepartmentDto): Promise<{
+        costCenter: string | null;
         id: string;
         companyId: string;
         isActive: boolean;
@@ -98,7 +99,6 @@ export declare class DepartmentsController {
         branchId: string | null;
         type: string;
         parentDepartmentId: string | null;
-        costCenter: string | null;
         headcountCapacity: number;
         annualBudget: number | null;
         effectiveFrom: Date;

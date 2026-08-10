@@ -130,7 +130,7 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  company       Company?       @relation(fields: [companyId], references: [id])
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   roles         UserRole[]
   employee      Employee?
   refreshTokens RefreshToken[]
@@ -294,6 +294,9 @@ model Company {
   ppeItems        PpeItem[]
   safetyAudits    SafetyAudit[]
 
+  costCenters     CostCenter[]
+  payGrades       PayGrade[]
+
   @@map("companies")
 }
 
@@ -325,6 +328,7 @@ model Branch {
   departments Department[]
   employees   Employee[]
   locations   Location[]
+  costCenters CostCenter[]
 
   @@unique([companyId, code])
   @@map("branches")
@@ -380,12 +384,14 @@ model Department {
   updatedAt          DateTime @updatedAt
 
   company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch           Branch?       @relation(fields: [branchId], references: [id])
-  parentDepartment Department?   @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id])
+  branch           Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  parentDepartment Department?   @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: SetNull)
   childDepartments Department[]  @relation("DepartmentHierarchy")
   designations     Designation[]
   employees        Employee[]
   jobOpenings      JobOpening[]
+  costCenters      CostCenter[]
+  payGrades        PayGrade[]
 
   @@unique([companyId, code])
   @@index([branchId])
@@ -411,7 +417,7 @@ model Designation {
   updatedAt              DateTime      @updatedAt
 
   company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  department           Department?   @relation(fields: [departmentId], references: [id])
+  department           Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   reportingDesignation Designation?  @relation("DesignationHierarchy", fields: [reportingDesignationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   subDesignations      Designation[] @relation("DesignationHierarchy")
   employees            Employee[]
@@ -421,6 +427,66 @@ model Designation {
   @@index([departmentId])
   @@map("designations")
 }
+
+// ---------------------------------------------------------------------------
+// Module: Organization — Cost Centers & Pay Grades
+// ---------------------------------------------------------------------------
+
+model CostCenter {
+  id                String    @id @default(cuid())
+  companyId         String
+  code              String    @unique
+  name              String
+  type              String    @default("Department") // Support, Department, Project, Production
+  branchId          String?
+  departmentId      String?
+  managerId         String?   // Employee ID (string ref, not FK to avoid circular)
+  managerName       String?   // Denormalized display name
+  budget            Decimal   @default(0) @db.Decimal(15, 2)
+  headcountCapacity Int       @default(0)
+  effectiveFrom     DateTime  @default(now())
+  description       String?   @db.Text
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch     Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([departmentId])
+  @@map("cost_centers")
+}
+
+model PayGrade {
+  id            String   @id @default(cuid())
+  companyId     String
+  businessUnit  String?
+  gradeCode     String   @unique
+  gradeName     String
+  level         String   @default("L1") // L1, L2, L3, L4
+  category      String   @default("Professional") // Executive, Management, Professional, Staff, Worker
+  jobFamily     String?
+  departmentId  String?
+  minSalary     Decimal  @default(0) @db.Decimal(15, 2)
+  maxSalary     Decimal  @default(0) @db.Decimal(15, 2)
+  currency      String   @default("INR")
+  effectiveFrom DateTime @default(now())
+  description   String?  @db.Text
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([departmentId])
+  @@map("pay_grades")
+}
+
 
 // ---------------------------------------------------------------------------
 // Module: Employee Management
@@ -475,12 +541,12 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company          Company      @relation(fields: [companyId], references: [id])
-  branch           Branch?      @relation(fields: [branchId], references: [id])
-  department       Department?  @relation(fields: [departmentId], references: [id])
-  designation      Designation? @relation(fields: [designationId], references: [id])
-  user             User?        @relation(fields: [userId], references: [id])
-  reportingManager Employee?    @relation("ReportingManager", fields: [reportingManagerId], references: [id])
+  company          Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch           Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department       Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation      Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reportingManager Employee?    @relation("ReportingManager", fields: [reportingManagerId], references: [id], onDelete: SetNull)
   directReports    Employee[]   @relation("ReportingManager")
 
   documents       EmployeeDocument[]
@@ -569,8 +635,8 @@ model JobOpening {
   updatedAt     DateTime @updatedAt
 
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  department  Department?  @relation(fields: [departmentId], references: [id])
-  designation Designation? @relation(fields: [designationId], references: [id])
+  department  Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
   candidates  Candidate[]
 
   @@index([companyId])
@@ -714,8 +780,8 @@ model LeaveRequest {
   updatedAt       DateTime       @updatedAt
 
   employee  Employee  @relation("LeaveRequestEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  approver  Employee? @relation("LeaveRequestApprover", fields: [approverId], references: [id])
-  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+  approver  Employee? @relation("LeaveRequestApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([status])
@@ -738,7 +804,7 @@ model AttendanceRecord {
   updatedAt     DateTime         @updatedAt
 
   employee  Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  shiftType ShiftType? @relation(fields: [shiftTypeId], references: [id])
+  shiftType ShiftType? @relation(fields: [shiftTypeId], references: [id], onDelete: SetNull)
 
   @@unique([employeeId, date])
   @@index([companyId, date])
@@ -816,7 +882,7 @@ model Payslip {
   createdAt       DateTime @default(now())
 
   payrollRun PayrollRun         @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employee   Employee           @relation(fields: [employeeId], references: [id])
+  employee   Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   components PayslipComponent[]
 
   @@unique([payrollRunId, employeeId])
@@ -832,7 +898,7 @@ model PayslipComponent {
   amount            Float
 
   payslip         Payslip          @relation(fields: [payslipId], references: [id], onDelete: Cascade)
-  salaryComponent SalaryComponent? @relation(fields: [salaryComponentId], references: [id])
+  salaryComponent SalaryComponent? @relation(fields: [salaryComponentId], references: [id], onDelete: SetNull)
 
   @@index([payslipId])
   @@map("payslip_components")
@@ -876,7 +942,7 @@ model ComplianceTask {
 
   company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   complianceType ComplianceType @relation(fields: [complianceTypeId], references: [id], onDelete: Cascade)
-  filedBy        Employee?      @relation(fields: [filedById], references: [id])
+  filedBy        Employee?      @relation(fields: [filedById], references: [id], onDelete: SetNull)
 
   @@index([companyId, dueDate])
   @@index([status])
@@ -903,7 +969,7 @@ model Asset {
   updatedAt         DateTime    @updatedAt
 
   company         Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  currentEmployee Employee?                @relation(fields: [currentEmployeeId], references: [id])
+  currentEmployee Employee?                @relation(fields: [currentEmployeeId], references: [id], onDelete: SetNull)
   allocations     AssetAllocation[]
   maintenanceLogs AssetMaintenanceRecord[]
 
@@ -961,7 +1027,7 @@ model SafetyIncident {
   updatedAt        DateTime         @updatedAt
 
   company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  reportedBy Employee? @relation(fields: [reportedById], references: [id])
+  reportedBy Employee? @relation(fields: [reportedById], references: [id], onDelete: SetNull)
 
   @@index([companyId, occurredAt])
   @@map("safety_incidents")

@@ -7,6 +7,7 @@ export declare class BranchesController {
     list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<({
         employees: {
             location: string | null;
+            costCenter: string | null;
             id: string;
             companyId: string;
             createdAt: Date;
@@ -22,10 +23,10 @@ export declare class BranchesController {
             addressLine1: string | null;
             addressLine2: string | null;
             branchId: string | null;
-            costCenter: string | null;
             departmentId: string | null;
             grade: string | null;
             employmentType: import("@prisma/client").$Enums.EmploymentType;
+            level: string | null;
             designationId: string | null;
             reportingManagerId: string | null;
             employeeCode: string;
@@ -38,7 +39,6 @@ export declare class BranchesController {
             workEmail: string | null;
             dateOfJoining: Date | null;
             status: import("@prisma/client").$Enums.EmployeeStatus;
-            level: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -97,6 +97,7 @@ export declare class BranchesController {
     findOne(id: string): Promise<{
         employees: {
             location: string | null;
+            costCenter: string | null;
             id: string;
             companyId: string;
             createdAt: Date;
@@ -112,10 +113,10 @@ export declare class BranchesController {
             addressLine1: string | null;
             addressLine2: string | null;
             branchId: string | null;
-            costCenter: string | null;
             departmentId: string | null;
             grade: string | null;
             employmentType: import("@prisma/client").$Enums.EmploymentType;
+            level: string | null;
             designationId: string | null;
             reportingManagerId: string | null;
             employeeCode: string;
@@ -128,7 +129,6 @@ export declare class BranchesController {
             workEmail: string | null;
             dateOfJoining: Date | null;
             status: import("@prisma/client").$Enums.EmployeeStatus;
-            level: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;

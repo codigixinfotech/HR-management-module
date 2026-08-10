@@ -30,6 +30,7 @@ export declare class EmployeesService {
             } | null;
         } & {
             location: string | null;
+            costCenter: string | null;
             id: string;
             companyId: string;
             createdAt: Date;
@@ -45,10 +46,10 @@ export declare class EmployeesService {
             addressLine1: string | null;
             addressLine2: string | null;
             branchId: string | null;
-            costCenter: string | null;
             departmentId: string | null;
             grade: string | null;
             employmentType: import("@prisma/client").$Enums.EmploymentType;
+            level: string | null;
             designationId: string | null;
             reportingManagerId: string | null;
             employeeCode: string;
@@ -61,7 +62,6 @@ export declare class EmployeesService {
             workEmail: string | null;
             dateOfJoining: Date | null;
             status: import("@prisma/client").$Enums.EmployeeStatus;
-            level: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -124,6 +124,7 @@ export declare class EmployeesService {
         }[];
     } & {
         location: string | null;
+        costCenter: string | null;
         id: string;
         companyId: string;
         createdAt: Date;
@@ -139,10 +140,10 @@ export declare class EmployeesService {
         addressLine1: string | null;
         addressLine2: string | null;
         branchId: string | null;
-        costCenter: string | null;
         departmentId: string | null;
         grade: string | null;
         employmentType: import("@prisma/client").$Enums.EmploymentType;
+        level: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         employeeCode: string;
@@ -155,7 +156,6 @@ export declare class EmployeesService {
         workEmail: string | null;
         dateOfJoining: Date | null;
         status: import("@prisma/client").$Enums.EmployeeStatus;
-        level: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -190,6 +190,7 @@ export declare class EmployeesService {
         } | null;
     } & {
         location: string | null;
+        costCenter: string | null;
         id: string;
         companyId: string;
         createdAt: Date;
@@ -205,10 +206,10 @@ export declare class EmployeesService {
         addressLine1: string | null;
         addressLine2: string | null;
         branchId: string | null;
-        costCenter: string | null;
         departmentId: string | null;
         grade: string | null;
         employmentType: import("@prisma/client").$Enums.EmploymentType;
+        level: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         employeeCode: string;
@@ -221,7 +222,6 @@ export declare class EmployeesService {
         workEmail: string | null;
         dateOfJoining: Date | null;
         status: import("@prisma/client").$Enums.EmployeeStatus;
-        level: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -256,6 +256,7 @@ export declare class EmployeesService {
         } | null;
     } & {
         location: string | null;
+        costCenter: string | null;
         id: string;
         companyId: string;
         createdAt: Date;
@@ -271,10 +272,10 @@ export declare class EmployeesService {
         addressLine1: string | null;
         addressLine2: string | null;
         branchId: string | null;
-        costCenter: string | null;
         departmentId: string | null;
         grade: string | null;
         employmentType: import("@prisma/client").$Enums.EmploymentType;
+        level: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         employeeCode: string;
@@ -287,7 +288,6 @@ export declare class EmployeesService {
         workEmail: string | null;
         dateOfJoining: Date | null;
         status: import("@prisma/client").$Enums.EmployeeStatus;
-        level: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;

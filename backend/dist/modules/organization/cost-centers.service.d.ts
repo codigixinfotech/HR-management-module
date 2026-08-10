@@ -1,15 +1,18 @@
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
-export declare class DepartmentsService {
+import { CreateCostCenterDto, UpdateCostCenterDto } from './dto/cost-center.dto';
+export declare class CostCentersService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<({
-        parentDepartment: {
+    list(companyId?: string): Promise<({
+        branch: {
+            id: string;
+            name: string;
+        } | null;
+        department: {
             id: string;
             name: string;
         } | null;
     } & {
-        costCenter: string | null;
         id: string;
         companyId: string;
         isActive: boolean;
@@ -18,39 +21,25 @@ export declare class DepartmentsService {
         name: string;
         description: string | null;
         code: string;
-        manager: string | null;
         branchId: string | null;
         type: string;
-        parentDepartmentId: string | null;
         headcountCapacity: number;
-        annualBudget: number | null;
         effectiveFrom: Date;
+        departmentId: string | null;
+        managerId: string | null;
+        managerName: string | null;
+        budget: import("@prisma/client/runtime/library").Decimal;
     })[]>;
-    findById(id: string): Promise<{
-        parentDepartment: {
+    findOne(id: string): Promise<{
+        branch: {
             id: string;
             name: string;
         } | null;
-        childDepartments: {
-            costCenter: string | null;
+        department: {
             id: string;
-            companyId: string;
-            isActive: boolean;
-            createdAt: Date;
-            updatedAt: Date;
             name: string;
-            description: string | null;
-            code: string;
-            manager: string | null;
-            branchId: string | null;
-            type: string;
-            parentDepartmentId: string | null;
-            headcountCapacity: number;
-            annualBudget: number | null;
-            effectiveFrom: Date;
-        }[];
+        } | null;
     } & {
-        costCenter: string | null;
         id: string;
         companyId: string;
         isActive: boolean;
@@ -59,16 +48,16 @@ export declare class DepartmentsService {
         name: string;
         description: string | null;
         code: string;
-        manager: string | null;
         branchId: string | null;
         type: string;
-        parentDepartmentId: string | null;
         headcountCapacity: number;
-        annualBudget: number | null;
         effectiveFrom: Date;
+        departmentId: string | null;
+        managerId: string | null;
+        managerName: string | null;
+        budget: import("@prisma/client/runtime/library").Decimal;
     }>;
-    create(dto: CreateDepartmentDto): Promise<{
-        costCenter: string | null;
+    create(dto: CreateCostCenterDto): Promise<{
         id: string;
         companyId: string;
         isActive: boolean;
@@ -77,16 +66,16 @@ export declare class DepartmentsService {
         name: string;
         description: string | null;
         code: string;
-        manager: string | null;
         branchId: string | null;
         type: string;
-        parentDepartmentId: string | null;
         headcountCapacity: number;
-        annualBudget: number | null;
         effectiveFrom: Date;
+        departmentId: string | null;
+        managerId: string | null;
+        managerName: string | null;
+        budget: import("@prisma/client/runtime/library").Decimal;
     }>;
-    update(id: string, dto: UpdateDepartmentDto): Promise<{
-        costCenter: string | null;
+    update(id: string, dto: UpdateCostCenterDto): Promise<{
         id: string;
         companyId: string;
         isActive: boolean;
@@ -95,15 +84,31 @@ export declare class DepartmentsService {
         name: string;
         description: string | null;
         code: string;
-        manager: string | null;
         branchId: string | null;
         type: string;
-        parentDepartmentId: string | null;
         headcountCapacity: number;
-        annualBudget: number | null;
         effectiveFrom: Date;
+        departmentId: string | null;
+        managerId: string | null;
+        managerName: string | null;
+        budget: import("@prisma/client/runtime/library").Decimal;
     }>;
     remove(id: string): Promise<{
-        success: boolean;
+        id: string;
+        companyId: string;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        description: string | null;
+        code: string;
+        branchId: string | null;
+        type: string;
+        headcountCapacity: number;
+        effectiveFrom: Date;
+        departmentId: string | null;
+        managerId: string | null;
+        managerName: string | null;
+        budget: import("@prisma/client/runtime/library").Decimal;
     }>;
 }
