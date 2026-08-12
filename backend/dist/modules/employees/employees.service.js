@@ -24,6 +24,7 @@ let EmployeesService = class EmployeesService {
         department: { select: { id: true, name: true } },
         designation: { select: { id: true, title: true } },
         reportingManager: { select: { id: true, firstName: true, lastName: true } },
+        documents: true,
     };
     async list(query, companyId) {
         const { skip, take, page, pageSize } = (0, pagination_dto_1.buildPagination)(query);
@@ -52,6 +53,29 @@ let EmployeesService = class EmployeesService {
         ]);
         return { items, total, page, pageSize };
     }
+    parseDates(dto) {
+        const dateFields = [
+            'dateOfBirth',
+            'dateOfJoining',
+            'confirmationDate',
+            'familyDob',
+            'prevStartDate',
+            'prevEndDate',
+            'kycVerificationDate',
+            'pfEsicJoiningDate',
+            'salaryEffectiveFrom',
+        ];
+        const parsed = { ...dto };
+        for (const field of dateFields) {
+            if (parsed[field] !== undefined && parsed[field] !== null && parsed[field] !== '') {
+                parsed[field] = new Date(parsed[field]);
+            }
+            else if (parsed[field] === '') {
+                parsed[field] = null;
+            }
+        }
+        return parsed;
+    }
     async findById(id) {
         const employee = await this.prisma.employee.findUnique({
             where: { id },
@@ -59,6 +83,16 @@ let EmployeesService = class EmployeesService {
                 ...this.listInclude,
                 documents: true,
                 onboardingTasks: { orderBy: { createdAt: 'asc' } },
+                courseEnrollments: { orderBy: { enrollmentDate: 'desc' } },
+                kpis: { orderBy: { createdAt: 'desc' } },
+                hrNotes: { orderBy: { createdDate: 'desc' } },
+                timelineEvents: { orderBy: { date: 'asc' } },
+                currentAssets: true,
+                salaryComponents: {
+                    include: {
+                        salaryComponent: true,
+                    },
+                },
                 directReports: {
                     select: { id: true, firstName: true, lastName: true },
                 },
@@ -74,34 +108,33 @@ let EmployeesService = class EmployeesService {
         });
         if (existing)
             throw new common_1.ConflictException('An employee with this code already exists for this company');
-        return this.prisma.employee.create({
-            data: {
-                ...dto,
-                dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
-                dateOfJoining: dto.dateOfJoining
-                    ? new Date(dto.dateOfJoining)
-                    : undefined,
-                confirmationDate: dto.confirmationDate
-                    ? new Date(dto.confirmationDate)
-                    : undefined,
-            },
+        const parsedData = this.parseDates(dto);
+        const employee = await this.prisma.employee.create({
+            data: parsedData,
             include: this.listInclude,
         });
+        try {
+            await this.prisma.careerTimelineEvent.create({
+                data: {
+                    employeeId: employee.id,
+                    date: employee.dateOfJoining ?? new Date(),
+                    eventTitle: 'Joined Company Entity',
+                    details: `Joined as ${employee.employmentType || 'PERMANENT'} employee.`,
+                    eventType: 'JOINED',
+                },
+            });
+        }
+        catch (e) {
+            console.error('Failed to create initial timeline event:', e);
+        }
+        return employee;
     }
     async update(id, dto) {
         await this.findById(id);
+        const parsedData = this.parseDates(dto);
         return this.prisma.employee.update({
             where: { id },
-            data: {
-                ...dto,
-                dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
-                dateOfJoining: dto.dateOfJoining
-                    ? new Date(dto.dateOfJoining)
-                    : undefined,
-                confirmationDate: dto.confirmationDate
-                    ? new Date(dto.confirmationDate)
-                    : undefined,
-            },
+            data: parsedData,
             include: this.listInclude,
         });
     }
@@ -130,6 +163,72 @@ let EmployeesService = class EmployeesService {
         if (!doc)
             throw new common_1.NotFoundException('Document not found');
         await this.prisma.employeeDocument.delete({ where: { id: documentId } });
+        return { success: true };
+    }
+    async enrollInCourse(employeeId, dto) {
+        await this.findById(employeeId);
+        const enrollment = await this.prisma.courseEnrollment.create({
+            data: {
+                employeeId,
+                courseName: dto.courseName,
+                courseType: dto.courseType,
+                status: dto.status ?? 'In Progress',
+                certification: dto.certification ?? null,
+            },
+        });
+        try {
+            await this.prisma.careerTimelineEvent.create({
+                data: {
+                    employeeId,
+                    eventTitle: 'Enrolled in Upskilling Course',
+                    details: `Enrolled in "${dto.courseName}" (${dto.courseType}).`,
+                    eventType: 'TRAINING',
+                },
+            });
+        }
+        catch (e) {
+            console.error('Failed to create timeline event:', e);
+        }
+        return enrollment;
+    }
+    async addKpi(employeeId, dto) {
+        await this.findById(employeeId);
+        return this.prisma.employeeKpi.create({
+            data: {
+                employeeId,
+                kpi: dto.kpi,
+                category: dto.category,
+                target: dto.target,
+                weightage: dto.weightage,
+                reviewPeriod: dto.reviewPeriod,
+                performanceRating: dto.performanceRating ?? null,
+                managerFeedback: dto.managerFeedback ?? null,
+            },
+        });
+    }
+    async addHrNote(employeeId, dto) {
+        await this.findById(employeeId);
+        return this.prisma.employeeHrNote.create({
+            data: {
+                employeeId,
+                note: dto.note,
+                noteType: dto.noteType,
+                createdBy: dto.createdBy,
+            },
+        });
+    }
+    async listSkills() {
+        return this.prisma.$queryRawUnsafe('SELECT * FROM skill_competencies ORDER BY createdAt DESC');
+    }
+    async createSkill(dto) {
+        const id = 'skl_' + Math.random().toString(36).substring(2, 11);
+        const certRequiredVal = dto.certRequired ? 1 : 0;
+        await this.prisma.$executeRawUnsafe('INSERT INTO skill_competencies (id, name, category, certRequired, benchmarkScore, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, NOW(), NOW())', id, dto.name, dto.category, certRequiredVal, dto.benchmarkScore);
+        const results = await this.prisma.$queryRawUnsafe('SELECT * FROM skill_competencies WHERE id = ?', id);
+        return results[0];
+    }
+    async removeSkill(id) {
+        await this.prisma.$executeRawUnsafe('DELETE FROM skill_competencies WHERE id = ?', id);
         return { success: true };
     }
 };

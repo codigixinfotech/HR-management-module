@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Award,
@@ -8,6 +9,7 @@ import {
   Code,
   Users,
   Compass,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { employeesApi } from '@/api/employees';
 
 interface SkillItem {
   id: string;
@@ -27,16 +30,8 @@ interface SkillItem {
   benchmarkScore: string;
 }
 
-const INITIAL_SKILLS: SkillItem[] = [
-  { id: 'SKL-01', name: 'React / Next.js State & SSR', category: 'Frontend', employeesCount: 14, certRequired: false, benchmarkScore: 'Level 4 (Expert)' },
-  { id: 'SKL-02', name: 'Kubernetes Helm & Orchestration', category: 'DevOps', employeesCount: 6, certRequired: true, benchmarkScore: 'CKA Certified' },
-  { id: 'SKL-03', name: 'Figma Auto-Layout & Design Systems', category: 'Design', employeesCount: 8, certRequired: false, benchmarkScore: 'Level 3 (Advanced)' },
-  { id: 'SKL-04', name: 'Node.js Microservices & Event Loops', category: 'Backend', employeesCount: 10, certRequired: true, benchmarkScore: 'Level 4 (Expert)' },
-  { id: 'SKL-05', name: 'Agile Product & Sprint Leadership', category: 'Management', employeesCount: 4, certRequired: true, benchmarkScore: 'Scrum Master' },
-];
-
 export function SkillsCertificationsTab() {
-  const [skills, setSkills] = useState<SkillItem[]>(INITIAL_SKILLS);
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -46,6 +41,48 @@ export function SkillsCertificationsTab() {
   const [formCategory, setFormCategory] = useState<'Frontend' | 'Backend' | 'DevOps' | 'Design' | 'Management'>('Frontend');
   const [formBenchmark, setFormBenchmark] = useState('Level 3 (Advanced)');
   const [formCert, setFormCert] = useState('no');
+
+  // Fetch skill competencies from backend
+  const { data: rawSkills = [], isLoading } = useQuery<any[]>({
+    queryKey: ['skills'],
+    queryFn: employeesApi.listSkills,
+  });
+
+  // Map backend competencies to frontend interface
+  const skills = useMemo<SkillItem[]>(() => {
+    return rawSkills.map(s => ({
+      id: s.id,
+      name: s.name,
+      category: s.category as any,
+      employeesCount: 0, // In future phases, this can count matching employee profile matches
+      certRequired: Boolean(s.certRequired),
+      benchmarkScore: s.benchmarkScore,
+    }));
+  }, [rawSkills]);
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: employeesApi.createSkill,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] });
+      toast.success('Skill competency profile added successfully');
+      setIsOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Failed to add skill competency');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: employeesApi.removeSkill,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] });
+      toast.success('Skill competency deleted successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Failed to delete skill competency');
+    },
+  });
 
   const openAddModal = () => {
     setFormName('');
@@ -62,18 +99,18 @@ export function SkillsCertificationsTab() {
       return;
     }
 
-    const newSkill: SkillItem = {
-      id: `SKL-0${skills.length + 1}`,
+    createMutation.mutate({
       name: formName,
       category: formCategory,
-      employeesCount: 0,
       certRequired: formCert === 'yes',
       benchmarkScore: formBenchmark,
-    };
+    });
+  };
 
-    setSkills(prev => [...prev, newSkill]);
-    toast.success('Skill competency profile added successfully');
-    setIsOpen(false);
+  const handleDeleteSkill = (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete the skill competency "${name}"?`)) {
+      deleteMutation.mutate(id);
+    }
   };
 
   const filteredSkills = useMemo(() => {
@@ -108,8 +145,10 @@ export function SkillsCertificationsTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Certs</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">3 Types</p>
-              <p className="text-[10px] text-emerald-600 font-semibold mt-1">CKA, AWS, Scrum Master</p>
+              <p className=" text-2xl font-semibold text-foreground mt-0.5">
+                {skills.filter(s => s.certRequired).length} Types
+              </p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Required certifications</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
               <Award className="h-5 w-5" />
@@ -252,7 +291,7 @@ export function SkillsCertificationsTab() {
                       </Select>
                     </div>
                     <DialogFooter>
-                      <Button type="submit" size="sm" className="text-xs">
+                      <Button type="submit" size="sm" className="text-xs" disabled={createMutation.isPending}>
                         Publish Competency
                       </Button>
                     </DialogFooter>
@@ -271,31 +310,57 @@ export function SkillsCertificationsTab() {
                 <TableHead className="text-xs">Category</TableHead>
                 <TableHead className="text-xs">Staff Mapped</TableHead>
                 <TableHead className="text-xs">Industry Certification</TableHead>
-                <TableHead className="text-right text-xs">Benchmark Target</TableHead>
+                <TableHead className="text-xs">Benchmark Target</TableHead>
+                <TableHead className="text-right text-xs">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSkills.map(s => (
-                <TableRow key={s.id} className="hover:bg-muted/40 transition-colors">
-                  <TableCell className="font-mono text-xs font-semibold text-primary">{s.id}</TableCell>
-                  <TableCell className="font-semibold text-xs text-foreground">
-                    <div className="flex items-center gap-2">
-                      <Code className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      {s.name}
-                    </div>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">
+                    Loading skill competency records...
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground font-semibold">{s.category}</TableCell>
-                  <TableCell className="text-xs font-mono font-semibold text-primary">
-                    {s.employeesCount} Staff
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <Badge variant="outline" className={`text-[10px] font-semibold ${s.certRequired ? 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20' : 'bg-muted text-muted-foreground'}`}>
-                      {s.certRequired ? 'Required' : 'Optional'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-xs font-semibold">{s.benchmarkScore}</TableCell>
                 </TableRow>
-              ))}
+              ) : filteredSkills.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">
+                    No skill competencies found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredSkills.map(s => (
+                  <TableRow key={s.id} className="hover:bg-muted/40 transition-colors">
+                    <TableCell className="font-mono text-xs font-semibold text-primary">{s.id}</TableCell>
+                    <TableCell className="font-semibold text-xs text-foreground">
+                      <div className="flex items-center gap-2">
+                        <Code className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        {s.name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground font-semibold">{s.category}</TableCell>
+                    <TableCell className="text-xs font-mono font-semibold text-primary">
+                      {s.employeesCount} Staff
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <Badge variant="outline" className={`text-[10px] font-semibold ${s.certRequired ? 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20' : 'bg-muted text-muted-foreground'}`}>
+                        {s.certRequired ? 'Required' : 'Optional'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs font-semibold">{s.benchmarkScore}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteSkill(s.id, s.name)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

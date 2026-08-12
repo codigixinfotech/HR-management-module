@@ -157,6 +157,72 @@ export interface Employee {
   emergencyContactPhone?: string | null;
   emergencyContactRelationship?: string | null;
 
+  // New onboarding sections
+  maritalStatus?: string | null;
+  nationality?: string | null;
+  bloodGroup?: string | null;
+  religion?: string | null;
+
+  addressLine1?: string | null;
+  currentAddress?: string | null;
+  permanentAddress?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  pincode?: string | null;
+
+  familyMemberName?: string | null;
+  familyRelationship?: string | null;
+  familyDob?: string | null;
+  familyContact?: string | null;
+  nomineeName?: string | null;
+  nomineeRelationship?: string | null;
+  nomineeShare?: number | null;
+
+  educationQualification?: string | null;
+  educationSpecialization?: string | null;
+  educationInstitution?: string | null;
+  educationUniversity?: string | null;
+  educationPassingYear?: number | null;
+  educationPercentage?: number | null;
+
+  prevCompany?: string | null;
+  prevJobTitle?: string | null;
+  prevStartDate?: string | null;
+  prevEndDate?: string | null;
+  prevTotalExp?: string | null;
+  prevReasonForLeaving?: string | null;
+
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfscCode?: string | null;
+  bankBranchName?: string | null;
+  bankAccountHolderName?: string | null;
+
+  aadhaarNumber?: string | null;
+  panNumber?: string | null;
+  passportNumber?: string | null;
+  kycStatus?: string | null;
+  kycVerificationDate?: string | null;
+
+  uanNumber?: string | null;
+  pfMemberId?: string | null;
+  esicNumber?: string | null;
+  pfApplicable?: boolean | null;
+  esicApplicable?: boolean | null;
+  pfEsicJoiningDate?: string | null;
+
+  salaryGrade?: string | null;
+  salaryBand?: string | null;
+  basicSalary?: number | null;
+  hra?: number | null;
+  conveyance?: number | null;
+  specialAllowance?: number | null;
+  otherAllowances?: number | null;
+  grossSalary?: number | null;
+  annualCtc?: number | null;
+  salaryEffectiveFrom?: string | null;
+
   company?: { id: string; name: string };
   branch?: { id: string; name: string } | null;
   department?: { id: string; name: string } | null;
@@ -164,6 +230,11 @@ export interface Employee {
   reportingManager?: { id: string; firstName: string; lastName: string } | null;
   documents?: EmployeeDocument[];
   onboardingTasks?: OnboardingTask[];
+  courseEnrollments?: any[];
+  kpis?: any[];
+  hrNotes?: any[];
+  timelineEvents?: any[];
+  currentAssets?: any[];
   createdAt: string;
 }
 

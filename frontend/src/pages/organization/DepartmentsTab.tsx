@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { branchesApi, departmentsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
+import { costCentersApi } from '@/api/cost-grades';
 import type { Company, Department } from '@/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,24 +73,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
   const [editing, setEditing] = useState<Department | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
-
-  const { data: departments, isLoading } = useQuery({
-    queryKey: ['departments', companyId],
-    queryFn: () => departmentsApi.list(companyId),
-  });
-
-  const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
-  });
-
-  const isSeededEmployee = (emp: any) => {
-    if (!emp.employeeCode) return false;
-    return /^EMP00[0-2][0-9]$/.test(emp.employeeCode);
-  };
-
   const form = useForm<DepartmentFormValues>({
-    resolver: zodResolver(departmentSchema),
+    resolver: zodResolver(departmentSchema) as any,
     defaultValues: {
       companyId: companyId ?? companies[0]?.id ?? '',
       branchId: '',
@@ -107,7 +92,25 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     },
   });
 
-  const selectedCompanyId = form.watch('companyId');
+  const selectedCompanyId = form.watch('companyId') || companyId || companies[0]?.id || '';
+
+  const { data: departments, isLoading } = useQuery({
+    queryKey: ['departments', selectedCompanyId],
+    queryFn: () => departmentsApi.list(selectedCompanyId),
+  });
+
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', 1, ''],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+  });
+
+  const { data: costCentersList } = useQuery({
+    queryKey: ['cost-centers', selectedCompanyId],
+    queryFn: () => costCentersApi.list(selectedCompanyId),
+  });
+
+
+
   const watchedName = form.watch('name');
 
   const { data: branchOptions } = useQuery({
@@ -341,6 +344,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="Corporate" className="text-xs">Corporate</SelectItem>
                           <SelectItem value="Functional" className="text-xs">Functional</SelectItem>
                           <SelectItem value="Operational" className="text-xs">Operational</SelectItem>
                           <SelectItem value="Support" className="text-xs">Support</SelectItem>
@@ -394,10 +398,11 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="" className="text-xs">None</SelectItem>
-                          <SelectItem value="CC-101" className="text-xs font-mono">CC-101 (Corporate HQ)</SelectItem>
-                          <SelectItem value="CC-102" className="text-xs font-mono">CC-102 (R&D Product)</SelectItem>
-                          <SelectItem value="CC-103" className="text-xs font-mono">CC-103 (Global Sales)</SelectItem>
-                          <SelectItem value="CC-104" className="text-xs font-mono">CC-104 (Plant Ops)</SelectItem>
+                          {costCentersList?.map((cc) => (
+                            <SelectItem key={cc.id} value={cc.code} className="text-xs font-mono">
+                              {cc.code} ({cc.name})
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -491,12 +496,11 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                 color: 'bg-primary',
               };
 
-              const newDbEmployeesCount = employeesData?.items?.filter(
-                (emp: any) => emp.departmentId === dept.id && !isSeededEmployee(emp)
+              const finalCount = employeesData?.items?.filter(
+                (emp: any) => emp.departmentId === dept.id
               ).length ?? 0;
-              const finalCount = meta.count + newDbEmployeesCount;
-              const capacity = dept.headcountCapacity ?? meta.cap ?? 10;
-              const percentage = Math.round((finalCount / capacity) * 100) || 0;
+              const capacity = dept.headcountCapacity ?? 10;
+              const percentage = capacity > 0 ? Math.round((finalCount / capacity) * 100) : 0;
 
               return (
                 <div
@@ -614,11 +618,10 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                 }[dept.code.toUpperCase()] || dept.code;
 
                 const meta = EXTRA_DEPT_METRICS[lookupCode] || { head: 'Unassigned', count: 14, cap: 20, budget: '₹2.5 Cr' };
-                const newDbEmployeesCount = employeesData?.items?.filter(
-                  (emp: any) => emp.departmentId === dept.id && !isSeededEmployee(emp)
+                const finalCount = employeesData?.items?.filter(
+                  (emp: any) => emp.departmentId === dept.id
                 ).length ?? 0;
-                const finalCount = meta.count + newDbEmployeesCount;
-                const capacity = dept.headcountCapacity ?? meta.cap ?? 10;
+                const capacity = dept.headcountCapacity ?? 10;
 
                 return (
                   <TableRow key={dept.id}>

@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   Search,
   Download,
@@ -8,12 +10,14 @@ import {
   Mail,
   Phone,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { employeesApi } from '@/api/employees';
 import type { Employee } from '@/api/types';
 
 interface EmployeeDirectoryTabProps {
@@ -25,6 +29,25 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
   const [selectedDept, setSelectedDept] = useState<string>('all');
+  
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => employeesApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('Employee deleted successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Failed to delete employee');
+    },
+  });
+
+  const handleDelete = (id: string, name: string) => {
+    if (confirm(`Are you sure you want to permanently delete employee ${name}?`)) {
+      deleteMutation.mutate(id);
+    }
+  };
 
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
@@ -165,12 +188,26 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-end">
-                  <Button variant="outline" size="sm" className="h-7.5 text-xs gap-1 font-semibold text-primary border-primary/20 hover:bg-primary/5" asChild>
-                    <Link to={`/employees/detail/${employee.id}`}>
-                      View Profile <ExternalLink className="h-3 w-3" />
-                    </Link>
+                <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7.5 w-7.5 text-destructive hover:bg-destructive/10"
+                    onClick={() => handleDelete(employee.id, `${employee.firstName} ${employee.lastName}`)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="sm" className="h-7.5 text-xs font-semibold" asChild>
+                      <Link to={`/employees/master?action=edit&id=${employee.id}`}>Edit</Link>
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7.5 text-xs gap-1 font-semibold text-primary border-primary/20 hover:bg-primary/5" asChild>
+                      <Link to={`/employees/detail/${employee.id}`}>
+                        View Profile <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -210,9 +247,23 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                     <StatusBadge status={employee.status} className="text-[10px]" />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="outline" size="sm" className="h-7 text-xs font-semibold" asChild>
-                      <Link to={`/employees/detail/${employee.id}`}>View Profile</Link>
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button variant="outline" size="sm" className="h-7 text-xs font-semibold" asChild>
+                        <Link to={`/employees/detail/${employee.id}`}>View Profile</Link>
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs font-semibold" asChild>
+                        <Link to={`/employees/master?action=edit&id=${employee.id}`}>Edit</Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(employee.id, `${employee.firstName} ${employee.lastName}`)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

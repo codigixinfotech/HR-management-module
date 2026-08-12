@@ -36,6 +36,24 @@ export class EmployeesController {
     return this.employeesService.list(query, query.companyId);
   }
 
+  @Get('skills/competencies')
+  @Permissions('employees.read')
+  listSkills() {
+    return this.employeesService.listSkills();
+  }
+
+  @Post('skills/competencies')
+  @Permissions('employees.write')
+  createSkill(@Body() dto: { name: string; category: string; certRequired: boolean; benchmarkScore: string }) {
+    return this.employeesService.createSkill(dto);
+  }
+
+  @Delete('skills/competencies/:id')
+  @Permissions('employees.write')
+  removeSkill(@Param('id') id: string) {
+    return this.employeesService.removeSkill(id);
+  }
+
   @Get(':id')
   @Permissions('employees.read')
   findOne(@Param('id') id: string) {
@@ -115,5 +133,32 @@ export class EmployeesController {
     @Body('status') status: ApprovalStatus,
   ) {
     return this.onboardingService.updateStatus(taskId, status);
+  }
+
+  @Post(':id/courses')
+  @Permissions('employees.write')
+  enrollInCourse(
+    @Param('id') id: string,
+    @Body() dto: { courseName: string; courseType: string; status?: string; certification?: string },
+  ) {
+    return this.employeesService.enrollInCourse(id, dto);
+  }
+
+  @Post(':id/kpis')
+  @Permissions('employees.write')
+  addKpi(
+    @Param('id') id: string,
+    @Body() dto: { kpi: string; category: string; target: string; weightage: number; reviewPeriod: string; performanceRating?: number; managerFeedback?: string },
+  ) {
+    return this.employeesService.addKpi(id, dto);
+  }
+
+  @Post(':id/hr-notes')
+  @Permissions('employees.write')
+  addHrNote(
+    @Param('id') id: string,
+    @Body() dto: { note: string; noteType: string; createdBy: string },
+  ) {
+    return this.employeesService.addHrNote(id, dto);
   }
 }

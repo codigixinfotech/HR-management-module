@@ -27,10 +27,14 @@ async function main() {
   console.log(`Seeded ${permissionCodes.length} permissions.`);
 
   // 2. Demo company.
-  const company = await prisma.company.upsert({
-    where: { code: 'DEMO' },
-    update: {},
-    create: {
+  const existingCompaniesCount = await prisma.company.count();
+  if (existingCompaniesCount > 0) {
+    console.log('Database already has company records. Skipping demo company seeding.');
+    return;
+  }
+
+  const company = await prisma.company.create({
+    data: {
       code: 'DEMO',
       name: 'Demo Manufacturing Pvt Ltd',
       legalName: 'Demo Manufacturing Private Limited',
@@ -41,10 +45,8 @@ async function main() {
   });
   console.log(`Seeded company: ${company.name}`);
 
-  const branch = await prisma.branch.upsert({
-    where: { companyId_code: { companyId: company.id, code: 'HO' } },
-    update: {},
-    create: {
+  const branch = await prisma.branch.create({
+    data: {
       companyId: company.id,
       code: 'HO',
       name: 'Head Office',
@@ -54,10 +56,8 @@ async function main() {
     },
   });
 
-  const department = await prisma.department.upsert({
-    where: { companyId_code: { companyId: company.id, code: 'HR' } },
-    update: {},
-    create: {
+  const department = await prisma.department.create({
+    data: {
       companyId: company.id,
       branchId: branch.id,
       code: 'HR',
@@ -65,10 +65,8 @@ async function main() {
     },
   });
 
-  const designation = await prisma.designation.upsert({
-    where: { companyId_code: { companyId: company.id, code: 'HR-MGR' } },
-    update: {},
-    create: {
+  const designation = await prisma.designation.create({
+    data: {
       companyId: company.id,
       departmentId: department.id,
       code: 'HR-MGR',

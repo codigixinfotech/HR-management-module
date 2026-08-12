@@ -2,8 +2,9 @@ import { useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, Trash2, Plus, Check } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Plus, Check, Laptop, ShieldAlert, Award, FileText, CheckCircle2 } from 'lucide-react';
 import { employeesApi } from '@/api/employees';
+import { assetsApi } from '@/api/asset-management';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import type { ApprovalStatus, EmployeeStatus } from '@/api/types';
 
 const STATUS_OPTIONS: EmployeeStatus[] = ['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED'];
@@ -20,22 +22,57 @@ export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Dialog State controls
   const [docType, setDocType] = useState('ID_PROOF');
   const [taskOpen, setTaskOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskOwner, setTaskOwner] = useState('HR');
 
+  const [isAssetOpen, setIsAssetOpen] = useState(false);
+  const [selectedAssetId, setSelectedAssetId] = useState('');
+  const [assetRemarks, setAssetRemarks] = useState('');
+
+  const [isCourseOpen, setIsCourseOpen] = useState(false);
+  const [courseName, setCourseName] = useState('');
+  const [courseType, setCourseType] = useState('Technical');
+  const [courseStatus, setCourseStatus] = useState('In Progress');
+  const [courseCert, setCourseCert] = useState('');
+
+  const [isKpiOpen, setIsKpiOpen] = useState(false);
+  const [kpiTitle, setKpiTitle] = useState('');
+  const [kpiCategory, setKpiCategory] = useState('Quality');
+  const [kpiTarget, setKpiTarget] = useState('');
+  const [kpiWeight, setKpiWeight] = useState(10);
+  const [kpiPeriod, setKpiPeriod] = useState('Q3 2026');
+  const [kpiRating, setKpiRating] = useState('');
+  const [kpiFeedback, setKpiFeedback] = useState('');
+
+  const [isNoteOpen, setIsNoteOpen] = useState(false);
+  const [noteContent, setNoteContent] = useState('');
+  const [noteType, setNoteType] = useState('General');
+  const [noteAuthor, setNoteAuthor] = useState('HR Administrator');
+
+  // Queries
   const { data: employee, isLoading } = useQuery({
     queryKey: ['employee', id],
     queryFn: () => employeesApi.get(id!),
     enabled: !!id,
   });
 
+  const { data: assets = [] } = useQuery({
+    queryKey: ['assets'],
+    queryFn: () => assetsApi.list(),
+  });
+
+  const availableAssets = assets.filter(a => a.status === 'IN_STOCK');
+
+  // Mutations
   const statusMutation = useMutation({
     mutationFn: (status: EmployeeStatus) => employeesApi.update(id!, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
-      toast.success('Status updated');
+      toast.success('Status updated successfully');
     },
   });
 
@@ -43,7 +80,7 @@ export default function EmployeeDetailPage() {
     mutationFn: (file: File) => employeesApi.uploadDocument(id!, file, docType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
-      toast.success('Document uploaded');
+      toast.success('Document uploaded to vault');
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Upload failed'),
@@ -75,8 +112,81 @@ export default function EmployeeDetailPage() {
     },
   });
 
+  const allocateAssetMutation = useMutation({
+    mutationFn: () => assetsApi.allocate(selectedAssetId, { employeeId: id!, remarks: assetRemarks }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      toast.success('Asset allocated successfully');
+      setIsAssetOpen(false);
+      setSelectedAssetId('');
+      setAssetRemarks('');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Allocation failed'),
+  });
+
+  const returnAssetMutation = useMutation({
+    mutationFn: (assetId: string) => assetsApi.returnAsset(assetId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      toast.success('Asset returned to stock');
+    },
+  });
+
+  const enrollCourseMutation = useMutation({
+    mutationFn: () => employeesApi.enrollInCourse(id!, {
+      courseName,
+      courseType,
+      status: courseStatus,
+      certification: courseCert || undefined,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
+      toast.success('Employee enrolled in course');
+      setIsCourseOpen(false);
+      setCourseName('');
+      setCourseCert('');
+    },
+  });
+
+  const addKpiMutation = useMutation({
+    mutationFn: () => employeesApi.addKpi(id!, {
+      kpi: kpiTitle,
+      category: kpiCategory,
+      target: kpiTarget,
+      weightage: Number(kpiWeight),
+      reviewPeriod: kpiPeriod,
+      performanceRating: kpiRating ? Number(kpiRating) : undefined,
+      managerFeedback: kpiFeedback || undefined,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
+      toast.success('Performance KPI record added');
+      setIsKpiOpen(false);
+      setKpiTitle('');
+      setKpiTarget('');
+      setKpiRating('');
+      setKpiFeedback('');
+    },
+  });
+
+  const addNoteMutation = useMutation({
+    mutationFn: () => employeesApi.addHrNote(id!, {
+      note: noteContent,
+      noteType,
+      createdBy: noteAuthor,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
+      toast.success('Internal HR note recorded');
+      setIsNoteOpen(false);
+      setNoteContent('');
+    },
+  });
+
   if (isLoading || !employee) {
-    return <p className="text-sm text-muted-foreground">Loading employee...</p>;
+    return <p className="text-sm text-muted-foreground p-6">Loading employee record...</p>;
   }
 
   return (
@@ -88,21 +198,21 @@ export default function EmployeeDetailPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-semibold ">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
             {employee.firstName} {employee.lastName}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {employee.employeeCode} &middot; {employee.designation?.title ?? 'No designation'}
           </p>
         </div>
         <div className="ml-auto w-40">
           <Select value={employee.status} onValueChange={(v) => statusMutation.mutate(v as EmployeeStatus)}>
-            <SelectTrigger>
+            <SelectTrigger className="h-9 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map((s) => (
-                <SelectItem key={s} value={s}>
+                <SelectItem key={s} value={s} className="text-xs">
                   {s}
                 </SelectItem>
               ))}
@@ -111,7 +221,7 @@ export default function EmployeeDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <InfoCard label="Company" value={employee.company?.name ?? '-'} />
         <InfoCard label="Business Unit" value={employee.businessUnit ?? 'Technology Services'} />
         <InfoCard label="Department" value={employee.department?.name ?? '-'} />
@@ -164,27 +274,27 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Date of Birth</p>
-                      <p className="font-semibold">{employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString() : '12 Dec 1994'}</p>
+                      <p className="font-semibold">{employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString() : 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Gender</p>
-                      <p className="font-semibold uppercase">{employee.gender ?? 'MALE'}</p>
+                      <p className="font-semibold uppercase">{employee.gender ?? 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Marital Status</p>
-                      <p className="font-semibold">Single</p>
+                      <p className="font-semibold">{employee.maritalStatus || 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Nationality</p>
-                      <p className="font-semibold">Indian</p>
+                      <p className="font-semibold">{employee.nationality || 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Blood Group</p>
-                      <p className="font-semibold">O+ Positive</p>
+                      <p className="font-semibold">{employee.bloodGroup || 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Religion</p>
-                      <p className="font-semibold">Hindustan / Secular</p>
+                      <p className="font-semibold">{employee.religion || 'No information available'}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -201,29 +311,47 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Personal Phone</p>
-                      <p className="font-semibold">{employee.phone ?? '+91 98765 43210'}</p>
+                      <p className="font-semibold">{employee.phone ?? 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Work Phone</p>
-                      <p className="font-semibold">+91 20 6789 0100 ext 443</p>
+                      <p className="font-semibold">{employee.workPhone ?? 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Work Email</p>
-                      <p className="font-semibold">{employee.workEmail ?? '-'}</p>
+                      <p className="font-semibold">{employee.workEmail ?? 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Personal Email</p>
-                      <p className="font-semibold">personal.contact@email.com</p>
+                      <p className="font-semibold">{employee.personalEmail ?? 'No information available'}</p>
                     </div>
                   </div>
                   <div className="border-t pt-3 grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <p className="text-muted-foreground font-semibold">Current Address</p>
-                      <p className="text-foreground leading-normal">Flat 402, Sunshine Heights, Kalyani Nagar, Pune - 411006</p>
+                      <p className="text-foreground leading-normal">{employee.currentAddress || 'No information available'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-muted-foreground font-semibold">Permanent Address</p>
-                      <p className="text-foreground leading-normal">Flat 402, Sunshine Heights, Kalyani Nagar, Pune - 411006</p>
+                      <p className="text-foreground leading-normal">{employee.permanentAddress || 'No information available'}</p>
+                    </div>
+                  </div>
+                  <div className="border-t pt-3 grid grid-cols-4 gap-2">
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">City</p>
+                      <p className="font-semibold">{employee.city || 'No information available'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">State</p>
+                      <p className="font-semibold">{employee.state || 'No information available'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Country</p>
+                      <p className="font-semibold">{employee.country || 'No information available'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Pincode</p>
+                      <p className="font-semibold">{employee.pincode || 'No information available'}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -237,20 +365,37 @@ export default function EmployeeDetailPage() {
                   <CardTitle className="text-sm font-semibold">Family Details & Nominees</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <p className="font-semibold">Savitri Sharma</p>
-                      <p className="text-[10px] text-muted-foreground">Mother &bull; Primary Nominee (50% share)</p>
-                    </div>
-                    <Badge variant="outline">Nominee</Badge>
-                  </div>
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <p className="font-semibold">Gopal Sharma</p>
-                      <p className="text-[10px] text-muted-foreground">Father &bull; Nominee (50% share)</p>
-                    </div>
-                    <Badge variant="outline">Nominee</Badge>
-                  </div>
+                  {employee.familyMemberName || employee.nomineeName ? (
+                    <>
+                      {employee.familyMemberName && (
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <div>
+                            <p className="font-semibold">{employee.familyMemberName}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {employee.familyRelationship || 'Family Member'} 
+                              {employee.familyDob ? ` &bull; DOB: ${new Date(employee.familyDob).toLocaleDateString()}` : ''}
+                              {employee.familyContact ? ` &bull; Phone: ${employee.familyContact}` : ''}
+                            </p>
+                          </div>
+                          <Badge variant="outline">Family</Badge>
+                        </div>
+                      )}
+                      {employee.nomineeName && (
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <div>
+                            <p className="font-semibold">{employee.nomineeName}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {employee.nomineeRelationship || 'Nominee'} 
+                              {employee.nomineeShare ? ` &bull; Share: ${employee.nomineeShare}%` : ''}
+                            </p>
+                          </div>
+                          <Badge variant="outline">Nominee</Badge>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -262,15 +407,20 @@ export default function EmployeeDetailPage() {
                   <CardTitle className="text-sm font-semibold">Academic Education History</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
-                  <div className="border-l-2 border-primary pl-3 py-1">
-                    <p className="font-semibold">Bachelor of Technology in Computer Science</p>
-                    <p className="text-muted-foreground">Pune Institute of Computer Technology &bull; 2013 - 2017</p>
-                    <p className="text-[10px] text-primary font-medium mt-1">First Class with Distinction (GPA 8.9/10)</p>
-                  </div>
-                  <div className="border-l-2 border-muted pl-3 py-1">
-                    <p className="font-semibold">Higher Secondary School Certificate (12th)</p>
-                    <p className="text-muted-foreground">Kendriya Vidyalaya &bull; Class of 2013</p>
-                  </div>
+                  {employee.educationQualification ? (
+                    <div className="border-l-2 border-primary pl-3 py-1">
+                      <p className="font-semibold">{employee.educationQualification}</p>
+                      <p className="text-muted-foreground">
+                        {employee.educationInstitution || 'No Institution'} &bull; {employee.educationUniversity || 'No Board/University'} 
+                        {employee.educationPassingYear ? ` &bull; Class of ${employee.educationPassingYear}` : ''}
+                      </p>
+                      {employee.educationPercentage && (
+                        <p className="text-[10px] text-primary font-medium mt-1">Percentage / Grade: {employee.educationPercentage}%</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -282,15 +432,24 @@ export default function EmployeeDetailPage() {
                   <CardTitle className="text-sm font-semibold">Previous Work Experience</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
-                  <div className="border-l-2 border-emerald-500 pl-3 py-1">
-                    <p className="font-semibold">Software Developer</p>
-                    <p className="text-muted-foreground">Infosys Technologies Ltd &bull; 2019 - 2022</p>
-                    <p className="text-muted-foreground leading-normal mt-1">Built frontend dashboards using React, optimized SQL queries and worked in agile sprint deliveries.</p>
-                  </div>
-                  <div className="border-l-2 border-muted pl-3 py-1">
-                    <p className="font-semibold">Junior Web Developer</p>
-                    <p className="text-muted-foreground">Wipro Infotech &bull; 2017 - 2019</p>
-                  </div>
+                  {employee.prevCompany ? (
+                    <div className="border-l-2 border-emerald-500 pl-3 py-1">
+                      <p className="font-semibold">{employee.prevJobTitle || 'Previous Employee'}</p>
+                      <p className="text-muted-foreground">
+                        {employee.prevCompany} 
+                        {employee.prevStartDate ? ` &bull; ${new Date(employee.prevStartDate).toLocaleDateString()}` : ''}
+                        {employee.prevEndDate ? ` - ${new Date(employee.prevEndDate).toLocaleDateString()}` : ''}
+                      </p>
+                      {employee.prevTotalExp && (
+                        <p className="text-[10px] text-muted-foreground font-medium mt-1">Total Experience: {employee.prevTotalExp}</p>
+                      )}
+                      {employee.prevReasonForLeaving && (
+                        <p className="text-[10px] text-muted-foreground leading-normal mt-1">Reason for Leaving: {employee.prevReasonForLeaving}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -302,24 +461,32 @@ export default function EmployeeDetailPage() {
                   <CardTitle className="text-sm font-semibold">Banking Details (Salary Account)</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Bank Name</p>
-                      <p className="font-semibold">HDFC Bank Limited</p>
+                  {employee.bankName || employee.bankAccountNumber ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Bank Name</p>
+                        <p className="font-semibold">{employee.bankName || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Account Number</p>
+                        <p className="font-semibold font-mono">{employee.bankAccountNumber || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">IFSC Code</p>
+                        <p className="font-semibold font-mono uppercase">{employee.bankIfscCode || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Branch Location</p>
+                        <p className="font-semibold">{employee.bankBranchName || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1 col-span-2">
+                        <p className="text-muted-foreground">Account Holder Name</p>
+                        <p className="font-semibold">{employee.bankAccountHolderName || 'No information available'}</p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Account Number</p>
-                      <p className="font-semibold font-mono">501002991823</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">IFSC Code</p>
-                      <p className="font-semibold font-mono uppercase">HDFC0000104</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Branch Location</p>
-                      <p className="font-semibold">Kalyani Nagar, Pune</p>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No information available</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -331,24 +498,35 @@ export default function EmployeeDetailPage() {
                   <CardTitle className="text-sm font-semibold">KYC Credentials (Aadhaar & PAN)</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Aadhaar Number (UIDAI)</p>
-                      <p className="font-semibold font-mono">4567 8901 2345</p>
+                  {employee.aadhaarNumber || employee.panNumber ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Aadhaar Number (UIDAI)</p>
+                        <p className="font-semibold font-mono">{employee.aadhaarNumber || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Income Tax PAN Number</p>
+                        <p className="font-semibold font-mono uppercase">{employee.panNumber || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Passport Number</p>
+                        <p className="font-semibold font-mono uppercase">{employee.passportNumber || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Verification Status</p>
+                        <div>
+                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] uppercase">
+                            {employee.kycStatus || 'PENDING'}
+                          </Badge>
+                          {employee.kycVerificationDate && (
+                            <span className="text-[10px] text-muted-foreground ml-2">Verified: {new Date(employee.kycVerificationDate).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Income Tax PAN Number</p>
-                      <p className="font-semibold font-mono uppercase">ABCDE1234F</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Passport Number</p>
-                      <p className="font-semibold font-mono uppercase">Z9876543</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Verification Status</p>
-                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]">VERIFIED</Badge>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No information available</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -360,24 +538,37 @@ export default function EmployeeDetailPage() {
                   <CardTitle className="text-sm font-semibold">Provident Fund & ESIC Registration</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Universal Account Number (UAN)</p>
-                      <p className="font-semibold font-mono">100918273645</p>
+                  {employee.uanNumber || employee.pfMemberId || employee.esicNumber ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Universal Account Number (UAN)</p>
+                        <p className="font-semibold font-mono">{employee.uanNumber || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">PF Member ID</p>
+                        <p className="font-semibold font-mono">{employee.pfMemberId || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">ESIC IP Number</p>
+                        <p className="font-semibold font-mono">{employee.esicNumber || 'No information available'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">Applicability</p>
+                        <div className="flex gap-2">
+                          <Badge variant="outline">PF: {employee.pfApplicable ? 'Yes' : 'No'}</Badge>
+                          <Badge variant="outline">ESIC: {employee.esicApplicable ? 'Yes' : 'No'}</Badge>
+                        </div>
+                      </div>
+                      {employee.pfEsicJoiningDate && (
+                        <div className="space-y-1 col-span-2">
+                           <p className="text-muted-foreground">PF/ESIC Joining Date</p>
+                           <p className="font-semibold">{new Date(employee.pfEsicJoiningDate).toLocaleDateString()}</p>
+                        </div>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">PF Member ID</p>
-                      <p className="font-semibold font-mono">MH/BAN/0099182/000/1234567</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">ESIC IP Number</p>
-                      <p className="font-semibold font-mono">3112456789</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">EPF Scheme Enrolment Date</p>
-                      <p className="font-semibold">{employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString() : '01 Jun 2022'}</p>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No information available</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -389,38 +580,69 @@ export default function EmployeeDetailPage() {
                   <CardTitle className="text-sm font-semibold">Compensation Salary Structure</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
-                  <div className="grid grid-cols-2 gap-4 border-b pb-3 mb-3">
-                    <div>
-                      <p className="text-muted-foreground">Payroll Group</p>
-                      <p className="font-semibold text-primary">Standard IT Payroll Group</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Total CTC (Annual Cost to Company)</p>
-                      <p className="font-semibold text-lg text-foreground">₹7,20,000 / annum</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-muted-foreground">Basic Salary</span>
-                      <span className="font-semibold font-mono">₹30,000 / month</span>
-                    </div>
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-muted-foreground">House Rent Allowance (HRA)</span>
-                      <span className="font-semibold font-mono">₹15,000 / month</span>
-                    </div>
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-muted-foreground">Conveyance Allowance</span>
-                      <span className="font-semibold font-mono">₹3,000 / month</span>
-                    </div>
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-muted-foreground">Special Allowance</span>
-                      <span className="font-semibold font-mono">₹12,000 / month</span>
-                    </div>
-                    <div className="flex justify-between pt-1 text-sm font-bold text-emerald-600">
-                      <span>Gross Salary</span>
-                      <span className="font-mono">₹60,000 / month</span>
-                    </div>
-                  </div>
+                  {employee.annualCtc || employee.basicSalary ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-4 border-b pb-3 mb-3">
+                        <div>
+                          <p className="text-muted-foreground">Salary Grade / Band</p>
+                          <p className="font-semibold text-primary">
+                            {employee.salaryGrade || 'No Grade Specified'} {employee.salaryBand ? `(${employee.salaryBand})` : ''}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Total CTC (Annual Cost to Company)</p>
+                          <p className="font-semibold text-lg text-foreground">
+                            {employee.annualCtc ? `₹${employee.annualCtc.toLocaleString()} / annum` : 'No information available'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {typeof employee.basicSalary === 'number' && (
+                          <div className="flex justify-between border-b pb-1">
+                            <span className="text-muted-foreground">Basic Salary</span>
+                            <span className="font-semibold font-mono">₹{employee.basicSalary.toLocaleString()} / month</span>
+                          </div>
+                        )}
+                        {typeof employee.hra === 'number' && (
+                          <div className="flex justify-between border-b pb-1">
+                            <span className="text-muted-foreground">House Rent Allowance (HRA)</span>
+                            <span className="font-semibold font-mono">₹{employee.hra.toLocaleString()} / month</span>
+                          </div>
+                        )}
+                        {typeof employee.conveyance === 'number' && (
+                          <div className="flex justify-between border-b pb-1">
+                            <span className="text-muted-foreground">Conveyance Allowance</span>
+                            <span className="font-semibold font-mono">₹{employee.conveyance.toLocaleString()} / month</span>
+                          </div>
+                        )}
+                        {typeof employee.specialAllowance === 'number' && (
+                          <div className="flex justify-between border-b pb-1">
+                            <span className="text-muted-foreground">Special Allowance</span>
+                            <span className="font-semibold font-mono">₹{employee.specialAllowance.toLocaleString()} / month</span>
+                          </div>
+                        )}
+                        {typeof employee.otherAllowances === 'number' && (
+                          <div className="flex justify-between border-b pb-1">
+                            <span className="text-muted-foreground">Other Allowances</span>
+                            <span className="font-semibold font-mono">₹{employee.otherAllowances.toLocaleString()} / month</span>
+                          </div>
+                        )}
+                        {typeof employee.grossSalary === 'number' && (
+                          <div className="flex justify-between pt-1 text-sm font-bold text-emerald-600">
+                            <span>Gross Salary</span>
+                            <span className="font-mono">₹{employee.grossSalary.toLocaleString()} / month</span>
+                          </div>
+                        )}
+                        {employee.salaryEffectiveFrom && (
+                          <p className="text-[10px] text-muted-foreground italic pt-2">
+                            Effective Date: {new Date(employee.salaryEffectiveFrom).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -428,7 +650,7 @@ export default function EmployeeDetailPage() {
             {/* 10. DOCUMENTS */}
             <TabsContent value="documents" className="m-0">
               <Card className="shadow-2xs">
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
                   <CardTitle className="text-base font-semibold">Documents Vault</CardTitle>
                   <div className="flex items-center gap-2">
                     <Select value={docType} onValueChange={setDocType}>
@@ -453,14 +675,14 @@ export default function EmployeeDetailPage() {
                       }}
                     />
                     <Button size="sm" className="text-xs h-8" onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
-                      <Upload className="mr-1.5 h-4 w-4" /> Upload
+                      <Upload className="mr-1.5 h-4 w-4" /> Upload Document
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-2 pt-4">
                   {employee.documents && employee.documents.length > 0 ? (
                     employee.documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-xs">
+                      <div key={doc.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-xs hover:bg-muted/30 transition-colors">
                         <div>
                           <p className="font-medium">{doc.fileName}</p>
                           <p className="text-[10px] text-muted-foreground">{doc.docType}</p>
@@ -480,24 +702,86 @@ export default function EmployeeDetailPage() {
             {/* 11. ASSETS */}
             <TabsContent value="assets" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
+                <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
                   <CardTitle className="text-sm font-semibold">Assigned Company Assets</CardTitle>
+                  <Dialog open={isAssetOpen} onOpenChange={setIsAssetOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="text-xs h-8 gap-1">
+                        <Plus className="h-3.5 w-3.5" /> Allocate Asset
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Allocate Company Asset</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-2 text-xs">
+                        <div className="space-y-1.5">
+                          <Label>Select Available Asset *</Label>
+                          <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Choose an asset in stock..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableAssets.map((asset) => (
+                                <SelectItem key={asset.id} value={asset.id}>
+                                  {asset.name} &bull; {asset.assetTag} ({asset.category})
+                                </SelectItem>
+                              ))}
+                              {availableAssets.length === 0 && (
+                                <SelectItem value="none" disabled>No assets available in stock</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Remarks / Allocation Notes</Label>
+                          <Input value={assetRemarks} onChange={(e) => setAssetRemarks(e.target.value)} placeholder="e.g. Issued for remote work development" />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          disabled={!selectedAssetId || allocateAssetMutation.isPending}
+                          onClick={() => allocateAssetMutation.mutate()}
+                          size="sm"
+                        >
+                          Confirm Allocation
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
-                  <div className="flex justify-between items-center border-b pb-2">
-                    <div>
-                      <p className="font-semibold">MacBook Pro M3 Pro (16-inch)</p>
-                      <p className="text-[10px] text-muted-foreground">Asset Tag: AST-0022 &bull; Issued Date: {employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString() : '01 Jun 2022'}</p>
-                    </div>
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">ALLOCATED</Badge>
-                  </div>
-                  <div className="flex justify-between items-center border-b pb-2">
-                    <div>
-                      <p className="font-semibold">Enterprise iPhone 15</p>
-                      <p className="text-[10px] text-muted-foreground">Asset Tag: AST-0023 &bull; Issued Date: {employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString() : '01 Jun 2022'}</p>
-                    </div>
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">ALLOCATED</Badge>
-                  </div>
+                  {employee.currentAssets && employee.currentAssets.length > 0 ? (
+                    employee.currentAssets.map((asset) => (
+                      <div key={asset.id} className="flex justify-between items-center border-b pb-3 last:border-b-0 hover:bg-muted/10 p-1.5 rounded-lg transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                            <Laptop className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-foreground">{asset.name}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Asset Tag: <span className="font-mono">{asset.assetTag}</span> &middot; Category: {asset.category}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">{asset.status}</Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-destructive hover:bg-destructive/5 font-semibold"
+                            onClick={() => returnAssetMutation.mutate(asset.id)}
+                            disabled={returnAssetMutation.isPending}
+                          >
+                            Return Asset
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No assets assigned</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -505,24 +789,93 @@ export default function EmployeeDetailPage() {
             {/* 12. TRAINING */}
             <TabsContent value="training" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
+                <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
                   <CardTitle className="text-sm font-semibold">Upskilling & LMS Enrollments</CardTitle>
+                  <Dialog open={isCourseOpen} onOpenChange={setIsCourseOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="text-xs h-8 gap-1">
+                        <Plus className="h-3.5 w-3.5" /> Enroll Course
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Enroll in Course / Workshop</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-2 text-xs">
+                        <div className="space-y-1.5">
+                          <Label>Course Title *</Label>
+                          <Input value={courseName} onChange={(e) => setCourseName(e.target.value)} placeholder="e.g. ISO 27001 Data Security certification" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Category / Type *</Label>
+                            <Select value={courseType} onValueChange={setCourseType}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Compliance">Compliance</SelectItem>
+                                <SelectItem value="Safety">Safety</SelectItem>
+                                <SelectItem value="Technical">Technical</SelectItem>
+                                <SelectItem value="Management">Management</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Enrollment Status *</Label>
+                            <Select value={courseStatus} onValueChange={setCourseStatus}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="In Progress">In Progress</SelectItem>
+                                <SelectItem value="Completed">Completed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Awarded Certification / Credential (Optional)</Label>
+                          <Input value={courseCert} onChange={(e) => setCourseCert(e.target.value)} placeholder="e.g. Cert-ISO27001-Lead" />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          disabled={!courseName || enrollCourseMutation.isPending}
+                          onClick={() => enrollCourseMutation.mutate()}
+                          size="sm"
+                        >
+                          Enroll Employee
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
-                  <div className="flex justify-between items-center border-b pb-2">
-                    <div>
-                      <p className="font-semibold">ISO 27001 Information Security Compliance</p>
-                      <p className="text-[10px] text-muted-foreground">Hours: 4.5 hrs &bull; Rating: 4.9</p>
-                    </div>
-                    <Badge variant="destructive">MANDATORY</Badge>
-                  </div>
-                  <div className="flex justify-between items-center border-b pb-2">
-                    <div>
-                      <p className="font-semibold">React 19 Frontend Engineering Best Practices</p>
-                      <p className="text-[10px] text-muted-foreground">Hours: 12 hrs &bull; Rating: 5.0</p>
-                    </div>
-                    <Badge className="bg-indigo-500/10 text-indigo-600">ELECTIVE</Badge>
-                  </div>
+                  {employee.courseEnrollments && employee.courseEnrollments.length > 0 ? (
+                    employee.courseEnrollments.map((course) => (
+                      <div key={course.id} className="flex justify-between items-center border-b pb-3 last:border-b-0 hover:bg-muted/10 p-1.5 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-indigo-50/50 border border-indigo-100 flex items-center justify-center text-indigo-500">
+                            <Award className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-foreground">{course.courseName}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Type: {course.courseType} &bull; Enrolled: {new Date(course.enrollmentDate).toLocaleDateString()}
+                              {course.completionDate ? ` &bull; Completed: ${new Date(course.completionDate).toLocaleDateString()}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={course.status === 'Completed' ? 'secondary' : 'outline'}>{course.status}</Badge>
+                          {course.certification && <Badge className="bg-indigo-50 text-indigo-600 border border-indigo-100">{course.certification}</Badge>}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No upskilling records found</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -530,14 +883,102 @@ export default function EmployeeDetailPage() {
             {/* 13. PERFORMANCE */}
             <TabsContent value="performance" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
+                <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
                   <CardTitle className="text-sm font-semibold">Performance Reviews & Appraisal KPIs</CardTitle>
+                  <Dialog open={isKpiOpen} onOpenChange={setIsKpiOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="text-xs h-8 gap-1">
+                        <Plus className="h-3.5 w-3.5" /> Add KPI Rating
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Add KPI Appraisal Record</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-2 text-xs">
+                        <div className="space-y-1.5">
+                          <Label>KPI Target Description *</Label>
+                          <Input value={kpiTitle} onChange={(e) => setKpiTitle(e.target.value)} placeholder="e.g. Maintain product delivery sprint goals" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Category *</Label>
+                            <Select value={kpiCategory} onValueChange={setKpiCategory}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Quality">Quality</SelectItem>
+                                <SelectItem value="Speed">Speed</SelectItem>
+                                <SelectItem value="Leadership">Leadership</SelectItem>
+                                <SelectItem value="Efficiency">Efficiency</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Review Period *</Label>
+                            <Input value={kpiPeriod} onChange={(e) => setKpiPeriod(e.target.value)} placeholder="e.g. Q3 2026" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Target Value *</Label>
+                            <Input value={kpiTarget} onChange={(e) => setKpiTarget(e.target.value)} placeholder="e.g. 98% uptime" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Weightage (%) *</Label>
+                            <Input type="number" value={kpiWeight} onChange={(e) => setKpiWeight(Number(e.target.value))} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Performance Rating (0.0 - 5.0)</Label>
+                            <Input type="number" step="0.1" min="0" max="5" value={kpiRating} onChange={(e) => setKpiRating(e.target.value)} placeholder="e.g. 4.5" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Manager Appraisal Feedback</Label>
+                          <textarea
+                            value={kpiFeedback}
+                            onChange={(e: any) => setKpiFeedback(e.target.value)}
+                            placeholder="Appraisal summary notes..."
+                            className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          disabled={!kpiTitle || addKpiMutation.isPending}
+                          onClick={() => addKpiMutation.mutate()}
+                          size="sm"
+                        >
+                          Save Appraisal KPI
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
-                  <div className="border-l-2 border-emerald-500 pl-3 py-1">
-                    <p className="font-semibold">2026 Annual Appraisal Review</p>
-                    <p className="text-muted-foreground">Score: 4.8 / 5.0 &bull; Feedback: Outstanding contribution, team player.</p>
-                  </div>
+                  {employee.kpis && employee.kpis.length > 0 ? (
+                    employee.kpis.map((kpi) => (
+                      <div key={kpi.id} className="border-l-2 border-primary pl-3 py-1 space-y-1 bg-muted/10 p-3 rounded-r-lg hover:bg-muted/20 transition-all">
+                        <p className="font-semibold text-foreground">{kpi.kpi} <span className="text-[10px] text-muted-foreground font-normal">({kpi.category})</span></p>
+                        <p className="text-muted-foreground text-[10px]">
+                          Target: {kpi.target} &bull; Weightage: {kpi.weightage}% &bull; Review Period: {kpi.reviewPeriod}
+                        </p>
+                        {kpi.performanceRating !== null && (
+                          <p className="text-[10px] font-semibold text-primary flex items-center gap-1 mt-0.5">
+                            <CheckCircle2 className="h-3 w-3 text-primary" /> Rating: {kpi.performanceRating} / 5.0
+                          </p>
+                        )}
+                        {kpi.managerFeedback && (
+                          <p className="text-[10px] text-muted-foreground italic bg-background p-1.5 rounded border mt-1">Feedback: "{kpi.managerFeedback}"</p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No KPI appraisal records found</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -545,14 +986,75 @@ export default function EmployeeDetailPage() {
             {/* 14. NOTES */}
             <TabsContent value="notes" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
+                <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
                   <CardTitle className="text-sm font-semibold">Supervisor & Internal HR Notes</CardTitle>
+                  <Dialog open={isNoteOpen} onOpenChange={setIsNoteOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="text-xs h-8 gap-1">
+                        <Plus className="h-3.5 w-3.5" /> Add Note
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Internal HR / Supervisor Note</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-2 text-xs">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Note Type *</Label>
+                            <Select value={noteType} onValueChange={setNoteType}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="General">General</SelectItem>
+                                <SelectItem value="Performance">Performance</SelectItem>
+                                <SelectItem value="Disciplinary">Disciplinary</SelectItem>
+                                <SelectItem value="Reward">Reward</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Created By / Author *</Label>
+                            <Input value={noteAuthor} onChange={(e) => setNoteAuthor(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Note Content *</Label>
+                          <textarea
+                            value={noteContent}
+                            onChange={(e: any) => setNoteContent(e.target.value)}
+                            placeholder="Record details here securely..."
+                            className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          disabled={!noteContent || addNoteMutation.isPending}
+                          onClick={() => addNoteMutation.mutate()}
+                          size="sm"
+                        >
+                          Save Secured Note
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-md p-3">
-                    <p className="font-semibold">HR Note on Promotion Nomination</p>
-                    <p className="text-muted-foreground leading-normal mt-1">Recommended for promotion to Tech Lead band in upcoming cycle based on performance review.</p>
-                  </div>
+                  {employee.hrNotes && employee.hrNotes.length > 0 ? (
+                    employee.hrNotes.map((note) => (
+                      <div key={note.id} className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3.5 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-amber-700 flex items-center gap-1"><ShieldAlert className="h-3.5 w-3.5" /> {note.noteType} Note</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">by {note.createdBy} &bull; {new Date(note.createdDate).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-muted-foreground leading-normal">{note.note}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-6">No HR / supervisor notes registered</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -561,20 +1063,24 @@ export default function EmployeeDetailPage() {
             <TabsContent value="timeline" className="m-0 space-y-4">
               <Card className="shadow-2xs">
                 <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Employee Career Timeline</CardTitle>
+                  <CardTitle className="text-sm font-semibold">Secured Career Timeline Events</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-4">
-                  <div className="relative border-l pl-4 space-y-4">
-                    <div className="relative">
-                      <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-emerald-500" />
-                      <p className="font-semibold">Joined Company Entity</p>
-                      <p className="text-muted-foreground text-[10px]">{employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString() : '01 Jun 2022'}</p>
-                    </div>
-                    <div className="relative">
-                      <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-primary" />
-                      <p className="font-semibold">Department & Designation Mapped</p>
-                      <p className="text-muted-foreground text-[10px]">Technology &bull; Software Engineer</p>
-                    </div>
+                  <div className="relative border-l-2 border-primary/20 pl-4 space-y-6 py-2 ml-2">
+                    {employee.timelineEvents && employee.timelineEvents.length > 0 ? (
+                      employee.timelineEvents.map((evt) => (
+                        <div key={evt.id} className="relative">
+                          <span className="absolute -left-[21px] top-1 h-3.5 w-3.5 rounded-full border-2 border-primary bg-background shrink-0 flex items-center justify-center">
+                            <span className="h-1.5 w-1.5 bg-primary rounded-full" />
+                          </span>
+                          <p className="font-semibold text-foreground text-xs">{evt.eventTitle}</p>
+                          <p className="text-muted-foreground text-[10px] font-medium mt-0.5">{new Date(evt.date).toLocaleDateString()}</p>
+                          {evt.details && <p className="text-[10px] text-muted-foreground mt-1 bg-muted/40 p-2 rounded-lg leading-relaxed">{evt.details}</p>}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center py-2">No timeline events found</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -583,8 +1089,8 @@ export default function EmployeeDetailPage() {
             {/* 16. ONBOARDING */}
             <TabsContent value="onboarding" className="m-0">
               <Card className="shadow-2xs">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-base font-semibold">Onboarding Tasks</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
+                  <CardTitle className="text-base font-semibold">Onboarding Checklist</CardTitle>
                   <Dialog open={taskOpen} onOpenChange={setTaskOpen}>
                     <DialogTrigger asChild>
                       <Button size="sm" className="text-xs h-8">
@@ -593,24 +1099,24 @@ export default function EmployeeDetailPage() {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Add Onboarding Task</DialogTitle>
+                        <DialogTitle>Add Onboarding Checklist Task</DialogTitle>
                       </DialogHeader>
-                      <div className="space-y-4">
+                      <div className="space-y-4 py-2 text-xs">
                         <div className="space-y-1.5">
-                          <Label>Title</Label>
-                          <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} />
+                          <Label>Task Title *</Label>
+                          <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="e.g. Set up payroll tax declarations" />
                         </div>
                         <div className="space-y-1.5">
-                          <Label>Owner</Label>
+                          <Label>Owner Group / Type *</Label>
                           <Select value={taskOwner} onValueChange={setTaskOwner}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="HR">HR</SelectItem>
-                              <SelectItem value="IT">IT</SelectItem>
-                              <SelectItem value="ADMIN">Admin</SelectItem>
-                              <SelectItem value="MANAGER">Manager</SelectItem>
+                              <SelectItem value="HR">HR Group</SelectItem>
+                              <SelectItem value="IT">IT Hardware Group</SelectItem>
+                              <SelectItem value="ADMIN">Facility / Admin Group</SelectItem>
+                              <SelectItem value="MANAGER">Reporting Manager</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -619,33 +1125,44 @@ export default function EmployeeDetailPage() {
                         <Button
                           disabled={!taskTitle || createTaskMutation.isPending}
                           onClick={() => createTaskMutation.mutate()}
+                          size="sm"
                         >
-                          Add task
+                          Add Onboarding Task
                         </Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-2 pt-4">
                   {employee.onboardingTasks && employee.onboardingTasks.length > 0 ? (
                     employee.onboardingTasks.map((task) => (
-                      <div key={task.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-xs">
-                        <div>
-                          <p className="font-medium">{task.title}</p>
-                          <p className="text-[10px] text-muted-foreground">Owner: {task.ownerType}</p>
+                      <div key={task.id} className="flex items-center justify-between rounded-xl border px-4 py-2.5 text-xs hover:bg-muted/20 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-muted border flex items-center justify-center text-muted-foreground shrink-0">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-foreground">{task.title}</p>
+                            <p className="text-[10px] text-muted-foreground">Responsible: {task.ownerType}</p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={task.status} className="text-[10px]" />
+                        <div className="flex items-center gap-3">
+                          <StatusBadge status={task.status} className="text-[10px] font-semibold" />
                           {task.status !== 'APPROVED' && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => completeTaskMutation.mutate(task.id)}>
-                              <Check className="h-3.5 w-3.5" />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs border-border/80"
+                              onClick={() => completeTaskMutation.mutate(task.id)}
+                            >
+                              <Check className="mr-1 h-3.5 w-3.5" /> Approve
                             </Button>
                           )}
                         </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground text-center py-6">No onboarding tasks yet.</p>
+                    <p className="text-xs text-muted-foreground text-center py-6">No onboarding tasks registered yet.</p>
                   )}
                 </CardContent>
               </Card>
@@ -659,7 +1176,7 @@ export default function EmployeeDetailPage() {
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
+    <Card className="shadow-2xs">
       <CardContent className="p-4 text-xs">
         <p className="font-semibold uppercase tracking-wider text-muted-foreground text-[10px]">{label}</p>
         <p className="mt-1 text-sm font-bold text-foreground truncate">{value}</p>
@@ -667,4 +1184,3 @@ function InfoCard({ label, value }: { label: string; value: string }) {
     </Card>
   );
 }
-

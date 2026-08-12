@@ -11,14 +11,16 @@ const common_1 = require("@nestjs/common");
 const employees_controller_1 = require("./employees.controller");
 const employees_service_1 = require("./employees.service");
 const onboarding_service_1 = require("./onboarding.service");
+const transfers_controller_1 = require("./transfers.controller");
+const transfers_service_1 = require("./transfers.service");
 let EmployeesModule = class EmployeesModule {
 };
 exports.EmployeesModule = EmployeesModule;
 exports.EmployeesModule = EmployeesModule = __decorate([
     (0, common_1.Module)({
-        controllers: [employees_controller_1.EmployeesController],
-        providers: [employees_service_1.EmployeesService, onboarding_service_1.OnboardingService],
-        exports: [employees_service_1.EmployeesService],
+        controllers: [employees_controller_1.EmployeesController, transfers_controller_1.TransfersController],
+        providers: [employees_service_1.EmployeesService, onboarding_service_1.OnboardingService, transfers_service_1.TransfersService],
+        exports: [employees_service_1.EmployeesService, transfers_service_1.TransfersService],
     })
 ], EmployeesModule);
 //# sourceMappingURL=employees.module.js.map

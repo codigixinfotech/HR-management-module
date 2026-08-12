@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   ShieldCheck,
@@ -18,79 +19,193 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { employeesApi } from '@/api/employees';
 
-interface DocRecord {
+interface FlatDocRecord {
+  employeeId: string;
   code: string;
   name: string;
-  docType: 'Aadhaar Card' | 'PAN Card' | 'Passport' | 'Degree Certificate';
+  docType: string;
   docNumber: string;
   status: 'VERIFIED' | 'PENDING_VERIFICATION' | 'REJECTED';
+  fileId?: string;
+  filePath?: string;
 }
 
-const INITIAL_DOCS: DocRecord[] = [
-  { code: 'EMP0001', name: 'Admin User', docType: 'Aadhaar Card', docNumber: 'XXXX-XXXX-8821', status: 'VERIFIED' },
-  { code: 'EMP0002', name: 'Rajesh Sharma', docType: 'PAN Card', docNumber: 'ABCDE1234F', status: 'VERIFIED' },
-  { code: 'EMP0003', name: 'Priya Verma', docType: 'Passport', docNumber: 'Z-9918231', status: 'VERIFIED' },
-  { code: 'EMP0004', name: 'Amit Patel', docType: 'Degree Certificate', docNumber: 'UNI-2022-81', status: 'PENDING_VERIFICATION' },
-];
-
 export function DocumentVaultTab() {
-  const [docs, setDocs] = useState<DocRecord[]>(INITIAL_DOCS);
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDocType, setSelectedDocType] = useState<string>('all');
 
   // Modal State
   const [isOpen, setIsOpen] = useState(false);
-  const [formName, setFormName] = useState('');
-  const [formType, setFormType] = useState<'Aadhaar Card' | 'PAN Card' | 'Passport' | 'Degree Certificate'>('Aadhaar Card');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [formType, setFormType] = useState<'Aadhaar Card' | 'PAN Card' | 'Passport' | 'Resume' | 'Offer Letter' | 'Joining Letter'>('Aadhaar Card');
   const [formNumber, setFormNumber] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const openAddModal = () => {
-    setFormName('');
-    setFormType('Aadhaar Card');
-    setFormNumber('');
-    setIsOpen(true);
+  // Load database employees
+  const { data: employeesData, isLoading } = useQuery({
+    queryKey: ['employees', 1, ''],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+  });
+
+  const employees = employeesData?.items ?? [];
+
+  // Flatten database employees and their documents into single records
+  const flatDocs = useMemo<FlatDocRecord[]>(() => {
+    const list: FlatDocRecord[] = [];
+    employees.forEach(emp => {
+      const name = `${emp.firstName} ${emp.lastName}`;
+      const code = emp.employeeCode;
+      const kycStatus = emp.kycStatus === 'VERIFIED' ? 'VERIFIED' : 'PENDING_VERIFICATION';
+
+      // 1. Aadhaar Card
+      if (emp.aadhaarNumber) {
+        list.push({
+          employeeId: emp.id,
+          code,
+          name,
+          docType: 'Aadhaar Card',
+          docNumber: emp.aadhaarNumber,
+          status: kycStatus,
+        });
+      }
+
+      // 2. PAN Card
+      if (emp.panNumber) {
+        list.push({
+          employeeId: emp.id,
+          code,
+          name,
+          docType: 'PAN Card',
+          docNumber: emp.panNumber,
+          status: kycStatus,
+        });
+      }
+
+      // 3. Passport
+      if (emp.passportNumber) {
+        list.push({
+          employeeId: emp.id,
+          code,
+          name,
+          docType: 'Passport',
+          docNumber: emp.passportNumber,
+          status: kycStatus,
+        });
+      }
+
+      // 4. File uploads from vault relation
+      if (emp.documents && Array.isArray(emp.documents)) {
+        emp.documents.forEach((doc: any) => {
+          let friendlyType = doc.docType;
+          if (doc.docType === 'ID_PROOF') friendlyType = 'Aadhaar Card';
+          else if (doc.docType === 'ADDRESS_PROOF') friendlyType = 'PAN Card';
+          else if (doc.docType === 'EDUCATION') friendlyType = 'Degree Certificate';
+          else if (doc.docType === 'OFFER_LETTER') friendlyType = 'Offer Letter';
+
+          // Avoid duplicating if we already render the structural placeholder
+          if (['Aadhaar Card', 'PAN Card', 'Passport'].includes(friendlyType)) {
+            // Find placeholder and associate file path
+            const existingPlaceholder = list.find(l => l.employeeId === emp.id && l.docType === friendlyType);
+            if (existingPlaceholder) {
+              existingPlaceholder.filePath = doc.filePath;
+              existingPlaceholder.fileId = doc.id;
+              return;
+            }
+          }
+
+          list.push({
+            employeeId: emp.id,
+            code,
+            name,
+            docType: friendlyType,
+            docNumber: doc.fileName,
+            status: kycStatus,
+            fileId: doc.id,
+            filePath: doc.filePath,
+          });
+        });
+      }
+    });
+    return list;
+  }, [employees]);
+
+  // Mutations
+  const verifyMutation = useMutation({
+    mutationFn: (employeeId: string) =>
+      employeesApi.update(employeeId, {
+        kycStatus: 'VERIFIED',
+        kycVerificationDate: new Date().toISOString(),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('Document successfully verified!');
+    },
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedEmployeeId || !selectedFile) return;
+      
+      // 1. Upload file if selected
+      let docTypeMapping = 'OTHER';
+      if (formType === 'Aadhaar Card') docTypeMapping = 'ID_PROOF';
+      else if (formType === 'PAN Card') docTypeMapping = 'ADDRESS_PROOF';
+      else if (formType === 'Resume') docTypeMapping = 'EDUCATION';
+      else if (formType === 'Offer Letter') docTypeMapping = 'OFFER_LETTER';
+
+      await employeesApi.uploadDocument(selectedEmployeeId, selectedFile, docTypeMapping);
+
+      // 2. Update reference number if provided
+      const updatePayload: any = {};
+      if (formType === 'Aadhaar Card' && formNumber) updatePayload.aadhaarNumber = formNumber;
+      if (formType === 'PAN Card' && formNumber) updatePayload.panNumber = formNumber;
+      if (formType === 'Passport' && formNumber) updatePayload.passportNumber = formNumber;
+
+      if (Object.keys(updatePayload).length > 0) {
+        await employeesApi.update(selectedEmployeeId, updatePayload);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('Document uploaded and linked successfully');
+      setIsOpen(false);
+      setSelectedEmployeeId('');
+      setFormNumber('');
+      setSelectedFile(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Upload failed');
+    },
+  });
+
+  const handleVerify = (employeeId: string) => {
+    verifyMutation.mutate(employeeId);
   };
 
-  const handleAddDoc = (e: React.FormEvent) => {
+  const handleAddDocSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formNumber) {
-      toast.error('Name and Document Number are required');
+    if (!selectedEmployeeId) {
+      toast.error('Please select an employee');
       return;
     }
-
-    const newDoc: DocRecord = {
-      code: `EMP000${docs.length + 1}`,
-      name: formName,
-      docType: formType,
-      docNumber: formNumber,
-      status: 'PENDING_VERIFICATION',
-    };
-
-    setDocs(prev => [...prev, newDoc]);
-    toast.success('Document uploaded. Verification pending.');
-    setIsOpen(false);
-  };
-
-  const handleVerify = (code: string, docType: string) => {
-    setDocs(prev =>
-      prev.map(d =>
-        d.code === code && d.docType === docType ? { ...d, status: 'VERIFIED' } : d,
-      ),
-    );
-    toast.success('Document successfully verified!');
+    uploadMutation.mutate();
   };
 
   const filteredDocs = useMemo(() => {
-    return docs.filter(d => {
+    return flatDocs.filter(d => {
       const matchesSearch =
         d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         d.code.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType =
-        selectedDocType === 'all' ? true : d.docType.toLowerCase() === selectedDocType.toLowerCase();
+        selectedDocType === 'all'
+          ? true
+          : d.docType.toLowerCase().includes(selectedDocType.toLowerCase());
       return matchesSearch && matchesType;
     });
-  }, [docs, searchQuery, selectedDocType]);
+  }, [flatDocs, searchQuery, selectedDocType]);
 
   return (
     <div className="space-y-6">
@@ -100,7 +215,7 @@ export function DocumentVaultTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Documents</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">{docs.length} Uploaded</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{flatDocs.length} Uploaded</p>
               <p className="text-[10px] text-primary font-semibold mt-1">Digital copies stored</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -113,8 +228,8 @@ export function DocumentVaultTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Verified Vault</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">
-                {docs.filter(d => d.status === 'VERIFIED').length} Verified
+              <p className="text-2xl font-semibold text-foreground mt-0.5">
+                {flatDocs.filter(d => d.status === 'VERIFIED').length} Verified
               </p>
               <p className="text-[10px] text-emerald-600 font-semibold mt-1">96.8% Audit Compliance</p>
             </div>
@@ -128,8 +243,8 @@ export function DocumentVaultTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pending Audit</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">
-                {docs.filter(d => d.status === 'PENDING_VERIFICATION').length} Awaiting
+              <p className="text-2xl font-semibold text-foreground mt-0.5">
+                {flatDocs.filter(d => d.status === 'PENDING_VERIFICATION').length} Awaiting
               </p>
               <p className="text-[10px] text-amber-600 font-semibold mt-1">Requires manual audit</p>
             </div>
@@ -143,7 +258,7 @@ export function DocumentVaultTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Rating</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">Grade A</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">Grade A</p>
               <p className="text-[10px] text-violet-600 font-semibold mt-1">External auditor ready</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
@@ -171,8 +286,8 @@ export function DocumentVaultTab() {
               <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
                 {[
                   { id: 'all', label: 'All Docs' },
-                  { id: 'aadhaar card', label: 'Aadhaar' },
-                  { id: 'pan card', label: 'PAN' },
+                  { id: 'aadhaar', label: 'Aadhaar' },
+                  { id: 'pan', label: 'PAN' },
                   { id: 'passport', label: 'Passport' },
                 ].map(type => (
                   <button
@@ -203,7 +318,7 @@ export function DocumentVaultTab() {
               {/* Upload Document Dialog */}
               <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openAddModal}>
+                  <Button size="sm" className="h-8 text-xs gap-1.5">
                     <Plus className="h-3.5 w-3.5" /> Upload Document
                   </Button>
                 </DialogTrigger>
@@ -211,19 +326,26 @@ export function DocumentVaultTab() {
                   <DialogHeader>
                     <DialogTitle>Upload Statutory Document</DialogTitle>
                   </DialogHeader>
-                  <form className="space-y-4" onSubmit={handleAddDoc}>
+                  <form className="space-y-4 text-xs" onSubmit={handleAddDocSubmit}>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Employee Name</Label>
-                      <Input
-                        placeholder="e.g. Amit Patel"
-                        value={formName}
-                        onChange={e => setFormName(e.target.value)}
-                        className="h-9 text-xs"
-                      />
+                      <Label>Select Employee *</Label>
+                      <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Choose employee..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employees.map(emp => (
+                            <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                              {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Document Category Type</Label>
+                        <Label>Document Category Type *</Label>
                         <Select value={formType} onValueChange={v => setFormType(v as any)}>
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Select type" />
@@ -232,12 +354,14 @@ export function DocumentVaultTab() {
                             <SelectItem value="Aadhaar Card" className="text-xs">Aadhaar Card</SelectItem>
                             <SelectItem value="PAN Card" className="text-xs">PAN Card</SelectItem>
                             <SelectItem value="Passport" className="text-xs">Passport</SelectItem>
-                            <SelectItem value="Degree Certificate" className="text-xs">Degree Certificate</SelectItem>
+                            <SelectItem value="Resume" className="text-xs">Resume / CV</SelectItem>
+                            <SelectItem value="Offer Letter" className="text-xs">Offer Letter</SelectItem>
+                            <SelectItem value="Joining Letter" className="text-xs">Joining Letter</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Document Ref ID Number</Label>
+                        <Label>Document Ref ID Number</Label>
                         <Input
                           placeholder="e.g. XXXX-XXXX-1234"
                           value={formNumber}
@@ -246,8 +370,19 @@ export function DocumentVaultTab() {
                         />
                       </div>
                     </div>
+
+                    <div className="space-y-1.5">
+                      <Label>Attach File *</Label>
+                      <Input
+                        type="file"
+                        onChange={e => setSelectedFile(e.target.files?.[0] ?? null)}
+                        className="h-9 text-xs"
+                        required
+                      />
+                    </div>
+
                     <DialogFooter>
-                      <Button type="submit" size="sm" className="text-xs">
+                      <Button type="submit" size="sm" className="text-xs" disabled={uploadMutation.isPending}>
                         Publish & Submit Copy
                       </Button>
                     </DialogFooter>
@@ -270,42 +405,67 @@ export function DocumentVaultTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredDocs.map((doc, idx) => (
-                <TableRow key={`${doc.code}-${idx}`} className="hover:bg-muted/40 transition-colors">
-                  <TableCell className="font-mono text-xs font-semibold text-primary">{doc.code}</TableCell>
-                  <TableCell className="font-semibold text-xs text-foreground">{doc.name}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground font-semibold">{doc.docType}</TableCell>
-                  <TableCell className="text-xs font-mono font-medium">{doc.docNumber}</TableCell>
-                  <TableCell className="text-xs">
-                    <Badge
-                      variant="outline"
-                      className={`text-[9.5px] font-semibold ${doc.status === 'VERIFIED'
-                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                        : doc.status === 'PENDING_VERIFICATION'
-                          ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                          : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-                        }`}
-                    >
-                      {doc.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right flex items-center justify-end gap-1">
-                    {doc.status === 'PENDING_VERIFICATION' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-semibold"
-                        onClick={() => handleVerify(doc.code, doc.docType)}
-                      >
-                        Verify Doc
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Download Document">
-                      <Download className="h-3.5 w-3.5" />
-                    </Button>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">
+                    Loading statutory verification records...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredDocs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">
+                    No documents found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredDocs.map((doc, idx) => (
+                  <TableRow key={`${doc.code}-${idx}`} className="hover:bg-muted/40 transition-colors">
+                    <TableCell className="font-mono text-xs font-semibold text-primary">{doc.code}</TableCell>
+                    <TableCell className="font-semibold text-xs text-foreground">{doc.name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground font-semibold">{doc.docType}</TableCell>
+                    <TableCell className="text-xs font-mono font-medium">{doc.docNumber}</TableCell>
+                    <TableCell className="text-xs">
+                      <Badge
+                        variant="outline"
+                        className={`text-[9.5px] font-semibold ${doc.status === 'VERIFIED'
+                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                          : doc.status === 'PENDING_VERIFICATION'
+                            ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                            : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                          }`}
+                      >
+                        {doc.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {doc.status === 'PENDING_VERIFICATION' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-semibold"
+                            onClick={() => handleVerify(doc.employeeId)}
+                            disabled={verifyMutation.isPending}
+                          >
+                            Verify Doc
+                          </Button>
+                        )}
+                        {doc.filePath && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            title="Download Document"
+                            onClick={() => window.open(`http://localhost:3001/${doc.filePath}`)}
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

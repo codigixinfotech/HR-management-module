@@ -32,6 +32,15 @@ let EmployeesController = class EmployeesController {
     list(query) {
         return this.employeesService.list(query, query.companyId);
     }
+    listSkills() {
+        return this.employeesService.listSkills();
+    }
+    createSkill(dto) {
+        return this.employeesService.createSkill(dto);
+    }
+    removeSkill(id) {
+        return this.employeesService.removeSkill(id);
+    }
     findOne(id) {
         return this.employeesService.findById(id);
     }
@@ -62,6 +71,15 @@ let EmployeesController = class EmployeesController {
     updateOnboardingTaskStatus(taskId, status) {
         return this.onboardingService.updateStatus(taskId, status);
     }
+    enrollInCourse(id, dto) {
+        return this.employeesService.enrollInCourse(id, dto);
+    }
+    addKpi(id, dto) {
+        return this.employeesService.addKpi(id, dto);
+    }
+    addHrNote(id, dto) {
+        return this.employeesService.addHrNote(id, dto);
+    }
 };
 exports.EmployeesController = EmployeesController;
 __decorate([
@@ -72,6 +90,29 @@ __decorate([
     __metadata("design:paramtypes", [employee_dto_1.ListEmployeesQueryDto]),
     __metadata("design:returntype", void 0)
 ], EmployeesController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('skills/competencies'),
+    (0, permissions_decorator_1.Permissions)('employees.read'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "listSkills", null);
+__decorate([
+    (0, common_1.Post)('skills/competencies'),
+    (0, permissions_decorator_1.Permissions)('employees.write'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "createSkill", null);
+__decorate([
+    (0, common_1.Delete)('skills/competencies/:id'),
+    (0, permissions_decorator_1.Permissions)('employees.write'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "removeSkill", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, permissions_decorator_1.Permissions)('employees.read'),
@@ -159,6 +200,33 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], EmployeesController.prototype, "updateOnboardingTaskStatus", null);
+__decorate([
+    (0, common_1.Post)(':id/courses'),
+    (0, permissions_decorator_1.Permissions)('employees.write'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "enrollInCourse", null);
+__decorate([
+    (0, common_1.Post)(':id/kpis'),
+    (0, permissions_decorator_1.Permissions)('employees.write'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "addKpi", null);
+__decorate([
+    (0, common_1.Post)(':id/hr-notes'),
+    (0, permissions_decorator_1.Permissions)('employees.write'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "addHrNote", null);
 exports.EmployeesController = EmployeesController = __decorate([
     (0, common_1.Controller)('employees'),
     __metadata("design:paramtypes", [employees_service_1.EmployeesService,

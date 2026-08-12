@@ -14,14 +14,10 @@ import {
   Search,
   Grid,
   List,
-  Building,
-  Clock,
-  Layout,
-  CheckCircle2,
 } from 'lucide-react';
 import { branchesApi, locationsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
-import type { Branch, Company, Location } from '@/api/types';
+import type { Branch, Company } from '@/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -125,9 +121,8 @@ export function BranchesTab({
     queryFn: () => employeesApi.list({ pageSize: 500 }),
   });
   const allEmployees = employeeData?.items ?? [];
-
   const form = useForm<BranchFormValues>({
-    resolver: zodResolver(branchSchema),
+    resolver: zodResolver(branchSchema) as any,
     defaultValues: {
       companyId: companyId ?? companies[0]?.id ?? '',
       code: '',
@@ -152,7 +147,7 @@ export function BranchesTab({
   });
 
   const locationForm = useForm<LocationFormValues>({
-    resolver: zodResolver(locationSchema),
+    resolver: zodResolver(locationSchema) as any,
     defaultValues: {
       branchId: '',
       code: '',

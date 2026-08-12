@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Building2, CheckCircle2, Globe, Phone, Mail, Link as LinkIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2, CheckCircle2 } from 'lucide-react';
 import { companiesApi } from '@/api/organization';
 import type { Company } from '@/api/types';
 import { Button } from '@/components/ui/button';
@@ -65,9 +65,8 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
   const [shouldAddBranchAfterSave, setShouldAddBranchAfterSave] = useState(false);
 
   const { data: companies, isLoading } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-
   const form = useForm<CompanyFormValues>({
-    resolver: zodResolver(companySchema),
+    resolver: zodResolver(companySchema) as any,
     defaultValues: {
       code: '',
       name: '',

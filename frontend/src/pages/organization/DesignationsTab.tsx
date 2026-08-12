@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Award, Search, Briefcase } from 'lucide-react';
 import { departmentsApi, designationsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
+import { payGradesApi } from '@/api/cost-grades';
 import type { Company, Designation } from '@/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,7 +35,6 @@ const designationSchema = z.object({
 });
 
 const formatSalaryRange = (min?: number | null, max?: number | null) => {
-  if (!min && !max) return 'Not Specified';
   const formatVal = (val: number) => {
     if (val >= 100000) {
       return `₹${(val / 100000).toFixed(1).replace(/\.0$/, '')}L`;
@@ -43,7 +43,7 @@ const formatSalaryRange = (min?: number | null, max?: number | null) => {
   };
   if (min && max) return `${formatVal(min)} - ${formatVal(max)} / yr`;
   if (min) return `Min: ${formatVal(min)} / yr`;
-  return `Max: ${formatVal(max)} / yr`;
+  return max ? `Max: ${formatVal(max)} / yr` : 'Not Specified';
 };
 
 type DesignationFormValues = z.infer<typeof designationSchema>;
@@ -64,18 +64,8 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   const [editing, setEditing] = useState<Designation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: designations, isLoading } = useQuery({
-    queryKey: ['designations', companyId],
-    queryFn: () => designationsApi.list(companyId),
-  });
-
-  const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
-  });
-
   const form = useForm<DesignationFormValues>({
-    resolver: zodResolver(designationSchema),
+    resolver: zodResolver(designationSchema) as any,
     defaultValues: {
       companyId: companyId ?? companies[0]?.id ?? '',
       departmentId: '',
@@ -91,6 +81,23 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
       isActive: true,
       description: '',
     },
+  });
+
+  const selectedCompanyId = form.watch('companyId') || companyId || companies[0]?.id || '';
+
+  const { data: designations, isLoading } = useQuery({
+    queryKey: ['designations', selectedCompanyId],
+    queryFn: () => designationsApi.list(selectedCompanyId),
+  });
+
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', 1, ''],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+  });
+
+  const { data: payGradesList } = useQuery({
+    queryKey: ['pay-grades', selectedCompanyId],
+    queryFn: () => payGradesApi.list(selectedCompanyId),
   });
 
   const watchedTitle = form.watch('title');
@@ -111,7 +118,6 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
     form.setValue('code', cleanTitle ? `DESG-${cleanTitle}` : '');
   }, [watchedTitle, form, editing]);
 
-  const selectedCompanyId = form.watch('companyId');
   const { data: departmentOptions } = useQuery({
     queryKey: ['departments', selectedCompanyId],
     queryFn: () => departmentsApi.list(selectedCompanyId),
@@ -303,18 +309,23 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Pay Grade / Level *</Label>
-                      <Select value={form.watch('grade')} onValueChange={(v) => form.setValue('grade', v)}>
+                      <Select value={form.watch('grade')} onValueChange={(v) => {
+                        form.setValue('grade', v);
+                        const selectedGrade = payGradesList?.find(g => g.gradeCode === v);
+                        if (selectedGrade) {
+                          form.setValue('minSalary', Number(selectedGrade.minSalary));
+                          form.setValue('maxSalary', Number(selectedGrade.maxSalary));
+                        }
+                      }}>
                         <SelectTrigger className="h-9 text-xs font-mono">
                           <SelectValue placeholder="Select grade band" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="E1" className="text-xs font-mono">E1 - Junior Executive</SelectItem>
-                          <SelectItem value="E2" className="text-xs font-mono">E2 - Software Engineer / Analyst</SelectItem>
-                          <SelectItem value="E3" className="text-xs font-mono">E3 - Senior Engineer / Specialist</SelectItem>
-                          <SelectItem value="M1" className="text-xs font-mono">M1 - Team Lead / Manager</SelectItem>
-                          <SelectItem value="M2" className="text-xs font-mono">M2 - Senior Manager / Head</SelectItem>
-                          <SelectItem value="L1" className="text-xs font-mono">L1 - Director / VP</SelectItem>
-                          <SelectItem value="L2" className="text-xs font-mono">L2 - CXO Leadership</SelectItem>
+                          {payGradesList?.map((g) => (
+                            <SelectItem key={g.id} value={g.gradeCode} className="text-xs font-mono">
+                              {g.gradeCode} - {g.gradeName}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       {form.formState.errors.grade && <p className="text-[10px] text-destructive">{form.formState.errors.grade.message}</p>}
@@ -483,23 +494,10 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                   </TableCell>
                   <TableCell className="text-xs font-mono font-semibold text-primary">
                     {(() => {
-                      const isSeededEmployee = (emp: any) => {
-                        if (!emp.employeeCode) return false;
-                        return /^EMP00[0-2][0-9]$/.test(emp.employeeCode);
-                      };
-                      const baseCountMap: Record<string, number> = {
-                        'ENG-SDE': 18,
-                        'OPS-EXEC': 12,
-                        'SALES-EXEC': 8,
-                        'HR-MGR': 4,
-                        'FIN-EXEC': 4,
-                        'PROD-DES': 3,
-                      };
-                      const baseCount = baseCountMap[designation.code] ?? 6;
-                      const newDbEmployeesCount = employeesData?.items?.filter(
-                        (emp: any) => emp.designationId === designation.id && !isSeededEmployee(emp)
+                      const count = employeesData?.items?.filter(
+                        (emp: any) => emp.designationId === designation.id
                       ).length ?? 0;
-                      return baseCount + newDbEmployeesCount;
+                      return count;
                     })()} Staff
                   </TableCell>
                   <TableCell className="text-right">

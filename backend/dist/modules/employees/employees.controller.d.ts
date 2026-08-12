@@ -30,6 +30,14 @@ export declare class EmployeesController {
                 firstName: string;
                 lastName: string;
             } | null;
+            documents: {
+                id: string;
+                employeeId: string;
+                docType: string;
+                fileName: string;
+                filePath: string;
+                uploadedAt: Date;
+            }[];
         } & {
             location: string | null;
             costCenter: string | null;
@@ -72,11 +80,72 @@ export declare class EmployeesController {
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             emergencyContactRelationship: string | null;
+            maritalStatus: string | null;
+            nationality: string | null;
+            bloodGroup: string | null;
+            religion: string | null;
+            currentAddress: string | null;
+            permanentAddress: string | null;
+            familyMemberName: string | null;
+            familyRelationship: string | null;
+            familyDob: Date | null;
+            familyContact: string | null;
+            nomineeName: string | null;
+            nomineeRelationship: string | null;
+            nomineeShare: number | null;
+            educationQualification: string | null;
+            educationSpecialization: string | null;
+            educationInstitution: string | null;
+            educationUniversity: string | null;
+            educationPassingYear: number | null;
+            educationPercentage: number | null;
+            prevCompany: string | null;
+            prevJobTitle: string | null;
+            prevStartDate: Date | null;
+            prevEndDate: Date | null;
+            prevTotalExp: string | null;
+            prevReasonForLeaving: string | null;
+            bankName: string | null;
+            bankAccountNumber: string | null;
+            bankIfscCode: string | null;
+            bankBranchName: string | null;
+            bankAccountHolderName: string | null;
+            aadhaarNumber: string | null;
+            panNumber: string | null;
+            passportNumber: string | null;
+            kycStatus: string | null;
+            kycVerificationDate: Date | null;
+            uanNumber: string | null;
+            pfMemberId: string | null;
+            esicNumber: string | null;
+            pfApplicable: boolean;
+            esicApplicable: boolean;
+            pfEsicJoiningDate: Date | null;
+            salaryGrade: string | null;
+            salaryBand: string | null;
+            basicSalary: number | null;
+            hra: number | null;
+            conveyance: number | null;
+            specialAllowance: number | null;
+            otherAllowances: number | null;
+            grossSalary: number | null;
+            annualCtc: number | null;
+            salaryEffectiveFrom: Date | null;
             dateOfExit: Date | null;
         })[];
         total: number;
         page: number;
         pageSize: number;
+    }>;
+    listSkills(): Promise<unknown>;
+    createSkill(dto: {
+        name: string;
+        category: string;
+        certRequired: boolean;
+        benchmarkScore: string;
+    }): Promise<any>;
+    removeSkill(id: string): Promise<{
+        success: boolean;
     }>;
     findOne(id: string): Promise<{
         company: {
@@ -95,6 +164,27 @@ export declare class EmployeesController {
             id: string;
             title: string;
         } | null;
+        salaryComponents: ({
+            salaryComponent: {
+                id: string;
+                companyId: string;
+                isActive: boolean;
+                createdAt: Date;
+                updatedAt: Date;
+                name: string;
+                code: string;
+                type: import("@prisma/client").$Enums.SalaryComponentType;
+                isStatutory: boolean;
+            };
+        } & {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            effectiveFrom: Date;
+            employeeId: string;
+            salaryComponentId: string;
+            monthlyAmount: number;
+        })[];
         reportingManager: {
             id: string;
             firstName: string;
@@ -107,11 +197,11 @@ export declare class EmployeesController {
         }[];
         documents: {
             id: string;
+            employeeId: string;
             docType: string;
             fileName: string;
             filePath: string;
             uploadedAt: Date;
-            employeeId: string;
         }[];
         onboardingTasks: {
             id: string;
@@ -123,6 +213,62 @@ export declare class EmployeesController {
             ownerType: string;
             dueDate: Date | null;
             completedAt: Date | null;
+        }[];
+        courseEnrollments: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            status: string;
+            enrollmentDate: Date;
+            employeeId: string;
+            courseName: string;
+            courseType: string;
+            completionDate: Date | null;
+            certification: string | null;
+        }[];
+        kpis: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            category: string;
+            employeeId: string;
+            kpi: string;
+            target: string;
+            weightage: number;
+            reviewPeriod: string;
+            performanceRating: number | null;
+            managerFeedback: string | null;
+        }[];
+        hrNotes: {
+            id: string;
+            createdDate: Date;
+            employeeId: string;
+            note: string;
+            noteType: string;
+            createdBy: string;
+        }[];
+        timelineEvents: {
+            id: string;
+            date: Date;
+            eventTitle: string;
+            details: string | null;
+            eventType: string;
+            employeeId: string;
+        }[];
+        currentAssets: {
+            id: string;
+            companyId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            name: string;
+            category: string;
+            status: import("@prisma/client").$Enums.AssetStatus;
+            notes: string | null;
+            assetTag: string;
+            value: number | null;
+            currentEmployeeId: string | null;
+            purchaseDate: Date | null;
+            warrantyExpiry: Date | null;
         }[];
     } & {
         location: string | null;
@@ -166,6 +312,57 @@ export declare class EmployeesController {
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
         emergencyContactRelationship: string | null;
+        maritalStatus: string | null;
+        nationality: string | null;
+        bloodGroup: string | null;
+        religion: string | null;
+        currentAddress: string | null;
+        permanentAddress: string | null;
+        familyMemberName: string | null;
+        familyRelationship: string | null;
+        familyDob: Date | null;
+        familyContact: string | null;
+        nomineeName: string | null;
+        nomineeRelationship: string | null;
+        nomineeShare: number | null;
+        educationQualification: string | null;
+        educationSpecialization: string | null;
+        educationInstitution: string | null;
+        educationUniversity: string | null;
+        educationPassingYear: number | null;
+        educationPercentage: number | null;
+        prevCompany: string | null;
+        prevJobTitle: string | null;
+        prevStartDate: Date | null;
+        prevEndDate: Date | null;
+        prevTotalExp: string | null;
+        prevReasonForLeaving: string | null;
+        bankName: string | null;
+        bankAccountNumber: string | null;
+        bankIfscCode: string | null;
+        bankBranchName: string | null;
+        bankAccountHolderName: string | null;
+        aadhaarNumber: string | null;
+        panNumber: string | null;
+        passportNumber: string | null;
+        kycStatus: string | null;
+        kycVerificationDate: Date | null;
+        uanNumber: string | null;
+        pfMemberId: string | null;
+        esicNumber: string | null;
+        pfApplicable: boolean;
+        esicApplicable: boolean;
+        pfEsicJoiningDate: Date | null;
+        salaryGrade: string | null;
+        salaryBand: string | null;
+        basicSalary: number | null;
+        hra: number | null;
+        conveyance: number | null;
+        specialAllowance: number | null;
+        otherAllowances: number | null;
+        grossSalary: number | null;
+        annualCtc: number | null;
+        salaryEffectiveFrom: Date | null;
         dateOfExit: Date | null;
     }>;
     create(dto: CreateEmployeeDto): Promise<{
@@ -190,6 +387,14 @@ export declare class EmployeesController {
             firstName: string;
             lastName: string;
         } | null;
+        documents: {
+            id: string;
+            employeeId: string;
+            docType: string;
+            fileName: string;
+            filePath: string;
+            uploadedAt: Date;
+        }[];
     } & {
         location: string | null;
         costCenter: string | null;
@@ -232,6 +437,57 @@ export declare class EmployeesController {
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
         emergencyContactRelationship: string | null;
+        maritalStatus: string | null;
+        nationality: string | null;
+        bloodGroup: string | null;
+        religion: string | null;
+        currentAddress: string | null;
+        permanentAddress: string | null;
+        familyMemberName: string | null;
+        familyRelationship: string | null;
+        familyDob: Date | null;
+        familyContact: string | null;
+        nomineeName: string | null;
+        nomineeRelationship: string | null;
+        nomineeShare: number | null;
+        educationQualification: string | null;
+        educationSpecialization: string | null;
+        educationInstitution: string | null;
+        educationUniversity: string | null;
+        educationPassingYear: number | null;
+        educationPercentage: number | null;
+        prevCompany: string | null;
+        prevJobTitle: string | null;
+        prevStartDate: Date | null;
+        prevEndDate: Date | null;
+        prevTotalExp: string | null;
+        prevReasonForLeaving: string | null;
+        bankName: string | null;
+        bankAccountNumber: string | null;
+        bankIfscCode: string | null;
+        bankBranchName: string | null;
+        bankAccountHolderName: string | null;
+        aadhaarNumber: string | null;
+        panNumber: string | null;
+        passportNumber: string | null;
+        kycStatus: string | null;
+        kycVerificationDate: Date | null;
+        uanNumber: string | null;
+        pfMemberId: string | null;
+        esicNumber: string | null;
+        pfApplicable: boolean;
+        esicApplicable: boolean;
+        pfEsicJoiningDate: Date | null;
+        salaryGrade: string | null;
+        salaryBand: string | null;
+        basicSalary: number | null;
+        hra: number | null;
+        conveyance: number | null;
+        specialAllowance: number | null;
+        otherAllowances: number | null;
+        grossSalary: number | null;
+        annualCtc: number | null;
+        salaryEffectiveFrom: Date | null;
         dateOfExit: Date | null;
     }>;
     update(id: string, dto: UpdateEmployeeDto): Promise<{
@@ -256,6 +512,14 @@ export declare class EmployeesController {
             firstName: string;
             lastName: string;
         } | null;
+        documents: {
+            id: string;
+            employeeId: string;
+            docType: string;
+            fileName: string;
+            filePath: string;
+            uploadedAt: Date;
+        }[];
     } & {
         location: string | null;
         costCenter: string | null;
@@ -298,6 +562,57 @@ export declare class EmployeesController {
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
         emergencyContactRelationship: string | null;
+        maritalStatus: string | null;
+        nationality: string | null;
+        bloodGroup: string | null;
+        religion: string | null;
+        currentAddress: string | null;
+        permanentAddress: string | null;
+        familyMemberName: string | null;
+        familyRelationship: string | null;
+        familyDob: Date | null;
+        familyContact: string | null;
+        nomineeName: string | null;
+        nomineeRelationship: string | null;
+        nomineeShare: number | null;
+        educationQualification: string | null;
+        educationSpecialization: string | null;
+        educationInstitution: string | null;
+        educationUniversity: string | null;
+        educationPassingYear: number | null;
+        educationPercentage: number | null;
+        prevCompany: string | null;
+        prevJobTitle: string | null;
+        prevStartDate: Date | null;
+        prevEndDate: Date | null;
+        prevTotalExp: string | null;
+        prevReasonForLeaving: string | null;
+        bankName: string | null;
+        bankAccountNumber: string | null;
+        bankIfscCode: string | null;
+        bankBranchName: string | null;
+        bankAccountHolderName: string | null;
+        aadhaarNumber: string | null;
+        panNumber: string | null;
+        passportNumber: string | null;
+        kycStatus: string | null;
+        kycVerificationDate: Date | null;
+        uanNumber: string | null;
+        pfMemberId: string | null;
+        esicNumber: string | null;
+        pfApplicable: boolean;
+        esicApplicable: boolean;
+        pfEsicJoiningDate: Date | null;
+        salaryGrade: string | null;
+        salaryBand: string | null;
+        basicSalary: number | null;
+        hra: number | null;
+        conveyance: number | null;
+        specialAllowance: number | null;
+        otherAllowances: number | null;
+        grossSalary: number | null;
+        annualCtc: number | null;
+        salaryEffectiveFrom: Date | null;
         dateOfExit: Date | null;
     }>;
     remove(id: string): Promise<{
@@ -305,19 +620,19 @@ export declare class EmployeesController {
     }>;
     listDocuments(id: string): Promise<{
         id: string;
+        employeeId: string;
         docType: string;
         fileName: string;
         filePath: string;
         uploadedAt: Date;
-        employeeId: string;
     }[]>;
     uploadDocument(id: string, file: Express.Multer.File, docType: string): Promise<{
         id: string;
+        employeeId: string;
         docType: string;
         fileName: string;
         filePath: string;
         uploadedAt: Date;
-        employeeId: string;
     }>;
     removeDocument(id: string, documentId: string): Promise<{
         success: boolean;
@@ -354,5 +669,55 @@ export declare class EmployeesController {
         ownerType: string;
         dueDate: Date | null;
         completedAt: Date | null;
+    }>;
+    enrollInCourse(id: string, dto: {
+        courseName: string;
+        courseType: string;
+        status?: string;
+        certification?: string;
+    }): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        enrollmentDate: Date;
+        employeeId: string;
+        courseName: string;
+        courseType: string;
+        completionDate: Date | null;
+        certification: string | null;
+    }>;
+    addKpi(id: string, dto: {
+        kpi: string;
+        category: string;
+        target: string;
+        weightage: number;
+        reviewPeriod: string;
+        performanceRating?: number;
+        managerFeedback?: string;
+    }): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        category: string;
+        employeeId: string;
+        kpi: string;
+        target: string;
+        weightage: number;
+        reviewPeriod: string;
+        performanceRating: number | null;
+        managerFeedback: string | null;
+    }>;
+    addHrNote(id: string, dto: {
+        note: string;
+        noteType: string;
+        createdBy: string;
+    }): Promise<{
+        id: string;
+        createdDate: Date;
+        employeeId: string;
+        note: string;
+        noteType: string;
+        createdBy: string;
     }>;
 }

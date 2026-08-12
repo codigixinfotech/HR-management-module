@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -15,7 +15,6 @@ import {
   Award,
   Building2,
   Calendar,
-  Briefcase,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,12 +54,12 @@ export function CostCentersTab() {
   });
 
   // Real cost centers and pay grades from DB
-  const { data: costCenters = [], isLoading: ccLoading } = useQuery({
+  const { data: costCenters = [] } = useQuery({
     queryKey: ['cost-centers', companyIdForLists],
     queryFn: () => costCentersApi.list(companyIdForLists),
     enabled: !!companyIdForLists,
   });
-  const { data: payGrades = [], isLoading: gradeLoading } = useQuery({
+  const { data: payGrades = [] } = useQuery({
     queryKey: ['pay-grades', companyIdForLists],
     queryFn: () => payGradesApi.list(companyIdForLists),
     enabled: !!companyIdForLists,
@@ -112,8 +111,8 @@ export function CostCentersTab() {
     const counts: Record<string, number> = {};
     if (!employees?.items) return counts;
     employees.items.forEach((emp: any) => {
-      if (emp.departmentId) {
-        counts[emp.departmentId] = (counts[emp.departmentId] || 0) + 1;
+      if (emp.costCenter) {
+        counts[emp.costCenter] = (counts[emp.costCenter] || 0) + 1;
       }
     });
     return counts;
@@ -232,23 +231,29 @@ export function CostCentersTab() {
     e.preventDefault();
     if (!ccName) { toast.error('Cost Center Name is required'); return; }
     const managerEmployee = employees?.items?.find((emp: any) => emp.id === ccManagerId);
+    
+    const payloadData: any = {
+      name:              ccName,
+      type:              ccType,
+      branchId:          ccBranchId || undefined,
+      departmentId:      ccDeptId || undefined,
+      managerId:         ccManagerId || undefined,
+      managerName:       managerEmployee ? `${managerEmployee.firstName} ${managerEmployee.lastName}` : ccManagerName || undefined,
+      budget:            Number(ccBudget),
+      headcountCapacity: Number(ccCapacity),
+      effectiveFrom:     ccEffectiveFrom || new Date().toISOString().split('T')[0],
+      description:       ccDescription,
+      isActive:          ccStatus === 'Active',
+    };
+
+    if (!editingCc?.id) {
+      payloadData.companyId = ccCompanyId;
+      payloadData.code = ccCode || `CC-${String(costCenters.length + 101).padStart(3, '0')}`;
+    }
+
     ccUpsertMutation.mutate({
       id: editingCc?.id,
-      data: {
-        companyId:         ccCompanyId,
-        code:              ccCode || `CC-${String(costCenters.length + 101).padStart(3, '0')}`,
-        name:              ccName,
-        type:              ccType,
-        branchId:          ccBranchId || undefined,
-        departmentId:      ccDeptId || undefined,
-        managerId:         ccManagerId || undefined,
-        managerName:       managerEmployee ? `${managerEmployee.firstName} ${managerEmployee.lastName}` : ccManagerName || undefined,
-        budget:            Number(ccBudget),
-        headcountCapacity: Number(ccCapacity),
-        effectiveFrom:     ccEffectiveFrom || new Date().toISOString().split('T')[0],
-        description:       ccDescription,
-        isActive:          ccStatus === 'Active',
-      },
+      data: payloadData,
     });
   };
 
@@ -307,24 +312,29 @@ export function CostCentersTab() {
       finalLevel = 'L2';
     }
 
+    const payloadData: any = {
+      businessUnit:  gradeBusinessUnit || undefined,
+      gradeName,
+      level:         finalLevel,
+      category:      gradeCategory,
+      jobFamily:     gradeJobFamily || undefined,
+      departmentId:  gradeDepartmentId || undefined,
+      minSalary:     Number(gradeMinSalary),
+      maxSalary:     Number(gradeMaxSalary),
+      currency:      gradeCurrency,
+      effectiveFrom: gradeEffectiveFrom || new Date().toISOString().split('T')[0],
+      description:   gradeDescription,
+      isActive:      gradeStatus === 'Active',
+    };
+
+    if (!editingGrade?.id) {
+      payloadData.companyId = gradeCompanyId;
+      payloadData.gradeCode = gradeCode;
+    }
+
     gradeUpsertMutation.mutate({
       id: editingGrade?.id,
-      data: {
-        companyId:     gradeCompanyId,
-        businessUnit:  gradeBusinessUnit || undefined,
-        gradeCode,
-        gradeName,
-        level:         finalLevel,
-        category:      gradeCategory,
-        jobFamily:     gradeJobFamily || undefined,
-        departmentId:  gradeDepartmentId || undefined,
-        minSalary:     Number(gradeMinSalary),
-        maxSalary:     Number(gradeMaxSalary),
-        currency:      gradeCurrency,
-        effectiveFrom: gradeEffectiveFrom || new Date().toISOString().split('T')[0],
-        description:   gradeDescription,
-        isActive:      gradeStatus === 'Active',
-      },
+      data: payloadData,
     });
   };
 
@@ -663,7 +673,7 @@ export function CostCentersTab() {
           {displayMode === 'grid' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
               {filteredCostCenters.map(cc => {
-                const currentStaffCount = headcountMap[cc.departmentId || ''] || 0;
+                const currentStaffCount = headcountMap[cc.code || ''] || 0;
                 const percentage = cc.headcountCapacity > 0 ? Math.round((currentStaffCount / cc.headcountCapacity) * 100) : 0;
                 
                 // Mapped department name
@@ -765,7 +775,7 @@ export function CostCentersTab() {
               </TableHeader>
               <TableBody>
                 {filteredCostCenters.map(cc => {
-                  const currentStaffCount = headcountMap[cc.departmentId || ''] || 0;
+                  const currentStaffCount = headcountMap[cc.code || ''] || 0;
                   const deptName = departments?.find((d: any) => d.id === cc.departmentId)?.name ?? cc.type;
                   const head = employees?.items?.find((e: any) => e.id === cc.managerId);
                   const headName = head ? `${head.firstName} ${head.lastName}` : 'Unassigned';

@@ -232,44 +232,44 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model Company {
-  id                      String                   @id @default(cuid())
-  code                    String                   @unique
-  name                    String
-  legalName               String?
-  shortName               String?
-  entityType              String?
-  parentCompanyId         String?
-  parentCompany           Company?                 @relation("ParentCompany", fields: [parentCompanyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  subsidiaries            Company[]                @relation("ParentCompany")
+  id              String    @id @default(cuid())
+  code            String    @unique
+  name            String
+  legalName       String?
+  shortName       String?
+  entityType      String?
+  parentCompanyId String?
+  parentCompany   Company?  @relation("ParentCompany", fields: [parentCompanyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subsidiaries    Company[] @relation("ParentCompany")
 
   // Registration Details
-  cin                     String?
-  gst                     String?
-  pan                     String?
-  tan                     String?
-  msme                    String?
+  cin  String?
+  gst  String?
+  pan  String?
+  tan  String?
+  msme String?
 
   // Location
-  country                 String
-  state                   String?
-  city                    String?
-  timezone                String?                  @default("Asia/Kolkata")
-  currency                String
-  registeredAddress       String?
-  pincode                 String?
+  country           String
+  state             String?
+  city              String?
+  timezone          String? @default("Asia/Kolkata")
+  currency          String
+  registeredAddress String?
+  pincode           String?
 
   // Contact Information
-  email                   String?
-  phone                   String?
-  website                 String?
+  email   String?
+  phone   String?
+  website String?
 
   // Organization
-  businessUnit            String?
-  defaultBranchId         String?
+  businessUnit    String?
+  defaultBranchId String?
 
-  isActive                Boolean                  @default(true)
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   branches                Branch[]
   departments             Department[]
@@ -294,8 +294,8 @@ model Company {
   ppeItems        PpeItem[]
   safetyAudits    SafetyAudit[]
 
-  costCenters     CostCenter[]
-  payGrades       PayGrade[]
+  costCenters CostCenter[]
+  payGrades   PayGrade[]
 
   @@map("companies")
 }
@@ -335,7 +335,7 @@ model Branch {
 }
 
 model Location {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   branchId     String
   code         String
   name         String
@@ -343,14 +343,14 @@ model Location {
   floor        String?
   wing         String?
   roomCabin    String?
-  
+
   // Address
-  address      String?
-  city         String?
-  state        String?
-  country      String?
-  pincode      String?
-  
+  address String?
+  city    String?
+  state   String?
+  country String?
+  pincode String?
+
   // Operations
   gps          String?
   workingHours String?
@@ -359,7 +359,7 @@ model Location {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, code])
   @@map("locations")
@@ -399,7 +399,7 @@ model Department {
 }
 
 model Designation {
-  id                     String        @id @default(cuid())
+  id                     String   @id @default(cuid())
   companyId              String
   departmentId           String?
   code                   String
@@ -410,11 +410,11 @@ model Designation {
   employmentType         String?
   minSalary              Float?
   maxSalary              Float?
-  effectiveFrom          DateTime      @default(now())
+  effectiveFrom          DateTime @default(now())
   description            String?
-  isActive               Boolean       @default(true)
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
+  isActive               Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   department           Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
@@ -433,22 +433,22 @@ model Designation {
 // ---------------------------------------------------------------------------
 
 model CostCenter {
-  id                String    @id @default(cuid())
+  id                String   @id @default(cuid())
   companyId         String
-  code              String    @unique
+  code              String   @unique
   name              String
-  type              String    @default("Department") // Support, Department, Project, Production
+  type              String   @default("Department") // Support, Department, Project, Production
   branchId          String?
   departmentId      String?
-  managerId         String?   // Employee ID (string ref, not FK to avoid circular)
-  managerName       String?   // Denormalized display name
-  budget            Decimal   @default(0) @db.Decimal(15, 2)
-  headcountCapacity Int       @default(0)
-  effectiveFrom     DateTime  @default(now())
-  description       String?   @db.Text
-  isActive          Boolean   @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  managerId         String? // Employee ID (string ref, not FK to avoid circular)
+  managerName       String? // Denormalized display name
+  budget            Decimal  @default(0) @db.Decimal(15, 2)
+  headcountCapacity Int      @default(0)
+  effectiveFrom     DateTime @default(now())
+  description       String?  @db.Text
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch     Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -486,7 +486,6 @@ model PayGrade {
   @@index([departmentId])
   @@map("pay_grades")
 }
-
 
 // ---------------------------------------------------------------------------
 // Module: Employee Management
@@ -531,6 +530,65 @@ model Employee {
   confirmationDate             DateTime?
   emergencyContactRelationship String?
 
+  maritalStatus    String?
+  nationality      String?
+  bloodGroup       String?
+  religion         String?
+  currentAddress   String?
+  permanentAddress String?
+
+  familyMemberName    String?
+  familyRelationship  String?
+  familyDob           DateTime?
+  familyContact       String?
+  nomineeName         String?
+  nomineeRelationship String?
+  nomineeShare        Float?
+
+  educationQualification  String?
+  educationSpecialization String?
+  educationInstitution    String?
+  educationUniversity     String?
+  educationPassingYear    Int?
+  educationPercentage     Float?
+
+  prevCompany          String?
+  prevJobTitle         String?
+  prevStartDate        DateTime?
+  prevEndDate          DateTime?
+  prevTotalExp         String?
+  prevReasonForLeaving String?
+
+  bankName              String?
+  bankAccountNumber     String?
+  bankIfscCode          String?
+  bankBranchName        String?
+  bankAccountHolderName String?
+
+  aadhaarNumber       String?
+  panNumber           String?
+  passportNumber      String?
+  kycStatus           String?   @default("PENDING")
+  kycVerificationDate DateTime?
+
+  uanNumber         String?
+  pfMemberId        String?
+  esicNumber        String?
+  pfApplicable      Boolean   @default(false)
+  esicApplicable    Boolean   @default(false)
+  pfEsicJoiningDate DateTime?
+
+  salaryGrade         String?
+  salaryBand          String?
+  basicSalary         Float?
+  hra                 Float?
+  conveyance          Float?
+  specialAllowance    Float?
+  otherAllowances     Float?
+  grossSalary         Float?
+  annualCtc           Float?
+  salaryEffectiveFrom DateTime?
+
   addressLine1 String?
   addressLine2 String?
   city         String?
@@ -549,8 +607,12 @@ model Employee {
   reportingManager Employee?    @relation("ReportingManager", fields: [reportingManagerId], references: [id], onDelete: SetNull)
   directReports    Employee[]   @relation("ReportingManager")
 
-  documents       EmployeeDocument[]
-  onboardingTasks EmployeeOnboardingTask[]
+  documents         EmployeeDocument[]
+  onboardingTasks   EmployeeOnboardingTask[]
+  courseEnrollments CourseEnrollment[]
+  kpis              EmployeeKpi[]
+  hrNotes           EmployeeHrNote[]
+  timelineEvents    CareerTimelineEvent[]
 
   shiftAssignments      ShiftAssignment[]
   attendanceRecords     AttendanceRecord[]
@@ -566,6 +628,7 @@ model Employee {
   assetAllocations  AssetAllocation[]
   reportedIncidents SafetyIncident[]
   ppeIssuances      PpeIssuance[]
+  employeeTransfers EmployeeTransfer[]
 
   @@unique([companyId, employeeCode])
   @@index([departmentId])
@@ -585,6 +648,71 @@ model EmployeeDocument {
 
   @@index([employeeId])
   @@map("employee_documents")
+}
+
+model CourseEnrollment {
+  id             String    @id @default(cuid())
+  employeeId     String
+  courseName     String
+  courseType     String
+  enrollmentDate DateTime  @default(now())
+  completionDate DateTime?
+  status         String    @default("In Progress")
+  certification  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("course_enrollments")
+}
+
+model EmployeeKpi {
+  id                String   @id @default(cuid())
+  employeeId        String
+  kpi               String
+  category          String
+  target            String
+  weightage         Float
+  reviewPeriod      String
+  performanceRating Float?
+  managerFeedback   String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_kpis")
+}
+
+model EmployeeHrNote {
+  id          String   @id @default(cuid())
+  employeeId  String
+  note        String   @db.Text
+  noteType    String
+  createdBy   String
+  createdDate DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_hr_notes")
+}
+
+model CareerTimelineEvent {
+  id         String   @id @default(cuid())
+  employeeId String
+  date       DateTime @default(now())
+  eventTitle String
+  details    String?  @db.Text
+  eventType  String
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("career_timeline_events")
 }
 
 model OnboardingTemplateTask {
@@ -1077,4 +1205,54 @@ model SafetyAudit {
 
   @@index([companyId, auditDate])
   @@map("safety_audits")
+}
+
+model SkillCompetency {
+  id             String   @id @default(cuid())
+  name           String
+  category       String
+  certRequired   Boolean  @default(false)
+  benchmarkScore String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("skill_competencies")
+}
+
+model EmployeeTransfer {
+  id           String @id @default(cuid())
+  employeeId   String
+  movementType String // 'PROMOTION', 'DEPARTMENT_SHIFT', 'BRANCH_TRANSFER', 'PROMOTION_TRANSFER'
+
+  // Previous states
+  prevDepartmentId       String?
+  prevDesignationId      String?
+  prevGradeId            String?
+  prevBranchId           String?
+  prevReportingManagerId String?
+
+  // Target states
+  newDepartmentId       String?
+  newDesignationId      String?
+  newGradeId            String?
+  newBranchId           String?
+  newReportingManagerId String?
+
+  effectiveDate DateTime
+  reason        String   @db.Text
+  remarks       String?  @db.Text
+  status        String   @default("PENDING") // DRAFT, PENDING, APPROVED, REJECTED, EFFECTIVE, CANCELLED
+
+  approvedBy       String?
+  approvedDate     DateTime?
+  rejectionReason  String?   @db.Text
+  approvalComments String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_transfers")
 }

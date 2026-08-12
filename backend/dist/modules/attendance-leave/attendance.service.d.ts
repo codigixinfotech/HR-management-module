@@ -21,8 +21,8 @@ export declare class AttendanceService {
         createdAt: Date;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.AttendanceStatus;
-        employeeId: string;
         date: Date;
+        employeeId: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
@@ -47,8 +47,8 @@ export declare class AttendanceService {
         createdAt: Date;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.AttendanceStatus;
-        employeeId: string;
         date: Date;
+        employeeId: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
@@ -73,8 +73,8 @@ export declare class AttendanceService {
         createdAt: Date;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.AttendanceStatus;
-        employeeId: string;
         date: Date;
+        employeeId: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
@@ -99,8 +99,8 @@ export declare class AttendanceService {
         createdAt: Date;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.AttendanceStatus;
-        employeeId: string;
         date: Date;
+        employeeId: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
