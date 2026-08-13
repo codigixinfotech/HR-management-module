@@ -27,5 +27,6 @@ export declare class TransfersService {
         approvedBy?: string;
     }): Promise<any>;
     cancel(id: string): Promise<any>;
+    private resolveGrade;
     makeEffective(id: string): Promise<any>;
 }

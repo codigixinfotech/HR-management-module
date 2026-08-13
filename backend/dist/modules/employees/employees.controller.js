@@ -44,6 +44,9 @@ let EmployeesController = class EmployeesController {
     findOne(id) {
         return this.employeesService.findById(id);
     }
+    getPositionHistory(id) {
+        return this.employeesService.getPositionHistory(id);
+    }
     create(dto) {
         return this.employeesService.create(dto);
     }
@@ -121,6 +124,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], EmployeesController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Get)(':id/position-history'),
+    (0, permissions_decorator_1.Permissions)('employees.read'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "getPositionHistory", null);
 __decorate([
     (0, common_1.Post)(),
     (0, permissions_decorator_1.Permissions)('employees.write'),

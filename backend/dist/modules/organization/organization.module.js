@@ -20,6 +20,8 @@ const cost_centers_controller_1 = require("./cost-centers.controller");
 const cost_centers_service_1 = require("./cost-centers.service");
 const pay_grades_controller_1 = require("./pay-grades.controller");
 const pay_grades_service_1 = require("./pay-grades.service");
+const hr_policies_controller_1 = require("./hr-policies.controller");
+const hr_policies_service_1 = require("./hr-policies.service");
 let OrganizationModule = class OrganizationModule {
 };
 exports.OrganizationModule = OrganizationModule;
@@ -32,6 +34,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             designations_controller_1.DesignationsController,
             cost_centers_controller_1.CostCentersController,
             pay_grades_controller_1.PayGradesController,
+            hr_policies_controller_1.HrPoliciesController,
         ],
         providers: [
             companies_service_1.CompaniesService,
@@ -40,6 +43,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             designations_service_1.DesignationsService,
             cost_centers_service_1.CostCentersService,
             pay_grades_service_1.PayGradesService,
+            hr_policies_service_1.HrPoliciesService,
         ],
         exports: [
             companies_service_1.CompaniesService,
@@ -48,6 +52,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             designations_service_1.DesignationsService,
             cost_centers_service_1.CostCentersService,
             pay_grades_service_1.PayGradesService,
+            hr_policies_service_1.HrPoliciesService,
         ],
     })
 ], OrganizationModule);

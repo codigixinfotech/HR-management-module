@@ -18,6 +18,19 @@ let EmployeesService = class EmployeesService {
     constructor(prisma) {
         this.prisma = prisma;
     }
+    async onModuleInit() {
+        try {
+            const payGrades = await this.prisma.payGrade.findMany();
+            for (const pg of payGrades) {
+                await this.prisma.$executeRawUnsafe(`UPDATE employees SET grade = ?, level = ? WHERE grade = ? OR level = ?`, pg.gradeCode, pg.level, pg.id, pg.id);
+                await this.prisma.$executeRawUnsafe(`UPDATE employee_position_histories SET grade = ?, level = ? WHERE grade = ? OR level = ?`, pg.gradeCode, pg.level, pg.id, pg.id);
+                await this.prisma.$executeRawUnsafe(`UPDATE employee_position_histories SET prevGrade = ? WHERE prevGrade = ?`, pg.gradeCode, pg.id);
+            }
+        }
+        catch (e) {
+            console.error('Failed auto-repair of Grade IDs in DB:', e);
+        }
+    }
     listInclude = {
         company: { select: { id: true, name: true } },
         branch: { select: { id: true, name: true } },
@@ -100,7 +113,24 @@ let EmployeesService = class EmployeesService {
         });
         if (!employee)
             throw new common_1.NotFoundException('Employee not found');
-        return employee;
+        let resolvedGrade = employee.grade;
+        let resolvedLevel = employee.level;
+        if (employee.grade) {
+            const pg = await this.prisma.payGrade.findFirst({
+                where: { OR: [{ id: employee.grade }, { gradeCode: employee.grade }] },
+            });
+            if (pg) {
+                resolvedGrade = pg.gradeCode;
+                resolvedLevel = pg.level;
+            }
+        }
+        const positionHistory = await this.getPositionHistory(id);
+        return {
+            ...employee,
+            grade: resolvedGrade,
+            level: resolvedLevel,
+            positionHistory,
+        };
     }
     async create(dto) {
         const existing = await this.prisma.employee.findFirst({
@@ -123,9 +153,10 @@ let EmployeesService = class EmployeesService {
                     eventType: 'JOINED',
                 },
             });
+            await this.getPositionHistory(employee.id);
         }
         catch (e) {
-            console.error('Failed to create initial timeline event:', e);
+            console.error('Failed to create initial timeline/position event:', e);
         }
         return employee;
     }
@@ -230,6 +261,47 @@ let EmployeesService = class EmployeesService {
     async removeSkill(id) {
         await this.prisma.$executeRawUnsafe('DELETE FROM skill_competencies WHERE id = ?', id);
         return { success: true };
+    }
+    async getPositionHistory(employeeId) {
+        let history = await this.prisma.$queryRawUnsafe('SELECT * FROM employee_position_histories WHERE employeeId = ? ORDER BY effectiveDate DESC, createdAt DESC', employeeId);
+        const payGrades = await this.prisma.payGrade.findMany();
+        const pgMap = new Map();
+        payGrades.forEach((pg) => {
+            pgMap.set(pg.id, { gradeCode: pg.gradeCode, level: pg.level });
+            pgMap.set(pg.gradeCode, { gradeCode: pg.gradeCode, level: pg.level });
+        });
+        if (history.length === 0) {
+            const emp = await this.prisma.employee.findUnique({
+                where: { id: employeeId },
+                include: { department: true, designation: true, branch: true },
+            });
+            if (emp) {
+                const histId = 'eph_' + Math.random().toString(36).substring(2, 11);
+                const resolvedEmpGrade = pgMap.get(emp.grade || '')?.gradeCode ?? emp.grade;
+                const resolvedEmpLevel = pgMap.get(emp.grade || '')?.level ?? emp.level;
+                await this.prisma.$executeRawUnsafe(`INSERT INTO employee_position_histories (
+            id, employeeId, transferId, effectiveDate, movementType,
+            departmentId, departmentName, designationId, designationTitle, grade, level, branchId, branchName,
+            approvedBy, approvedDate, reason, remarks, status, createdAt, updatedAt
+          ) VALUES (?, ?, NULL, ?, 'JOINING', ?, ?, ?, ?, ?, ?, ?, ?, 'HR System', NOW(), 'Initial Joining Position', 'Employee Master record', 'CURRENT', NOW(), NOW())`, histId, emp.id, emp.dateOfJoining ?? new Date(), emp.departmentId ?? null, emp.department?.name ?? null, emp.designationId ?? null, emp.designation?.title ?? null, resolvedEmpGrade ?? null, resolvedEmpLevel ?? null, emp.branchId ?? null, emp.branch?.name ?? null);
+                history = await this.prisma.$queryRawUnsafe('SELECT * FROM employee_position_histories WHERE employeeId = ? ORDER BY effectiveDate DESC, createdAt DESC', employeeId);
+            }
+        }
+        return history.map((hist) => {
+            const resolvedGrade = pgMap.get(hist.grade);
+            const resolvedPrevGrade = pgMap.get(hist.prevGrade);
+            const gradeStr = resolvedGrade ? resolvedGrade.gradeCode : hist.grade;
+            let levelStr = resolvedGrade ? resolvedGrade.level : hist.level;
+            if (hist.grade === hist.level && resolvedGrade) {
+                levelStr = resolvedGrade.level;
+            }
+            return {
+                ...hist,
+                grade: gradeStr,
+                level: levelStr,
+                prevGrade: resolvedPrevGrade ? resolvedPrevGrade.gradeCode : hist.prevGrade,
+            };
+        });
     }
 };
 exports.EmployeesService = EmployeesService;

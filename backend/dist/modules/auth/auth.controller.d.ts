@@ -5,6 +5,7 @@ import type { CurrentUserPayload } from '../../common/decorators/current-user.de
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
+    getDemoAccounts(): import("./auth.service").DemoAccountInfo[];
     login(dto: LoginDto): Promise<{
         accessToken: string;
         refreshToken: string;

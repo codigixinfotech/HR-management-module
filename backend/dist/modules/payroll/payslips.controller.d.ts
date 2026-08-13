@@ -21,11 +21,11 @@ export declare class PayslipsController {
         id: string;
         createdAt: Date;
         employeeId: string;
+        otherDeductions: number;
         grossEarnings: number;
         pf: number;
         esic: number;
         professionalTax: number;
-        otherDeductions: number;
         netPay: number;
         payrollRunId: string;
     })[]>;
@@ -48,11 +48,11 @@ export declare class PayslipsController {
         id: string;
         createdAt: Date;
         employeeId: string;
+        otherDeductions: number;
         grossEarnings: number;
         pf: number;
         esic: number;
         professionalTax: number;
-        otherDeductions: number;
         netPay: number;
         payrollRunId: string;
     }>;

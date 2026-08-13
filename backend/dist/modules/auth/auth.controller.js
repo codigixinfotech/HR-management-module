@@ -24,6 +24,9 @@ let AuthController = class AuthController {
     constructor(authService) {
         this.authService = authService;
     }
+    getDemoAccounts() {
+        return this.authService.getDemoAccounts();
+    }
     login(dto) {
         return this.authService.login(dto.email, dto.password);
     }
@@ -38,6 +41,13 @@ let AuthController = class AuthController {
     }
 };
 exports.AuthController = AuthController;
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('demo-accounts'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "getDemoAccounts", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('login'),

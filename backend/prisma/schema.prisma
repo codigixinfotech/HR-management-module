@@ -37,6 +37,7 @@ enum EmployeeStatus {
   TERMINATED
   PROBATION
   NOTICE_PERIOD
+  EXITED
 }
 
 enum ApprovalStatus {
@@ -296,6 +297,7 @@ model Company {
 
   costCenters CostCenter[]
   payGrades   PayGrade[]
+  hrPolicies  HrPolicy[]
 
   @@map("companies")
 }
@@ -487,6 +489,34 @@ model PayGrade {
   @@map("pay_grades")
 }
 
+model HrPolicy {
+  id               String   @id @default(cuid())
+  companyId        String?
+  policyCode       String
+  title            String
+  category         String   @default("Conduct") // Conduct, POSH, Workplace, IT Security, Financial
+  description      String?  @db.Text
+  version          String   @default("v1.0")
+  documentUrl      String?
+  fileSize         String?  @default("1.5 MB PDF")
+  color            String?  @default("bg-primary")
+  esignRequirement Boolean  @default(true)
+  status           String   @default("PUBLISHED") // DRAFT, PUBLISHED, ARCHIVED
+  totalEmployees   Int      @default(248)
+  signedCount      Int      @default(0)
+  publishedAt      DateTime @default(now())
+  createdBy        String?  @default("HR Admin")
+  updatedBy        String?  @default("HR Admin")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([policyCode])
+  @@map("hr_policies")
+}
+
 // ---------------------------------------------------------------------------
 // Module: Employee Management
 // ---------------------------------------------------------------------------
@@ -613,6 +643,8 @@ model Employee {
   kpis              EmployeeKpi[]
   hrNotes           EmployeeHrNote[]
   timelineEvents    CareerTimelineEvent[]
+  positionHistory   EmployeePositionHistory[]
+  exits             EmployeeExit[]
 
   shiftAssignments      ShiftAssignment[]
   attendanceRecords     AttendanceRecord[]
@@ -1256,3 +1288,167 @@ model EmployeeTransfer {
   @@index([employeeId])
   @@map("employee_transfers")
 }
+
+model EmployeePositionHistory {
+  id           String   @id @default(cuid())
+  employeeId   String
+  transferId   String?
+  effectiveDate DateTime @default(now())
+
+  movementType String   // 'JOINING', 'PROMOTION', 'DEPARTMENT_SHIFT', 'BRANCH_TRANSFER', 'PROMOTION_TRANSFER'
+  
+  departmentId         String?
+  departmentName       String?
+  designationId        String?
+  designationTitle     String?
+  grade                String?
+  level                String?
+  branchId             String?
+  branchName           String?
+  reportingManagerId   String?
+  reportingManagerName String?
+
+  prevDepartmentName   String?
+  prevDesignationTitle String?
+  prevGrade            String?
+  prevBranchName       String?
+
+  approvedBy   String?
+  approvedDate DateTime?
+  reason       String?  @db.Text
+  remarks      String?  @db.Text
+  status       String   @default("CURRENT") // 'CURRENT', 'HISTORICAL'
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_position_histories")
+}
+
+model EmployeeExit {
+  id                  String    @id @default(cuid())
+  exitCode            String    @unique
+  employeeId          String
+  companyId           String?
+  
+  resignationDate     DateTime
+  noticePeriodDays    Int       @default(90)
+  lastWorkingDay      DateTime
+  adjustedLwd         DateTime?
+  lwdAdjustmentReason String?   @db.Text
+  
+  exitType            String    @default("RESIGNATION")
+  exitReason          String    @db.Text
+  resignationLetterUrl String?
+  remarks             String?   @db.Text
+
+  status              String    @default("INITIATED")
+  clearanceStatus     String    @default("PENDING")
+  fnfStatus           String    @default("PENDING")
+  exitInterviewStatus String    @default("PENDING")
+
+  createdById         String?
+  updatedById         String?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  clearanceItems      ExitClearanceItem[]
+  exitInterview       ExitInterview?
+  fnfSettlement       ExitFnfSettlement?
+  auditLogs           ExitAuditLog[]
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("employee_exits")
+}
+
+model ExitClearanceItem {
+  id          String   @id @default(cuid())
+  exitId      String
+  department  String
+  itemKey     String
+  itemLabel   String
+  status      String   @default("PENDING")
+  verifiedBy  String?
+  verifiedAt  DateTime?
+  remarks     String?  @db.Text
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  exit        EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+
+  @@index([exitId])
+  @@map("exit_clearance_items")
+}
+
+model ExitInterview {
+  id                    String    @id @default(cuid())
+  exitId                String    @unique
+  primaryReason         String
+  secondaryReason       String?
+  managerFeedback       String?   @db.Text
+  employeeFeedback      String?   @db.Text
+  workEnvironmentRating Int?      @default(5)
+  compensationRating    Int?      @default(5)
+  recommendCompany      Boolean   @default(true)
+  rehireEligible        Boolean   @default(true)
+  hrRemarks             String?   @db.Text
+  completedAt           DateTime?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  exit                  EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+
+  @@map("exit_interviews")
+}
+
+model ExitFnfSettlement {
+  id                  String    @id @default(cuid())
+  exitId              String    @unique
+  salaryPayable       Float     @default(0)
+  leaveEncashment     Float     @default(0)
+  incentives          Float     @default(0)
+  reimbursements      Float     @default(0)
+  noticeRecovery      Float     @default(0)
+  loanAdvanceRecovery Float     @default(0)
+  assetRecovery       Float     @default(0)
+  otherDeductions     Float     @default(0)
+  grossPayable        Float     @default(0)
+  totalDeductions     Float     @default(0)
+  netPayable          Float     @default(0)
+  status              String    @default("PENDING")
+  approvedBy          String?
+  approvedAt          DateTime?
+  remarks             String?   @db.Text
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  exit                EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+
+  @@map("exit_fnf_settlements")
+}
+
+model ExitAuditLog {
+  id             String   @id @default(cuid())
+  exitId         String
+  action         String
+  previousStatus String?
+  newStatus      String
+  performedBy    String
+  remarks        String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  exit           EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+
+  @@index([exitId])
+  @@map("exit_audit_logs")
+}
+

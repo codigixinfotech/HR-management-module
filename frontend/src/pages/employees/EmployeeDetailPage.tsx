@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { ArrowLeft, Upload, Trash2, Plus, Check, Laptop, ShieldAlert, Award, FileText, CheckCircle2 } from 'lucide-react';
 import { employeesApi } from '@/api/employees';
 import { assetsApi } from '@/api/asset-management';
+import { payGradesApi } from '@/api/cost-grades';
+import { exitsApi } from '@/api/exits';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Input } from '@/components/ui/input';
@@ -16,7 +18,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Badge } from '@/components/ui/badge';
 import type { ApprovalStatus, EmployeeStatus } from '@/api/types';
 
-const STATUS_OPTIONS: EmployeeStatus[] = ['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED'];
+const STATUS_OPTIONS: EmployeeStatus[] = ['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED', 'PROBATION', 'NOTICE_PERIOD', 'EXITED'];
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -56,14 +58,46 @@ export default function EmployeeDetailPage() {
   // Queries
   const { data: employee, isLoading } = useQuery({
     queryKey: ['employee', id],
-    queryFn: () => employeesApi.get(id!),
+    queryFn: () => employeesApi.findOne(id!),
     enabled: !!id,
   });
+
+  const { data: employeeExits = [] } = useQuery({
+    queryKey: ['employee-exits', id],
+    queryFn: () => exitsApi.list({ search: id }),
+    enabled: !!id,
+  });
+  const activeExitRecord = employeeExits[0] || null;
 
   const { data: assets = [] } = useQuery({
     queryKey: ['assets'],
     queryFn: () => assetsApi.list(),
   });
+
+  const { data: payGrades = [] } = useQuery({
+    queryKey: ['pay-grades'],
+    queryFn: () => payGradesApi.list(),
+  });
+
+  const getGradeLevelDisplay = (gradeVal?: string | null, levelVal?: string | null) => {
+    if (!gradeVal && !levelVal) return '-';
+    const matched = payGrades.find(pg => pg.id === gradeVal || pg.gradeCode === gradeVal);
+    if (matched) {
+      const gCode = matched.gradeCode;
+      const lvl = (levelVal && !levelVal.startsWith('cm') && levelVal.length <= 10) ? levelVal : matched.level;
+      return `${gCode} / ${lvl || 'L1'}`;
+    }
+    if (gradeVal && (gradeVal.startsWith('cm') || gradeVal.length > 20)) {
+      if (levelVal && !levelVal.startsWith('cm') && levelVal.length <= 10) {
+        return levelVal;
+      }
+      return 'E2 / L1';
+    }
+    const g = gradeVal || '-';
+    const l = levelVal || '';
+    if (!l || g === l) return g;
+    return `${g} / ${l}`;
+  };
 
   const availableAssets = assets.filter(a => a.status === 'IN_STOCK');
 
@@ -229,7 +263,7 @@ export default function EmployeeDetailPage() {
         <InfoCard label="Branch Facility" value={employee.branch?.name ?? 'Head Office'} />
         <InfoCard label="Work Location" value={employee.location ?? 'New York HQ'} />
         <InfoCard label="Shift Assignment" value={employee.shift ?? 'General Day Shift (G)'} />
-        <InfoCard label="Job Grade / Level" value={`${employee.grade ?? 'E2'} / ${employee.level ?? 'L1'}`} />
+        <InfoCard label="Job Grade / Level" value={getGradeLevelDisplay(employee.grade, employee.level)} />
         <InfoCard label="Work Email" value={employee.workEmail ?? '-'} />
         <InfoCard label="Phone" value={employee.phone ?? '-'} />
       </div>
@@ -255,8 +289,9 @@ export default function EmployeeDetailPage() {
                   <TabsTrigger value="training" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Upskilling & LMS</TabsTrigger>
                   <TabsTrigger value="performance" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">KPIs & Performance</TabsTrigger>
                   <TabsTrigger value="notes" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Internal HR Notes</TabsTrigger>
-                  <TabsTrigger value="timeline" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Career Timeline</TabsTrigger>
+                  <TabsTrigger value="timeline" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Career & Position History</TabsTrigger>
                   <TabsTrigger value="onboarding" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Onboarding Tasks</TabsTrigger>
+                  <TabsTrigger value="exit" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Exit & Offboarding</TabsTrigger>
                 </TabsList>
               </CardContent>
             </Card>
@@ -1059,11 +1094,166 @@ export default function EmployeeDetailPage() {
               </Card>
             </TabsContent>
 
-            {/* 15. TIMELINE */}
-            <TabsContent value="timeline" className="m-0 space-y-4">
+            {/* 15. CAREER & POSITION HISTORY */}
+            <TabsContent value="timeline" className="m-0 space-y-6">
+              {/* CURRENT POSITION CARD */}
+              {(() => {
+                const historyList: any[] = (employee as any).positionHistory || [];
+                const currentPos = historyList.find((h) => h.status === 'CURRENT') || historyList[0];
+
+                return (
+                  <>
+                    <Card className="shadow-2xs border-primary/40 bg-primary/5">
+                      <CardHeader className="pb-3 border-b border-primary/10">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-[11px] font-bold uppercase tracking-wider text-primary">Current Position</CardTitle>
+                            <p className="text-lg font-bold text-foreground mt-0.5">
+                              {currentPos?.designationTitle || employee.designation?.title || 'No Designation'}
+                            </p>
+                          </div>
+                          <Badge className="bg-emerald-600 text-white font-semibold text-[10.5px]">
+                            CURRENT
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                        <div>
+                          <span className="text-[10.5px] text-muted-foreground font-semibold block">Department</span>
+                          <span className="font-semibold text-foreground">{currentPos?.departmentName || employee.department?.name || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10.5px] text-muted-foreground font-semibold block">Grade / Level</span>
+                          <span className="font-semibold text-foreground">{getGradeLevelDisplay(currentPos?.grade || employee.grade, currentPos?.level || employee.level)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10.5px] text-muted-foreground font-semibold block">Branch / Location</span>
+                          <span className="font-semibold text-foreground">{currentPos?.branchName || employee.branch?.name || employee.location || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10.5px] text-muted-foreground font-semibold block">Effective From</span>
+                          <span className="font-semibold font-mono text-foreground">
+                            {currentPos?.effectiveDate
+                              ? new Date(currentPos.effectiveDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+                              : employee.dateOfJoining
+                                ? new Date(employee.dateOfJoining).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+                                : '-'}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* POSITION HISTORY */}
+                    <Card className="shadow-2xs">
+                      <CardHeader className="pb-3 border-b">
+                        <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                          <span>Position History Log</span>
+                          <span className="text-xs font-normal text-muted-foreground">{historyList.length} Movement Records</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4 text-xs space-y-4">
+                        {historyList.length > 0 ? (
+                          historyList.map((hist: any) => (
+                            <div key={hist.id} className="border rounded-xl p-4 space-y-3 bg-card hover:bg-muted/20 transition-all">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={hist.movementType === 'JOINING' ? 'outline' : 'secondary'} className="uppercase text-[10px]">
+                                    {hist.movementType.replace('_', ' ')}
+                                  </Badge>
+                                  <span className="font-mono text-[11px] font-semibold text-muted-foreground">
+                                    {new Date(hist.effectiveDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </span>
+                                </div>
+                                <Badge className={hist.status === 'CURRENT' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-muted text-muted-foreground'}>
+                                  {hist.status}
+                                </Badge>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                <div>
+                                  <span className="text-muted-foreground font-medium block text-[10.5px]">Designation:</span>
+                                  <p className="font-semibold text-foreground mt-0.5">
+                                    {hist.prevDesignationTitle && hist.prevDesignationTitle !== hist.designationTitle ? (
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-muted-foreground line-through">{hist.prevDesignationTitle}</span>
+                                        <span className="text-primary font-bold">&rarr; {hist.designationTitle}</span>
+                                      </span>
+                                    ) : (
+                                      hist.designationTitle || '-'
+                                    )}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <span className="text-muted-foreground font-medium block text-[10.5px]">Grade / Level:</span>
+                                  <p className="font-semibold text-foreground mt-0.5">
+                                    {hist.prevGrade && hist.prevGrade !== hist.grade ? (
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-muted-foreground line-through">{getGradeLevelDisplay(hist.prevGrade, null)}</span>
+                                        <span className="text-primary font-bold">&rarr; {getGradeLevelDisplay(hist.grade, hist.level)}</span>
+                                      </span>
+                                    ) : (
+                                      getGradeLevelDisplay(hist.grade, hist.level)
+                                    )}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <span className="text-muted-foreground font-medium block text-[10.5px]">Department:</span>
+                                  <p className="font-semibold text-foreground mt-0.5">
+                                    {hist.prevDepartmentName && hist.prevDepartmentName !== hist.departmentName ? (
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-muted-foreground line-through">{hist.prevDepartmentName}</span>
+                                        <span className="text-primary font-bold">&rarr; {hist.departmentName}</span>
+                                      </span>
+                                    ) : (
+                                      hist.departmentName || '-'
+                                    )}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <span className="text-muted-foreground font-medium block text-[10.5px]">Branch / Location:</span>
+                                  <p className="font-semibold text-foreground mt-0.5">
+                                    {hist.prevBranchName && hist.prevBranchName !== hist.branchName ? (
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-muted-foreground line-through">{hist.prevBranchName}</span>
+                                        <span className="text-primary font-bold">&rarr; {hist.branchName}</span>
+                                      </span>
+                                    ) : (
+                                      hist.branchName || '-'
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {(hist.reason || hist.remarks) && (
+                                <div className="bg-muted/40 p-2.5 rounded-lg border text-[11px] space-y-1">
+                                  {hist.reason && <p><strong>Reason:</strong> {hist.reason}</p>}
+                                  {hist.remarks && <p className="text-muted-foreground"><strong>Remarks:</strong> {hist.remarks}</p>}
+                                </div>
+                              )}
+
+                              {hist.approvedBy && (
+                                <p className="text-[10px] text-muted-foreground font-mono">
+                                  Approved by: {hist.approvedBy} &bull; {hist.approvedDate ? new Date(hist.approvedDate).toLocaleDateString() : ''}
+                                </p>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-muted-foreground text-center py-6">No position history records found</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </>
+                );
+              })()}
+
+              {/* CAREER TIMELINE EVENTS */}
               <Card className="shadow-2xs">
                 <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Secured Career Timeline Events</CardTitle>
+                  <CardTitle className="text-sm font-semibold">Career Timeline Events</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-4">
                   <div className="relative border-l-2 border-primary/20 pl-4 space-y-6 py-2 ml-2">
@@ -1163,6 +1353,75 @@ export default function EmployeeDetailPage() {
                     ))
                   ) : (
                     <p className="text-xs text-muted-foreground text-center py-6">No onboarding tasks registered yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 13. EXIT & OFFBOARDING */}
+            <TabsContent value="exit" className="m-0 space-y-4">
+              <Card className="shadow-2xs">
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" /> Corporate Exit & Offboarding Lifecycle Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4 text-xs">
+                  {activeExitRecord ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-muted/40 rounded-xl border border-border/80">
+                        <div>
+                          <span className="text-muted-foreground text-[10.5px] block">Exit Record ID:</span>
+                          <span className="font-mono font-semibold text-primary">{activeExitRecord.exitCode}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-[10.5px] block">Resignation Date:</span>
+                          <span className="font-mono font-semibold text-foreground">
+                            {new Date(activeExitRecord.resignationDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-[10.5px] block">Last Working Day (LWD):</span>
+                          <span className="font-mono font-semibold text-foreground">
+                            {new Date(activeExitRecord.adjustedLwd || activeExitRecord.lastWorkingDay).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-[10.5px] block">Offboarding Status:</span>
+                          <Badge variant="outline" className="font-mono text-[10.5px] font-semibold">
+                            {activeExitRecord.status}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 p-3 bg-card rounded-xl border">
+                        <span className="font-semibold text-foreground">Stated Exit Reason & Remarks</span>
+                        <p className="text-muted-foreground leading-relaxed">{activeExitRecord.exitReason}</p>
+                        {activeExitRecord.remarks && (
+                          <p className="text-[11px] text-muted-foreground italic mt-1">HR Notes: {activeExitRecord.remarks}</p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="p-3 bg-muted/30 rounded-xl border space-y-1">
+                          <span className="text-muted-foreground text-[10.5px] block">Clearance Progress</span>
+                          <StatusBadge status={activeExitRecord.clearanceStatus === 'COMPLETED' ? 'ACTIVE' : 'PENDING'} label={activeExitRecord.clearanceStatus} className="text-[10px]" />
+                        </div>
+                        <div className="p-3 bg-muted/30 rounded-xl border space-y-1">
+                          <span className="text-muted-foreground text-[10.5px] block">Exit Interview</span>
+                          <StatusBadge status={activeExitRecord.exitInterviewStatus === 'COMPLETED' ? 'ACTIVE' : 'PENDING'} label={activeExitRecord.exitInterviewStatus} className="text-[10px]" />
+                        </div>
+                        <div className="p-3 bg-muted/30 rounded-xl border space-y-1">
+                          <span className="text-muted-foreground text-[10.5px] block">Full & Final (F&F)</span>
+                          <StatusBadge status={activeExitRecord.fnfStatus === 'COMPLETED' ? 'ACTIVE' : 'PENDING'} label={activeExitRecord.fnfStatus} className="text-[10px]" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center border border-dashed rounded-xl space-y-1">
+                      <p className="font-semibold text-foreground">No Exit Record Initiated</p>
+                      <p className="text-muted-foreground text-[11px]">This employee is actively serving with no resignation logged.</p>
+                    </div>
                   )}
                 </CardContent>
               </Card>

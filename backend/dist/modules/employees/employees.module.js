@@ -13,14 +13,16 @@ const employees_service_1 = require("./employees.service");
 const onboarding_service_1 = require("./onboarding.service");
 const transfers_controller_1 = require("./transfers.controller");
 const transfers_service_1 = require("./transfers.service");
+const exits_controller_1 = require("./exits.controller");
+const exits_service_1 = require("./exits.service");
 let EmployeesModule = class EmployeesModule {
 };
 exports.EmployeesModule = EmployeesModule;
 exports.EmployeesModule = EmployeesModule = __decorate([
     (0, common_1.Module)({
-        controllers: [employees_controller_1.EmployeesController, transfers_controller_1.TransfersController],
-        providers: [employees_service_1.EmployeesService, onboarding_service_1.OnboardingService, transfers_service_1.TransfersService],
-        exports: [employees_service_1.EmployeesService, transfers_service_1.TransfersService],
+        controllers: [exits_controller_1.ExitsController, transfers_controller_1.TransfersController, employees_controller_1.EmployeesController],
+        providers: [employees_service_1.EmployeesService, onboarding_service_1.OnboardingService, transfers_service_1.TransfersService, exits_service_1.ExitsService],
+        exports: [employees_service_1.EmployeesService, transfers_service_1.TransfersService, exits_service_1.ExitsService],
     })
 ], EmployeesModule);
 //# sourceMappingURL=employees.module.js.map

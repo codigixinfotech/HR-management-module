@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { employeesApi } from '@/api/employees';
-import { departmentsApi, designationsApi, branchesApi } from '@/api/organization';
+import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/api/organization';
 import { payGradesApi } from '@/api/cost-grades';
 
 export function TransfersPromotionsTab() {
@@ -71,30 +71,51 @@ export function TransfersPromotionsTab() {
     queryFn: employeesApi.listTransfers,
   });
 
-  const { data: departments = [] } = useQuery({
-    queryKey: ['departments'],
-    queryFn: () => departmentsApi.list(),
-  });
-
-  const { data: designations = [] } = useQuery({
-    queryKey: ['designations'],
-    queryFn: () => designationsApi.list(),
-  });
-
-  const { data: branches = [] } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchesApi.list(),
-  });
-
-  const { data: grades = [] } = useQuery({
-    queryKey: ['grades'],
-    queryFn: () => payGradesApi.list(),
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => companiesApi.list(),
   });
 
   // Selected Employee Details lookup
   const selectedEmployee = useMemo(() => {
     return employees.find(e => e.id === selectedEmpId);
   }, [selectedEmpId, employees]);
+
+  const effectiveCompanyId = selectedEmployee?.companyId || companies[0]?.id;
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments', effectiveCompanyId],
+    queryFn: () => departmentsApi.list(effectiveCompanyId),
+  });
+
+  const { data: rawDesignations = [] } = useQuery({
+    queryKey: ['designations', effectiveCompanyId],
+    queryFn: () => designationsApi.list(effectiveCompanyId),
+  });
+
+  // Deduplicate designations by title and department
+  const designations = useMemo(() => {
+    const map = new Map<string, typeof rawDesignations[0]>();
+    for (const d of rawDesignations) {
+      const titleClean = d.title.trim();
+      const deptId = d.departmentId || d.department?.id || '';
+      const key = `${titleClean.toLowerCase()}-${deptId}`;
+      if (!map.has(key)) {
+        map.set(key, d);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
+  }, [rawDesignations]);
+
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches', effectiveCompanyId],
+    queryFn: () => branchesApi.list(effectiveCompanyId),
+  });
+
+  const { data: grades = [] } = useQuery({
+    queryKey: ['grades', effectiveCompanyId],
+    queryFn: () => payGradesApi.list(effectiveCompanyId),
+  });
 
   const activeTransfer = useMemo(() => {
     return transfers.find(t => t.id === activeTransferId);
@@ -193,10 +214,13 @@ export function TransfersPromotionsTab() {
   const filteredTransfers = useMemo(() => {
     return transfers.filter(t => {
       const matchesSearch =
-        t.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.employeeCode.toLowerCase().includes(searchQuery.toLowerCase());
+        (t.employeeName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.employeeCode ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.id ?? '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType =
-        selectedType === 'all' ? true : t.movementType.toLowerCase() === selectedType.toLowerCase();
+        selectedType === 'all'
+          ? true
+          : (t.movementType ?? '').toLowerCase().includes(selectedType.toLowerCase());
       return matchesSearch && matchesType;
     });
   }, [transfers, searchQuery, selectedType]);
@@ -415,7 +439,9 @@ export function TransfersPromotionsTab() {
                               </SelectTrigger>
                               <SelectContent>
                                 {designations.map(dg => (
-                                  <SelectItem key={dg.id} value={dg.id} className="text-xs">{dg.title}</SelectItem>
+                                  <SelectItem key={dg.id} value={dg.id} className="text-xs">
+                                    {dg.title}{dg.department?.name ? ` (${dg.department.name})` : ''}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -545,10 +571,10 @@ export function TransfersPromotionsTab() {
                       <span className="block text-[9.5px] text-muted-foreground font-mono mt-0.5">{t.employeeCode}</span>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground font-semibold">
-                      {t.prevDeptName || t.prevBranchName || '-'}
+                      {[t.prevDeptName, t.prevBranchName, t.prevDesgTitle].filter(Boolean).join(' • ') || '-'}
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-primary">
-                      &gt; {t.targetDeptName || t.targetBranchName || '-'}
+                      &gt; {[t.targetDeptName, t.targetBranchName, t.targetDesgTitle].filter(Boolean).join(' • ') || '-'}
                     </TableCell>
                     <TableCell className="text-xs font-mono">
                       {new Date(t.effectiveDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -751,12 +777,12 @@ export function TransfersPromotionsTab() {
                 <div className="font-semibold text-primary">Organizational Shift Diffs:</div>
                 <div className="grid grid-cols-2 gap-4 border rounded-xl p-4 bg-background">
                   <div>
-                    <Label className="text-muted-foreground">Previous Unit</Label>
-                    <p className="font-semibold mt-0.5">{activeTransfer.prevDeptName || activeTransfer.prevBranchName || '-'}</p>
+                    <Label className="text-muted-foreground">Previous Unit / Position</Label>
+                    <p className="font-semibold mt-0.5">{[activeTransfer.prevDeptName, activeTransfer.prevBranchName, activeTransfer.prevDesgTitle].filter(Boolean).join(' • ') || '-'}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">New Target Unit</Label>
-                    <p className="font-semibold text-primary mt-0.5">&gt; {activeTransfer.targetDeptName || activeTransfer.targetBranchName || '-'}</p>
+                    <Label className="text-muted-foreground">New Target Unit / Position</Label>
+                    <p className="font-semibold text-primary mt-0.5">&gt; {[activeTransfer.targetDeptName, activeTransfer.targetBranchName, activeTransfer.targetDesgTitle].filter(Boolean).join(' • ') || '-'}</p>
                   </div>
                 </div>
               </div>

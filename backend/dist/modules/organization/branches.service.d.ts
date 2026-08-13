@@ -26,6 +26,7 @@ export declare class BranchesService {
             grade: string | null;
             employmentType: import("@prisma/client").$Enums.EmploymentType;
             level: string | null;
+            status: import("@prisma/client").$Enums.EmployeeStatus;
             designationId: string | null;
             reportingManagerId: string | null;
             employeeCode: string;
@@ -37,7 +38,6 @@ export declare class BranchesService {
             personalEmail: string | null;
             workEmail: string | null;
             dateOfJoining: Date | null;
-            status: import("@prisma/client").$Enums.EmployeeStatus;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -167,6 +167,7 @@ export declare class BranchesService {
             grade: string | null;
             employmentType: import("@prisma/client").$Enums.EmploymentType;
             level: string | null;
+            status: import("@prisma/client").$Enums.EmployeeStatus;
             designationId: string | null;
             reportingManagerId: string | null;
             employeeCode: string;
@@ -178,7 +179,6 @@ export declare class BranchesService {
             personalEmail: string | null;
             workEmail: string | null;
             dateOfJoining: Date | null;
-            status: import("@prisma/client").$Enums.EmployeeStatus;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;

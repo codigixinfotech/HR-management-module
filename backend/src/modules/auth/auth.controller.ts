@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -9,6 +9,12 @@ import type { CurrentUserPayload } from '../../common/decorators/current-user.de
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Get('demo-accounts')
+  getDemoAccounts() {
+    return this.authService.getDemoAccounts();
+  }
 
   @Public()
   @Post('login')

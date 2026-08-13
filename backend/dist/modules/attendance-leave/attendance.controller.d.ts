@@ -22,12 +22,12 @@ export declare class AttendanceController {
         status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         employeeId: string;
+        remarks: string | null;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
         source: string;
-        remarks: string | null;
     })[]>;
     findOne(id: string): Promise<{
         employee: {
@@ -48,12 +48,12 @@ export declare class AttendanceController {
         status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         employeeId: string;
+        remarks: string | null;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
         source: string;
-        remarks: string | null;
     }>;
     mark(dto: MarkAttendanceDto): import("@prisma/client").Prisma.Prisma__AttendanceRecordClient<{
         employee: {
@@ -74,12 +74,12 @@ export declare class AttendanceController {
         status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         employeeId: string;
+        remarks: string | null;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
         source: string;
-        remarks: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdateAttendanceDto): Promise<{
         employee: {
@@ -100,11 +100,11 @@ export declare class AttendanceController {
         status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         employeeId: string;
+        remarks: string | null;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
         source: string;
-        remarks: string | null;
     }>;
 }

@@ -11,6 +11,8 @@ import { CostCentersController } from './cost-centers.controller';
 import { CostCentersService } from './cost-centers.service';
 import { PayGradesController } from './pay-grades.controller';
 import { PayGradesService } from './pay-grades.service';
+import { HrPoliciesController } from './hr-policies.controller';
+import { HrPoliciesService } from './hr-policies.service';
 
 @Module({
   controllers: [
@@ -20,6 +22,7 @@ import { PayGradesService } from './pay-grades.service';
     DesignationsController,
     CostCentersController,
     PayGradesController,
+    HrPoliciesController,
   ],
   providers: [
     CompaniesService,
@@ -28,6 +31,7 @@ import { PayGradesService } from './pay-grades.service';
     DesignationsService,
     CostCentersService,
     PayGradesService,
+    HrPoliciesService,
   ],
   exports: [
     CompaniesService,
@@ -36,6 +40,7 @@ import { PayGradesService } from './pay-grades.service';
     DesignationsService,
     CostCentersService,
     PayGradesService,
+    HrPoliciesService,
   ],
 })
 export class OrganizationModule {}

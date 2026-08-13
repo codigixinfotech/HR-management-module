@@ -60,6 +60,12 @@ export class EmployeesController {
     return this.employeesService.findById(id);
   }
 
+  @Get(':id/position-history')
+  @Permissions('employees.read')
+  getPositionHistory(@Param('id') id: string) {
+    return this.employeesService.getPositionHistory(id);
+  }
+
   @Post()
   @Permissions('employees.write')
   create(@Body() dto: CreateEmployeeDto) {

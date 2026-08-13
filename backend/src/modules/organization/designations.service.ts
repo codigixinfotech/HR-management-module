@@ -11,7 +11,7 @@ import {
 
 @Injectable()
 export class DesignationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   list(companyId?: string) {
     return this.prisma.designation.findMany({

@@ -12,8 +12,8 @@ export declare class CandidatesService {
         phone: string | null;
         firstName: string;
         lastName: string;
-        jobOpeningId: string;
         notes: string | null;
+        jobOpeningId: string;
         stage: import("@prisma/client").$Enums.CandidateStage;
         resumePath: string | null;
         aiMatchScore: number | null;
@@ -26,8 +26,8 @@ export declare class CandidatesService {
         phone: string | null;
         firstName: string;
         lastName: string;
-        jobOpeningId: string;
         notes: string | null;
+        jobOpeningId: string;
         stage: import("@prisma/client").$Enums.CandidateStage;
         resumePath: string | null;
         aiMatchScore: number | null;
@@ -40,8 +40,8 @@ export declare class CandidatesService {
         phone: string | null;
         firstName: string;
         lastName: string;
-        jobOpeningId: string;
         notes: string | null;
+        jobOpeningId: string;
         stage: import("@prisma/client").$Enums.CandidateStage;
         resumePath: string | null;
         aiMatchScore: number | null;
@@ -54,8 +54,8 @@ export declare class CandidatesService {
         phone: string | null;
         firstName: string;
         lastName: string;
-        jobOpeningId: string;
         notes: string | null;
+        jobOpeningId: string;
         stage: import("@prisma/client").$Enums.CandidateStage;
         resumePath: string | null;
         aiMatchScore: number | null;

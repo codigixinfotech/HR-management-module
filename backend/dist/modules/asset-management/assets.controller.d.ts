@@ -18,12 +18,12 @@ export declare class AssetsController {
         name: string;
         category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
-        notes: string | null;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
         warrantyExpiry: Date | null;
+        notes: string | null;
     })[]>;
     findOne(id: string): Promise<{
         currentEmployee: {
@@ -57,12 +57,12 @@ export declare class AssetsController {
         name: string;
         category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
-        notes: string | null;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
         warrantyExpiry: Date | null;
+        notes: string | null;
     }>;
     create(dto: CreateAssetDto): Promise<{
         currentEmployee: {
@@ -79,12 +79,12 @@ export declare class AssetsController {
         name: string;
         category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
-        notes: string | null;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
         warrantyExpiry: Date | null;
+        notes: string | null;
     }>;
     update(id: string, dto: UpdateAssetDto): Promise<{
         currentEmployee: {
@@ -101,12 +101,12 @@ export declare class AssetsController {
         name: string;
         category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
-        notes: string | null;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
         warrantyExpiry: Date | null;
+        notes: string | null;
     }>;
     remove(id: string): Promise<{
         success: boolean;
@@ -126,12 +126,12 @@ export declare class AssetsController {
         name: string;
         category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
-        notes: string | null;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
         warrantyExpiry: Date | null;
+        notes: string | null;
     }>;
     returnAsset(id: string): Promise<{
         currentEmployee: {
@@ -148,11 +148,11 @@ export declare class AssetsController {
         name: string;
         category: string;
         status: import("@prisma/client").$Enums.AssetStatus;
-        notes: string | null;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
         warrantyExpiry: Date | null;
+        notes: string | null;
     }>;
 }

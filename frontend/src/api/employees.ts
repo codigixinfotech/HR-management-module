@@ -40,6 +40,8 @@ export const employeesApi = {
     (await apiClient.post<any>('/employees/skills/competencies', payload)).data,
   removeSkill: async (id: string) => (await apiClient.delete(`/employees/skills/competencies/${id}`)).data,
 
+  getPositionHistory: async (id: string) => (await apiClient.get<any[]>(`/employees/${id}/position-history`)).data,
+
   listTransfers: async () => (await apiClient.get<any[]>('/employees/transfers')).data,
   getTransfer: async (id: string) => (await apiClient.get<any>(`/employees/transfers/${id}`)).data,
   createTransfer: async (payload: any) => (await apiClient.post<any>('/employees/transfers', payload)).data,
