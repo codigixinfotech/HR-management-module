@@ -19,6 +19,7 @@ import {
   Workflow,
   Settings,
   Network,
+  CheckSquare,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -97,11 +98,27 @@ export const HCM_MODULES: HcmModule[] = [
     subItems: [
       { key: 'directory', label: 'Employee Directory', path: '/employees/directory' },
       { key: 'master', label: 'Employee Master', path: '/employees/master' },
+      { key: 'tasks', label: 'Task Management', path: '/tasks' },
       { key: 'documents', label: 'Documents', path: '/employees/documents' },
       { key: 'skills', label: 'Skills & Certifications', path: '/employees/skills' },
       { key: 'transfers', label: 'Transfers & Promotions', path: '/employees/transfers' },
       { key: 'exit', label: 'Exit Management', path: '/employees/exit' },
       { key: 'reports', label: 'Employee Reports', path: '/employees/reports' },
+    ],
+  },
+  {
+    key: 'tasks',
+    label: 'Task Management',
+    path: '/tasks',
+    phase: 2,
+    status: 'active',
+    icon: CheckSquare,
+    subItems: [
+      { key: 'dashboard', label: 'Task Dashboard', path: '/tasks/dashboard' },
+      { key: 'my-tasks', label: 'My Tasks', path: '/tasks/my-tasks' },
+      { key: 'all-tasks', label: 'All Tasks & Allocation', path: '/tasks/all-tasks' },
+      { key: 'requests', label: 'Task Requests', path: '/tasks/requests' },
+      { key: 'reports', label: 'Task Reports', path: '/tasks/reports' },
     ],
   },
   {

@@ -260,7 +260,34 @@ export interface OnboardingTask {
   completedAt?: string | null;
 }
 
-export type CandidateStage = 'APPLIED' | 'SCREENING' | 'INTERVIEW' | 'OFFERED' | 'HIRED' | 'REJECTED' | 'WITHDRAWN';
+export type CandidateStage = 'APPLIED' | 'SCREENING' | 'SHORTLISTED' | 'ON_HOLD' | 'INTERVIEW' | 'OFFERED' | 'HIRED' | 'REJECTED' | 'WITHDRAWN';
+
+export interface CandidateScreening {
+  id: string;
+  candidateId: string;
+  relevantExperienceYears?: number | null;
+  relevantExperienceSummary?: string | null;
+  currentLocation?: string | null;
+  noticePeriod?: string | null;
+  currentCtc?: number | null;
+  expectedCtc?: number | null;
+  highestQualification?: string | null;
+  qualificationMatch?: 'YES' | 'NO' | 'PARTIAL' | string | null;
+  skillsMatch?: 'YES' | 'NO' | 'PARTIAL' | string | null;
+  technicalRating: number;
+  communicationRating: number;
+  profileMatchRating: number;
+  overallScreeningScore: number;
+  screeningRemarks?: string | null;
+  rejectionReason?: string | null;
+  screeningDecision: 'SHORTLIST' | 'HOLD' | 'REJECT';
+  screenedBy: string;
+  screenedAt: string;
+  lastUpdatedBy: string;
+  lastUpdatedDate: string;
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export interface JobOpening {
   id: string;
@@ -311,6 +338,7 @@ export interface Candidate {
   currentCompany?: string | null;
   currentLocation?: string | null;
   skills?: string | null;
+  currentCtc?: number | null;
   expectedCtc?: number | null;
   noticePeriod?: string | null;
   coverLetter?: string | null;
@@ -321,6 +349,116 @@ export interface Candidate {
   createdAt: string;
   updatedAt?: string;
   jobOpening?: JobOpening;
+  screenings?: CandidateScreening[];
+}
+
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type TaskStatus = 'ASSIGNED' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'UNABLE_TO_COMPLETE' | 'CLOSED' | 'REOPENED';
+export type TaskType = 'TASK' | 'FEATURE' | 'BUG' | 'RECRUITMENT' | 'WORKFLOW' | 'MAINTENANCE' | 'HR_REQUEST';
+
+export interface TaskActivity {
+  id: string;
+  taskId: string;
+  performedBy: string;
+  action: string;
+  previousStatus?: string | null;
+  newStatus?: string | null;
+  progress?: number | null;
+  remarks?: string | null;
+  createdAt: string;
+}
+
+export interface EmployeeTask {
+  id: string;
+  taskCode: string;
+  title: string;
+  description?: string | null;
+  taskType: TaskType | string;
+  departmentName?: string | null;
+  projectName?: string | null;
+  priority: TaskPriority | string;
+  assignedToId: string;
+  assignedById: string;
+  departmentId?: string | null;
+  startDate?: string | null;
+  dueDate?: string | null;
+  estimatedHours?: number | null;
+  actualHours?: number | null;
+  attachments?: string | null;
+  instructions?: string | null;
+  managerRemarks?: string | null;
+  completionRemarks?: string | null;
+  completionAttachment?: string | null;
+  rejectionReason?: string | null;
+  status: TaskStatus | string;
+  progress: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  closedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  assignedTo?: {
+    id: string;
+    employeeCode: string;
+    firstName: string;
+    lastName: string;
+    department?: { id: string; name: string } | null;
+    designation?: { id: string; title: string } | null;
+  };
+  assignedBy?: {
+    id: string;
+    employeeCode: string;
+    firstName: string;
+    lastName: string;
+    designation?: { id: string; title: string } | null;
+  };
+  activities?: TaskActivity[];
+}
+
+export interface TaskSummary {
+  total: number;
+  assigned: number;
+  inProgress: number;
+  onHold: number;
+  completed: number;
+  closed: number;
+  dueToday: number;
+  overdue: number;
+}
+
+export interface TaskRequest {
+  id: string;
+  requestCode: string;
+  requestedById: string;
+  requestTitle: string;
+  requestType: string;
+  description?: string | null;
+  priority: string;
+  status: 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'CONVERTED_TO_TASK' | 'COMPLETED' | string;
+  assignedTaskId?: string | null;
+  reviewRemarks?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requestedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+    department?: { id: string; name: string } | null;
+  };
+}
+
+export interface TaskNotification {
+  id: string;
+  employeeId: string;
+  title: string;
+  message: string;
+  type: string;
+  link?: string | null;
+  isRead: boolean;
+  createdAt: string;
 }
 
 export interface PaginatedResult<T> {

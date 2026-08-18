@@ -51,6 +51,8 @@ enum ApprovalStatus {
 enum CandidateStage {
   APPLIED
   SCREENING
+  SHORTLISTED
+  ON_HOLD
   INTERVIEW
   OFFERED
   HIRED
@@ -667,6 +669,10 @@ model Employee {
   ppeIssuances      PpeIssuance[]
   employeeTransfers EmployeeTransfer[]
 
+  assignedTasks     EmployeeTask[]     @relation("TaskAssignedTo")
+  createdTasks      EmployeeTask[]     @relation("TaskAssignedBy")
+  taskRequests      TaskRequest[]
+
   @@unique([companyId, employeeCode])
   @@index([departmentId])
   @@index([reportingManagerId])
@@ -840,6 +846,7 @@ model Candidate {
   currentCompany  String?
   currentLocation String?
   skills          String?
+  currentCtc      Float?
   expectedCtc     Float?
   noticePeriod    String?
   coverLetter     String?        @db.Text
@@ -850,10 +857,46 @@ model Candidate {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  jobOpening JobOpening @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
+  jobOpening JobOpening           @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
+  screenings CandidateScreening[]
 
   @@index([jobOpeningId])
   @@map("candidates")
+}
+
+model CandidateScreening {
+  id                        String   @id @default(cuid())
+  candidateId               String
+  relevantExperienceYears   Float?
+  relevantExperienceSummary String?  @db.Text
+  currentLocation           String?
+  noticePeriod              String?
+  currentCtc                Float?
+  expectedCtc               Float?
+  highestQualification      String?
+  qualificationMatch        String?  // YES, NO, PARTIAL
+  skillsMatch               String?  // YES, NO, PARTIAL
+
+  technicalRating           Int      // 1-5
+  communicationRating       Int      // 1-5
+  profileMatchRating        Int      // 1-5
+  overallScreeningScore     Float    // auto-calculated average score
+  screeningRemarks          String?  @db.Text
+  rejectionReason           String?  @db.Text
+  screeningDecision         String   // SHORTLIST, HOLD, REJECT
+
+  screenedBy                String   @default("Aishwarya Roy (Director HR)")
+  screenedAt                DateTime @default(now())
+  lastUpdatedBy             String   @default("Aishwarya Roy (Director HR)")
+  lastUpdatedDate           DateTime @default(now()) @updatedAt
+
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@map("candidate_screenings")
 }
 
 model ManpowerPlan {
@@ -1557,5 +1600,109 @@ model ExitAuditLog {
 
   @@index([exitId])
   @@map("exit_audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Module: Task Management & Employee Task Allocation
+// ---------------------------------------------------------------------------
+
+model EmployeeTask {
+  id                   String   @id @default(cuid())
+  taskCode             String   @unique
+  title                String
+  description          String?  @db.Text
+  taskType             String   @default("TASK") // TASK, FEATURE, BUG, RECRUITMENT, WORKFLOW, MAINTENANCE, HR_REQUEST
+  departmentName       String?
+  projectName          String?
+  priority             String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+
+  assignedToId         String
+  assignedById         String
+  departmentId         String?
+
+  startDate            DateTime?
+  dueDate              DateTime?
+  estimatedHours       Float?   @default(0)
+  actualHours          Float?   @default(0)
+
+  attachments          String?  @db.Text
+  instructions         String?  @db.Text
+  managerRemarks       String?  @db.Text
+  completionRemarks    String?  @db.Text
+  completionAttachment String?  @db.Text
+  rejectionReason      String?  @db.Text
+
+  status               String   @default("ASSIGNED") // ASSIGNED, IN_PROGRESS, ON_HOLD, COMPLETED, UNABLE_TO_COMPLETE, CLOSED, REOPENED
+  progress             Int      @default(0) // 0 to 100
+
+  startedAt            DateTime?
+  completedAt          DateTime?
+  closedAt             DateTime?
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  assignedTo           Employee @relation("TaskAssignedTo", fields: [assignedToId], references: [id], onDelete: Cascade)
+  assignedBy           Employee @relation("TaskAssignedBy", fields: [assignedById], references: [id], onDelete: Cascade)
+  activities           TaskActivity[]
+
+  @@index([assignedToId])
+  @@index([assignedById])
+  @@index([status])
+  @@map("employee_tasks")
+}
+
+model TaskActivity {
+  id             String       @id @default(cuid())
+  taskId         String
+  performedBy    String
+  action         String
+  previousStatus String?
+  newStatus      String?
+  progress       Int?
+  remarks        String?      @db.Text
+  createdAt      DateTime     @default(now())
+
+  task           EmployeeTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_activities")
+}
+
+model TaskRequest {
+  id             String    @id @default(cuid())
+  requestCode    String    @unique
+  requestedById  String
+  requestTitle   String
+  requestType    String    @default("GENERAL") // GENERAL, RECRUITMENT, WORKFLOW, EQUIPMENT, ACCESS, HR_SUPPORT
+  description    String?   @db.Text
+  priority       String    @default("MEDIUM")
+  status         String    @default("SUBMITTED") // DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, CONVERTED_TO_TASK, COMPLETED
+  assignedTaskId String?
+  reviewRemarks  String?   @db.Text
+  reviewedBy     String?
+  reviewedAt     DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  requestedBy    Employee  @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@index([requestedById])
+  @@map("task_requests")
+}
+
+model TaskNotification {
+  id          String   @id @default(cuid())
+  employeeId  String
+  title       String
+  message     String   @db.Text
+  type        String   @default("INFO") // NEW_TASK, DUE_SOON, OVERDUE, AWAITING_REVIEW, RETURNED
+  link        String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+  @@map("task_notifications")
 }
 

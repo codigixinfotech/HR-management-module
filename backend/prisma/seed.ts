@@ -27,52 +27,63 @@ async function main() {
   console.log(`Seeded ${permissionCodes.length} permissions.`);
 
   // 2. Demo company.
-  const existingCompaniesCount = await prisma.company.count();
-  if (existingCompaniesCount > 0) {
-    console.log('Database already has company records. Skipping demo company seeding.');
-    return;
+  const existingCompany = await prisma.company.findFirst();
+  if (existingCompany) {
+    console.log('Database already has company records. Proceeding to seed Task Management records...');
   }
 
-  const company = await prisma.company.create({
-    data: {
-      code: 'DEMO',
-      name: 'Demo Manufacturing Pvt Ltd',
-      legalName: 'Demo Manufacturing Private Limited',
-      country: 'India',
-      currency: 'INR',
-      timezone: 'Asia/Kolkata',
-    },
-  });
+  let company = await prisma.company.findFirst({ where: { code: 'DEMO' } });
+  if (!company) {
+    company = await prisma.company.create({
+      data: {
+        code: 'DEMO',
+        name: 'Demo Manufacturing Pvt Ltd',
+        legalName: 'Demo Manufacturing Private Limited',
+        country: 'India',
+        currency: 'INR',
+        timezone: 'Asia/Kolkata',
+      },
+    });
+  }
   console.log(`Seeded company: ${company.name}`);
 
-  const branch = await prisma.branch.create({
-    data: {
-      companyId: company.id,
-      code: 'HO',
-      name: 'Head Office',
-      city: 'Pune',
-      state: 'Maharashtra',
-      country: 'India',
-    },
-  });
+  let branch = await prisma.branch.findFirst({ where: { companyId: company.id, code: 'HO' } });
+  if (!branch) {
+    branch = await prisma.branch.create({
+      data: {
+        companyId: company.id,
+        code: 'HO',
+        name: 'Head Office',
+        city: 'Pune',
+        state: 'Maharashtra',
+        country: 'India',
+      },
+    });
+  }
 
-  const department = await prisma.department.create({
-    data: {
-      companyId: company.id,
-      branchId: branch.id,
-      code: 'HR',
-      name: 'Human Resources',
-    },
-  });
+  let department = await prisma.department.findFirst({ where: { companyId: company.id, code: 'HR' } });
+  if (!department) {
+    department = await prisma.department.create({
+      data: {
+        companyId: company.id,
+        branchId: branch.id,
+        code: 'HR',
+        name: 'Human Resources',
+      },
+    });
+  }
 
-  const designation = await prisma.designation.create({
-    data: {
-      companyId: company.id,
-      departmentId: department.id,
-      code: 'HR-MGR',
-      title: 'HR Manager',
-    },
-  });
+  let designation = await prisma.designation.findFirst({ where: { companyId: company.id, code: 'HR-MGR' } });
+  if (!designation) {
+    designation = await prisma.designation.create({
+      data: {
+        companyId: company.id,
+        departmentId: department.id,
+        code: 'HR-MGR',
+        title: 'HR Manager',
+      },
+    });
+  }
 
   // 3. SUPER_ADMIN system role with full access, plus an HR_ADMIN example role.
   // Note: MySQL treats NULL as distinct in composite unique indexes, so a
@@ -579,6 +590,116 @@ async function main() {
       await prisma.asset.update({ where: { id: spareAsset.id }, data: { status: 'ALLOCATED', currentEmployeeId: target.id } });
     }
   }
+
+  // 19. Seed Employee Sanika Mote and Task Allocation data
+  const sanikaEmp = await prisma.employee.upsert({
+    where: { companyId_employeeCode: { companyId: company.id, employeeCode: 'EMP-SANIKA' } },
+    update: {},
+    create: {
+      companyId: company.id,
+      employeeCode: 'EMP-SANIKA',
+      firstName: 'Sanika',
+      lastName: 'Mote',
+      departmentId: department.id,
+      designationId: designation.id,
+      status: 'ACTIVE',
+      dateOfJoining: new Date('2024-01-15'),
+    },
+  });
+
+  const sampleTasks = [
+    {
+      taskCode: 'TSK-2026-001',
+      title: 'Update Employee Recruitment Workflow',
+      description: 'Implement screening evaluation form, candidate stage navigation, and recruiter audit info.',
+      taskType: 'RECRUITMENT',
+      departmentName: 'Human Resources',
+      projectName: 'E-HCM Recruitment Core',
+      priority: 'HIGH',
+      assignedToId: sanikaEmp.id,
+      assignedById: adminEmployee.id,
+      startDate: new Date(),
+      dueDate: new Date(Date.now() + 2 * 86400000),
+      estimatedHours: 12,
+      actualHours: 4,
+      instructions: 'Ensure clear validation rules for ratings 1-5, CTC non-negative checks, and mandatory remarks for rejection.',
+      managerRemarks: 'High priority requirement from HR Director.',
+      status: 'ASSIGNED',
+      progress: 0,
+    },
+    {
+      taskCode: 'TSK-2026-002',
+      title: 'Employee Profile Management Enhancements',
+      description: 'Refactor skills, certifications, and document upload workflow for onboarding.',
+      taskType: 'FEATURE',
+      departmentName: 'Human Resources',
+      projectName: 'Workforce Portal',
+      priority: 'MEDIUM',
+      assignedToId: sanikaEmp.id,
+      assignedById: adminEmployee.id,
+      startDate: new Date(Date.now() - 86400000),
+      dueDate: new Date(Date.now() + 3 * 86400000),
+      estimatedHours: 8,
+      actualHours: 4,
+      instructions: 'Review UI layout and ensure responsive table presentation.',
+      status: 'IN_PROGRESS',
+      progress: 50,
+      startedAt: new Date(Date.now() - 86400000),
+    },
+    {
+      taskCode: 'TSK-2026-003',
+      title: 'Dashboard Testing & Real-time Metrics',
+      description: 'Validate key performance indicators across executive dashboard widgets.',
+      taskType: 'MAINTENANCE',
+      departmentName: 'Human Resources',
+      projectName: 'Analytics Suite',
+      priority: 'LOW',
+      assignedToId: sanikaEmp.id,
+      assignedById: adminEmployee.id,
+      startDate: new Date(Date.now() - 3 * 86400000),
+      dueDate: new Date(Date.now() - 86400000),
+      estimatedHours: 6,
+      actualHours: 6,
+      completionRemarks: 'All widgets verified successfully.',
+      status: 'COMPLETED',
+      progress: 100,
+      completedAt: new Date(Date.now() - 86400000),
+    },
+  ];
+
+  for (const taskData of sampleTasks) {
+    const existingTask = await prisma.employeeTask.findUnique({ where: { taskCode: taskData.taskCode } });
+    if (!existingTask) {
+      const task = await prisma.employeeTask.create({ data: taskData });
+      await prisma.taskActivity.create({
+        data: {
+          taskId: task.id,
+          performedBy: 'Aishwarya Roy (Director HR)',
+          action: 'TASK_ASSIGNED',
+          newStatus: task.status,
+          progress: task.progress,
+          remarks: `Initial task assignment for ${taskData.title}`,
+        },
+      });
+    }
+  }
+
+  // Seed sample task request
+  const existingReq = await prisma.taskRequest.findUnique({ where: { requestCode: 'REQ-2026-001' } });
+  if (!existingReq) {
+    await prisma.taskRequest.create({
+      data: {
+        requestCode: 'REQ-2026-001',
+        requestedById: sanikaEmp.id,
+        requestTitle: 'Request for Recruitment Dashboard Update',
+        requestType: 'RECRUITMENT',
+        description: 'Need additional metrics tab for candidate screening conversion rates.',
+        priority: 'HIGH',
+        status: 'SUBMITTED',
+      },
+    });
+  }
+  console.log('Seeded Sanika Mote and Task Management records.');
   console.log('Seed complete.');
 }
 

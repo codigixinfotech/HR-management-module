@@ -32,6 +32,8 @@ import { IotDevicesModule } from './modules/iot-devices/iot-devices.module';
 import { ReportsAnalyticsModule } from './modules/reports-analytics/reports-analytics.module';
 import { WorkflowAutomationModule } from './modules/workflow-automation/workflow-automation.module';
 
+import { TasksModule } from './modules/tasks/tasks.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -47,6 +49,7 @@ import { WorkflowAutomationModule } from './modules/workflow-automation/workflow
     EmployeesModule,
     RecruitmentModule,
     DashboardModule,
+    TasksModule,
 
     // Phase 3-7 - scaffolded stubs, extend these in later phases
     WorkforceModule,

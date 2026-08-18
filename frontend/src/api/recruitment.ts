@@ -30,6 +30,10 @@ export const jobOpeningsApi = {
 };
 
 export const candidatesApi = {
+  get: async (id: string) => (await apiClient.get<Candidate>(`/recruitment/candidates/${id}`)).data,
+  getScreening: async (id: string) => (await apiClient.get<CandidateScreening>(`/recruitment/candidates/${id}/screening`)).data,
+  saveScreening: async (id: string, payload: any) =>
+    (await apiClient.post<{ success: boolean; candidate: Candidate; screening: CandidateScreening }>(`/recruitment/candidates/${id}/screening`, payload)).data,
   updateStage: async (id: string, stage: CandidateStage) =>
     (await apiClient.patch<Candidate>(`/recruitment/candidates/${id}/stage`, { stage })).data,
   remove: async (id: string) => (await apiClient.delete(`/recruitment/candidates/${id}`)).data,

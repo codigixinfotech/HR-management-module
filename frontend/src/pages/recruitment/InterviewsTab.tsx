@@ -59,7 +59,7 @@ export function InterviewsTab() {
     openings.forEach((job) => {
       if (job.candidates && job.candidates.length > 0) {
         job.candidates.forEach((c) => {
-          if (c.stage === 'INTERVIEW') {
+          if (c.stage === 'INTERVIEW' || c.stage === 'SHORTLISTED') {
             list.push({
               id: `INT-${c.id.substring(0, 6).toUpperCase()}`,
               candidateId: c.id,

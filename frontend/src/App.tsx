@@ -10,6 +10,7 @@ import EmployeeListPage from '@/pages/employees/EmployeeListPage';
 import EmployeeDetailPage from '@/pages/employees/EmployeeDetailPage';
 import JobOpeningsPage from '@/pages/recruitment/JobOpeningsPage';
 import JobOpeningDetailPage from '@/pages/recruitment/JobOpeningDetailPage';
+import TasksPage from '@/pages/tasks/TasksPage';
 import WorkforcePage from '@/pages/workforce/WorkforcePage';
 import AttendanceLeavePage from '@/pages/attendance-leave/AttendanceLeavePage';
 import PayrollPage from '@/pages/payroll/PayrollPage';
@@ -55,6 +56,10 @@ export default function App() {
               <Route path="/employees" element={<EmployeeListPage />} />
               <Route path="/employees/:tab" element={<EmployeeListPage />} />
               <Route path="/employees/detail/:id" element={<EmployeeDetailPage />} />
+
+              {/* Task Management Routes */}
+              <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/tasks/:tab" element={<TasksPage />} />
 
               {/* Recruitment Routes */}
               <Route path="/recruitment" element={<JobOpeningsPage />} />

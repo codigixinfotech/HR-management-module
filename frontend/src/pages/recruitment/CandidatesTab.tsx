@@ -13,8 +13,20 @@ import {
   UserCheck,
   ClipboardCheck,
   Award,
+  FileText,
+  Eye,
+  AlertCircle,
+  Clock,
+  Sparkles,
+  DollarSign,
+  GraduationCap,
+  MapPin,
+  Calendar,
+  Layers,
 } from 'lucide-react';
 import { jobOpeningsApi, candidatesApi } from '@/api/recruitment';
+import { employeesApi } from '@/api/employees';
+import { tasksApi } from '@/api/tasks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +37,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import type { CandidateStage } from '@/api/types';
+import type { CandidateStage, CandidateScreening } from '@/api/types';
 
 export function CandidatesTab() {
   const navigate = useNavigate();
@@ -42,28 +54,80 @@ export function CandidatesTab() {
   const [formPhone, setFormPhone] = useState('');
   const [selectedJobId, setSelectedJobId] = useState<string>('');
 
-  // Modal State: Focused Screening Evaluation Form
+  // Modal State: Focused Candidate Screening Evaluation Form
   const [isScreeningOpen, setIsScreeningOpen] = useState(false);
   const [screeningCandidate, setScreeningCandidate] = useState<any>(null);
-  const [relExperience, setRelExperience] = useState('6 Years');
-  const [techRating, setTechRating] = useState('4');
-  const [commRating, setCommRating] = useState('4');
-  const [overallRating, setOverallRating] = useState('4');
-  const [screeningRemarks, setScreeningRemarks] = useState('');
+  const [isFetchingScreening, setIsFetchingScreening] = useState(false);
+
+  // Form Fields: Basic Screening Info
+  const [relExpYears, setRelExpYears] = useState<string>('6');
+  const [relExpSummary, setRelExpSummary] = useState<string>('');
+  const [currentLocation, setCurrentLocation] = useState<string>('');
+  const [noticePeriod, setNoticePeriod] = useState<string>('30 Days');
+  const [currentCtc, setCurrentCtc] = useState<string>('18');
+  const [expectedCtc, setExpectedCtc] = useState<string>('24');
+  const [highestQualification, setHighestQualification] = useState<string>('');
+  const [qualificationMatch, setQualificationMatch] = useState<'YES' | 'NO' | 'PARTIAL'>('YES');
+  const [skillsMatch, setSkillsMatch] = useState<'YES' | 'NO' | 'PARTIAL'>('YES');
+
+  // Form Fields: Recruiter Evaluation Ratings (1 to 5)
+  const [techRating, setTechRating] = useState<number>(4);
+  const [commRating, setCommRating] = useState<number>(4);
+  const [profileMatchRating, setProfileMatchRating] = useState<number>(4);
+  const [screeningRemarks, setScreeningRemarks] = useState<string>('');
   const [screeningDecision, setScreeningDecision] = useState<'SHORTLIST' | 'HOLD' | 'REJECT'>('SHORTLIST');
 
-  // Fetch Job Openings to associate candidate with real Job Requisition (JR-2026-001)
+  // Audit Fields (Assignable & Captured)
+  const [screenedBy, setScreenedBy] = useState<string>('Aishwarya Roy (Director HR)');
+  const [screeningDate, setScreeningDate] = useState<string>('18 Aug 2026, 02:30 PM');
+  const [lastUpdatedBy, setLastUpdatedBy] = useState<string>('Aishwarya Roy (Director HR)');
+  const [lastUpdatedDate, setLastUpdatedDate] = useState<string>('18 Aug 2026, 02:30 PM');
+
+  // Form Validation Errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // Auto-calculated Overall Screening Score
+  const overallScore = useMemo(() => {
+    const avg = (techRating + commRating + profileMatchRating) / 3;
+    return avg.toFixed(1);
+  }, [techRating, commRating, profileMatchRating]);
+
+  // Fetch Job Openings & real candidate records
   const { data: openings = [] } = useQuery({
     queryKey: ['job-openings'],
     queryFn: () => jobOpeningsApi.list(),
   });
 
-  // Extract all candidates from openings
+  // Fetch real employee roster from Employee Master
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees-master-list'],
+    queryFn: () => employeesApi.list({ pageSize: 100 }),
+  });
+
+  const employeeOptions = useMemo(() => {
+    if (!employeesData?.items || employeesData.items.length === 0) {
+      return [
+        { id: '1', name: 'Aishwarya Roy (Director HR)' },
+        { id: '2', name: 'Priya Verma (HR Lead)' },
+        { id: '3', name: 'Rajesh Sharma (CTO)' },
+        { id: '4', name: 'Admin User' },
+      ];
+    }
+    return employeesData.items.map((emp) => {
+      const title = emp.designation?.title || emp.department?.name || 'Employee';
+      return {
+        id: emp.id,
+        name: `${emp.firstName} ${emp.lastName} (${title})`,
+      };
+    });
+  }, [employeesData]);
+
+  // Extract all candidates from job openings
   const allCandidates = useMemo(() => {
     const list: any[] = [];
     openings.forEach((job) => {
       if (job.candidates && job.candidates.length > 0) {
-        job.candidates.forEach((c) => {
+        job.candidates.forEach((c: any) => {
           list.push({
             id: c.id,
             firstName: c.firstName,
@@ -74,13 +138,18 @@ export function CandidatesTab() {
             role: job.title,
             reqCode: job.requisitionCode || job.mrNumber || 'JR-2026-001',
             jobId: job.id,
-            stage: c.stage || 'APPLIED',
-            rating: '4.8/5',
+            stage: (c.stage as CandidateStage) || 'APPLIED',
+            rating: c.screenings?.[0]?.overallScreeningScore ? `${c.screenings[0].overallScreeningScore}/5` : '4.0/5',
             score: c.aiMatchScore ? `${c.aiMatchScore}%` : '88%',
             source: c.source || 'Careers Portal',
             experience: c.experience || '6 Years',
             qualification: c.qualification || 'Graduate',
-            status: c.stage === 'HIRED' ? 'OFFERED' : c.stage === 'REJECTED' ? 'REJECTED' : 'APPLIED',
+            currentLocation: c.currentLocation || 'Pune, India',
+            currentCtc: c.currentCtc || 18,
+            expectedCtc: c.expectedCtc || 24,
+            noticePeriod: c.noticePeriod || '30 Days',
+            resumePath: c.resumePath || null,
+            latestScreening: c.screenings?.[0] || null,
             createdAt: c.createdAt,
           });
         });
@@ -100,6 +169,65 @@ export function CandidatesTab() {
     onError: (err: any) =>
       toast.error(err?.response?.data?.message ?? 'Failed to update candidate stage'),
   });
+  const saveScreeningMutation = useMutation({
+    mutationFn: ({ candidateId, payload }: { candidateId: string; payload: any }) =>
+      candidatesApi.saveScreening(candidateId, payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      setIsScreeningOpen(false);
+      const dec = payloadDecision;
+      const candidateName = screeningCandidate?.name || 'Candidate';
+
+      // Automatically create a Screening/Interview Task in Task Management assigned to Screened By employee
+      const targetEmp = employeesData?.items?.find(
+        (e: any) =>
+          `${e.firstName} ${e.lastName}`.toLowerCase().includes(screenedBy.toLowerCase()) ||
+          screenedBy.toLowerCase().includes(e.firstName.toLowerCase()),
+      ) || employeesData?.items?.find((e: any) => e.employeeCode === 'EMP-8265') || employeesData?.items?.[0];
+
+      if (targetEmp?.id && screeningCandidate) {
+        tasksApi
+          .create({
+            title: `Screening Evaluation: ${screeningCandidate.name} (${screeningCandidate.role})`,
+            taskType: 'RECRUITMENT',
+            projectName: 'E-HCM Recruitment Core',
+            priority: 'HIGH',
+            assignedToId: targetEmp.id,
+            description: `Conduct technical & qualification screening for candidate ${screeningCandidate.name} (Req: ${screeningCandidate.reqCode}). Score: ${overallScore}/5. Remarks: ${screeningRemarks}`,
+            instructions: `Review resume, verify experience & qualification, conduct interview evaluation.`,
+            managerRemarks: `Auto-allocated task assigned to ${targetEmp.firstName} ${targetEmp.lastName}.`,
+          })
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['task-summary'] });
+            toast.info(`Task auto-created & assigned to ${targetEmp.firstName} ${targetEmp.lastName} in Task Management!`);
+          })
+          .catch((e: any) => console.log('Auto-task creation note:', e));
+      }
+
+      if (dec === 'SHORTLIST') {
+        toast.success(`Candidate screening saved! ${candidateName} shortlisted for interview.`, {
+          action: {
+            label: 'Schedule Interview',
+            onClick: () => navigate('/recruitment/interviews'),
+          },
+        });
+      } else if (dec === 'HOLD') {
+        toast.info(`Screening evaluation saved. Candidate ${candidateName} placed ON HOLD.`);
+      } else if (dec === 'REJECT') {
+        toast.error(`Screening evaluation saved. Candidate ${candidateName} REJECTED.`);
+      } else {
+        toast.success(`Screening evaluation saved for ${candidateName}.`);
+      }
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? 'Failed to save candidate screening evaluation';
+      toast.error(typeof msg === 'string' ? msg : Array.isArray(msg) ? msg.join(', ') : 'Failed to save screening');
+    },
+  });
+
+  let payloadDecision = screeningDecision;
 
   const addCandidateMutation = useMutation({
     mutationFn: ({ jobId, payload }: { jobId: string; payload: any }) =>
@@ -153,66 +281,159 @@ export function CandidatesTab() {
     });
   };
 
-  // Open Focused Screening Evaluation Form
-  const openScreeningModal = (candidate: any) => {
+  // Open Focused Candidate Screening Evaluation Dialog Modal
+  const openScreeningModal = async (candidate: any) => {
     setScreeningCandidate(candidate);
-    setRelExperience(candidate.experience || '6 Years Relevant Experience');
-    setTechRating('4');
-    setCommRating('4');
-    setOverallRating('4');
-    setScreeningRemarks('Strong technical foundation, excellent domain understanding, recommended for technical interview.');
-    setScreeningDecision('SHORTLIST');
+    setValidationErrors({});
+    setIsFetchingScreening(true);
     setIsScreeningOpen(true);
+
+    try {
+      const screening: CandidateScreening = await candidatesApi.getScreening(candidate.id);
+      if (screening) {
+        setRelExpYears(screening.relevantExperienceYears !== null && screening.relevantExperienceYears !== undefined ? String(screening.relevantExperienceYears) : (candidate.experience?.replace(/[^0-9.]/g, '') || '5'));
+        setRelExpSummary(screening.relevantExperienceSummary || `Candidate has strong domain experience in ${candidate.role}.`);
+        setCurrentLocation(screening.currentLocation || candidate.currentLocation || 'Pune, India');
+        setNoticePeriod(screening.noticePeriod || candidate.noticePeriod || '30 Days');
+        setCurrentCtc(screening.currentCtc !== null && screening.currentCtc !== undefined ? String(screening.currentCtc) : (candidate.currentCtc ? String(candidate.currentCtc) : '18'));
+        setExpectedCtc(screening.expectedCtc !== null && screening.expectedCtc !== undefined ? String(screening.expectedCtc) : (candidate.expectedCtc ? String(candidate.expectedCtc) : '24'));
+        setHighestQualification(screening.highestQualification || candidate.qualification || 'B.E. Computer Science');
+        setQualificationMatch((screening.qualificationMatch as any) || 'YES');
+        setSkillsMatch((screening.skillsMatch as any) || 'YES');
+        setTechRating(screening.technicalRating || 4);
+        setCommRating(screening.communicationRating || 4);
+        setProfileMatchRating(screening.profileMatchRating || 4);
+        setScreeningRemarks(screening.screeningRemarks || screening.rejectionReason || '');
+        setScreeningDecision((screening.screeningDecision as any) || 'SHORTLIST');
+        setScreenedBy(screening.screenedBy || 'Aishwarya Roy (Director HR)');
+        setScreeningDate(screening.screenedAt ? new Date(screening.screenedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '18 Aug 2026, 02:30 PM');
+        setLastUpdatedBy(screening.lastUpdatedBy || screening.screenedBy || 'Aishwarya Roy (Director HR)');
+        setLastUpdatedDate(screening.lastUpdatedDate ? new Date(screening.lastUpdatedDate).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '18 Aug 2026, 02:30 PM');
+      } else {
+        // Defaults from candidate profile
+        setRelExpYears(candidate.experience?.replace(/[^0-9.]/g, '') || '5');
+        setRelExpSummary(`${candidate.name} has relevant experience for the ${candidate.role} position.`);
+        setCurrentLocation(candidate.currentLocation || 'Pune, India');
+        setNoticePeriod(candidate.noticePeriod || '30 Days');
+        setCurrentCtc(candidate.currentCtc ? String(candidate.currentCtc) : '18');
+        setExpectedCtc(candidate.expectedCtc ? String(candidate.expectedCtc) : '24');
+        setHighestQualification(candidate.qualification || 'B.E. / B.Tech Computer Science');
+        setQualificationMatch('YES');
+        setSkillsMatch('YES');
+        setTechRating(4);
+        setCommRating(4);
+        setProfileMatchRating(4);
+        setScreeningRemarks('Candidate has strong technical domain knowledge and good team alignment. Recommended for technical panel interview.');
+        setScreeningDecision('SHORTLIST');
+        setScreenedBy('Aishwarya Roy (Director HR)');
+        setScreeningDate('18 Aug 2026, 02:30 PM');
+        setLastUpdatedBy('Aishwarya Roy (Director HR)');
+        setLastUpdatedDate('18 Aug 2026, 02:30 PM');
+      }
+    } catch {
+      // Fallback if API getScreening returns 404 or fails
+      setRelExpYears(candidate.experience?.replace(/[^0-9.]/g, '') || '5');
+      setRelExpSummary(`${candidate.name} has domain experience in ${candidate.role}.`);
+      setCurrentLocation(candidate.currentLocation || 'Pune, India');
+      setNoticePeriod(candidate.noticePeriod || '30 Days');
+      setCurrentCtc(candidate.currentCtc ? String(candidate.currentCtc) : '18');
+      setExpectedCtc(candidate.expectedCtc ? String(candidate.expectedCtc) : '24');
+      setHighestQualification(candidate.qualification || 'B.E. Computer Science');
+      setQualificationMatch('YES');
+      setSkillsMatch('YES');
+      setTechRating(4);
+      setCommRating(4);
+      setProfileMatchRating(4);
+      setScreeningRemarks('Strong technical background and clear communication.');
+      setScreeningDecision('SHORTLIST');
+      setScreenedBy('Aishwarya Roy (Director HR)');
+      setScreeningDate('18 Aug 2026, 02:30 PM');
+      setLastUpdatedBy('Aishwarya Roy (Director HR)');
+      setLastUpdatedDate('18 Aug 2026, 02:30 PM');
+    } finally {
+      setIsFetchingScreening(false);
+    }
   };
 
   const handleSaveScreening = (e: React.FormEvent) => {
     e.preventDefault();
     if (!screeningCandidate) return;
 
-    let targetStage: CandidateStage = 'INTERVIEW';
-    if (screeningDecision === 'SHORTLIST') {
-      targetStage = 'INTERVIEW';
-    } else if (screeningDecision === 'HOLD') {
-      targetStage = 'APPLIED';
-    } else if (screeningDecision === 'REJECT') {
-      targetStage = 'REJECTED';
+    // Strict Validation
+    const errors: Record<string, string> = {};
+
+    const parsedExp = parseFloat(relExpYears);
+    if (isNaN(parsedExp) || parsedExp < 0) {
+      errors.relExpYears = 'Relevant Experience must be a valid non-negative number';
     }
 
-    updateStageMutation.mutate(
-      { id: screeningCandidate.id, stage: targetStage },
-      {
-        onSuccess: () => {
-          setIsScreeningOpen(false);
-          if (screeningDecision === 'SHORTLIST') {
-            toast.success(
-              `Screening Saved! ${screeningCandidate.name} shortlisted. Opening Interviews module...`,
-            );
-            navigate('/recruitment/interviews');
-          } else if (screeningDecision === 'HOLD') {
-            toast.info(`Candidate ${screeningCandidate.name} put on HOLD.`);
-          } else {
-            toast.error(`Candidate ${screeningCandidate.name} DECLINED.`);
-          }
-        },
+    const parsedCurrentCtc = parseFloat(currentCtc);
+    if (isNaN(parsedCurrentCtc) || parsedCurrentCtc < 0) {
+      errors.currentCtc = 'Current CTC must be a valid non-negative number';
+    }
+
+    const parsedExpectedCtc = parseFloat(expectedCtc);
+    if (isNaN(parsedExpectedCtc) || parsedExpectedCtc < 0) {
+      errors.expectedCtc = 'Expected CTC must be a valid non-negative number';
+    }
+
+    if (!techRating || techRating < 1 || techRating > 5) {
+      errors.techRating = 'Technical Rating must be selected (1-5)';
+    }
+
+    if (!commRating || commRating < 1 || commRating > 5) {
+      errors.commRating = 'Communication Rating must be selected (1-5)';
+    }
+
+    if (!profileMatchRating || profileMatchRating < 1 || profileMatchRating > 5) {
+      errors.profileMatchRating = 'Profile Match rating must be selected (1-5)';
+    }
+
+    if (!screeningDecision) {
+      errors.screeningDecision = 'Screening Decision is mandatory (Shortlist / Hold / Reject)';
+    }
+
+    if (screeningDecision === 'REJECT' && !screeningRemarks.trim()) {
+      errors.screeningRemarks = 'Rejection remarks/reason are required when rejecting a candidate';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      toast.error('Please fix validation errors before saving screening');
+      return;
+    }
+
+    setValidationErrors({});
+    payloadDecision = screeningDecision;
+
+    saveScreeningMutation.mutate({
+      candidateId: screeningCandidate.id,
+      payload: {
+        relevantExperienceYears: parsedExp,
+        relevantExperienceSummary: relExpSummary,
+        currentLocation,
+        noticePeriod,
+        currentCtc: parsedCurrentCtc,
+        expectedCtc: parsedExpectedCtc,
+        highestQualification,
+        qualificationMatch,
+        skillsMatch,
+        technicalRating: techRating,
+        communicationRating: commRating,
+        profileMatchRating,
+        overallScreeningScore: parseFloat(overallScore),
+        screeningRemarks,
+        rejectionReason: screeningDecision === 'REJECT' ? screeningRemarks : undefined,
+        screeningDecision,
+        screenedBy,
+        lastUpdatedBy,
       },
-    );
+    });
   };
 
-  const handleAdvanceStage = (c: any) => {
-    if (c.stage === 'APPLIED' || c.stage === 'SCREENING') {
-      openScreeningModal(c);
-    } else if (c.stage === 'INTERVIEW') {
-      updateStageMutation.mutate({ id: c.id, stage: 'OFFERED' });
-      toast.success(`${c.name} advanced to OFFERED stage`);
-    } else if (c.stage === 'OFFERED') {
-      updateStageMutation.mutate({ id: c.id, stage: 'HIRED' });
-      toast.success(`${c.name} HIRED successfully!`);
-    }
-  };
-
-  const handleReject = (id: string) => {
-    updateStageMutation.mutate({ id, stage: 'REJECTED' });
-    toast.error('Candidate marked as REJECTED');
+  const handleReject = (candidate: any) => {
+    openScreeningModal(candidate);
+    setScreeningDecision('REJECT');
   };
 
   const filteredCandidates = useMemo(() => {
@@ -223,10 +444,47 @@ export function CandidatesTab() {
         c.reqCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.id.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStage =
-        selectedStage === 'all' ? true : c.stage.toLowerCase() === selectedStage.toLowerCase();
+        selectedStage === 'all'
+          ? true
+          : c.stage.toLowerCase() === selectedStage.toLowerCase() ||
+            (selectedStage === 'screening' && (c.stage === 'APPLIED' || c.stage === 'SCREENING')) ||
+            (selectedStage === 'on_hold' && (c.stage === 'ON_HOLD' || c.stage === 'HOLD'));
       return matchesSearch && matchesStage;
     });
   }, [allCandidates, searchQuery, selectedStage]);
+
+  // Stage Badge Render Helper
+  const getStageBadge = (stage: string) => {
+    switch (stage) {
+      case 'APPLIED':
+        return <Badge className="bg-slate-500/10 text-slate-700 border-slate-300 text-[10px]">APPLIED</Badge>;
+      case 'SCREENING':
+        return <Badge className="bg-blue-500/10 text-blue-700 border-blue-300 text-[10px]">SCREENING</Badge>;
+      case 'SHORTLISTED':
+        return (
+          <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-300 text-[10px] gap-1">
+            <CheckCircle2 className="h-3 w-3 text-emerald-600" /> SHORTLISTED
+          </Badge>
+        );
+      case 'ON_HOLD':
+      case 'HOLD':
+        return (
+          <Badge className="bg-amber-500/15 text-amber-700 border-amber-300 text-[10px] gap-1">
+            <Award className="h-3 w-3 text-amber-600" /> ON HOLD
+          </Badge>
+        );
+      case 'INTERVIEW':
+        return <Badge className="bg-indigo-500/10 text-indigo-700 border-indigo-300 text-[10px]">INTERVIEW</Badge>;
+      case 'OFFERED':
+        return <Badge className="bg-purple-500/10 text-purple-700 border-purple-300 text-[10px]">OFFERED</Badge>;
+      case 'HIRED':
+        return <Badge className="bg-emerald-600 text-white text-[10px]">HIRED</Badge>;
+      case 'REJECTED':
+        return <Badge className="bg-rose-500/10 text-rose-700 border-rose-300 text-[10px]">REJECTED</Badge>;
+      default:
+        return <Badge variant="outline" className="text-[10px]">{stage}</Badge>;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -248,11 +506,11 @@ export function CandidatesTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Interviews</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Shortlisted Candidates</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {allCandidates.filter((c) => c.stage === 'INTERVIEW').length} Candidates
+                {allCandidates.filter((c) => c.stage === 'SHORTLISTED' || c.stage === 'INTERVIEW').length} Eligible
               </p>
-              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Technical Rounds Scheduled</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Ready for Interview Panel</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
               <TrendingUp className="h-5 w-5" />
@@ -309,8 +567,11 @@ export function CandidatesTab() {
                   { id: 'all', label: 'All' },
                   { id: 'applied', label: 'Applied' },
                   { id: 'screening', label: 'Screening' },
+                  { id: 'shortlisted', label: 'Shortlisted' },
+                  { id: 'on_hold', label: 'On Hold' },
                   { id: 'interview', label: 'Interview' },
                   { id: 'offered', label: 'Offered' },
+                  { id: 'rejected', label: 'Rejected' },
                 ].map((stg) => (
                   <button
                     key={stg.id}
@@ -451,43 +712,54 @@ export function CandidatesTab() {
                       <span className="font-semibold text-foreground block">{c.name}</span>
                       <span className="text-[10px] text-muted-foreground">{c.email}</span>
                     </TableCell>
-                    <TableCell className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      {c.role}
+                    <TableCell className="text-xs font-semibold text-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        {c.role}
+                      </div>
                     </TableCell>
                     <TableCell className="text-xs font-mono font-bold text-primary">{c.reqCode}</TableCell>
                     <TableCell className="text-xs font-medium text-muted-foreground">{c.source}</TableCell>
                     <TableCell className="text-xs font-mono text-[11px] font-semibold uppercase">
-                      <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">
-                        {c.stage}
-                      </Badge>
+                      {getStageBadge(c.stage)}
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-emerald-600 font-mono">{c.score}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {c.stage !== 'HIRED' && c.stage !== 'REJECTED' && (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10.5px] px-2 text-primary border-primary/30 hover:bg-primary/10 gap-1 font-semibold"
+                          onClick={() => openScreeningModal(c)}
+                        >
+                          <ClipboardCheck className="h-3.5 w-3.5 text-primary" />
+                          {c.stage === 'APPLIED'
+                            ? 'Start Screening'
+                            : c.stage === 'SHORTLISTED'
+                            ? 'Edit Screening'
+                            : c.stage === 'ON_HOLD'
+                            ? 'Review Screening'
+                            : c.stage === 'REJECTED'
+                            ? 'View Screening'
+                            : 'Screening Evaluation'}
+                        </Button>
+
+                        {(c.stage === 'SHORTLISTED' || c.stage === 'INTERVIEW') && (
                           <Button
-                            variant="outline"
                             size="sm"
-                            className="h-7 text-[10.5px] px-2 text-primary border-primary/30 hover:bg-primary/10 gap-1 font-semibold"
-                            onClick={() => handleAdvanceStage(c)}
-                            disabled={updateStageMutation.isPending}
+                            className="h-7 text-[10.5px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1"
+                            onClick={() => navigate('/recruitment/interviews')}
                           >
-                            {c.stage === 'APPLIED'
-                              ? 'Start Screening'
-                              : c.stage === 'SCREENING'
-                              ? 'Shortlist Interview'
-                              : c.stage === 'INTERVIEW'
-                              ? 'Release Offer'
-                              : 'Hire'}
+                            <Calendar className="h-3 w-3" /> Schedule Interview
                           </Button>
                         )}
+
                         {c.stage !== 'REJECTED' && (
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => handleReject(c.id)}
+                            onClick={() => handleReject(c)}
                             title="Decline Candidate"
                           >
                             <UserX className="h-3.5 w-3.5" />
@@ -503,154 +775,490 @@ export function CandidatesTab() {
         </CardContent>
       </Card>
 
-      {/* ── 3. Focused Candidate Screening Evaluation Dialog Modal ── */}
+      {/* ── 3. Enhanced Candidate Screening Evaluation Dialog Modal ── */}
       <Dialog open={isScreeningOpen} onOpenChange={setIsScreeningOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader className="border-b pb-2">
-            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-              <ClipboardCheck className="h-4 w-4 text-primary" /> Candidate Screening Evaluation
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+              <ClipboardCheck className="h-5 w-5 text-primary" /> Candidate Screening Evaluation
             </DialogTitle>
           </DialogHeader>
 
-          {screeningCandidate && (
-            <form onSubmit={handleSaveScreening} className="space-y-4 pt-1">
-              {/* READ-ONLY SUMMARY HEADER */}
-              <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Candidate Name:</span>
-                  <strong className="text-foreground font-semibold text-xs">{screeningCandidate.name}</strong>
+          {isFetchingScreening ? (
+            <div className="py-12 text-center space-y-2 text-muted-foreground text-xs">
+              <Clock className="h-6 w-6 animate-spin mx-auto text-primary" />
+              <p>Loading candidate screening details & application profile...</p>
+            </div>
+          ) : screeningCandidate ? (
+            <form onSubmit={handleSaveScreening} className="space-y-5 pt-1">
+              {/* Validation Errors Header Banner */}
+              {Object.keys(validationErrors).length > 0 && (
+                <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl space-y-1 text-xs text-destructive">
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>Please fix the following validation errors:</span>
+                  </div>
+                  <ul className="list-disc list-inside pl-1 text-[11px] space-y-0.5">
+                    {Object.values(validationErrors).map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Applied Position:</span>
-                  <strong className="text-foreground font-semibold text-xs">{screeningCandidate.role}</strong>
+              )}
+
+              {/* 1. CANDIDATE INFORMATION – READ ONLY */}
+              <div className="p-3.5 bg-muted/40 rounded-xl border border-border/80 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-primary" /> 1. Candidate Application Details (Read-Only)
+                  </span>
+                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                    System Record
+                  </Badge>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Job Requisition:</span>
-                  <strong className="text-primary font-mono font-bold text-xs">{screeningCandidate.reqCode}</strong>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">Candidate Name</span>
+                    <strong className="text-foreground font-semibold text-xs">{screeningCandidate.name}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">Candidate ID</span>
+                    <strong className="text-primary font-mono text-xs font-semibold">{screeningCandidate.id}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">Applied Position</span>
+                    <strong className="text-foreground font-semibold text-xs flex items-center gap-1">
+                      <Briefcase className="h-3 w-3 text-muted-foreground" />
+                      {screeningCandidate.role}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">Job Requisition Code</span>
+                    <strong className="text-primary font-mono font-bold text-xs">{screeningCandidate.reqCode}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">AI Match Score</span>
+                    <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[11px] font-mono font-bold">
+                      <Sparkles className="h-3 w-3 mr-1 text-emerald-600" />
+                      {screeningCandidate.score || '88% Match'}
+                    </Badge>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">Resume / Document</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[11px] text-primary border-primary/30 hover:bg-primary/10 px-2 mt-0.5 gap-1"
+                      onClick={() => {
+                        toast.info(`Opening application document for ${screeningCandidate.name}`);
+                        if (screeningCandidate.resumePath) {
+                          window.open(screeningCandidate.resumePath, '_blank');
+                        }
+                      }}
+                    >
+                      <Eye className="h-3 w-3" /> View Resume
+                    </Button>
+                  </div>
                 </div>
               </div>
 
-              {/* EVALUATION FIELDS ONLY */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Relevant Experience Summary</Label>
-                <Input
-                  value={relExperience}
-                  onChange={(e) => setRelExperience(e.target.value)}
-                  placeholder="e.g. 6 Years in Cloud Architecture & Team Leadership"
-                  className="h-8 text-xs"
-                />
-              </div>
+              {/* 2. BASIC SCREENING INFORMATION */}
+              <div className="space-y-3 pt-1">
+                <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5 border-b pb-1">
+                  <FileText className="h-4 w-4 text-primary" /> 2. Basic Screening Information
+                </h4>
 
-              <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">
+                      Relevant Experience (Years) <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={relExpYears}
+                      onChange={(e) => setRelExpYears(e.target.value)}
+                      placeholder="e.g. 6"
+                      className={`h-8 text-xs ${validationErrors.relExpYears ? 'border-destructive' : ''}`}
+                    />
+                    {validationErrors.relExpYears && (
+                      <p className="text-[10px] text-destructive">{validationErrors.relExpYears}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Current Location</Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={currentLocation}
+                        onChange={(e) => setCurrentLocation(e.target.value)}
+                        placeholder="e.g. Pune, MH"
+                        className="h-8 pl-8 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Notice Period</Label>
+                    <Select value={noticePeriod} onValueChange={setNoticePeriod}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select Notice Period" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Immediate" className="text-xs">Immediate / Serving Notice</SelectItem>
+                        <SelectItem value="15 Days" className="text-xs">15 Days</SelectItem>
+                        <SelectItem value="30 Days" className="text-xs">30 Days</SelectItem>
+                        <SelectItem value="60 Days" className="text-xs">60 Days</SelectItem>
+                        <SelectItem value="90 Days" className="text-xs">90 Days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">
+                      Current CTC (₹ / LPA) <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={currentCtc}
+                        onChange={(e) => setCurrentCtc(e.target.value)}
+                        placeholder="e.g. 18.0"
+                        className={`h-8 pl-8 text-xs ${validationErrors.currentCtc ? 'border-destructive' : ''}`}
+                      />
+                    </div>
+                    {validationErrors.currentCtc && (
+                      <p className="text-[10px] text-destructive">{validationErrors.currentCtc}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">
+                      Expected CTC (₹ / LPA) <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={expectedCtc}
+                        onChange={(e) => setExpectedCtc(e.target.value)}
+                        placeholder="e.g. 24.0"
+                        className={`h-8 pl-8 text-xs ${validationErrors.expectedCtc ? 'border-destructive' : ''}`}
+                      />
+                    </div>
+                    {validationErrors.expectedCtc && (
+                      <p className="text-[10px] text-destructive">{validationErrors.expectedCtc}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <Label className="text-xs font-semibold">Highest Qualification</Label>
+                    <div className="relative">
+                      <GraduationCap className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={highestQualification}
+                        onChange={(e) => setHighestQualification(e.target.value)}
+                        placeholder="e.g. B.E. Computer Science"
+                        className="h-8 pl-8 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Qualification Match</Label>
+                    <div className="flex items-center gap-1 pt-0.5">
+                      {(['YES', 'PARTIAL', 'NO'] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setQualificationMatch(opt)}
+                          className={`flex-1 py-1 px-2 text-[11px] font-semibold rounded-md border transition-all ${
+                            qualificationMatch === opt
+                              ? opt === 'YES'
+                                ? 'bg-emerald-600 text-white border-emerald-600'
+                                : opt === 'PARTIAL'
+                                ? 'bg-amber-500 text-white border-amber-500'
+                                : 'bg-rose-600 text-white border-rose-600'
+                              : 'bg-background hover:bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Required Skills Match</Label>
+                    <div className="flex items-center gap-1 pt-0.5">
+                      {(['YES', 'PARTIAL', 'NO'] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setSkillsMatch(opt)}
+                          className={`flex-1 py-1 px-2 text-[11px] font-semibold rounded-md border transition-all ${
+                            skillsMatch === opt
+                              ? opt === 'YES'
+                                ? 'bg-emerald-600 text-white border-emerald-600'
+                                : opt === 'PARTIAL'
+                                ? 'bg-amber-500 text-white border-amber-500'
+                                : 'bg-rose-600 text-white border-rose-600'
+                              : 'bg-background hover:bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold">Technical Rating</Label>
-                  <Select value={techRating} onValueChange={setTechRating}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Rating" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5" className="text-xs">5 ★★★★★ (Exceptional)</SelectItem>
-                      <SelectItem value="4" className="text-xs">4 ★★★★☆ (Strong)</SelectItem>
-                      <SelectItem value="3" className="text-xs">3 ★★★☆☆ (Average)</SelectItem>
-                      <SelectItem value="2" className="text-xs">2 ★★☆☆☆ (Below Avg)</SelectItem>
-                      <SelectItem value="1" className="text-xs">1 ★☆☆☆☆ (Poor)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold">Communication</Label>
-                  <Select value={commRating} onValueChange={setCommRating}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Rating" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5" className="text-xs">5 ★★★★★ (Fluent)</SelectItem>
-                      <SelectItem value="4" className="text-xs">4 ★★★★☆ (Good)</SelectItem>
-                      <SelectItem value="3" className="text-xs">3 ★★★☆☆ (Acceptable)</SelectItem>
-                      <SelectItem value="2" className="text-xs">2 ★★☆☆☆ (Needs Work)</SelectItem>
-                      <SelectItem value="1" className="text-xs">1 ★☆☆☆☆ (Poor)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold">Profile Match</Label>
-                  <Select value={overallRating} onValueChange={setOverallRating}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Rating" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5" className="text-xs">5 ★★★★★ (Best Fit)</SelectItem>
-                      <SelectItem value="4" className="text-xs">4 ★★★★☆ (Good Fit)</SelectItem>
-                      <SelectItem value="3" className="text-xs">3 ★★★☆☆ (Moderate)</SelectItem>
-                      <SelectItem value="2" className="text-xs">2 ★★☆☆☆ (Low Fit)</SelectItem>
-                      <SelectItem value="1" className="text-xs">1 ★☆☆☆☆ (Mismatch)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs font-semibold">Relevant Experience Summary</Label>
+                  <Textarea
+                    value={relExpSummary}
+                    onChange={(e) => setRelExpSummary(e.target.value)}
+                    placeholder="Provide a concise summary of candidate's relevant domain projects and work experience..."
+                    className="text-xs min-h-[50px]"
+                    rows={2}
+                  />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Screening Remarks & Observations</Label>
-                <Textarea
-                  value={screeningRemarks}
-                  onChange={(e) => setScreeningRemarks(e.target.value)}
-                  placeholder="Key technical strengths, culture fit notes, or specific areas for interview panel..."
-                  className="text-xs min-h-[60px]"
-                  rows={2}
-                />
+              {/* 3. RECRUITER EVALUATION */}
+              <div className="space-y-3 pt-1 border-t">
+                <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5 border-b pb-1">
+                  <Star className="h-4 w-4 text-amber-500" /> 3. Recruiter Evaluation (1–5 Rating Scale)
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">Technical Rating</Label>
+                      <span className="text-[11px] font-bold text-primary">{techRating} / 5</span>
+                    </div>
+                    <Select value={String(techRating)} onValueChange={(v) => setTechRating(parseInt(v))}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select Rating" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5" className="text-xs">5 ★★★★★ (Exceptional)</SelectItem>
+                        <SelectItem value="4" className="text-xs">4 ★★★★☆ (Good / Strong)</SelectItem>
+                        <SelectItem value="3" className="text-xs">3 ★★★☆☆ (Average)</SelectItem>
+                        <SelectItem value="2" className="text-xs">2 ★★☆☆☆ (Below Average)</SelectItem>
+                        <SelectItem value="1" className="text-xs">1 ★☆☆☆☆ (Poor)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">Communication Rating</Label>
+                      <span className="text-[11px] font-bold text-primary">{commRating} / 5</span>
+                    </div>
+                    <Select value={String(commRating)} onValueChange={(v) => setCommRating(parseInt(v))}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select Rating" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5" className="text-xs">5 ★★★★★ (Exceptional)</SelectItem>
+                        <SelectItem value="4" className="text-xs">4 ★★★★☆ (Good / Fluent)</SelectItem>
+                        <SelectItem value="3" className="text-xs">3 ★★★☆☆ (Average)</SelectItem>
+                        <SelectItem value="2" className="text-xs">2 ★★☆☆☆ (Below Average)</SelectItem>
+                        <SelectItem value="1" className="text-xs">1 ★☆☆☆☆ (Poor)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">Profile Match</Label>
+                      <span className="text-[11px] font-bold text-primary">{profileMatchRating} / 5</span>
+                    </div>
+                    <Select value={String(profileMatchRating)} onValueChange={(v) => setProfileMatchRating(parseInt(v))}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select Rating" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5" className="text-xs">5 ★★★★★ (Exceptional Fit)</SelectItem>
+                        <SelectItem value="4" className="text-xs">4 ★★★★☆ (Good Fit)</SelectItem>
+                        <SelectItem value="3" className="text-xs">3 ★★★☆☆ (Moderate Fit)</SelectItem>
+                        <SelectItem value="2" className="text-xs">2 ★★☆☆☆ (Below Average)</SelectItem>
+                        <SelectItem value="1" className="text-xs">1 ★☆☆☆☆ (Poor)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Overall Score Highlight Banner */}
+                <div className="p-3 bg-gradient-to-r from-primary/10 via-emerald-500/10 to-primary/5 rounded-xl border border-primary/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-mono font-bold text-base shadow-xs">
+                      {overallScore}
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Overall Screening Score</p>
+                      <p className="text-xs font-bold text-foreground flex items-center gap-1">
+                        {parseFloat(overallScore) >= 4.0 ? (
+                          <span className="text-emerald-600">★★★★☆ (Strong Candidate Fit)</span>
+                        ) : parseFloat(overallScore) >= 3.0 ? (
+                          <span className="text-amber-600">★★★☆☆ (Average Candidate Fit)</span>
+                        ) : (
+                          <span className="text-rose-600">★★☆☆☆ (Low Candidate Fit)</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge className="bg-primary text-primary-foreground text-xs font-mono font-bold">
+                    Auto-Calculated
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">
+                    Screening Remarks & Observations {screeningDecision === 'REJECT' && <span className="text-destructive">*</span>}
+                  </Label>
+                  <Textarea
+                    value={screeningRemarks}
+                    onChange={(e) => setScreeningRemarks(e.target.value)}
+                    placeholder={
+                      screeningDecision === 'REJECT'
+                        ? 'Mandatory rejection reason/remarks detailing candidate mismatch...'
+                        : 'Detail technical strengths, leadership traits, notice period flexibility, and observations for interview panel...'
+                    }
+                    className={`text-xs min-h-[65px] ${validationErrors.screeningRemarks ? 'border-destructive' : ''}`}
+                    rows={3}
+                  />
+                  {validationErrors.screeningRemarks && (
+                    <p className="text-[10px] text-destructive">{validationErrors.screeningRemarks}</p>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Screening Decision</Label>
-                <div className="grid grid-cols-3 gap-2">
+              {/* 4. SCREENING DECISION */}
+              <div className="space-y-2 pt-1 border-t">
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Award className="h-4 w-4 text-primary" /> 4. Screening Decision <span className="text-destructive">*</span>
+                </Label>
+                <div className="grid grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setScreeningDecision('SHORTLIST')}
-                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition-all ${
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all ${
                       screeningDecision === 'SHORTLIST'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-background hover:bg-muted text-muted-foreground'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-600/30'
+                        : 'bg-background hover:bg-muted text-muted-foreground border-border'
                     }`}
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Shortlist
+                    <CheckCircle2 className="h-4 w-4 text-emerald-100" />
+                    <span>Shortlist</span>
+                    <span className="text-[9.5px] opacity-80 font-normal">Eligible for Interview</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setScreeningDecision('HOLD')}
-                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition-all ${
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all ${
                       screeningDecision === 'HOLD'
-                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                        : 'bg-background hover:bg-muted text-muted-foreground'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-600/30'
+                        : 'bg-background hover:bg-muted text-muted-foreground border-border'
                     }`}
                   >
-                    <Award className="h-3.5 w-3.5" /> Hold
+                    <Award className="h-4 w-4 text-amber-100" />
+                    <span>Hold</span>
+                    <span className="text-[9.5px] opacity-80 font-normal">Review Later</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setScreeningDecision('REJECT')}
-                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition-all ${
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all ${
                       screeningDecision === 'REJECT'
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                        : 'bg-background hover:bg-muted text-muted-foreground'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-600/30'
+                        : 'bg-background hover:bg-muted text-muted-foreground border-border'
                     }`}
                   >
-                    <UserX className="h-3.5 w-3.5" /> Reject
+                    <UserX className="h-4 w-4 text-rose-100" />
+                    <span>Reject</span>
+                    <span className="text-[9.5px] opacity-80 font-normal">Requires Remarks</span>
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-1 text-xs border-t">
-                <div>
-                  <span className="text-[10.5px] text-muted-foreground block">Screened By</span>
-                  <strong className="text-foreground font-medium text-[11px]">Aishwarya Roy (Director HR)</strong>
-                </div>
-                <div>
-                  <span className="text-[10.5px] text-muted-foreground block">Screening Date</span>
-                  <strong className="text-foreground font-mono text-[11px]">17 Aug 2026, 03:25 PM</strong>
+              {/* 5. AUDIT INFORMATION */}
+              <div className="space-y-2 pt-1 border-t">
+                <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5 border-b pb-1">
+                  <Clock className="h-4 w-4 text-primary" /> 5. Audit Information (Manually Assignable)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-muted/30 rounded-xl border border-border/60 text-xs">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Screened By (Employee Master)</Label>
+                    <Select value={screenedBy} onValueChange={setScreenedBy}>
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue placeholder="Select Recruiter from Employee Master" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-56">
+                        {employeeOptions.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.name} className="text-xs">
+                            {emp.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Screening Date</Label>
+                    <Input
+                      value={screeningDate}
+                      onChange={(e) => setScreeningDate(e.target.value)}
+                      className="h-8 text-xs font-mono bg-background"
+                      placeholder="e.g. 18 Aug 2026, 02:30 PM"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Last Updated By (Employee Master)</Label>
+                    <Select value={lastUpdatedBy} onValueChange={setLastUpdatedBy}>
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue placeholder="Select Evaluator from Employee Master" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-56">
+                        {employeeOptions.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.name} className="text-xs">
+                            {emp.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Last Updated Date</Label>
+                    <Input
+                      value={lastUpdatedDate}
+                      onChange={(e) => setLastUpdatedDate(e.target.value)}
+                      className="h-8 text-xs font-mono bg-background"
+                      placeholder="e.g. 18 Aug 2026, 02:30 PM"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <DialogFooter className="pt-2">
+              <DialogFooter className="pt-2 border-t">
                 <Button
                   type="button"
                   variant="outline"
@@ -663,14 +1271,15 @@ export function CandidatesTab() {
                 <Button
                   type="submit"
                   size="sm"
-                  className="text-xs font-semibold bg-primary text-primary-foreground gap-1.5"
-                  disabled={updateStageMutation.isPending}
+                  className="text-xs font-semibold bg-primary text-primary-foreground gap-1.5 shadow-xs"
+                  disabled={saveScreeningMutation.isPending}
                 >
-                  <UserCheck className="h-3.5 w-3.5" /> Save Screening
+                  <UserCheck className="h-3.5 w-3.5" />
+                  {saveScreeningMutation.isPending ? 'Saving Evaluation...' : 'Save Screening'}
                 </Button>
               </DialogFooter>
             </form>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

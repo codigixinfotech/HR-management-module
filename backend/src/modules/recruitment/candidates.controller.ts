@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { CandidatesService } from './candidates.service';
-import { UpdateCandidateStageDto } from './dto/candidate.dto';
+import { SaveCandidateScreeningDto, UpdateCandidateStageDto } from './dto/candidate.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('recruitment/candidates')
@@ -11,6 +11,18 @@ export class CandidatesController {
   @Permissions('recruitment.read')
   findOne(@Param('id') id: string) {
     return this.candidatesService.findById(id);
+  }
+
+  @Get(':id/screening')
+  @Permissions('recruitment.read')
+  getScreening(@Param('id') id: string) {
+    return this.candidatesService.getLatestScreening(id);
+  }
+
+  @Post(':id/screening')
+  @Permissions('recruitment.write')
+  saveScreening(@Param('id') id: string, @Body() dto: SaveCandidateScreeningDto) {
+    return this.candidatesService.saveScreening(id, dto);
   }
 
   @Patch(':id/stage')
@@ -25,3 +37,4 @@ export class CandidatesController {
     return this.candidatesService.remove(id);
   }
 }
+
