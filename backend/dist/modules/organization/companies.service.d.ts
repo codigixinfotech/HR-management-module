@@ -3,13 +3,12 @@ import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 export declare class CompaniesService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    list(): import("@prisma/client").Prisma.PrismaPromise<{
-        id: string;
+    list(): import(".prisma/client").Prisma.PrismaPromise<{
         email: string | null;
-        isActive: boolean;
+        id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
         legalName: string | null;
         shortName: string | null;
@@ -31,14 +30,14 @@ export declare class CompaniesService {
         website: string | null;
         businessUnit: string | null;
         defaultBranchId: string | null;
+        isActive: boolean;
     }[]>;
     findById(id: string): Promise<{
-        id: string;
         email: string | null;
-        isActive: boolean;
+        id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
         legalName: string | null;
         shortName: string | null;
@@ -60,14 +59,14 @@ export declare class CompaniesService {
         website: string | null;
         businessUnit: string | null;
         defaultBranchId: string | null;
+        isActive: boolean;
     }>;
     create(dto: CreateCompanyDto): Promise<{
-        id: string;
         email: string | null;
-        isActive: boolean;
+        id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
         legalName: string | null;
         shortName: string | null;
@@ -89,14 +88,14 @@ export declare class CompaniesService {
         website: string | null;
         businessUnit: string | null;
         defaultBranchId: string | null;
+        isActive: boolean;
     }>;
     update(id: string, dto: UpdateCompanyDto): Promise<{
-        id: string;
         email: string | null;
-        isActive: boolean;
+        id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
         legalName: string | null;
         shortName: string | null;
@@ -118,6 +117,7 @@ export declare class CompaniesService {
         website: string | null;
         businessUnit: string | null;
         defaultBranchId: string | null;
+        isActive: boolean;
     }>;
     remove(id: string): Promise<{
         success: boolean;

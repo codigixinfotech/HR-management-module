@@ -3,16 +3,16 @@ import { CreatePpeItemDto, IssuePpeDto, UpdatePpeItemDto } from './dto/ppe.dto';
 export declare class PpeController {
     private readonly ppeService;
     constructor(ppeService: PpeService);
-    list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<{
+    list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         category: string;
         stockQuantity: number;
     }[]>;
-    listIssuances(ppeItemId?: string): import("@prisma/client").Prisma.PrismaPromise<({
+    listIssuances(ppeItemId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employee: {
             id: string;
             firstName: string;
@@ -25,25 +25,25 @@ export declare class PpeController {
     } & {
         id: string;
         employeeId: string;
-        ppeItemId: string;
         quantity: number;
+        ppeItemId: string;
         issuedAt: Date;
     })[]>;
-    create(dto: CreatePpeItemDto): import("@prisma/client").Prisma.Prisma__PpeItemClient<{
+    create(dto: CreatePpeItemDto): import(".prisma/client").Prisma.Prisma__PpeItemClient<{
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         category: string;
         stockQuantity: number;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdatePpeItemDto): Promise<{
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         category: string;
         stockQuantity: number;
     }>;
@@ -53,8 +53,8 @@ export declare class PpeController {
     issue(id: string, dto: IssuePpeDto): Promise<{
         id: string;
         employeeId: string;
-        ppeItemId: string;
         quantity: number;
+        ppeItemId: string;
         issuedAt: Date;
     }>;
 }

@@ -128,8 +128,20 @@ export default function JobOpeningsPage() {
 
       {/* Metrics */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Users} label="Active Requisitions" value={`${openings?.length ?? 0} Openings`} hint="Across 4 Departments" accent="info" />
-        <StatCard icon={UserCheck} label="Total Applicants" value="142 Candidates" hint="28 Sourced via LinkedIn" accent="success" />
+        <StatCard
+          icon={Users}
+          label="Active Requisitions"
+          value={`${openings?.filter((o) => o.status === 'PUBLISHED' || o.isActive).length ?? 0} Requisitions`}
+          hint={`${openings?.filter((o) => o.status === 'PUBLISHED' || o.isActive).reduce((acc, curr) => acc + curr.numPositions, 0) ?? 0} Open Positions`}
+          accent="info"
+        />
+        <StatCard
+          icon={UserCheck}
+          label="Total Applicants"
+          value={`${openings?.reduce((acc, curr) => acc + (curr._count?.candidates ?? curr.candidates?.length ?? 0), 0) ?? 0} Candidates`}
+          hint="Careers & Job Portal Applications"
+          accent="success"
+        />
         <StatCard icon={Calendar} label="Interviews Scheduled" value="8 This Week" hint="Avg Time-to-Fill: 22 Days" accent="primary" />
         <StatCard icon={Award} label="Offers Accepted" value="3 Offers" hint="85% Offer Acceptance Rate" accent="warning" />
       </div>

@@ -3,14 +3,14 @@ import { CreateShiftTypeDto, UpdateShiftTypeDto } from './dto/shift-type.dto';
 export declare class ShiftTypesController {
     private readonly shiftTypesService;
     constructor(shiftTypesService: ShiftTypesService);
-    list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<{
+    list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        isActive: boolean;
         startTime: string;
         endTime: string;
         breakMinutes: number;
@@ -19,11 +19,11 @@ export declare class ShiftTypesController {
     findOne(id: string): Promise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        isActive: boolean;
         startTime: string;
         endTime: string;
         breakMinutes: number;
@@ -32,11 +32,11 @@ export declare class ShiftTypesController {
     create(dto: CreateShiftTypeDto): Promise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        isActive: boolean;
         startTime: string;
         endTime: string;
         breakMinutes: number;
@@ -45,11 +45,11 @@ export declare class ShiftTypesController {
     update(id: string, dto: UpdateShiftTypeDto): Promise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        isActive: boolean;
         startTime: string;
         endTime: string;
         breakMinutes: number;

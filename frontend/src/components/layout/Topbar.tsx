@@ -28,7 +28,21 @@ export function Topbar() {
     navigate('/login');
   };
 
-  const initials = user?.email?.slice(0, 2).toUpperCase() ?? 'AD';
+  const displayName =
+    user?.employee?.fullName ||
+    (user?.employee?.firstName
+      ? `${user.employee.firstName} ${user.employee.lastName}`.trim()
+      : user?.email?.split('@')[0] ?? 'User');
+
+  const departmentName = user?.employee?.departmentName || null;
+  const isSuperAdmin = user?.roles?.includes('SUPER_ADMIN');
+  const roleDisplay = user?.primaryRole || (isSuperAdmin ? 'Super Admin' : 'Employee');
+  const employeeCode = user?.employee?.employeeCode;
+
+  const initials =
+    user?.employee?.firstName && user?.employee?.lastName
+      ? `${user.employee.firstName[0]}${user.employee.lastName[0]}`.toUpperCase()
+      : user?.email?.slice(0, 2).toUpperCase() ?? 'SM';
 
   // Compute current breadcrumbs based on current pathname & search query
   const breadcrumb = useMemo(() => {
@@ -89,13 +103,16 @@ export function Topbar() {
 
         {/* User Menu */}
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-full border p-1 pl-3 hover:bg-accent transition-all focus-visible:outline-hidden">
+          <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-full border p-1 pl-3 hover:bg-accent transition-all focus-visible:outline-hidden cursor-pointer">
             <div className="flex flex-col items-end text-right">
               <span className="text-xs font-semibold leading-tight text-foreground">
-                {user?.email?.split('@')[0] ?? 'Admin'}
+                {displayName}
               </span>
               <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <ShieldCheck className="h-3 w-3 text-primary inline" /> Super Admin
+                {isSuperAdmin && (
+                  <ShieldCheck className="h-3 w-3 text-primary inline" />
+                )}
+                {roleDisplay}{departmentName ? ` • ${departmentName}` : ''}
               </span>
             </div>
             <Avatar className="h-8 w-8 border">
@@ -104,19 +121,37 @@ export function Topbar() {
               </AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{user?.email}</p>
-                <p className="text-xs leading-none text-muted-foreground">Company ID: {user?.companyId ?? 'DEMO'}</p>
+              <div className="flex flex-col space-y-1.5 p-1">
+                <p className="text-sm font-semibold leading-none text-foreground">{displayName}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {employeeCode && (
+                    <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-mono border-primary/20 bg-primary/5 text-primary">
+                      {employeeCode}
+                    </Badge>
+                  )}
+                  {departmentName && (
+                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-normal">
+                      {departmentName}
+                    </Badge>
+                  )}
+                  <Badge
+                    variant={isSuperAdmin ? 'default' : 'outline'}
+                    className="px-1.5 py-0 text-[10px] font-normal"
+                  >
+                    {roleDisplay}
+                  </Badge>
+                </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem disabled className="cursor-not-allowed">
               <User className="mr-2 h-4 w-4" /> Profile & Account Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/10">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/10 cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" /> Log out
             </DropdownMenuItem>
           </DropdownMenuContent>

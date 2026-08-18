@@ -1,5 +1,6 @@
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 export declare class AuthController {
@@ -7,6 +8,10 @@ export declare class AuthController {
     constructor(authService: AuthService);
     getDemoAccounts(): import("./auth.service").DemoAccountInfo[];
     login(dto: LoginDto): Promise<{
+        accessToken: string;
+        refreshToken: string;
+    }>;
+    register(dto: RegisterDto): Promise<{
         accessToken: string;
         refreshToken: string;
     }>;

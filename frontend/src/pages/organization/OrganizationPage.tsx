@@ -127,7 +127,7 @@ export default function OrganizationPage() {
       {/* ── 2. Render Dedicated Page View Based on Tab ── */}
 
       {/* VIEW 1: Organization Structure View */}
-      {activeTab === 'structure' && <OrgStructureTab />}
+      {activeTab === 'structure' && <OrgStructureTab companyId={companyId} />}
 
       {/* VIEW 2: Departments & Designations Page */}
       {activeTab === 'departments' && (

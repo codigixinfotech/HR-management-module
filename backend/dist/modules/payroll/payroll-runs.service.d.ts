@@ -3,7 +3,7 @@ import { CreatePayrollRunDto, UpdatePayrollRunStatusDto } from './dto/payroll-ru
 export declare class PayrollRunsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<({
+    list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         _count: {
             payslips: number;
         };
@@ -12,8 +12,8 @@ export declare class PayrollRunsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         year: number;
-        status: import("@prisma/client").$Enums.PayrollRunStatus;
         approvedAt: Date | null;
         month: number;
         processedAt: Date | null;
@@ -28,8 +28,8 @@ export declare class PayrollRunsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         year: number;
-        status: import("@prisma/client").$Enums.PayrollRunStatus;
         approvedAt: Date | null;
         month: number;
         processedAt: Date | null;
@@ -40,8 +40,8 @@ export declare class PayrollRunsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         year: number;
-        status: import("@prisma/client").$Enums.PayrollRunStatus;
         approvedAt: Date | null;
         month: number;
         processedAt: Date | null;
@@ -52,8 +52,8 @@ export declare class PayrollRunsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         year: number;
-        status: import("@prisma/client").$Enums.PayrollRunStatus;
         approvedAt: Date | null;
         month: number;
         processedAt: Date | null;
@@ -68,8 +68,8 @@ export declare class PayrollRunsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         year: number;
-        status: import("@prisma/client").$Enums.PayrollRunStatus;
         approvedAt: Date | null;
         month: number;
         processedAt: Date | null;

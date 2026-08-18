@@ -18,17 +18,17 @@ export declare class UsersController {
                 };
             } & {
                 id: string;
-                userId: string;
                 roleId: string;
+                userId: string;
             })[];
-            id: string;
             email: string;
+            id: string;
             companyId: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             isActive: boolean;
             mustResetPassword: boolean;
             lastLoginAt: Date | null;
-            createdAt: Date;
-            updatedAt: Date;
         }[];
         total: number;
         page: number;
@@ -46,17 +46,17 @@ export declare class UsersController {
             };
         } & {
             id: string;
-            userId: string;
             roleId: string;
+            userId: string;
         })[];
-        id: string;
         email: string;
+        id: string;
         companyId: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         isActive: boolean;
         mustResetPassword: boolean;
         lastLoginAt: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     create(dto: CreateUserDto): Promise<{
         company: {
@@ -70,17 +70,17 @@ export declare class UsersController {
             };
         } & {
             id: string;
-            userId: string;
             roleId: string;
+            userId: string;
         })[];
-        id: string;
         email: string;
+        id: string;
         companyId: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         isActive: boolean;
         mustResetPassword: boolean;
         lastLoginAt: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     update(id: string, dto: UpdateUserDto): Promise<{
         company: {
@@ -94,17 +94,17 @@ export declare class UsersController {
             };
         } & {
             id: string;
-            userId: string;
             roleId: string;
+            userId: string;
         })[];
-        id: string;
         email: string;
+        id: string;
         companyId: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         isActive: boolean;
         mustResetPassword: boolean;
         lastLoginAt: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     remove(id: string): Promise<{
         success: boolean;

@@ -3,7 +3,7 @@ import { AllocateLeaveBalanceDto } from './dto/leave-balance.dto';
 export declare class LeaveBalancesService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    list(employeeId?: string, year?: number): import("@prisma/client").Prisma.PrismaPromise<({
+    list(employeeId?: string, year?: number): import(".prisma/client").Prisma.PrismaPromise<({
         leaveType: {
             id: string;
             name: string;
@@ -20,7 +20,7 @@ export declare class LeaveBalancesService {
         allocated: number;
         used: number;
     })[]>;
-    allocate(dto: AllocateLeaveBalanceDto): import("@prisma/client").Prisma.Prisma__LeaveBalanceClient<{
+    allocate(dto: AllocateLeaveBalanceDto): import(".prisma/client").Prisma.Prisma__LeaveBalanceClient<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -29,6 +29,6 @@ export declare class LeaveBalancesService {
         leaveTypeId: string;
         allocated: number;
         used: number;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     adjustUsed(employeeId: string, leaveTypeId: string, year: number, deltaDays: number): Promise<void>;
 }

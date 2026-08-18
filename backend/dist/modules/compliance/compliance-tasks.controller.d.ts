@@ -10,7 +10,7 @@ export declare class ComplianceTasksController {
                 name: string;
                 code: string;
                 category: string;
-                frequency: import("@prisma/client").$Enums.ComplianceFrequency;
+                frequency: import(".prisma/client").$Enums.ComplianceFrequency;
             };
             filedBy: {
                 id: string;
@@ -22,7 +22,7 @@ export declare class ComplianceTasksController {
             companyId: string;
             createdAt: Date;
             updatedAt: Date;
-            status: import("@prisma/client").$Enums.ComplianceStatus;
+            status: import(".prisma/client").$Enums.ComplianceStatus;
             dueDate: Date;
             remarks: string | null;
             complianceTypeId: string;
@@ -40,7 +40,7 @@ export declare class ComplianceTasksController {
             name: string;
             code: string;
             category: string;
-            frequency: import("@prisma/client").$Enums.ComplianceFrequency;
+            frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
             id: string;
@@ -52,7 +52,7 @@ export declare class ComplianceTasksController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.ComplianceStatus;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         dueDate: Date;
         remarks: string | null;
         complianceTypeId: string;
@@ -60,13 +60,13 @@ export declare class ComplianceTasksController {
         filedDate: Date | null;
         filedById: string | null;
     }>;
-    create(dto: CreateComplianceTaskDto): import("@prisma/client").Prisma.Prisma__ComplianceTaskClient<{
+    create(dto: CreateComplianceTaskDto): import(".prisma/client").Prisma.Prisma__ComplianceTaskClient<{
         complianceType: {
             id: string;
             name: string;
             code: string;
             category: string;
-            frequency: import("@prisma/client").$Enums.ComplianceFrequency;
+            frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
             id: string;
@@ -78,21 +78,21 @@ export declare class ComplianceTasksController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.ComplianceStatus;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         dueDate: Date;
         remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
         filedDate: Date | null;
         filedById: string | null;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     updateStatus(id: string, dto: UpdateComplianceTaskStatusDto): Promise<{
         complianceType: {
             id: string;
             name: string;
             code: string;
             category: string;
-            frequency: import("@prisma/client").$Enums.ComplianceFrequency;
+            frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
             id: string;
@@ -104,7 +104,7 @@ export declare class ComplianceTasksController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.ComplianceStatus;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         dueDate: Date;
         remarks: string | null;
         complianceTypeId: string;

@@ -3,7 +3,7 @@ import { CreateShiftAssignmentDto, UpdateShiftAssignmentDto } from './dto/shift-
 export declare class ShiftAssignmentsController {
     private readonly shiftAssignmentsService;
     constructor(shiftAssignmentsService: ShiftAssignmentsService);
-    list(employeeId?: string, shiftTypeId?: string): import("@prisma/client").Prisma.PrismaPromise<({
+    list(employeeId?: string, shiftTypeId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employee: {
             id: string;
             employeeCode: string;
@@ -19,9 +19,9 @@ export declare class ShiftAssignmentsController {
     } & {
         id: string;
         companyId: string;
-        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        isActive: boolean;
         effectiveFrom: Date;
         employeeId: string;
         shiftTypeId: string;
@@ -43,15 +43,15 @@ export declare class ShiftAssignmentsController {
     } & {
         id: string;
         companyId: string;
-        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        isActive: boolean;
         effectiveFrom: Date;
         employeeId: string;
         shiftTypeId: string;
         effectiveTo: Date | null;
     }>;
-    create(dto: CreateShiftAssignmentDto): import("@prisma/client").Prisma.Prisma__ShiftAssignmentClient<{
+    create(dto: CreateShiftAssignmentDto): import(".prisma/client").Prisma.Prisma__ShiftAssignmentClient<{
         employee: {
             id: string;
             employeeCode: string;
@@ -67,14 +67,14 @@ export declare class ShiftAssignmentsController {
     } & {
         id: string;
         companyId: string;
-        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        isActive: boolean;
         effectiveFrom: Date;
         employeeId: string;
         shiftTypeId: string;
         effectiveTo: Date | null;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdateShiftAssignmentDto): Promise<{
         employee: {
             id: string;
@@ -91,9 +91,9 @@ export declare class ShiftAssignmentsController {
     } & {
         id: string;
         companyId: string;
-        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        isActive: boolean;
         effectiveFrom: Date;
         employeeId: string;
         shiftTypeId: string;

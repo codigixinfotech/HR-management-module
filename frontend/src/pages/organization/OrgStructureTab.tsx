@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { employeesApi } from '@/api/employees';
 import {
@@ -118,14 +118,18 @@ function OrgTreeNode({ node, toggleNode, expandedNodes }: OrgTreeNodeProps) {
   );
 }
 
-export function OrgStructureTab() {
+interface OrgStructureTabProps {
+  companyId?: string;
+}
+
+export function OrgStructureTab({ companyId }: OrgStructureTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'chart' | 'tree'>('chart');
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
 
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+    queryKey: ['employees', 1, companyId || ''],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: companyId || undefined }),
   });
 
   // Calculate dynamic stats
@@ -143,33 +147,78 @@ export function OrgStructureTab() {
   const activeTree = useMemo<OrgNode | null>(() => {
     if (!employeesData?.items || employeesData.items.length === 0) return null;
 
-    const items = employeesData.items;
+    let items = employeesData.items;
 
-    // Build map of managerId -> children
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter(
+        (emp: any) =>
+          emp.firstName?.toLowerCase().includes(q) ||
+          emp.lastName?.toLowerCase().includes(q) ||
+          emp.designation?.title?.toLowerCase().includes(q) ||
+          emp.department?.name?.toLowerCase().includes(q) ||
+          emp.employeeCode?.toLowerCase().includes(q)
+      );
+    }
+
+    if (items.length === 0) return null;
+
+    const employeeIds = new Set(items.map((emp: any) => emp.id));
+
+    // Map managerId -> list of direct reports
     const managerToChildren: Record<string, any[]> = {};
     items.forEach((emp: any) => {
-      const mgrId = emp.reportingManagerId || 'root';
+      const mgrId = emp.reportingManagerId && employeeIds.has(emp.reportingManagerId)
+        ? emp.reportingManagerId
+        : '__ROOT_LEVEL__';
       if (!managerToChildren[mgrId]) {
         managerToChildren[mgrId] = [];
       }
       managerToChildren[mgrId].push(emp);
     });
 
-    // Find root nodes. A root node has reportingManagerId empty, null, or pointing to a manager that is not in the list.
-    const employeeIds = new Set(items.map((emp: any) => emp.id));
-    const roots = items.filter((emp: any) => !emp.reportingManagerId || !employeeIds.has(emp.reportingManagerId));
+    // Find root candidates (no reportingManagerId or manager not in list)
+    const rootCandidates = items.filter(
+      (emp: any) => !emp.reportingManagerId || !employeeIds.has(emp.reportingManagerId)
+    );
 
-    if (roots.length === 0) {
-      roots.push(items[0]);
+    // Identify primary executive leader (CEO / MD / Founder / Chief Officer / Top Manager)
+    let primaryRoot = rootCandidates.find((emp: any) => {
+      const title = (emp.designation?.title || '').toLowerCase();
+      return (
+        title.includes('ceo') ||
+        title.includes('chief executive') ||
+        title.includes('managing director') ||
+        title.includes('founder') ||
+        title.includes('president')
+      );
+    });
+
+    if (!primaryRoot) {
+      let maxReports = -1;
+      rootCandidates.forEach((emp: any) => {
+        const cnt = managerToChildren[emp.id]?.length || 0;
+        if (cnt > maxReports) {
+          maxReports = cnt;
+          primaryRoot = emp;
+        }
+      });
     }
 
-    const rootEmp = roots[0]; // Pick the first root (e.g. CEO)
+    if (!primaryRoot) {
+      primaryRoot = items[0];
+    }
 
-    // Build node recursively
+    const secondaryRoots = rootCandidates.filter((emp: any) => emp.id !== primaryRoot!.id);
+
+    // Recursive node builder
     const buildNode = (emp: any): OrgNode => {
-      const children = managerToChildren[emp.id] || [];
-      const childNodes = children.map(buildNode);
-      const directReportsCount = children.length;
+      let directReports = managerToChildren[emp.id] || [];
+      if (emp.id === primaryRoot!.id) {
+        directReports = [...directReports, ...secondaryRoots];
+      }
+
+      const childNodes = directReports.map(buildNode);
 
       return {
         id: emp.id,
@@ -177,16 +226,31 @@ export function OrgStructureTab() {
         title: emp.designation?.title ?? 'Associate',
         dept: emp.department?.name ?? 'General Corporate',
         code: emp.employeeCode,
-        avatar: `${emp.firstName[0]}${emp.lastName[0]}`.toUpperCase(),
-        reportsCount: directReportsCount,
+        avatar: `${emp.firstName[0] || 'E'}${emp.lastName[0] || 'E'}`.toUpperCase(),
+        reportsCount: childNodes.length,
         location: emp.location ?? 'Head Office',
         email: emp.workEmail ?? '',
         children: childNodes.length > 0 ? childNodes : undefined,
       };
     };
 
-    return buildNode(rootEmp);
-  }, [employeesData]);
+    return buildNode(primaryRoot);
+  }, [employeesData, searchQuery]);
+
+  // Auto-expand top levels on initial load
+  useEffect(() => {
+    if (activeTree) {
+      const expanded: Record<string, boolean> = {};
+      const traverse = (node: OrgNode, depth = 0) => {
+        if (depth < 3) {
+          expanded[node.id] = true;
+        }
+        node.children?.forEach((child) => traverse(child, depth + 1));
+      };
+      traverse(activeTree);
+      setExpandedNodes(expanded);
+    }
+  }, [activeTree]);
 
   // Expand all children recursively
   const expandAll = () => {

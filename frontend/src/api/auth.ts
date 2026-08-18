@@ -15,8 +15,21 @@ export interface DemoAccountInfo {
   badgeColor: string;
 }
 
+export interface RegisterPayload {
+  fullName: string;
+  email: string;
+  password: string;
+  department?: string;
+  role?: string;
+}
+
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const { data } = await apiClient.post<LoginResponse>('/auth/login', { email, password });
+  return data;
+}
+
+export async function register(payload: RegisterPayload): Promise<LoginResponse> {
+  const { data } = await apiClient.post<LoginResponse>('/auth/register', payload);
   return data;
 }
 

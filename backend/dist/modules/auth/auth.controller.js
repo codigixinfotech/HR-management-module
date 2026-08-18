@@ -16,6 +16,7 @@ exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
 const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
+const register_dto_1 = require("./dto/register.dto");
 const refresh_token_dto_1 = require("./dto/refresh-token.dto");
 const public_decorator_1 = require("../../common/decorators/public.decorator");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
@@ -29,6 +30,9 @@ let AuthController = class AuthController {
     }
     login(dto) {
         return this.authService.login(dto.email, dto.password);
+    }
+    register(dto) {
+        return this.authService.register(dto);
     }
     refresh(dto) {
         return this.authService.refresh(dto.refreshToken);
@@ -56,6 +60,14 @@ __decorate([
     __metadata("design:paramtypes", [login_dto_1.LoginDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "login", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('register'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [register_dto_1.RegisterDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "register", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('refresh'),

@@ -1,5 +1,5 @@
 import { CandidateStage } from '@prisma/client';
-import { IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateCandidateDto {
   @IsString()
@@ -17,6 +17,42 @@ export class CreateCandidateDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  qualification?: string;
+
+  @IsOptional()
+  @IsString()
+  experience?: string;
+
+  @IsOptional()
+  @IsString()
+  currentCompany?: string;
+
+  @IsOptional()
+  @IsString()
+  currentLocation?: string;
+
+  @IsOptional()
+  @IsString()
+  skills?: string;
+
+  @IsOptional()
+  @IsNumber()
+  expectedCtc?: number;
+
+  @IsOptional()
+  @IsString()
+  noticePeriod?: string;
+
+  @IsOptional()
+  @IsString()
+  coverLetter?: string;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
 
   @IsOptional()
   @IsString()

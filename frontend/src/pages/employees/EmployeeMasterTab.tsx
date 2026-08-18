@@ -309,55 +309,100 @@ export function EmployeeMasterTab() {
   const selectedBranchId = form.watch('branchId');
   const watchedDesigId = form.watch('designationId');
 
-  const { data: branchOptions } = useQuery({
-    queryKey: ['branches', selectedCompanyId],
-    queryFn: () => branchesApi.list(selectedCompanyId),
-    enabled: !!selectedCompanyId,
+  const { data: allBranches } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.list(),
   });
+
+  const { data: allDepartments } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => departmentsApi.list(),
+  });
+
+  const { data: allDesignations } = useQuery({
+    queryKey: ['designations'],
+    queryFn: () => designationsApi.list(),
+  });
+
+  const { data: allCostCenters } = useQuery({
+    queryKey: ['cost-centers'],
+    queryFn: () => costCentersApi.list(),
+  });
+
+  const { data: allPayGrades } = useQuery({
+    queryKey: ['pay-grades'],
+    queryFn: () => payGradesApi.list(),
+  });
+
+  const { data: allShiftTypes } = useQuery({
+    queryKey: ['shift-types'],
+    queryFn: () => shiftTypesApi.list(),
+  });
+
+  const watchedDeptId = form.watch('departmentId');
+  const watchedDesigIdInForm = form.watch('designationId');
+
+  const branchOptions = useMemo(() => {
+    if (!allBranches) return [];
+    if (!selectedCompanyId) return allBranches;
+    const filtered = allBranches.filter((b: any) => !b.companyId || b.companyId === selectedCompanyId);
+    return filtered.length > 0 ? filtered : allBranches;
+  }, [allBranches, selectedCompanyId]);
 
   const selectedBranch = useMemo(() => {
     return branchOptions?.find((b: any) => b.id === selectedBranchId);
   }, [branchOptions, selectedBranchId]);
 
-  const locationOptions = selectedBranch?.locations ?? [];
+  const locationOptions = useMemo(() => {
+    if (selectedBranch?.locations && selectedBranch.locations.length > 0) {
+      return selectedBranch.locations;
+    }
+    if (selectedBranch?.city) {
+      return [{ name: selectedBranch.city }, { name: `${selectedBranch.city} Main Facility` }];
+    }
+    return [{ name: 'Main Office' }, { name: 'Headquarters Facility' }];
+  }, [selectedBranch]);
 
   useEffect(() => {
-    if (locationOptions.length > 0) {
+    if (locationOptions.length > 0 && !form.getValues('location')) {
       form.setValue('location', locationOptions[0].name);
-    } else {
-      form.setValue('location', '');
     }
   }, [selectedBranchId, locationOptions, form]);
 
-  const { data: departmentOptions } = useQuery({
-    queryKey: ['departments', selectedCompanyId],
-    queryFn: () => departmentsApi.list(selectedCompanyId),
-    enabled: !!selectedCompanyId,
-  });
+  const departmentOptions = useMemo(() => {
+    if (!allDepartments) return [];
+    if (!selectedCompanyId) return allDepartments;
+    const filtered = allDepartments.filter((d: any) => !d.companyId || d.companyId === selectedCompanyId || d.id === watchedDeptId);
+    return filtered.length > 0 ? filtered : allDepartments;
+  }, [allDepartments, selectedCompanyId, watchedDeptId]);
 
-  const { data: designationOptions } = useQuery({
-    queryKey: ['designations', selectedCompanyId],
-    queryFn: () => designationsApi.list(selectedCompanyId),
-    enabled: !!selectedCompanyId,
-  });
+  const designationOptions = useMemo(() => {
+    if (!allDesignations) return [];
+    if (!selectedCompanyId) return allDesignations;
+    const filtered = allDesignations.filter((d: any) => !d.companyId || d.companyId === selectedCompanyId || d.id === watchedDesigIdInForm);
+    return filtered.length > 0 ? filtered : allDesignations;
+  }, [allDesignations, selectedCompanyId, watchedDesigIdInForm]);
 
-  const { data: costCentersList } = useQuery({
-    queryKey: ['cost-centers', selectedCompanyId],
-    queryFn: () => costCentersApi.list(selectedCompanyId),
-    enabled: !!selectedCompanyId,
-  });
+  const costCentersList = useMemo(() => {
+    if (!allCostCenters) return [];
+    if (!selectedCompanyId) return allCostCenters;
+    const filtered = allCostCenters.filter((c: any) => !c.companyId || c.companyId === selectedCompanyId);
+    return filtered.length > 0 ? filtered : allCostCenters;
+  }, [allCostCenters, selectedCompanyId]);
 
-  const { data: payGradesList } = useQuery({
-    queryKey: ['pay-grades', selectedCompanyId],
-    queryFn: () => payGradesApi.list(selectedCompanyId),
-    enabled: !!selectedCompanyId,
-  });
+  const payGradesList = useMemo(() => {
+    if (!allPayGrades) return [];
+    if (!selectedCompanyId) return allPayGrades;
+    const filtered = allPayGrades.filter((p: any) => !p.companyId || p.companyId === selectedCompanyId);
+    return filtered.length > 0 ? filtered : allPayGrades;
+  }, [allPayGrades, selectedCompanyId]);
 
-  const { data: shiftTypesList } = useQuery({
-    queryKey: ['shift-types', selectedCompanyId],
-    queryFn: () => shiftTypesApi.list(selectedCompanyId),
-    enabled: !!selectedCompanyId,
-  });
+  const shiftTypesList = useMemo(() => {
+    if (!allShiftTypes) return [];
+    if (!selectedCompanyId) return allShiftTypes;
+    const filtered = allShiftTypes.filter((s: any) => !s.companyId || s.companyId === selectedCompanyId);
+    return filtered.length > 0 ? filtered : allShiftTypes;
+  }, [allShiftTypes, selectedCompanyId]);
 
   // Automatically trigger Grade/Level/Policies auto-fill when designation is selected
   useEffect(() => {
@@ -386,8 +431,9 @@ export function EmployeeMasterTab() {
   // Prefill form when in edit mode
   useEffect(() => {
     if (isEditing && editEmployee) {
+      const defaultCompId = editEmployee.companyId || (companies && companies.length > 0 ? companies[0].id : '');
       form.reset({
-        companyId: editEmployee.companyId ?? '',
+        companyId: defaultCompId,
         businessUnit: editEmployee.businessUnit ?? 'Technology Services',
         branchId: editEmployee.branchId ?? '',
         location: editEmployee.location ?? '',
@@ -970,7 +1016,13 @@ export function EmployeeMasterTab() {
                             </SelectTrigger>
                             <SelectContent>
                               {designationOptions
-                                ?.filter((d: any) => !form.watch('departmentId') || d.departmentId === form.watch('departmentId'))
+                                ?.filter(
+                                  (d: any) =>
+                                    !form.watch('departmentId') ||
+                                    !d.departmentId ||
+                                    d.departmentId === form.watch('departmentId') ||
+                                    d.id === form.watch('designationId')
+                                )
                                 ?.map((d: any) => (
                                   <SelectItem key={d.id} value={d.id} className="text-xs">
                                     {d.title}

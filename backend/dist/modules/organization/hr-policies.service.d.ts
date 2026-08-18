@@ -9,9 +9,10 @@ export declare class HrPoliciesService implements OnModuleInit {
     findAll(search?: string, category?: string, status?: string, companyId?: string): Promise<{
         id: string;
         companyId: string | null;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: string;
         title: string;
         category: string;
         policyCode: string;
@@ -20,12 +21,11 @@ export declare class HrPoliciesService implements OnModuleInit {
         fileSize: string | null;
         color: string | null;
         esignRequirement: boolean;
-        status: string;
         totalEmployees: number;
         signedCount: number;
-        publishedAt: Date;
         createdBy: string | null;
         updatedBy: string | null;
+        publishedAt: Date;
     }[]>;
     getKpis(companyId?: string): Promise<{
         publishedCount: number;
@@ -38,9 +38,10 @@ export declare class HrPoliciesService implements OnModuleInit {
         versionHistory: {
             id: string;
             companyId: string | null;
+            description: string | null;
             createdAt: Date;
             updatedAt: Date;
-            description: string | null;
+            status: string;
             title: string;
             category: string;
             policyCode: string;
@@ -49,18 +50,18 @@ export declare class HrPoliciesService implements OnModuleInit {
             fileSize: string | null;
             color: string | null;
             esignRequirement: boolean;
-            status: string;
             totalEmployees: number;
             signedCount: number;
-            publishedAt: Date;
             createdBy: string | null;
             updatedBy: string | null;
+            publishedAt: Date;
         }[];
         id: string;
         companyId: string | null;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: string;
         title: string;
         category: string;
         policyCode: string;
@@ -69,19 +70,19 @@ export declare class HrPoliciesService implements OnModuleInit {
         fileSize: string | null;
         color: string | null;
         esignRequirement: boolean;
-        status: string;
         totalEmployees: number;
         signedCount: number;
-        publishedAt: Date;
         createdBy: string | null;
         updatedBy: string | null;
+        publishedAt: Date;
     }>;
     create(dto: CreateHrPolicyDto): Promise<{
         id: string;
         companyId: string | null;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: string;
         title: string;
         category: string;
         policyCode: string;
@@ -90,19 +91,19 @@ export declare class HrPoliciesService implements OnModuleInit {
         fileSize: string | null;
         color: string | null;
         esignRequirement: boolean;
-        status: string;
         totalEmployees: number;
         signedCount: number;
-        publishedAt: Date;
         createdBy: string | null;
         updatedBy: string | null;
+        publishedAt: Date;
     }>;
     update(id: string, dto: UpdateHrPolicyDto): Promise<{
         id: string;
         companyId: string | null;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: string;
         title: string;
         category: string;
         policyCode: string;
@@ -111,19 +112,19 @@ export declare class HrPoliciesService implements OnModuleInit {
         fileSize: string | null;
         color: string | null;
         esignRequirement: boolean;
-        status: string;
         totalEmployees: number;
         signedCount: number;
-        publishedAt: Date;
         createdBy: string | null;
         updatedBy: string | null;
+        publishedAt: Date;
     }>;
     createVersion(id: string, dto: CreatePolicyVersionDto): Promise<{
         id: string;
         companyId: string | null;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: string;
         title: string;
         category: string;
         policyCode: string;
@@ -132,12 +133,11 @@ export declare class HrPoliciesService implements OnModuleInit {
         fileSize: string | null;
         color: string | null;
         esignRequirement: boolean;
-        status: string;
         totalEmployees: number;
         signedCount: number;
-        publishedAt: Date;
         createdBy: string | null;
         updatedBy: string | null;
+        publishedAt: Date;
     }>;
     sendReminder(id: string): Promise<{
         success: boolean;
@@ -149,9 +149,10 @@ export declare class HrPoliciesService implements OnModuleInit {
     remove(id: string): Promise<{
         id: string;
         companyId: string | null;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: string;
         title: string;
         category: string;
         policyCode: string;
@@ -160,11 +161,10 @@ export declare class HrPoliciesService implements OnModuleInit {
         fileSize: string | null;
         color: string | null;
         esignRequirement: boolean;
-        status: string;
         totalEmployees: number;
         signedCount: number;
-        publishedAt: Date;
         createdBy: string | null;
         updatedBy: string | null;
+        publishedAt: Date;
     }>;
 }

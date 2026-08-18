@@ -6,10 +6,10 @@ export declare class OnboardingService {
     constructor(prisma: PrismaService);
     listForEmployee(employeeId: string): Promise<{
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
         title: string;
-        status: import("@prisma/client").$Enums.ApprovalStatus;
         employeeId: string;
         ownerType: string;
         dueDate: Date | null;
@@ -17,10 +17,10 @@ export declare class OnboardingService {
     }[]>;
     createTask(employeeId: string, dto: CreateOnboardingTaskDto): Promise<{
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
         title: string;
-        status: import("@prisma/client").$Enums.ApprovalStatus;
         employeeId: string;
         ownerType: string;
         dueDate: Date | null;
@@ -28,10 +28,10 @@ export declare class OnboardingService {
     }>;
     updateStatus(taskId: string, status: ApprovalStatus): Promise<{
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
         title: string;
-        status: import("@prisma/client").$Enums.ApprovalStatus;
         employeeId: string;
         ownerType: string;
         dueDate: Date | null;

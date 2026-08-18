@@ -36,6 +36,12 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
                         },
                     },
                 },
+                employee: {
+                    include: {
+                        department: true,
+                        designation: true,
+                    },
+                },
             },
         });
         if (!user || !user.isActive) {
@@ -44,12 +50,58 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         const isSuperAdmin = user.roles.some((ur) => ur.role.name === 'SUPER_ADMIN' && ur.role.isSystem);
         const permissions = isSuperAdmin
             ? ['*']
-            : Array.from(new Set(user.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.code))));
+            : Array.from(new Set(user.roles.flatMap((ur) => ur.role.permissions
+                ? ur.role.permissions.map((rp) => rp.permission.code)
+                : [])));
+        const rolesList = user.roles.map((ur) => ur.role.name);
+        let primaryRole = 'Employee';
+        if (isSuperAdmin) {
+            primaryRole = 'Super Admin';
+        }
+        else if (rolesList.includes('IT_ADMIN')) {
+            primaryRole = 'IT Admin';
+        }
+        else if (rolesList.includes('HR_MANAGER')) {
+            primaryRole = 'HR Manager';
+        }
+        else if (rolesList.includes('HR_EXECUTIVE')) {
+            primaryRole = 'HR Executive';
+        }
+        else if (rolesList.includes('DEPARTMENT_MANAGER')) {
+            primaryRole = 'Department Manager';
+        }
+        else if (rolesList.includes('FINANCE_MANAGER')) {
+            primaryRole = 'Finance Manager';
+        }
+        else if (user.roles.length > 0 && user.roles[0].role?.name) {
+            primaryRole = user.roles[0].role.name
+                .split('_')
+                .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+                .join(' ');
+        }
+        const fullName = user.employee
+            ? `${user.employee.firstName} ${user.employee.lastName}`.trim()
+            : user.email.split('@')[0];
         return {
             userId: user.id,
             email: user.email,
             companyId: user.companyId,
             permissions,
+            roles: rolesList,
+            primaryRole,
+            employee: user.employee
+                ? {
+                    id: user.employee.id,
+                    employeeCode: user.employee.employeeCode,
+                    firstName: user.employee.firstName,
+                    lastName: user.employee.lastName,
+                    fullName,
+                    departmentId: user.employee.departmentId,
+                    departmentName: user.employee.department?.name || null,
+                    designationId: user.employee.designationId,
+                    designationTitle: user.employee.designation?.title || null,
+                }
+                : null,
         };
     }
 };

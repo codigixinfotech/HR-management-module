@@ -1,8 +1,10 @@
 import {
+  ConflictException,
   Injectable,
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
+import { RegisterDto } from './dto/register.dto';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -202,6 +204,77 @@ export class AuthService implements OnModuleInit {
 
   getDemoAccounts(): DemoAccountInfo[] {
     return DEMO_ACCOUNTS_METADATA;
+  }
+
+  async register(dto: RegisterDto) {
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) {
+      throw new ConflictException('An account with this email already exists');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    let company = await this.prisma.company.findFirst();
+    if (!company) {
+      company = await this.prisma.company.create({
+        data: { name: 'EHCM Enterprise Corp', code: 'EHCM-CORP', country: 'India', currency: 'INR' },
+      });
+    }
+
+    // Role lookup or fallback
+    const roleName = dto.role || 'EMPLOYEE';
+    let roleRecord = await this.prisma.role.findFirst({ where: { name: roleName } });
+    if (!roleRecord) {
+      roleRecord = await this.prisma.role.findFirst({ where: { name: 'EMPLOYEE' } });
+    }
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        passwordHash,
+        companyId: company.id,
+        isActive: true,
+        roles: roleRecord ? { create: [{ roleId: roleRecord.id }] } : undefined,
+      },
+    });
+
+    // Extract first & last name from full name
+    const nameParts = (dto.fullName || 'New User').trim().split(' ');
+    const firstName = nameParts[0] || 'New';
+    const lastName = nameParts.slice(1).join(' ') || 'User';
+
+    let departmentId: string | null = null;
+    if (dto.department) {
+      const deptSearch = dto.department.trim();
+      const matchedDept = await this.prisma.department.findFirst({
+        where: {
+          OR: [
+            { name: { contains: deptSearch } },
+            { code: { contains: deptSearch } },
+            { name: { contains: deptSearch.split('&')[0].trim() } },
+          ],
+        },
+      });
+      if (matchedDept) {
+        departmentId = matchedDept.id;
+      }
+    }
+
+    const empCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+    await this.prisma.employee.create({
+      data: {
+        companyId: company.id,
+        userId: newUser.id,
+        employeeCode: empCode,
+        firstName,
+        lastName,
+        workEmail: dto.email,
+        departmentId,
+        dateOfJoining: new Date(),
+        status: 'ACTIVE',
+      },
+    });
+
+    return this.issueTokens(newUser.id, newUser.email);
   }
 
   async login(email: string, password: string) {

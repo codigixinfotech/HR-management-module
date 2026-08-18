@@ -1,4 +1,5 @@
 import { OnModuleInit } from '@nestjs/common';
+import { RegisterDto } from './dto/register.dto';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -18,6 +19,10 @@ export declare class AuthService implements OnModuleInit {
     onModuleInit(): Promise<void>;
     private seedDemoRolesAndUsers;
     getDemoAccounts(): DemoAccountInfo[];
+    register(dto: RegisterDto): Promise<{
+        accessToken: string;
+        refreshToken: string;
+    }>;
     login(email: string, password: string): Promise<{
         accessToken: string;
         refreshToken: string;

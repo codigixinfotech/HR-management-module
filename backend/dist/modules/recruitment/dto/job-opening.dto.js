@@ -16,9 +16,26 @@ class CreateJobOpeningDto {
     companyId;
     departmentId;
     designationId;
+    manpowerRequisitionId;
+    requisitionCode;
+    manpowerPlanCode;
+    mrNumber;
     title;
     description;
+    responsibilities;
     numPositions;
+    costCenter;
+    employmentType;
+    priority;
+    minSalary;
+    maxSalary;
+    qualification;
+    experience;
+    requiredSkills;
+    workLocation;
+    reportingManagerId;
+    applicationDeadline;
+    status;
     isActive;
 }
 exports.CreateJobOpeningDto = CreateJobOpeningDto;
@@ -37,6 +54,26 @@ __decorate([
     __metadata("design:type", String)
 ], CreateJobOpeningDto.prototype, "designationId", void 0);
 __decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "manpowerRequisitionId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "requisitionCode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "manpowerPlanCode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "mrNumber", void 0);
+__decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateJobOpeningDto.prototype, "title", void 0);
@@ -47,10 +84,75 @@ __decorate([
 ], CreateJobOpeningDto.prototype, "description", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "responsibilities", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], CreateJobOpeningDto.prototype, "numPositions", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "costCenter", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "employmentType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "priority", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateJobOpeningDto.prototype, "minSalary", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateJobOpeningDto.prototype, "maxSalary", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "qualification", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "experience", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "requiredSkills", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "workLocation", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "reportingManagerId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "applicationDeadline", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "status", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

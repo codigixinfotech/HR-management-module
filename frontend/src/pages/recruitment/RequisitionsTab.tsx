@@ -1,322 +1,650 @@
 import { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import {
   Plus,
   Search,
-  Grid,
-  List,
   Briefcase,
   Users,
+  CheckCircle2,
+  XCircle,
+  FileText,
+  Clock,
+  ArrowUpRight,
+  ShieldCheck,
+  Globe,
+  Sparkles,
+  Building2,
+  Calendar,
+  DollarSign,
+  UserCheck,
 } from 'lucide-react';
-import { jobOpeningsApi } from '@/api/recruitment';
-import { companiesApi } from '@/api/organization';
+import { jobOpeningsApi, manpowerRequisitionsApi } from '@/api/recruitment';
+import { companiesApi, branchesApi } from '@/api/organization';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { StatusBadge } from '@/components/ui/status-badge';
-
-const jobOpeningSchema = z.object({
-  companyId: z.string().min(1, 'Company is required'),
-  title: z.string().min(1, 'Title is required'),
-  numPositions: z.number().min(1, 'At least 1 position is required'),
-  description: z.string().optional(),
-});
-
-type JobOpeningFormValues = z.infer<typeof jobOpeningSchema>;
-
-const PRIORITY_MAP: Record<string, { label: string; badge: string }> = {
-  'High': { label: 'High Priority', badge: 'bg-rose-500/10 text-rose-600 border-rose-500/20' },
-  'Medium': { label: 'Medium Priority', badge: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
-  'Low': { label: 'Low Priority', badge: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
-};
+import type { ManpowerRequisition, JobOpening, Branch } from '@/api/types';
 
 export function RequisitionsTab() {
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
   const [selectedDept, setSelectedDept] = useState<string>('all');
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const { data: openings, isLoading } = useQuery({ queryKey: ['job-openings'], queryFn: () => jobOpeningsApi.list() });
+  // Create Job Requisition Dialog State
+  const [isReqOpen, setIsReqOpen] = useState(false);
+  const [selectedMr, setSelectedMr] = useState<ManpowerRequisition | null>(null);
 
-  const form = useForm<JobOpeningFormValues>({
-    resolver: zodResolver(jobOpeningSchema),
-    defaultValues: { companyId: '', title: '', numPositions: 1, description: '' },
+  // Form fields for Create Job Requisition
+  const [jobTitle, setJobTitle] = useState('');
+  const [jobDescription, setJobDescription] = useState('');
+  const [jobResponsibilities, setJobResponsibilities] = useState('');
+  const [jobSkills, setJobSkills] = useState('');
+  const [jobQualification, setJobQualification] = useState('');
+  const [jobExperience, setJobExperience] = useState('');
+  const [jobMinSalary, setJobMinSalary] = useState<number>(0);
+  const [jobMaxSalary, setJobMaxSalary] = useState<number>(0);
+  const [jobLocation, setJobLocation] = useState('');
+  const [jobEmploymentType, setJobEmploymentType] = useState('FULL_TIME');
+  const [jobDeadline, setJobDeadline] = useState('');
+
+  // Queries
+  const { data: companies = [] } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
+  const { data: branches = [] } = useQuery({ queryKey: ['branches'], queryFn: branchesApi.list });
+  const { data: openings = [], isLoading: isOpeningsLoading } = useQuery({
+    queryKey: ['job-openings'],
+    queryFn: () => jobOpeningsApi.list(),
+  });
+  const { data: requisitions = [], isLoading: isMrsLoading } = useQuery({
+    queryKey: ['manpower-requisitions'],
+    queryFn: () => manpowerRequisitionsApi.list(),
   });
 
-  const createMutation = useMutation({
-    mutationFn: (values: JobOpeningFormValues) => jobOpeningsApi.create(values),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
-      toast.success('Job requisition published');
-      setOpen(false);
-      form.reset();
+  // Approve / Reject MR Mutation
+  const updateMrStatusMutation = useMutation({
+    mutationFn: ({ id, status, rejectionReason }: { id: string; status: string; rejectionReason?: string }) =>
+      manpowerRequisitionsApi.updateStatus(id, status, rejectionReason),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['manpower-requisitions'] });
+      queryClient.invalidateQueries({ queryKey: ['manpower-plans'] });
+
+      if (data.status === 'APPROVED') {
+        toast.success(`Manpower Requisition ${data.mrNumber} Approved successfully.`);
+      } else if (data.status === 'REJECTED') {
+        toast.info(`Manpower Requisition ${data.mrNumber} set to REJECTED. Planned hires restored.`);
+      }
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to update MR status'),
   });
+
+  // Create Job Requisition Mutation
+  const createJobReqMutation = useMutation({
+    mutationFn: (payload: Partial<JobOpening>) => jobOpeningsApi.create(payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      toast.success(`Job Requisition ${data.requisitionCode || data.title} created successfully!`);
+      setIsReqOpen(false);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to create Job Requisition'),
+  });
+
+  // Publish Job Opening Mutation
+  const publishOpeningMutation = useMutation({
+    mutationFn: (id: string) => jobOpeningsApi.publish(id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      toast.success(`Job Opening "${data.title}" Published to Careers & Job Portal!`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to publish job opening'),
+  });
+
+  // Handle Approve MR with Clean Confirmation Prompt
+  const handleApproveMr = (mr: ManpowerRequisition) => {
+    const confirmMsg = `Approve Manpower Requisition ${mr.mrNumber} for ${mr.role} (${mr.numOpenings} Openings)?`;
+    if (confirm(confirmMsg)) {
+      updateMrStatusMutation.mutate({ id: mr.id, status: 'APPROVED' });
+    }
+  };
+
+  // Handle Reject MR
+  const handleRejectMr = (mr: ManpowerRequisition) => {
+    const reason = prompt(`Enter rejection reason for MR ${mr.mrNumber}:`, 'Budget constraint / position postponed');
+    if (reason !== null) {
+      updateMrStatusMutation.mutate({ id: mr.id, status: 'REJECTED', rejectionReason: reason });
+    }
+  };
+
+  // Open Create Job Requisition Dialog for Approved MR
+  const openCreateJobReqModal = (mr: ManpowerRequisition) => {
+    setSelectedMr(mr);
+    setJobTitle(mr.role);
+    setJobDescription(
+      `We are seeking a talented ${mr.role} to join our ${mr.departmentName} team. The ideal candidate will bring strong technical expertise, domain knowledge, and leadership.`
+    );
+    setJobResponsibilities(
+      `• Lead key operational and technical projects in ${mr.departmentName}.\n• Collaborate with cross-functional teams to deliver high quality results.\n• Mentor junior team members and maintain process compliance.`
+    );
+    setJobSkills(mr.requiredSkills || 'Leadership, Domain Expertise, Teamwork');
+    setJobQualification(mr.qualification || 'Graduate / Professional Degree');
+    setJobExperience(mr.experience || '3 - 5 Years');
+    setJobMinSalary(mr.minSalary || 800000);
+    setJobMaxSalary(mr.maxSalary || 1200000);
+    setJobLocation(mr.workLocation || 'Head Office (Pune)');
+    setJobEmploymentType(mr.employmentType || 'FULL_TIME');
+
+    // Deadline 30 days out
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + 30);
+    setJobDeadline(deadline.toISOString().split('T')[0]);
+
+    setIsReqOpen(true);
+  };
+
+  // Handle Submit Job Requisition
+  const handleSubmitJobReq = (targetStatus: 'DRAFT' | 'READY_TO_PUBLISH') => {
+    if (!jobTitle.trim()) {
+      toast.error('Job Title is required');
+      return;
+    }
+    if (!jobDescription.trim()) {
+      toast.error('Job Description is required');
+      return;
+    }
+
+    const defaultCompanyId = selectedMr?.companyId || companies[0]?.id || '';
+
+    const payload: Partial<JobOpening> = {
+      companyId: defaultCompanyId,
+      departmentId: selectedMr?.departmentId || null,
+      designationId: selectedMr?.designationId || null,
+      manpowerRequisitionId: selectedMr?.id || null,
+      mrNumber: selectedMr?.mrNumber || null,
+      manpowerPlanCode: selectedMr?.manpowerPlanId || null,
+      title: jobTitle,
+      description: jobDescription,
+      responsibilities: jobResponsibilities,
+      numPositions: selectedMr?.numOpenings || 1,
+      costCenter: selectedMr?.costCenter || '',
+      employmentType: jobEmploymentType as any,
+      priority: selectedMr?.priority as any || 'NORMAL',
+      minSalary: Number(jobMinSalary) || undefined,
+      maxSalary: Number(jobMaxSalary) || undefined,
+      qualification: jobQualification,
+      experience: jobExperience,
+      requiredSkills: jobSkills,
+      workLocation: jobLocation,
+      applicationDeadline: jobDeadline || undefined,
+      status: targetStatus,
+      isActive: false,
+    };
+
+    createJobReqMutation.mutate(payload);
+  };
+
+  // Handle Publish Opening
+  const handlePublishJobOpening = (opening: JobOpening) => {
+    if (confirm(`Publish Job Opening "${opening.title}" (${opening.numPositions} Positions) to the Job Portal? Candidates will be able to apply.`)) {
+      publishOpeningMutation.mutate(opening.id);
+    }
+  };
 
   const filteredOpenings = useMemo(() => {
     if (!openings) return [];
-    return openings.filter(o => {
+    return openings.filter((o) => {
       const matchesSearch =
         o.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (o.department?.name && o.department.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        (o.department?.name && o.department.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (o.requisitionCode && o.requisitionCode.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesDept =
         selectedDept === 'all' ? true : o.department?.name?.toLowerCase() === selectedDept.toLowerCase();
       return matchesSearch && matchesDept;
     });
   }, [openings, searchQuery, selectedDept]);
 
-  const departmentsList = useMemo(() => {
-    if (!openings) return [];
-    const depts = new Set<string>();
-    openings.forEach(o => {
-      if (o.department?.name) depts.add(o.department.name);
-    });
-    return Array.from(depts);
-  }, [openings]);
+  const pendingMrsCount = requisitions.filter((r) => r.status === 'PENDING_APPROVAL').length;
+  const approvedMrsCount = requisitions.filter((r) => r.status === 'APPROVED').length;
 
   return (
     <div className="space-y-6">
-      {/* ── 1. Requisitions Filter & Layout Controls ── */}
+      {/* ── 1. Manpower Requisitions (MR) Approvals Queue Card ── */}
+      <Card className="shadow-xs border-border/80">
+        <CardHeader className="pb-3 border-b border-border/60 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary" /> Manpower Requisitions (MR) Approval Queue
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Stage 1: Internal headcount approval required before initiating recruitment job requisitions
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs font-semibold">
+              {pendingMrsCount} Pending Approvals
+            </Badge>
+            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-semibold">
+              {approvedMrsCount} Approved MRs
+            </Badge>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4 sm:p-6">
+          {isMrsLoading ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              Loading manpower requisitions...
+            </div>
+          ) : requisitions.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              No Manpower Requisitions submitted yet. Go to <strong>Manpower Planning</strong> and click <strong>"Raise MR"</strong> to create one.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">MR Number</TableHead>
+                  <TableHead className="text-xs">Role / Designation</TableHead>
+                  <TableHead className="text-xs">Department</TableHead>
+                  <TableHead className="text-xs">Cost Center</TableHead>
+                  <TableHead className="text-xs">Openings</TableHead>
+                  <TableHead className="text-xs">Joining Date</TableHead>
+                  <TableHead className="text-xs">Priority</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-right text-xs">Stage 1 Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {requisitions.map((mr) => {
+                  const isPending = mr.status === 'PENDING_APPROVAL' || mr.status === 'DRAFT';
+                  const isApproved = mr.status === 'APPROVED';
+                  const isRejected = mr.status === 'REJECTED';
+
+                  return (
+                    <TableRow key={mr.id} className="hover:bg-muted/40 transition-colors">
+                      <TableCell className="font-mono text-xs font-bold text-primary">{mr.mrNumber}</TableCell>
+                      <TableCell className="font-semibold text-xs text-foreground flex items-center gap-2">
+                        <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        {mr.role}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-semibold">{mr.departmentName}</TableCell>
+                      <TableCell className="text-xs font-mono font-medium">{mr.costCenter}</TableCell>
+                      <TableCell className="text-xs font-mono font-bold text-primary">
+                        +{mr.numOpenings} Openings
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-medium">
+                        {new Date(mr.joiningDate).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <Badge
+                          className={`text-[10px] uppercase font-semibold ${
+                            mr.priority === 'URGENT' || mr.priority === 'HIGH'
+                              ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                              : 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                          }`}
+                        >
+                          {mr.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <Badge
+                          className={`text-[10px] font-semibold ${
+                            isApproved
+                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                              : isRejected
+                              ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                              : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                          }`}
+                        >
+                          {mr.status.replace(/_/g, ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isPending && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-7 text-[10.5px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold"
+                                onClick={() => handleApproveMr(mr)}
+                                disabled={updateMrStatusMutation.isPending}
+                              >
+                                <CheckCircle2 className="h-3 w-3" /> Approve MR
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-[10.5px] px-2 text-rose-600 border-rose-300 hover:bg-rose-50 gap-1 font-semibold"
+                                onClick={() => handleRejectMr(mr)}
+                                disabled={updateMrStatusMutation.isPending}
+                              >
+                                <XCircle className="h-3 w-3" /> Reject
+                              </Button>
+                            </>
+                          )}
+                          {isApproved && (
+                            <Button
+                              size="sm"
+                              className="h-7 text-[10.5px] px-2.5 bg-primary hover:bg-primary/90 text-primary-foreground gap-1 font-semibold"
+                              onClick={() => openCreateJobReqModal(mr)}
+                            >
+                              <Plus className="h-3 w-3" /> Create Job Requisition
+                            </Button>
+                          )}
+                          {isRejected && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10.5px] px-2.5 text-amber-600 border-amber-300 hover:bg-amber-50 gap-1 font-semibold"
+                              onClick={() => handleApproveMr(mr)}
+                            >
+                              Revise & Resubmit
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── 2. Create Job Requisition Dialog (Stage 2 Form) ── */}
+      <Dialog open={isReqOpen} onOpenChange={setIsReqOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="flex items-center justify-between text-base font-semibold">
+              <span className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" /> Create Job Requisition (From Approved MR)
+              </span>
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                Stage 2: Detailed Recruitment Setup
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedMr && (
+            <div className="space-y-4 text-xs pt-2">
+              {/* Carried Forward Read-Only Details */}
+              <div className="bg-muted/40 p-3 rounded-xl border border-border space-y-2">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5 text-primary" /> Approved MR Reference Details
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-muted-foreground">MR Number:</span>{' '}
+                    <strong className="font-mono text-primary">{selectedMr.mrNumber}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Department:</span>{' '}
+                    <strong>{selectedMr.departmentName}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Cost Center:</span>{' '}
+                    <strong className="font-mono">{selectedMr.costCenter}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Openings:</span>{' '}
+                    <strong className="text-primary">{selectedMr.numOpenings} Positions</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Editable Job Requisition Fields */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="font-semibold">Job Title *</Label>
+                  <Input
+                    type="text"
+                    value={jobTitle}
+                    onChange={(e) => setJobTitle(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="font-semibold">Job Description *</Label>
+                  <Textarea
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    className="text-xs min-h-[70px]"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="font-semibold">Key Responsibilities</Label>
+                  <Textarea
+                    value={jobResponsibilities}
+                    onChange={(e) => setJobResponsibilities(e.target.value)}
+                    className="text-xs min-h-[70px]"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="font-semibold">Required Qualification</Label>
+                    <Input
+                      type="text"
+                      value={jobQualification}
+                      onChange={(e) => setJobQualification(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-semibold">Experience Required</Label>
+                    <Input
+                      type="text"
+                      value={jobExperience}
+                      onChange={(e) => setJobExperience(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="font-semibold">Required Skills</Label>
+                  <Input
+                    type="text"
+                    value={jobSkills}
+                    onChange={(e) => setJobSkills(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="font-semibold">Min CTC (₹)</Label>
+                    <Input
+                      type="number"
+                      value={jobMinSalary}
+                      onChange={(e) => setJobMinSalary(Number(e.target.value))}
+                      className="h-8 text-xs font-mono bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-semibold">Max CTC (₹)</Label>
+                    <Input
+                      type="number"
+                      value={jobMaxSalary}
+                      onChange={(e) => setJobMaxSalary(Number(e.target.value))}
+                      className="h-8 text-xs font-mono bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="font-semibold">Work Location</Label>
+                    <Input
+                      type="text"
+                      value={jobLocation}
+                      onChange={(e) => setJobLocation(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-semibold">Application Deadline</Label>
+                    <Input
+                      type="date"
+                      value={jobDeadline}
+                      onChange={(e) => setJobDeadline(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-2 gap-2 sm:gap-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setIsReqOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => handleSubmitJobReq('DRAFT')}
+                  disabled={createJobReqMutation.isPending}
+                >
+                  Save as Draft
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="text-xs font-semibold gap-1.5"
+                  onClick={() => handleSubmitJobReq('READY_TO_PUBLISH')}
+                  disabled={createJobReqMutation.isPending}
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Save & Set Ready to Publish
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 3. Job Requisitions & Job Openings List (Stage 2 & Stage 3) ── */}
       <Card className="shadow-xs border-border/80">
         <CardHeader className="pb-3 border-b border-border/60">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-primary" /> Active Job Requisitions
+                <Briefcase className="h-4 w-4 text-primary" /> Job Requisitions & Job Portal Feed
               </CardTitle>
               <CardDescription className="text-xs">
-                Manage open vacancies, candidate applications, priority status & hiring managers
+                Stage 2 & 3: Detailed recruitment requisitions and live postings published to Careers / Job Portal
               </CardDescription>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {/* Category Filter Pills */}
-              <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
-                <button
-                  onClick={() => setSelectedDept('all')}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${selectedDept === 'all' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                  All Depts
-                </button>
-                {departmentsList.map(dept => (
-                  <button
-                    key={dept}
-                    onClick={() => setSelectedDept(dept)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${selectedDept.toLowerCase() === dept.toLowerCase()
-                      ? 'bg-background text-foreground shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                  >
-                    {dept}
-                  </button>
-                ))}
-              </div>
-
-              {/* View Switcher */}
-              <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
-                <button
-                  onClick={() => setDisplayMode('grid')}
-                  className={`p-1.5 rounded-lg text-xs transition-all ${displayMode === 'grid' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
-                  title="Grid View"
-                >
-                  <Grid className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setDisplayMode('table')}
-                  className={`p-1.5 rounded-lg text-xs transition-all ${displayMode === 'table' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
-                  title="Table View"
-                >
-                  <List className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              {/* Search Bar */}
-              <div className="relative w-40 sm:w-52">
+            <div className="flex items-center gap-2">
+              <div className="relative w-48 sm:w-60">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Filter requisitions..."
+                  placeholder="Filter job requisitions..."
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-8 pl-8 text-xs bg-background"
                 />
               </div>
-
-              {/* Add Requisition Dialog */}
-              <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => form.reset({ companyId: companies?.[0]?.id ?? '', title: '', numPositions: 1, description: '' })}>
-                    <Plus className="h-3.5 w-3.5" /> Post Requisition
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Create Job Requisition</DialogTitle>
-                  </DialogHeader>
-                  <form className="space-y-4" onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Company Entity</Label>
-                      <Select value={form.watch('companyId')} onValueChange={(v) => form.setValue('companyId', v)}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select company" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {companies?.map((c) => (
-                            <SelectItem key={c.id} value={c.id} className="text-xs">
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Job Title</Label>
-                        <Input placeholder="e.g. React Architect" {...form.register('title')} className="h-9 text-xs" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Positions Approved</Label>
-                        <Input type="number" min={1} {...form.register('numPositions', { valueAsNumber: true })} className="h-9 text-xs font-mono" />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Description & Requirements</Label>
-                      <Input placeholder="Key skills & experience required" {...form.register('description')} className="h-9 text-xs" />
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit" size="sm" className="text-xs" disabled={createMutation.isPending}>
-                        Publish Requisition
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
             </div>
           </div>
         </CardHeader>
 
         <CardContent className="p-4 sm:p-6">
-          {isLoading && (
-            <div className="py-12 text-center text-xs text-muted-foreground">
-              Loading requisitions...
+          {isOpeningsLoading ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              Loading job requisitions...
             </div>
-          )}
-
-          {!isLoading && displayMode === 'grid' && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredOpenings.map((opening) => {
-                const candidatesCount = opening._count?.candidates ?? 0;
-                // Mock priority, salary budget, manager for visuals
-                const priorityKey = opening.numPositions >= 5 ? 'High' : opening.numPositions >= 2 ? 'Medium' : 'Low';
-                const priorityMeta = PRIORITY_MAP[priorityKey];
-                const targetSalary = opening.numPositions >= 5 ? '₹18L - ₹28L / yr' : '₹10L - ₹16L / yr';
-
-                return (
-                  <Link key={opening.id} to={`/recruitment/detail/${opening.id}`}>
-                    <div className="flex flex-col justify-between rounded-xl border border-border/80 bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md group">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className={`text-[9.5px] font-semibold ${priorityMeta.badge}`}>
-                            {priorityMeta.label}
-                          </Badge>
-                          <StatusBadge
-                            status={opening.isActive ? 'ACTIVE' : 'INACTIVE'}
-                            label={opening.isActive ? 'Open' : 'Closed'}
-                            className="text-[10px]"
-                          />
-                        </div>
-
-                        <h3 className=" text-base font-semibold text-foreground mt-3 group-hover:text-primary transition-colors line-clamp-1">
-                          {opening.title}
-                        </h3>
-                        <p className="text-xs text-muted-foreground font-semibold mt-1">
-                          {opening.department?.name ?? 'General Corporate'}
-                        </p>
-                      </div>
-
-                      <div className="mt-4 space-y-3 border-t border-border/50 pt-3">
-                        <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                          <div>
-                            <span className="text-[9.5px] uppercase font-semibold tracking-wider">Approved Target</span>
-                            <p className="font-semibold text-foreground mt-0.5">{opening.numPositions} Headcount</p>
-                          </div>
-                          <div>
-                            <span className="text-[9.5px] uppercase font-semibold tracking-wider">Budget Scale</span>
-                            <p className="font-mono text-foreground font-semibold mt-0.5">{targetSalary}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs pt-1 border-t border-border/40">
-                          <span className="flex items-center gap-1.5 font-semibold text-primary">
-                            <Users className="h-3.5 w-3.5" /> {candidatesCount} Candidates
-                          </span>
-                          <span className="text-[10px] text-muted-foreground font-mono">ID: {opening.id.slice(0, 8).toUpperCase()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+          ) : filteredOpenings.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              No job requisitions created yet. Click <strong>"Create Job Requisition"</strong> on an Approved MR.
             </div>
-          )}
-
-          {!isLoading && displayMode === 'table' && (
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Req ID</TableHead>
+                  <TableHead className="text-xs">Req Code / ID</TableHead>
+                  <TableHead className="text-xs">MR Ref</TableHead>
                   <TableHead className="text-xs">Job Position Title</TableHead>
                   <TableHead className="text-xs">Department</TableHead>
-                  <TableHead className="text-xs">Target Positions</TableHead>
-                  <TableHead className="text-xs">Priority</TableHead>
-                  <TableHead className="text-xs">Pipeline Status</TableHead>
-                  <TableHead className="text-right text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Openings</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Created Date</TableHead>
+                  <TableHead className="text-right text-xs">Stage 3 Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOpenings.map((opening) => {
-                  const priorityKey = opening.numPositions >= 5 ? 'High' : opening.numPositions >= 2 ? 'Medium' : 'Low';
-                  const priorityMeta = PRIORITY_MAP[priorityKey];
+                  const isPublished = opening.status === 'PUBLISHED' || opening.isActive;
+                  const isReadyToPublish = opening.status === 'READY_TO_PUBLISH';
+                  const isDraft = opening.status === 'DRAFT';
+                  const reqCode = opening.requisitionCode || `JR-2026-0${opening.id.substring(0, 2)}`;
 
                   return (
                     <TableRow key={opening.id} className="hover:bg-muted/40 transition-colors">
-                      <TableCell className="font-mono text-xs font-semibold text-primary uppercase">{opening.id.slice(0, 8)}</TableCell>
-                      <TableCell className="text-xs font-semibold text-foreground hover:text-primary">
-                        <Link to={`/recruitment/detail/${opening.id}`} className="flex items-center gap-2">
-                          <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
-                          {opening.title}
-                        </Link>
+                      <TableCell className="font-mono text-xs font-bold text-primary">{reqCode}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground font-medium">
+                        {opening.mrNumber || 'N/A'}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{opening.department?.name ?? 'General'}</TableCell>
-                      <TableCell className="text-xs font-mono font-semibold">{opening.numPositions} Approved</TableCell>
-                      <TableCell className="text-xs">
-                        <Badge variant="outline" className={`text-[10px] font-semibold ${priorityMeta.badge}`}>
-                          {priorityKey}
-                        </Badge>
+                      <TableCell className="font-semibold text-xs text-foreground">{opening.title}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-semibold">
+                        {opening.department?.name || 'General'}
                       </TableCell>
                       <TableCell className="text-xs font-mono font-semibold text-primary">
-                        {opening._count?.candidates ?? 0} Sourced
+                        {opening.numPositions} Positions
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <Badge
+                          className={`text-[10px] font-semibold ${
+                            isPublished
+                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                              : isReadyToPublish
+                              ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                              : 'bg-muted text-muted-foreground border-border'
+                          }`}
+                        >
+                          {isPublished ? 'PUBLISHED' : isReadyToPublish ? 'READY TO PUBLISH' : 'DRAFT'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(opening.createdAt || Date.now()).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <StatusBadge
-                          status={opening.isActive ? 'ACTIVE' : 'INACTIVE'}
-                          label={opening.isActive ? 'Open' : 'Closed'}
-                          className="text-[10px]"
-                        />
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!isPublished ? (
+                            <Button
+                              size="sm"
+                              className="h-7 text-[10.5px] px-2.5 bg-blue-600 hover:bg-blue-700 text-white gap-1.5 font-semibold"
+                              onClick={() => handlePublishJobOpening(opening)}
+                              disabled={publishOpeningMutation.isPending}
+                            >
+                              <Globe className="h-3 w-3" /> Publish Job Opening
+                            </Button>
+                          ) : (
+                            <Link to={`/recruitment/candidates?jobId=${opening.id}`}>
+                              <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-semibold gap-1">
+                                View Candidates <ArrowUpRight className="h-3 w-3" />
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

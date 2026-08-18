@@ -3,7 +3,7 @@ import { MarkAttendanceDto, UpdateAttendanceDto } from './dto/attendance.dto';
 export declare class AttendanceController {
     private readonly attendanceService;
     constructor(attendanceService: AttendanceService);
-    list(employeeId?: string, companyId?: string, from?: string, to?: string): import("@prisma/client").Prisma.PrismaPromise<({
+    list(employeeId?: string, companyId?: string, from?: string, to?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employee: {
             id: string;
             employeeCode: string;
@@ -19,15 +19,15 @@ export declare class AttendanceController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         date: Date;
         employeeId: string;
         remarks: string | null;
+        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
-        source: string;
     })[]>;
     findOne(id: string): Promise<{
         employee: {
@@ -45,17 +45,17 @@ export declare class AttendanceController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         date: Date;
         employeeId: string;
         remarks: string | null;
+        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
-        source: string;
     }>;
-    mark(dto: MarkAttendanceDto): import("@prisma/client").Prisma.Prisma__AttendanceRecordClient<{
+    mark(dto: MarkAttendanceDto): import(".prisma/client").Prisma.Prisma__AttendanceRecordClient<{
         employee: {
             id: string;
             employeeCode: string;
@@ -71,16 +71,16 @@ export declare class AttendanceController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         date: Date;
         employeeId: string;
         remarks: string | null;
+        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
-        source: string;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdateAttendanceDto): Promise<{
         employee: {
             id: string;
@@ -97,14 +97,14 @@ export declare class AttendanceController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         date: Date;
         employeeId: string;
         remarks: string | null;
+        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
-        source: string;
     }>;
 }

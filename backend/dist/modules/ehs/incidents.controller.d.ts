@@ -3,7 +3,7 @@ import { CreateSafetyIncidentDto, UpdateSafetyIncidentStatusDto } from './dto/sa
 export declare class IncidentsController {
     private readonly incidentsService;
     constructor(incidentsService: IncidentsService);
-    list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<({
+    list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         reportedBy: {
             id: string;
             firstName: string;
@@ -13,12 +13,12 @@ export declare class IncidentsController {
         location: string;
         id: string;
         companyId: string;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
-        status: import("@prisma/client").$Enums.IncidentStatus;
+        status: import(".prisma/client").$Enums.IncidentStatus;
         incidentType: string;
-        severity: import("@prisma/client").$Enums.IncidentSeverity;
+        severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
         correctiveAction: string | null;
         reportedById: string | null;
@@ -33,17 +33,17 @@ export declare class IncidentsController {
         location: string;
         id: string;
         companyId: string;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
-        status: import("@prisma/client").$Enums.IncidentStatus;
+        status: import(".prisma/client").$Enums.IncidentStatus;
         incidentType: string;
-        severity: import("@prisma/client").$Enums.IncidentSeverity;
+        severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
         correctiveAction: string | null;
         reportedById: string | null;
     }>;
-    create(dto: CreateSafetyIncidentDto): import("@prisma/client").Prisma.Prisma__SafetyIncidentClient<{
+    create(dto: CreateSafetyIncidentDto): import(".prisma/client").Prisma.Prisma__SafetyIncidentClient<{
         reportedBy: {
             id: string;
             firstName: string;
@@ -53,16 +53,16 @@ export declare class IncidentsController {
         location: string;
         id: string;
         companyId: string;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
-        status: import("@prisma/client").$Enums.IncidentStatus;
+        status: import(".prisma/client").$Enums.IncidentStatus;
         incidentType: string;
-        severity: import("@prisma/client").$Enums.IncidentSeverity;
+        severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
         correctiveAction: string | null;
         reportedById: string | null;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     updateStatus(id: string, dto: UpdateSafetyIncidentStatusDto): Promise<{
         reportedBy: {
             id: string;
@@ -73,12 +73,12 @@ export declare class IncidentsController {
         location: string;
         id: string;
         companyId: string;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
-        status: import("@prisma/client").$Enums.IncidentStatus;
+        status: import(".prisma/client").$Enums.IncidentStatus;
         incidentType: string;
-        severity: import("@prisma/client").$Enums.IncidentSeverity;
+        severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
         correctiveAction: string | null;
         reportedById: string | null;

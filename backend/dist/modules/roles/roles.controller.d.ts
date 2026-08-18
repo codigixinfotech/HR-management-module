@@ -4,14 +4,14 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 export declare class RolesController {
     private readonly rolesService;
     constructor(rolesService: RolesService);
-    list(): import("@prisma/client").Prisma.PrismaPromise<({
+    list(): import(".prisma/client").Prisma.PrismaPromise<({
         permissions: ({
             permission: {
                 id: string;
                 description: string | null;
+                code: string;
                 module: string;
                 action: string;
-                code: string;
             };
         } & {
             id: string;
@@ -21,27 +21,27 @@ export declare class RolesController {
     } & {
         id: string;
         companyId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
         description: string | null;
         isSystem: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     })[]>;
-    listPermissions(): import("@prisma/client").Prisma.PrismaPromise<{
+    listPermissions(): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
         description: string | null;
+        code: string;
         module: string;
         action: string;
-        code: string;
     }[]>;
     findOne(id: string): Promise<{
         permissions: ({
             permission: {
                 id: string;
                 description: string | null;
+                code: string;
                 module: string;
                 action: string;
-                code: string;
             };
         } & {
             id: string;
@@ -51,20 +51,20 @@ export declare class RolesController {
     } & {
         id: string;
         companyId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
         description: string | null;
         isSystem: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     create(dto: CreateRoleDto): Promise<{
         permissions: ({
             permission: {
                 id: string;
                 description: string | null;
+                code: string;
                 module: string;
                 action: string;
-                code: string;
             };
         } & {
             id: string;
@@ -74,20 +74,20 @@ export declare class RolesController {
     } & {
         id: string;
         companyId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
         description: string | null;
         isSystem: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     update(id: string, dto: UpdateRoleDto): Promise<{
         permissions: ({
             permission: {
                 id: string;
                 description: string | null;
+                code: string;
                 module: string;
                 action: string;
-                code: string;
             };
         } & {
             id: string;
@@ -97,11 +97,11 @@ export declare class RolesController {
     } & {
         id: string;
         companyId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
         description: string | null;
         isSystem: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     remove(id: string): Promise<{
         success: boolean;

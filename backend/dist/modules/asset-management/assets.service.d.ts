@@ -4,7 +4,7 @@ export declare class AssetsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     private readonly listInclude;
-    list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<({
+    list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         currentEmployee: {
             id: string;
             employeeCode: string;
@@ -14,11 +14,11 @@ export declare class AssetsService {
     } & {
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         category: string;
-        status: import("@prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -53,11 +53,11 @@ export declare class AssetsService {
     } & {
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         category: string;
-        status: import("@prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -75,11 +75,11 @@ export declare class AssetsService {
     } & {
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         category: string;
-        status: import("@prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -97,11 +97,11 @@ export declare class AssetsService {
     } & {
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         category: string;
-        status: import("@prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -122,11 +122,11 @@ export declare class AssetsService {
     } & {
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         category: string;
-        status: import("@prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -144,11 +144,11 @@ export declare class AssetsService {
     } & {
         id: string;
         companyId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         category: string;
-        status: import("@prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;

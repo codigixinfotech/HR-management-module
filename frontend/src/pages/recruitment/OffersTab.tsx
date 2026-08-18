@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   FileSignature,
@@ -8,6 +10,7 @@ import {
   Mail,
   UserCheck,
   TrendingUp,
+  Sparkles,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,9 +20,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { Badge } from '@/components/ui/badge';
+import { jobOpeningsApi, candidatesApi } from '@/api/recruitment';
+import type { CandidateStage } from '@/api/types';
 
 interface OfferItem {
   id: string;
+  candidateId?: string;
   candidate: string;
   role: string;
   ctc: string;
@@ -29,30 +36,85 @@ interface OfferItem {
 }
 
 const INITIAL_OFFERS: OfferItem[] = [
-  { id: 'OFR-701', candidate: 'Siddharth Rao', role: 'Senior React Architect', ctc: '₹22,0,000 / yr', releaseDate: '04 Aug 2026', expiryDate: '11 Aug 2026', status: 'ACCEPTED' },
+  { id: 'OFR-701', candidate: 'Siddharth Rao', role: 'Senior React Architect', ctc: '₹22,00,000 / yr', releaseDate: '04 Aug 2026', expiryDate: '11 Aug 2026', status: 'ACCEPTED' },
   { id: 'OFR-702', candidate: 'Neha Gupta', role: 'DevOps & Kubernetes Engineer', ctc: '₹16,50,000 / yr', releaseDate: '05 Aug 2026', expiryDate: '12 Aug 2026', status: 'PENDING_SIGNATURE' },
-  { id: 'OFR-703', candidate: 'Vikramaditya Singh', role: 'Product Design Manager', ctc: '₹18,0,000 / yr', releaseDate: '01 Aug 2026', expiryDate: '08 Aug 2026', status: 'ACCEPTED' },
-  { id: 'OFR-704', candidate: 'Kabir Mehta', role: 'Staff Node.js Engineer', ctc: '₹24,0,000 / yr', releaseDate: '05 Aug 2026', expiryDate: '12 Aug 2026', status: 'PENDING_SIGNATURE' },
-  { id: 'OFR-705', candidate: 'Pooja Sharma', role: 'Lead Data Analyst', ctc: '₹12,0,000 / yr', releaseDate: '25 Jul 2026', expiryDate: '01 Aug 2026', status: 'DECLINED' },
+  { id: 'OFR-703', candidate: 'Vikramaditya Singh', role: 'Product Design Manager', ctc: '₹18,00,000 / yr', releaseDate: '01 Aug 2026', expiryDate: '08 Aug 2026', status: 'ACCEPTED' },
 ];
 
 export function OffersTab() {
-  const [offers, setOffers] = useState<OfferItem[]>(INITIAL_OFFERS);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [localOffers, setLocalOffers] = useState<OfferItem[]>(INITIAL_OFFERS);
+
+  // Fetch real Job Openings & candidates from DB
+  const { data: openings = [] } = useQuery({
+    queryKey: ['job-openings'],
+    queryFn: () => jobOpeningsApi.list(),
+  });
+
+  // Dynamically map DB candidates in OFFERED / HIRED stage
+  const dbOfferedCandidates = useMemo(() => {
+    const list: OfferItem[] = [];
+    openings.forEach((job) => {
+      if (job.candidates && job.candidates.length > 0) {
+        job.candidates.forEach((c) => {
+          if (c.stage === 'OFFERED' || c.stage === 'HIRED') {
+            const formattedCtc = c.expectedCtc
+              ? `₹${(c.expectedCtc).toLocaleString()} / yr`
+              : '₹24,00,000 / yr';
+            list.push({
+              id: `OFR-${c.id.substring(0, 6).toUpperCase()}`,
+              candidateId: c.id,
+              candidate: `${c.firstName} ${c.lastName}`,
+              role: job.title,
+              ctc: formattedCtc,
+              releaseDate: '17 Aug 2026',
+              expiryDate: '24 Aug 2026',
+              status: c.stage === 'HIRED' ? 'ACCEPTED' : 'PENDING_SIGNATURE',
+            });
+          }
+        });
+      }
+    });
+    return list;
+  }, [openings]);
+
+  // Combine DB candidates with local static state
+  const allOffers = useMemo(() => {
+    const combined = [...dbOfferedCandidates];
+    localOffers.forEach((loc) => {
+      if (!combined.some((item) => item.candidateId && item.candidateId === loc.candidateId)) {
+        combined.push(loc);
+      }
+    });
+    return combined;
+  }, [dbOfferedCandidates, localOffers]);
+
+  // Stage Mutation for Triggering Onboarding -> HIRED
+  const updateStageMutation = useMutation({
+    mutationFn: ({ id, stage }: { id: string; stage: CandidateStage }) =>
+      candidatesApi.updateStage(id, stage),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? 'Failed to update stage'),
+  });
 
   // Modal State
   const [isOpen, setIsOpen] = useState(false);
   const [formCandidate, setFormCandidate] = useState('');
-  const [formRole, setFormRole] = useState('Senior React Architect');
-  const [formCtc, setFormCtc] = useState('₹18,00,000 / yr');
-  const [formExpiry, setFormExpiry] = useState('12 Aug 2026');
+  const [formRole, setFormRole] = useState('Chief Technology Officer');
+  const [formCtc, setFormCtc] = useState('₹24,00,000 / yr');
+  const [formExpiry, setFormExpiry] = useState('24 Aug 2026');
 
   const openAddModal = () => {
     setFormCandidate('');
-    setFormRole('Senior React Architect');
-    setFormCtc('₹18,00,000 / yr');
-    setFormExpiry('12 Aug 2026');
+    setFormRole('Chief Technology Officer');
+    setFormCtc('₹24,00,000 / yr');
+    setFormExpiry('24 Aug 2026');
     setIsOpen(true);
   };
 
@@ -64,17 +126,17 @@ export function OffersTab() {
     }
 
     const newOffer: OfferItem = {
-      id: `OFR-70${offers.length + 1}`,
+      id: `OFR-${Math.floor(700 + Math.random() * 99)}`,
       candidate: formCandidate,
       role: formRole,
       ctc: formCtc,
-      releaseDate: '05 Aug 2026',
+      releaseDate: '17 Aug 2026',
       expiryDate: formExpiry,
       status: 'PENDING_SIGNATURE',
     };
 
-    setOffers(prev => [...prev, newOffer]);
-    toast.success('Offer letter released and emailed successfully');
+    setLocalOffers((prev) => [...prev, newOffer]);
+    toast.success('Offer letter released and emailed to candidate successfully!');
     setIsOpen(false);
   };
 
@@ -82,20 +144,28 @@ export function OffersTab() {
     toast.success(`Resent digital signature invitation link to ${candidate}`);
   };
 
-  const handleTriggerOnboarding = (candidate: string) => {
-    toast.success(`Onboarding checklist created. Welcome email triggered to ${candidate}!`);
+  const handleTriggerOnboarding = (item: OfferItem) => {
+    if (item.candidateId) {
+      updateStageMutation.mutate({ id: item.candidateId, stage: 'HIRED' });
+    }
+    toast.success(
+      `Onboarding initiated for ${item.candidate}! Navigating to Employee Directory...`,
+    );
+    navigate('/employees/directory');
   };
 
   const filteredOffers = useMemo(() => {
-    return offers.filter(o => {
+    return allOffers.filter((o) => {
       const matchesSearch =
         o.candidate.toLowerCase().includes(searchQuery.toLowerCase()) ||
         o.role.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus =
-        selectedStatus === 'all' ? true : o.status.toLowerCase() === selectedStatus.toLowerCase();
+        selectedStatus === 'all'
+          ? true
+          : o.status.toLowerCase() === selectedStatus.toLowerCase();
       return matchesSearch && matchesStatus;
     });
-  }, [offers, searchQuery, selectedStatus]);
+  }, [allOffers, searchQuery, selectedStatus]);
 
   return (
     <div className="space-y-6">
@@ -105,8 +175,10 @@ export function OffersTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Offers Released</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">{offers.length} Released</p>
-              <p className="text-[10px] text-primary font-semibold mt-1">Pending approval: 2</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{allOffers.length} Released</p>
+              <p className="text-[10px] text-primary font-semibold mt-1">
+                Auto-generated from Interviews
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
               <FileSignature className="h-5 w-5" />
@@ -118,8 +190,8 @@ export function OffersTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Offers Accepted</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">
-                {offers.filter(o => o.status === 'ACCEPTED').length} Candidates
+              <p className="text-2xl font-semibold text-foreground mt-0.5">
+                {allOffers.filter((o) => o.status === 'ACCEPTED').length} Candidates
               </p>
               <p className="text-[10px] text-emerald-600 font-semibold mt-1">Onboarding initiated</p>
             </div>
@@ -133,8 +205,8 @@ export function OffersTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Awaiting Signature</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">
-                {offers.filter(o => o.status === 'PENDING_SIGNATURE').length} Pending
+              <p className="text-2xl font-semibold text-foreground mt-0.5">
+                {allOffers.filter((o) => o.status === 'PENDING_SIGNATURE').length} Pending
               </p>
               <p className="text-[10px] text-rose-600 font-semibold mt-1">Docusign links active</p>
             </div>
@@ -148,8 +220,8 @@ export function OffersTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Acceptance Rate</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">80%</p>
-              <p className="text-[10px] text-violet-600 font-semibold mt-1">Declined/Expired: 1</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">85%</p>
+              <p className="text-[10px] text-violet-600 font-semibold mt-1">Offer-to-Join Ratio</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
               <TrendingUp className="h-5 w-5" />
@@ -167,7 +239,7 @@ export function OffersTab() {
                 <FileSignature className="h-4 w-4 text-primary" /> Offer & Onboarding Tracker
               </CardTitle>
               <CardDescription className="text-xs">
-                Manage candidate CTC packaging structures, Docusign electronic signature statuses, and transition triggers to the Employee Directory
+                Auto-generated offers for selected candidates linked to Job Requisitions (e.g. JR-2026-001)
               </CardDescription>
             </div>
 
@@ -179,14 +251,15 @@ export function OffersTab() {
                   { id: 'accepted', label: 'Accepted' },
                   { id: 'pending_signature', label: 'Pending' },
                   { id: 'declined', label: 'Declined' },
-                ].map(status => (
+                ].map((status) => (
                   <button
                     key={status.id}
                     onClick={() => setSelectedStatus(status.id)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${selectedStatus === status.id
-                      ? 'bg-background text-foreground shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${
+                      selectedStatus === status.id
+                        ? 'bg-background text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
                   >
                     {status.label}
                   </button>
@@ -200,7 +273,7 @@ export function OffersTab() {
                   type="text"
                   placeholder="Filter candidate or role..."
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-8 pl-8 text-xs bg-background"
                 />
               </div>
@@ -222,30 +295,25 @@ export function OffersTab() {
                       <Input
                         placeholder="e.g. Siddharth Rao"
                         value={formCandidate}
-                        onChange={e => setFormCandidate(e.target.value)}
+                        onChange={(e) => setFormCandidate(e.target.value)}
                         className="h-9 text-xs"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Offered Role</Label>
-                        <Select value={formRole} onValueChange={setFormRole}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Senior React Architect" className="text-xs">Senior React Architect</SelectItem>
-                            <SelectItem value="DevOps & Kubernetes Engineer" className="text-xs">DevOps Engineer</SelectItem>
-                            <SelectItem value="Product Design Manager" className="text-xs">Product Designer</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          value={formRole}
+                          onChange={(e) => setFormRole(e.target.value)}
+                          className="h-9 text-xs"
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Offered Salary (CTC)</Label>
                         <Input
-                          placeholder="e.g. ₹18,00,000 / yr"
+                          placeholder="e.g. ₹24,00,000 / yr"
                           value={formCtc}
-                          onChange={e => setFormCtc(e.target.value)}
+                          onChange={(e) => setFormCtc(e.target.value)}
                           className="h-9 text-xs font-mono"
                         />
                       </div>
@@ -253,14 +321,14 @@ export function OffersTab() {
                     <div className="space-y-1.5">
                       <Label className="text-xs">Offer Expiry Date</Label>
                       <Input
-                        placeholder="e.g. 12 Aug 2026"
+                        placeholder="e.g. 24 Aug 2026"
                         value={formExpiry}
-                        onChange={e => setFormExpiry(e.target.value)}
+                        onChange={(e) => setFormExpiry(e.target.value)}
                         className="h-9 text-xs font-mono"
                       />
                     </div>
                     <DialogFooter>
-                      <Button type="submit" size="sm" className="text-xs">
+                      <Button type="submit" size="sm" className="text-xs font-semibold">
                         Publish & Email Offer
                       </Button>
                     </DialogFooter>
@@ -285,7 +353,7 @@ export function OffersTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOffers.map(o => (
+              {filteredOffers.map((o) => (
                 <TableRow key={o.id} className="hover:bg-muted/40 transition-colors">
                   <TableCell className="font-mono text-xs font-semibold text-primary">{o.id}</TableCell>
                   <TableCell className="font-semibold text-xs text-foreground">{o.candidate}</TableCell>
@@ -302,20 +370,40 @@ export function OffersTab() {
                         variant="outline"
                         size="sm"
                         className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-semibold"
-                        onClick={() => handleTriggerOnboarding(o.candidate)}
+                        onClick={() => handleTriggerOnboarding(o)}
                       >
                         Trigger Onboarding
                       </Button>
                     ) : o.status === 'PENDING_SIGNATURE' ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-primary hover:text-foreground hover:bg-primary/10"
-                        onClick={() => handleResendMail(o.candidate)}
-                        title="Resend Signature Mail"
-                      >
-                        <Mail className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-300 hover:bg-emerald-50 font-semibold"
+                          onClick={() => {
+                            setLocalOffers((prev) =>
+                              prev.map((item) =>
+                                item.id === o.id ? { ...item, status: 'ACCEPTED' } : item,
+                              ),
+                            );
+                            if (o.candidateId) {
+                              updateStageMutation.mutate({ id: o.candidateId, stage: 'HIRED' });
+                            }
+                            toast.success(`Candidate ${o.candidate} ACCEPTED the offer!`);
+                          }}
+                        >
+                          Mark Accepted
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-primary hover:text-foreground hover:bg-primary/10"
+                          onClick={() => handleResendMail(o.candidate)}
+                          title="Resend Signature Mail"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     ) : null}
                   </TableCell>
                 </TableRow>

@@ -298,6 +298,8 @@ model Company {
   costCenters CostCenter[]
   payGrades   PayGrade[]
   hrPolicies  HrPolicy[]
+  manpowerPlans ManpowerPlan[]
+  manpowerRequisitions ManpowerRequisition[]
 
   @@map("companies")
 }
@@ -394,6 +396,8 @@ model Department {
   jobOpenings      JobOpening[]
   costCenters      CostCenter[]
   payGrades        PayGrade[]
+  manpowerPlans    ManpowerPlan[]
+  manpowerRequisitions ManpowerRequisition[]
 
   @@unique([companyId, code])
   @@index([branchId])
@@ -424,6 +428,7 @@ model Designation {
   subDesignations      Designation[] @relation("DesignationHierarchy")
   employees            Employee[]
   jobOpenings          JobOpening[]
+  manpowerPlans        ManpowerPlan[]
 
   @@unique([companyId, code])
   @@index([departmentId])
@@ -783,44 +788,146 @@ model EmployeeOnboardingTask {
 // ---------------------------------------------------------------------------
 
 model JobOpening {
-  id            String   @id @default(cuid())
-  companyId     String
-  departmentId  String?
-  designationId String?
-  title         String
-  description   String?  @db.Text
-  numPositions  Int      @default(1)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  companyId             String
+  departmentId          String?
+  designationId         String?
+  manpowerRequisitionId String?  @unique
+  requisitionCode       String?
+  manpowerPlanCode      String?
+  mrNumber              String?
+  title                 String
+  description           String?  @db.Text
+  responsibilities      String?  @db.Text
+  numPositions          Int      @default(1)
+  costCenter            String?
+  employmentType        String?  @default("FULL_TIME")
+  priority              String?  @default("NORMAL")
+  minSalary             Float?
+  maxSalary             Float?
+  qualification         String?
+  experience            String?
+  requiredSkills        String?
+  workLocation          String?
+  reportingManagerId    String?
+  applicationDeadline   DateTime?
+  status                String   @default("DRAFT") // DRAFT, READY_TO_PUBLISH, PUBLISHED, CLOSED
+  publishedAt           DateTime?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  department  Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  designation Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
-  candidates  Candidate[]
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department          Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation         Designation?         @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  manpowerRequisition ManpowerRequisition? @relation(fields: [manpowerRequisitionId], references: [id], onDelete: SetNull)
+  candidates          Candidate[]
 
   @@index([companyId])
   @@map("job_openings")
 }
 
 model Candidate {
-  id           String         @id @default(cuid())
-  jobOpeningId String
-  firstName    String
-  lastName     String
-  email        String
-  phone        String?
-  resumePath   String?
-  stage        CandidateStage @default(APPLIED)
-  aiMatchScore Float?
-  notes        String?        @db.Text
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id              String         @id @default(cuid())
+  jobOpeningId    String
+  firstName       String
+  lastName        String
+  email           String
+  phone           String?
+  resumePath      String?        @db.Text
+  qualification   String?
+  experience      String?
+  currentCompany  String?
+  currentLocation String?
+  skills          String?
+  expectedCtc     Float?
+  noticePeriod    String?
+  coverLetter     String?        @db.Text
+  source          String?        @default("CAREERS_PORTAL")
+  stage           CandidateStage @default(APPLIED)
+  aiMatchScore    Float?
+  notes           String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   jobOpening JobOpening @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
 
   @@index([jobOpeningId])
   @@map("candidates")
+}
+
+model ManpowerPlan {
+  id             String   @id @default(cuid())
+  code           String?
+  companyId      String?
+  departmentId   String?
+  designationId  String?
+  departmentName String
+  costCenter     String
+  role           String
+  budgeted       Int
+  active         Int      @default(0)
+  plannedHires   Int      @default(0)
+  quarter        String
+  reason         String   @db.Text
+  mrRaisedHires  Int      @default(0)
+  status         String   @default("UNDER-STAFFED") // UNDER-STAFFED, CAP-REACHED, ON-TRACK
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company      Company?              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department   Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation  Designation?          @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  requisitions ManpowerRequisition[]
+
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([designationId])
+  @@map("manpower_plans")
+}
+
+model ManpowerRequisition {
+  id                 String   @id @default(cuid())
+  mrNumber           String   @unique
+  manpowerPlanId     String?
+  companyId          String?
+  departmentId       String?
+  departmentName     String
+  costCenter         String
+  designationId      String?
+  role               String
+  numOpenings        Int
+  joiningDate        DateTime
+  employmentType     String   @default("FULL_TIME") // FULL_TIME, PART_TIME, CONTRACT, INTERN
+  priority           String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  minSalary          Float?
+  maxSalary          Float?
+  qualification      String
+  experience         String
+  requiredSkills     String?
+  workLocation       String
+  reportingManagerId String?
+  requestorName      String   @default("HR Admin")
+  requestDate        DateTime @default(now())
+  reason             String   @db.Text
+  comments           String?  @db.Text
+  status             String   @default("PENDING_APPROVAL") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED
+  rejectionReason    String?  @db.Text
+  approvedBy         String?
+  approvedAt         DateTime?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  manpowerPlan ManpowerPlan? @relation(fields: [manpowerPlanId], references: [id], onDelete: SetNull)
+  jobOpening   JobOpening?
+
+  @@index([companyId])
+  @@index([manpowerPlanId])
+  @@map("manpower_requisitions")
 }
 
 // ---------------------------------------------------------------------------

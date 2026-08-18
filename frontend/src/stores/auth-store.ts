@@ -1,11 +1,26 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface AuthUserEmployee {
+  id: string;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  designationId: string | null;
+  designationTitle: string | null;
+}
+
 export interface AuthUser {
   userId: string;
   email: string;
   companyId: string | null;
   permissions: string[];
+  roles?: string[];
+  primaryRole?: string;
+  employee?: AuthUserEmployee | null;
 }
 
 interface AuthState {

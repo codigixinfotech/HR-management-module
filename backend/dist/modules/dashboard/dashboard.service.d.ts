@@ -20,7 +20,7 @@ export declare class DashboardService {
             percentage: number;
         }[];
         recruitmentPipeline: {
-            stage: import("@prisma/client").$Enums.CandidateStage;
+            stage: import(".prisma/client").$Enums.CandidateStage;
             count: number;
         }[];
         attendanceToday: {
@@ -51,7 +51,7 @@ export declare class DashboardService {
             latestPayrollRun: {
                 month: number;
                 year: number;
-                status: import("@prisma/client").$Enums.PayrollRunStatus;
+                status: import(".prisma/client").$Enums.PayrollRunStatus;
             } | null;
         };
         modules: readonly [{

@@ -3,7 +3,7 @@ export declare class PayslipsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     private readonly listInclude;
-    list(payrollRunId?: string, employeeId?: string): import("@prisma/client").Prisma.PrismaPromise<({
+    list(payrollRunId?: string, employeeId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employee: {
             id: string;
             employeeCode: string;
@@ -13,7 +13,7 @@ export declare class PayslipsService {
         components: {
             id: string;
             name: string;
-            type: import("@prisma/client").$Enums.SalaryComponentType;
+            type: import(".prisma/client").$Enums.SalaryComponentType;
             salaryComponentId: string | null;
             payslipId: string;
             amount: number;
@@ -40,7 +40,7 @@ export declare class PayslipsService {
         components: {
             id: string;
             name: string;
-            type: import("@prisma/client").$Enums.SalaryComponentType;
+            type: import(".prisma/client").$Enums.SalaryComponentType;
             salaryComponentId: string | null;
             payslipId: string;
             amount: number;

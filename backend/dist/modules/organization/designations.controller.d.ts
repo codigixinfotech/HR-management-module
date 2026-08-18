@@ -3,7 +3,7 @@ import { CreateDesignationDto, UpdateDesignationDto } from './dto/designation.dt
 export declare class DesignationsController {
     private readonly designationsService;
     constructor(designationsService: DesignationsService);
-    list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<({
+    list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         department: {
             id: string;
             name: string;
@@ -15,18 +15,18 @@ export declare class DesignationsController {
     } & {
         id: string;
         companyId: string;
-        isActive: boolean;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
         code: string;
-        effectiveFrom: Date;
-        departmentId: string | null;
-        title: string;
+        isActive: boolean;
+        employmentType: string | null;
         grade: string | null;
+        departmentId: string | null;
+        effectiveFrom: Date;
+        title: string;
         jobFamily: string | null;
         reportingDesignationId: string | null;
-        employmentType: string | null;
         minSalary: number | null;
         maxSalary: number | null;
     })[]>;
@@ -42,54 +42,54 @@ export declare class DesignationsController {
     } & {
         id: string;
         companyId: string;
-        isActive: boolean;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
         code: string;
-        effectiveFrom: Date;
-        departmentId: string | null;
-        title: string;
+        isActive: boolean;
+        employmentType: string | null;
         grade: string | null;
+        departmentId: string | null;
+        effectiveFrom: Date;
+        title: string;
         jobFamily: string | null;
         reportingDesignationId: string | null;
-        employmentType: string | null;
         minSalary: number | null;
         maxSalary: number | null;
     }>;
     create(dto: CreateDesignationDto): Promise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
         code: string;
-        effectiveFrom: Date;
-        departmentId: string | null;
-        title: string;
+        isActive: boolean;
+        employmentType: string | null;
         grade: string | null;
+        departmentId: string | null;
+        effectiveFrom: Date;
+        title: string;
         jobFamily: string | null;
         reportingDesignationId: string | null;
-        employmentType: string | null;
         minSalary: number | null;
         maxSalary: number | null;
     }>;
     update(id: string, dto: UpdateDesignationDto): Promise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
         code: string;
-        effectiveFrom: Date;
-        departmentId: string | null;
-        title: string;
+        isActive: boolean;
+        employmentType: string | null;
         grade: string | null;
+        departmentId: string | null;
+        effectiveFrom: Date;
+        title: string;
         jobFamily: string | null;
         reportingDesignationId: string | null;
-        employmentType: string | null;
         minSalary: number | null;
         maxSalary: number | null;
     }>;

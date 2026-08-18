@@ -12,14 +12,33 @@ const job_openings_controller_1 = require("./job-openings.controller");
 const job_openings_service_1 = require("./job-openings.service");
 const candidates_controller_1 = require("./candidates.controller");
 const candidates_service_1 = require("./candidates.service");
+const manpower_plans_controller_1 = require("./manpower-plans.controller");
+const manpower_plans_service_1 = require("./manpower-plans.service");
+const manpower_requisitions_controller_1 = require("./manpower-requisitions.controller");
+const manpower_requisitions_service_1 = require("./manpower-requisitions.service");
 let RecruitmentModule = class RecruitmentModule {
 };
 exports.RecruitmentModule = RecruitmentModule;
 exports.RecruitmentModule = RecruitmentModule = __decorate([
     (0, common_1.Module)({
-        controllers: [job_openings_controller_1.JobOpeningsController, candidates_controller_1.CandidatesController],
-        providers: [job_openings_service_1.JobOpeningsService, candidates_service_1.CandidatesService],
-        exports: [job_openings_service_1.JobOpeningsService, candidates_service_1.CandidatesService],
+        controllers: [
+            job_openings_controller_1.JobOpeningsController,
+            candidates_controller_1.CandidatesController,
+            manpower_plans_controller_1.ManpowerPlansController,
+            manpower_requisitions_controller_1.ManpowerRequisitionsController,
+        ],
+        providers: [
+            job_openings_service_1.JobOpeningsService,
+            candidates_service_1.CandidatesService,
+            manpower_plans_service_1.ManpowerPlansService,
+            manpower_requisitions_service_1.ManpowerRequisitionsService,
+        ],
+        exports: [
+            job_openings_service_1.JobOpeningsService,
+            candidates_service_1.CandidatesService,
+            manpower_plans_service_1.ManpowerPlansService,
+            manpower_requisitions_service_1.ManpowerRequisitionsService,
+        ],
     })
 ], RecruitmentModule);
 //# sourceMappingURL=recruitment.module.js.map

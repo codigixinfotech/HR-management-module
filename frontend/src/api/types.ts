@@ -267,14 +267,35 @@ export interface JobOpening {
   companyId: string;
   departmentId?: string | null;
   designationId?: string | null;
+  manpowerRequisitionId?: string | null;
+  requisitionCode?: string | null;
+  manpowerPlanCode?: string | null;
+  mrNumber?: string | null;
   title: string;
   description?: string | null;
+  responsibilities?: string | null;
   numPositions: number;
+  costCenter?: string | null;
+  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN' | null;
+  priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' | null;
+  minSalary?: number | null;
+  maxSalary?: number | null;
+  qualification?: string | null;
+  experience?: string | null;
+  requiredSkills?: string | null;
+  workLocation?: string | null;
+  reportingManagerId?: string | null;
+  applicationDeadline?: string | null;
+  status: 'DRAFT' | 'READY_TO_PUBLISH' | 'PUBLISHED' | 'CLOSED';
+  publishedAt?: string | null;
   isActive: boolean;
   department?: { id: string; name: string } | null;
   designation?: { id: string; title: string } | null;
+  manpowerRequisition?: ManpowerRequisition | null;
   candidates?: Candidate[];
   _count?: { candidates: number };
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Candidate {
@@ -284,9 +305,22 @@ export interface Candidate {
   lastName: string;
   email: string;
   phone?: string | null;
+  resumePath?: string | null;
+  qualification?: string | null;
+  experience?: string | null;
+  currentCompany?: string | null;
+  currentLocation?: string | null;
+  skills?: string | null;
+  expectedCtc?: number | null;
+  noticePeriod?: string | null;
+  coverLetter?: string | null;
+  source?: string | null;
   stage: CandidateStage;
+  aiMatchScore?: number | null;
   notes?: string | null;
   createdAt: string;
+  updatedAt?: string;
+  jobOpening?: JobOpening;
 }
 
 export interface PaginatedResult<T> {
@@ -632,3 +666,58 @@ export interface SafetyAudit {
   auditor: string;
   findings?: string | null;
 }
+
+export interface ManpowerPlan {
+  id: string;
+  code?: string | null;
+  companyId?: string | null;
+  departmentId?: string | null;
+  designationId?: string | null;
+  departmentName: string;
+  costCenter: string;
+  role: string;
+  budgeted: number;
+  active: number;
+  plannedHires: number;
+  quarter: string;
+  reason: string;
+  status: 'UNDER-STAFFED' | 'CAP-REACHED' | 'ON-TRACK';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ManpowerRequisition {
+  id: string;
+  mrNumber: string;
+  manpowerPlanId?: string | null;
+  companyId?: string | null;
+  departmentId?: string | null;
+  departmentName: string;
+  costCenter: string;
+  designationId?: string | null;
+  role: string;
+  numOpenings: number;
+  joiningDate: string;
+  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
+  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  minSalary?: number | null;
+  maxSalary?: number | null;
+  qualification: string;
+  experience: string;
+  requiredSkills?: string | null;
+  workLocation: string;
+  reportingManagerId?: string | null;
+  requestorName: string;
+  requestDate: string;
+  reason: string;
+  comments?: string | null;
+  status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  rejectionReason?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+

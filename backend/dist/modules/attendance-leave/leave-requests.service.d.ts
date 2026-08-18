@@ -32,13 +32,13 @@ export declare class LeaveRequestsService {
             companyId: string;
             createdAt: Date;
             updatedAt: Date;
-            status: import("@prisma/client").$Enums.ApprovalStatus;
+            status: import(".prisma/client").$Enums.ApprovalStatus;
             employeeId: string;
+            reason: string | null;
             leaveTypeId: string;
             startDate: Date;
             endDate: Date;
             totalDays: number;
-            reason: string | null;
             approverId: string | null;
             approverRemarks: string | null;
             decidedAt: Date | null;
@@ -70,18 +70,18 @@ export declare class LeaveRequestsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.ApprovalStatus;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
         employeeId: string;
+        reason: string | null;
         leaveTypeId: string;
         startDate: Date;
         endDate: Date;
         totalDays: number;
-        reason: string | null;
         approverId: string | null;
         approverRemarks: string | null;
         decidedAt: Date | null;
     }>;
-    create(dto: CreateLeaveRequestDto): import("@prisma/client").Prisma.Prisma__LeaveRequestClient<{
+    create(dto: CreateLeaveRequestDto): import(".prisma/client").Prisma.Prisma__LeaveRequestClient<{
         employee: {
             id: string;
             employeeCode: string;
@@ -104,17 +104,17 @@ export declare class LeaveRequestsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.ApprovalStatus;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
         employeeId: string;
+        reason: string | null;
         leaveTypeId: string;
         startDate: Date;
         endDate: Date;
         totalDays: number;
-        reason: string | null;
         approverId: string | null;
         approverRemarks: string | null;
         decidedAt: Date | null;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     updateStatus(id: string, dto: UpdateLeaveStatusDto): Promise<{
         employee: {
             id: string;
@@ -138,13 +138,13 @@ export declare class LeaveRequestsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.ApprovalStatus;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
         employeeId: string;
+        reason: string | null;
         leaveTypeId: string;
         startDate: Date;
         endDate: Date;
         totalDays: number;
-        reason: string | null;
         approverId: string | null;
         approverRemarks: string | null;
         decidedAt: Date | null;

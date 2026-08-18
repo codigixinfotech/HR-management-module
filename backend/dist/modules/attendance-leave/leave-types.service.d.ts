@@ -3,14 +3,14 @@ import { CreateLeaveTypeDto, UpdateLeaveTypeDto } from './dto/leave-type.dto';
 export declare class LeaveTypesService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    list(companyId?: string): import("@prisma/client").Prisma.PrismaPromise<{
+    list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        isActive: boolean;
         isPaid: boolean;
         annualQuota: number;
         carryForward: boolean;
@@ -18,11 +18,11 @@ export declare class LeaveTypesService {
     findById(id: string): Promise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        isActive: boolean;
         isPaid: boolean;
         annualQuota: number;
         carryForward: boolean;
@@ -30,11 +30,11 @@ export declare class LeaveTypesService {
     create(dto: CreateLeaveTypeDto): Promise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        isActive: boolean;
         isPaid: boolean;
         annualQuota: number;
         carryForward: boolean;
@@ -42,11 +42,11 @@ export declare class LeaveTypesService {
     update(id: string, dto: UpdateLeaveTypeDto): Promise<{
         id: string;
         companyId: string;
-        isActive: boolean;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        isActive: boolean;
         isPaid: boolean;
         annualQuota: number;
         carryForward: boolean;
