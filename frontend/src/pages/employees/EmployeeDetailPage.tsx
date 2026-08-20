@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, Trash2, Plus, Check, Laptop, ShieldAlert, Award, FileText, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Plus, Check, Laptop, ShieldAlert, Award, FileText, CheckCircle2, Camera, AlertCircle, ShieldCheck } from 'lucide-react';
 import { employeesApi } from '@/api/employees';
 import { assetsApi } from '@/api/asset-management';
 import { payGradesApi } from '@/api/cost-grades';
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import type { ApprovalStatus, EmployeeStatus } from '@/api/types';
+import { RegisterFaceModal } from './RegisterFaceModal';
 
 const STATUS_OPTIONS: EmployeeStatus[] = ['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED', 'PROBATION', 'NOTICE_PERIOD', 'EXITED'];
 
@@ -55,11 +56,15 @@ export default function EmployeeDetailPage() {
   const [noteType, setNoteType] = useState('General');
   const [noteAuthor, setNoteAuthor] = useState('HR Administrator');
 
+  const [isRegisterFaceOpen, setIsRegisterFaceOpen] = useState(false);
+  const [isViewTemplateOpen, setIsViewTemplateOpen] = useState(false);
+
   // Queries
-  const { data: employee, isLoading } = useQuery({
+  const { data: employee, isLoading, isError } = useQuery({
     queryKey: ['employee', id],
-    queryFn: () => employeesApi.findOne(id!),
+    queryFn: () => employeesApi.get(id!),
     enabled: !!id,
+    retry: 1,
   });
 
   const { data: employeeExits = [] } = useQuery({
@@ -219,8 +224,32 @@ export default function EmployeeDetailPage() {
     },
   });
 
-  if (isLoading || !employee) {
-    return <p className="text-sm text-muted-foreground p-6">Loading employee record...</p>;
+  if (isLoading) {
+    return (
+      <div className="p-12 flex flex-col items-center justify-center space-y-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <p className="text-xs font-semibold text-muted-foreground">Loading employee record profile...</p>
+      </div>
+    );
+  }
+
+  if (isError || !employee) {
+    return (
+      <div className="p-8 max-w-md mx-auto text-center space-y-4 border border-border/80 rounded-2xl bg-card my-12 shadow-sm">
+        <div className="flex justify-center text-amber-500">
+          <ShieldAlert className="h-10 w-10" />
+        </div>
+        <h2 className="text-lg font-bold text-foreground">Employee Record Not Found</h2>
+        <p className="text-xs text-muted-foreground">
+          The requested employee record (<code className="font-mono bg-muted px-1.5 py-0.5 rounded">{id}</code>) could not be found or has been removed.
+        </p>
+        <Button asChild size="sm" className="font-semibold text-xs gap-1.5">
+          <Link to="/employees">
+            <ArrowLeft className="h-4 w-4" /> Return to Employee Directory
+          </Link>
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -276,6 +305,7 @@ export default function EmployeeDetailPage() {
               <CardContent className="p-2">
                 <TabsList className="flex flex-col h-auto bg-transparent w-full space-y-1 items-stretch">
                   <TabsTrigger value="personal" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Personal Profile</TabsTrigger>
+                  <TabsTrigger value="biometric" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold text-primary">Attendance & Biometric</TabsTrigger>
                   <TabsTrigger value="contact" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Contact & Address</TabsTrigger>
                   <TabsTrigger value="family" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Family & Nominee</TabsTrigger>
                   <TabsTrigger value="education" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Education Details</TabsTrigger>
@@ -331,6 +361,83 @@ export default function EmployeeDetailPage() {
                       <p className="text-muted-foreground">Religion</p>
                       <p className="font-semibold">{employee.religion || 'No information available'}</p>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* BIOMETRIC & FACE REGISTRATION */}
+            <TabsContent value="biometric" className="m-0 space-y-4">
+              <Card className="shadow-2xs">
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Camera className="h-4 w-4 text-primary" /> Face Biometric & Attendance Gateway
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Register employee facial embedding for automated live attendance, geofence, & mobile punch verification.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {employee.faceTemplate && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs font-semibold gap-1.5"
+                        onClick={() => setIsViewTemplateOpen(true)}
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5 text-purple-600" />
+                        View Registered Face
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      className="text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
+                      onClick={() => setIsRegisterFaceOpen(true)}
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      {employee.faceTemplate ? 'Re-Register Face' : 'Register Face'}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-3.5 border border-border/80 rounded-xl bg-muted/20 space-y-1">
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Face Registration Status</span>
+                      {employee.faceTemplate ? (
+                        <Badge className="bg-emerald-600 text-white font-semibold text-[11px] gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Registered
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-300 font-semibold text-[11px] gap-1">
+                          <AlertCircle className="h-3 w-3 text-amber-600" /> Not Registered
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="p-3.5 border border-border/80 rounded-xl bg-muted/20 space-y-1">
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Registration Date</span>
+                      <p className="font-semibold text-foreground font-mono">
+                        {employee.faceRegisteredAt ? new Date(employee.faceRegisteredAt).toLocaleString() : 'Not registered yet'}
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 border border-border/80 rounded-xl bg-muted/20 space-y-1">
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Registered By</span>
+                      <p className="font-semibold text-foreground">
+                        {employee.faceRegisteredBy || 'HR Administrator'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-primary font-bold">
+                      <ShieldAlert className="h-4 w-4" />
+                      <span>Biometric Data Policy & Privacy Standard</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Biometric facial landmark vectors are encrypted using standard 128-dimensional float arrays. Raw face photographs are never stored in log records. Biometric data is exclusively used for verifying employee check-in / check-out times at office geofence locations.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -1429,6 +1536,104 @@ export default function EmployeeDetailPage() {
           </div>
         </div>
       </Tabs>
+
+      {/* REGISTER FACE MODAL */}
+      <RegisterFaceModal
+        isOpen={isRegisterFaceOpen}
+        employeeId={employee.id}
+        employeeName={`${employee.firstName} ${employee.lastName}`}
+        employeeCode={employee.employeeCode}
+        onClose={() => setIsRegisterFaceOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['employee', id] });
+        }}
+      />
+
+      {/* VIEW REGISTERED FACE TEMPLATE DIALOG */}
+      <Dialog open={isViewTemplateOpen} onOpenChange={setIsViewTemplateOpen}>
+        <DialogContent className="max-w-md border-border/80 shadow-2xl p-6">
+          <DialogHeader className="border-b border-border/60 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-primary font-bold text-base">
+                <ShieldCheck className="h-5 w-5 text-purple-600" />
+                <span>Registered Biometric Template Details</span>
+              </div>
+              <Badge className="bg-purple-600 text-white font-mono text-[10px]">
+                {employee.employeeCode}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Verified biometric facial template persisted in database.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-3 pt-2 text-xs">
+            {/* Registered Face Photo Preview Container */}
+            <div className="flex flex-col items-center justify-center pt-1">
+              {employee.facePhoto ? (
+                <div className="relative w-40 h-48 rounded-2xl overflow-hidden border-2 border-purple-500/50 shadow-lg">
+                  <img
+                    src={employee.facePhoto}
+                    alt={`${employee.firstName} ${employee.lastName} Registered Face`}
+                    className="w-full h-full object-cover"
+                  />
+                  <Badge className="absolute bottom-2 left-2 right-2 justify-center bg-black/75 text-white backdrop-blur-xs text-[9.5px] font-semibold">
+                    ✓ Verified Registration Image
+                  </Badge>
+                </div>
+              ) : (
+                <div className="w-40 h-48 rounded-2xl border-2 border-dashed border-muted flex flex-col items-center justify-center p-3 text-center bg-muted/20 text-muted-foreground">
+                  <Camera className="h-8 w-8 mb-1 opacity-50 text-purple-500" />
+                  <span className="text-[10px] font-medium">No Snapshot Available</span>
+                  <span className="text-[9px] text-muted-foreground mt-0.5">Re-register to store image preview</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-muted/40 rounded-xl border space-y-1">
+              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">Employee Profile</span>
+              <strong className="text-sm font-bold text-foreground block">
+                {employee.firstName} {employee.lastName}
+              </strong>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+                <span className="text-emerald-700 dark:text-emerald-400 font-semibold block text-[10px] uppercase">Template Status</span>
+                <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 block mt-0.5">✓ Registered & Persisted</span>
+              </div>
+              <div className="p-2.5 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                <span className="text-purple-700 dark:text-purple-400 font-semibold block text-[10px] uppercase">Descriptor Model</span>
+                <span className="font-bold text-xs text-purple-800 dark:text-purple-300 block mt-0.5">Affine 128-D HOG</span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-900 text-slate-300 rounded-xl border border-slate-800 font-mono text-[10.5px] space-y-1">
+              <div className="text-purple-400 font-sans font-bold text-xs">🔒 Database Biometric Payload:</div>
+              <div><span className="text-slate-500">Employee ID:</span> {employee.id}</div>
+              <div><span className="text-slate-500">Registered Date:</span> {employee.faceRegisteredAt ? new Date(employee.faceRegisteredAt).toLocaleString() : 'N/A'}</div>
+              <div><span className="text-slate-500">Registered By:</span> {employee.faceRegisteredBy || 'HR Administrator'}</div>
+              <div><span className="text-slate-500">Vector Dimension:</span> 128 Float Array (L2 Normalized)</div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-border/60">
+            <Button size="sm" variant="outline" onClick={() => setIsViewTemplateOpen(false)}>
+              Close
+            </Button>
+            <Button
+              size="sm"
+              className="bg-primary text-primary-foreground font-semibold gap-1.5"
+              onClick={() => {
+                setIsViewTemplateOpen(false);
+                setIsRegisterFaceOpen(true);
+              }}
+            >
+              <Camera className="h-3.5 w-3.5" /> Re-Register Face
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

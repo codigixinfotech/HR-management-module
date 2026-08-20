@@ -9,8 +9,8 @@ export declare class CandidatesController {
                 id: string;
                 name: string;
             } | null;
-            title: string;
             id: string;
+            title: string;
             requisitionCode: string | null;
             mrNumber: string | null;
         };
@@ -95,18 +95,18 @@ export declare class CandidatesController {
         candidate: {
             jobOpening: {
                 costCenter: string | null;
-                title: string;
-                description: string | null;
-                priority: string | null;
-                status: string;
                 id: string;
                 companyId: string;
                 departmentId: string | null;
                 designationId: string | null;
                 reportingManagerId: string | null;
                 employmentType: string | null;
+                status: string;
                 createdAt: Date;
                 updatedAt: Date;
+                title: string;
+                description: string | null;
+                priority: string | null;
                 isActive: boolean;
                 minSalary: number | null;
                 maxSalary: number | null;

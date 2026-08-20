@@ -12,28 +12,27 @@ export declare class JobOpeningsController {
             name: string;
         } | null;
         designation: {
-            title: string;
             id: string;
+            title: string;
         } | null;
         manpowerRequisition: {
             role: string;
             costCenter: string;
-            departmentName: string;
-            priority: string;
-            status: string;
             id: string;
             companyId: string | null;
             departmentId: string | null;
             designationId: string | null;
             reportingManagerId: string | null;
             employmentType: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
+            departmentName: string;
+            priority: string;
             rejectionReason: string | null;
             isActive: boolean;
             minSalary: number | null;
             maxSalary: number | null;
-            reason: string;
             approvedBy: string | null;
             approvedAt: Date | null;
             mrNumber: string;
@@ -41,12 +40,13 @@ export declare class JobOpeningsController {
             experience: string;
             requiredSkills: string | null;
             workLocation: string;
+            reason: string;
             manpowerPlanId: string | null;
             numOpenings: number;
             joiningDate: Date;
             requestorName: string;
-            comments: string | null;
             requestDate: Date;
+            comments: string | null;
         } | null;
         _count: {
             candidates: number;
@@ -77,18 +77,18 @@ export declare class JobOpeningsController {
         }[];
     } & {
         costCenter: string | null;
-        title: string;
-        description: string | null;
-        priority: string | null;
-        status: string;
         id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         employmentType: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
+        priority: string | null;
         isActive: boolean;
         minSalary: number | null;
         maxSalary: number | null;
@@ -117,28 +117,27 @@ export declare class JobOpeningsController {
             name: string;
         } | null;
         designation: {
-            title: string;
             id: string;
+            title: string;
         } | null;
         manpowerRequisition: {
             role: string;
             costCenter: string;
-            departmentName: string;
-            priority: string;
-            status: string;
             id: string;
             companyId: string | null;
             departmentId: string | null;
             designationId: string | null;
             reportingManagerId: string | null;
             employmentType: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
+            departmentName: string;
+            priority: string;
             rejectionReason: string | null;
             isActive: boolean;
             minSalary: number | null;
             maxSalary: number | null;
-            reason: string;
             approvedBy: string | null;
             approvedAt: Date | null;
             mrNumber: string;
@@ -146,12 +145,13 @@ export declare class JobOpeningsController {
             experience: string;
             requiredSkills: string | null;
             workLocation: string;
+            reason: string;
             manpowerPlanId: string | null;
             numOpenings: number;
             joiningDate: Date;
             requestorName: string;
-            comments: string | null;
             requestDate: Date;
+            comments: string | null;
         } | null;
         candidates: {
             id: string;
@@ -179,18 +179,18 @@ export declare class JobOpeningsController {
         }[];
     } & {
         costCenter: string | null;
-        title: string;
-        description: string | null;
-        priority: string | null;
-        status: string;
         id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         employmentType: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
+        priority: string | null;
         isActive: boolean;
         minSalary: number | null;
         maxSalary: number | null;
@@ -209,18 +209,18 @@ export declare class JobOpeningsController {
     }>;
     create(dto: CreateJobOpeningDto): Promise<{
         costCenter: string | null;
-        title: string;
-        description: string | null;
-        priority: string | null;
-        status: string;
         id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         employmentType: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
+        priority: string | null;
         isActive: boolean;
         minSalary: number | null;
         maxSalary: number | null;
@@ -239,18 +239,18 @@ export declare class JobOpeningsController {
     }>;
     publishOpening(id: string): Promise<{
         costCenter: string | null;
-        title: string;
-        description: string | null;
-        priority: string | null;
-        status: string;
         id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         employmentType: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
+        priority: string | null;
         isActive: boolean;
         minSalary: number | null;
         maxSalary: number | null;
@@ -269,18 +269,18 @@ export declare class JobOpeningsController {
     }>;
     update(id: string, dto: UpdateJobOpeningDto): Promise<{
         costCenter: string | null;
-        title: string;
-        description: string | null;
-        priority: string | null;
-        status: string;
         id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         employmentType: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
+        priority: string | null;
         isActive: boolean;
         minSalary: number | null;
         maxSalary: number | null;
@@ -303,18 +303,18 @@ export declare class JobOpeningsController {
     listCandidates(id: string): import(".prisma/client").Prisma.PrismaPromise<({
         jobOpening: {
             costCenter: string | null;
-            title: string;
-            description: string | null;
-            priority: string | null;
-            status: string;
             id: string;
             companyId: string;
             departmentId: string | null;
             designationId: string | null;
             reportingManagerId: string | null;
             employmentType: string | null;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
+            title: string;
+            description: string | null;
+            priority: string | null;
             isActive: boolean;
             minSalary: number | null;
             maxSalary: number | null;

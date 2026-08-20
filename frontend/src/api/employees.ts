@@ -5,6 +5,7 @@ export const employeesApi = {
   list: async (params: { page?: number; pageSize?: number; search?: string; companyId?: string }) =>
     (await apiClient.get<PaginatedResult<Employee>>('/employees', { params })).data,
   get: async (id: string) => (await apiClient.get<Employee>(`/employees/${id}`)).data,
+  findOne: async (id: string) => (await apiClient.get<Employee>(`/employees/${id}`)).data,
   create: async (payload: Partial<Employee>) => (await apiClient.post<Employee>('/employees', payload)).data,
   update: async (id: string, payload: Partial<Employee>) =>
     (await apiClient.patch<Employee>(`/employees/${id}`, payload)).data,

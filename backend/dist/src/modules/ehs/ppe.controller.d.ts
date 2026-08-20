@@ -25,8 +25,8 @@ export declare class PpeController {
     } & {
         id: string;
         employeeId: string;
-        quantity: number;
         ppeItemId: string;
+        quantity: number;
         issuedAt: Date;
     })[]>;
     create(dto: CreatePpeItemDto): import(".prisma/client").Prisma.Prisma__PpeItemClient<{
@@ -53,8 +53,8 @@ export declare class PpeController {
     issue(id: string, dto: IssuePpeDto): Promise<{
         id: string;
         employeeId: string;
-        quantity: number;
         ppeItemId: string;
+        quantity: number;
         issuedAt: Date;
     }>;
 }

@@ -45,8 +45,8 @@ export declare class PpeService {
     issue(id: string, dto: IssuePpeDto): Promise<{
         id: string;
         employeeId: string;
-        quantity: number;
         ppeItemId: string;
+        quantity: number;
         issuedAt: Date;
     }>;
     listIssuances(ppeItemId?: string): import(".prisma/client").Prisma.PrismaPromise<({
@@ -62,8 +62,8 @@ export declare class PpeService {
     } & {
         id: string;
         employeeId: string;
-        quantity: number;
         ppeItemId: string;
+        quantity: number;
         issuedAt: Date;
     })[]>;
 }

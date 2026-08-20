@@ -15,12 +15,12 @@ export declare class AttendanceController {
             name: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AttendanceStatus;
-        remarks: string | null;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         createdAt: Date;
         updatedAt: Date;
+        remarks: string | null;
         employeeId: string;
         date: Date;
         source: string;
@@ -28,6 +28,14 @@ export declare class AttendanceController {
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        faceVerificationStatus: string | null;
+        faceMatchScore: number | null;
+        ipAddress: string | null;
+        ipVerificationStatus: string | null;
+        latitude: number | null;
+        longitude: number | null;
+        locationVerificationStatus: string | null;
+        deviceType: string | null;
     })[]>;
     findOne(id: string): Promise<{
         employee: {
@@ -41,12 +49,12 @@ export declare class AttendanceController {
             name: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AttendanceStatus;
-        remarks: string | null;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         createdAt: Date;
         updatedAt: Date;
+        remarks: string | null;
         employeeId: string;
         date: Date;
         source: string;
@@ -54,6 +62,14 @@ export declare class AttendanceController {
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        faceVerificationStatus: string | null;
+        faceMatchScore: number | null;
+        ipAddress: string | null;
+        ipVerificationStatus: string | null;
+        latitude: number | null;
+        longitude: number | null;
+        locationVerificationStatus: string | null;
+        deviceType: string | null;
     }>;
     mark(dto: MarkAttendanceDto): import(".prisma/client").Prisma.Prisma__AttendanceRecordClient<{
         employee: {
@@ -67,12 +83,12 @@ export declare class AttendanceController {
             name: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AttendanceStatus;
-        remarks: string | null;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         createdAt: Date;
         updatedAt: Date;
+        remarks: string | null;
         employeeId: string;
         date: Date;
         source: string;
@@ -80,6 +96,14 @@ export declare class AttendanceController {
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        faceVerificationStatus: string | null;
+        faceMatchScore: number | null;
+        ipAddress: string | null;
+        ipVerificationStatus: string | null;
+        latitude: number | null;
+        longitude: number | null;
+        locationVerificationStatus: string | null;
+        deviceType: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdateAttendanceDto): Promise<{
         employee: {
@@ -93,12 +117,12 @@ export declare class AttendanceController {
             name: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AttendanceStatus;
-        remarks: string | null;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         createdAt: Date;
         updatedAt: Date;
+        remarks: string | null;
         employeeId: string;
         date: Date;
         source: string;
@@ -106,5 +130,13 @@ export declare class AttendanceController {
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        faceVerificationStatus: string | null;
+        faceMatchScore: number | null;
+        ipAddress: string | null;
+        ipVerificationStatus: string | null;
+        latitude: number | null;
+        longitude: number | null;
+        locationVerificationStatus: string | null;
+        deviceType: string | null;
     }>;
 }

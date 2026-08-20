@@ -52,7 +52,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const isSuperAdmin = user.roles.some(
       (ur) => ur.role.name === 'SUPER_ADMIN' && ur.role.isSystem,
     );
-    const permissions = isSuperAdmin
+    const rolesList = user.roles.map((ur) => ur.role.name);
+    const isHrOrAdmin = isSuperAdmin || rolesList.some((r) => r.includes('HR') || r.includes('ADMIN'));
+
+    let permissions = isSuperAdmin
       ? ['*']
       : Array.from(
           new Set(
@@ -64,7 +67,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           ),
         );
 
-    const rolesList = user.roles.map((ur) => ur.role.name);
+    if (isHrOrAdmin && !permissions.includes('*')) {
+      permissions = Array.from(
+        new Set([
+          ...permissions,
+          'recruitment.read',
+          'recruitment.write',
+          'recruitment.manage',
+          'employees.read',
+          'employees.write',
+        ]),
+      );
+    }
     let primaryRole = 'Employee';
     if (isSuperAdmin) {
       primaryRole = 'Super Admin';

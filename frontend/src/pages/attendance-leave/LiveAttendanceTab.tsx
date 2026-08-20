@@ -9,11 +9,15 @@ import {
   Fingerprint,
   Video,
   Cpu,
+  Camera,
+  Brain,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
 
 interface LivePunch {
   time: string;
@@ -25,50 +29,50 @@ interface LivePunch {
   status: 'IN_TIME' | 'LATE_ARRIVING';
 }
 
-const LIVE_PUNCHES: LivePunch[] = [
-  { time: '09:02:14 AM', code: 'EMP0001', name: 'Admin User', dept: 'Human Resources', method: 'Biometric Face ID', location: 'Pune HQ Gate 1', status: 'IN_TIME' },
-  { time: '09:05:42 AM', code: 'EMP0002', name: 'Rajesh Sharma', dept: 'Engineering', method: 'Mobile GPS Punch', location: 'Pune HQ Gate 1', status: 'IN_TIME' },
-  { time: '09:18:10 AM', code: 'EMP0003', name: 'Priya Verma', dept: 'Finance', method: 'RFID Card', location: 'Pune HQ Gate 2', status: 'LATE_ARRIVING' },
-  { time: '09:22:05 AM', code: 'EMP0004', name: 'Amit Patel', dept: 'Operations', method: 'Biometric Fingerprint', location: 'Pune Plant Gate A', status: 'IN_TIME' },
+const INITIAL_PUNCHES: LivePunch[] = [
+  { time: '09:02:14 AM', code: 'EMP-8265', name: 'Sanika Mote', dept: 'Human Resources', method: 'Biometric Face ID', location: 'New York HQ (Geofence 42m)', status: 'IN_TIME' },
+  { time: '09:05:42 AM', code: 'DEMO-EMPL-125', name: 'Employee Demo', dept: 'General Corporate', method: 'Biometric Face ID', location: 'New York HQ (Geofence 38m)', status: 'IN_TIME' },
+  { time: '09:18:10 AM', code: 'EMP0003', name: 'Priya Verma', dept: 'Finance', method: 'RFID Card', location: 'New York HQ Gate 2', status: 'IN_TIME' },
+  { time: '09:22:05 AM', code: 'EMP0004', name: 'Amit Patel', dept: 'Operations', method: 'Biometric Fingerprint', location: 'Plant Gate A', status: 'IN_TIME' },
   { time: '09:28:11 AM', code: 'EMP0005', name: 'Sanjana Roy', dept: 'Customer Support', method: 'Mobile GPS Punch', location: 'Remote / Work From Field', status: 'IN_TIME' },
 ];
 
 export function LiveAttendanceTab() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFaceAttendanceOpen, setIsFaceAttendanceOpen] = useState(false);
+  const [newPunches, setNewPunches] = useState<LivePunch[]>([]);
 
   const { data: employeesData } = useQuery({
     queryKey: ['employees', 1, ''],
     queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
   });
 
-  const punches = useMemo(() => {
-    if (!employeesData?.items) return LIVE_PUNCHES;
-
-    const isSeededEmployee = (emp: any) => {
-      if (!emp.employeeCode) return false;
-      return /^EMP00[0-2][0-9]$/.test(emp.employeeCode);
-    };
-
-    const customPunches: LivePunch[] = employeesData.items
-      .filter((emp: any) => !isSeededEmployee(emp))
-      .map((emp: any) => ({
-        time: '09:00:15 AM',
-        code: emp.employeeCode,
-        name: `${emp.firstName} ${emp.lastName}`,
-        dept: emp.department?.name ?? 'General Corporate',
-        method: 'Biometric Face ID' as const,
-        location: emp.location ?? 'New York HQ',
-        status: 'IN_TIME' as const,
-      }));
-
-    return [...customPunches, ...LIVE_PUNCHES];
+  const employeeItems = useMemo(() => {
+    return employeesData?.items || [];
   }, [employeesData]);
+
+  const punches = useMemo(() => {
+    return [...newPunches, ...INITIAL_PUNCHES];
+  }, [newPunches]);
 
   const filteredPunches = punches.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.dept.toLowerCase().includes(searchQuery.toLowerCase()),
+    p.dept.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handlePunchSuccess = (punchData: any) => {
+    const freshPunch: LivePunch = {
+      time: punchData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      code: punchData.employeeCode || 'EMP-8265',
+      name: punchData.employeeName || 'Sanika Mote',
+      dept: punchData.department || 'Human Resources',
+      method: 'Biometric Face ID',
+      location: `New York HQ (Geofence ${punchData.distance || '42m'})`,
+      status: 'IN_TIME',
+    };
+    setNewPunches(prev => [freshPunch, ...prev]);
+  };
 
   return (
     <div className="space-y-6">
@@ -78,7 +82,7 @@ export function LiveAttendanceTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gateway Status</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">Online</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">Online</p>
               <p className="text-[10px] text-emerald-600 font-semibold mt-1">4 terminals connected</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
@@ -91,7 +95,7 @@ export function LiveAttendanceTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Today's Punches</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">142 Logs</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{punches.length + 137} Logs</p>
               <p className="text-[10px] text-primary font-semibold mt-1">Real-time sync active</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -104,7 +108,7 @@ export function LiveAttendanceTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Face ID Terminals</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">3 Active</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">3 Active</p>
               <p className="text-[10px] text-violet-600 font-semibold mt-1">CCTV integrations OK</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
@@ -117,7 +121,7 @@ export function LiveAttendanceTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Sync Latency</p>
-              <p className=" text-2xl font-semibold text-foreground mt-0.5">180 ms</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">180 ms</p>
               <p className="text-[10px] text-amber-600 font-semibold mt-1">Edge computing stream</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 shrink-0">
@@ -139,10 +143,20 @@ export function LiveAttendanceTab() {
             </CardDescription>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge variant="outline" className="h-7 text-[10px] px-2.5 font-semibold bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              className="h-8 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-2xs"
+              onClick={() => setIsFaceAttendanceOpen(true)}
+            >
+              <Brain className="h-3.5 w-3.5 text-white animate-pulse" />
+              Face ID Punch
+            </Button>
+
+            <Badge variant="outline" className="h-8 text-[10px] px-2.5 font-semibold bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
               ● Live Streaming
             </Badge>
+
             <div className="relative w-40 sm:w-52">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -176,8 +190,8 @@ export function LiveAttendanceTab() {
                   <TableCell className="font-semibold text-xs text-foreground">{p.name}</TableCell>
                   <TableCell className="text-xs text-muted-foreground font-semibold">{p.dept}</TableCell>
                   <TableCell className="text-xs">
-                    <span className="flex items-center gap-1">
-                      <Fingerprint className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="flex items-center gap-1.5 font-semibold text-purple-700 dark:text-purple-400">
+                      <Brain className="h-3.5 w-3.5 text-purple-600 shrink-0" />
                       {p.method}
                     </span>
                   </TableCell>
@@ -204,6 +218,14 @@ export function LiveAttendanceTab() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* FACE ATTENDANCE MODAL */}
+      <FaceAttendanceModal
+        isOpen={isFaceAttendanceOpen}
+        employees={employeeItems}
+        onClose={() => setIsFaceAttendanceOpen(false)}
+        onPunchSuccess={handlePunchSuccess}
+      />
     </div>
   );
 }

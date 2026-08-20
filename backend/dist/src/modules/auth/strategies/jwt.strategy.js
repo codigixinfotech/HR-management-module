@@ -48,12 +48,23 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
             throw new common_1.UnauthorizedException('Account is inactive or no longer exists');
         }
         const isSuperAdmin = user.roles.some((ur) => ur.role.name === 'SUPER_ADMIN' && ur.role.isSystem);
-        const permissions = isSuperAdmin
+        const rolesList = user.roles.map((ur) => ur.role.name);
+        const isHrOrAdmin = isSuperAdmin || rolesList.some((r) => r.includes('HR') || r.includes('ADMIN'));
+        let permissions = isSuperAdmin
             ? ['*']
             : Array.from(new Set(user.roles.flatMap((ur) => ur.role.permissions
                 ? ur.role.permissions.map((rp) => rp.permission.code)
                 : [])));
-        const rolesList = user.roles.map((ur) => ur.role.name);
+        if (isHrOrAdmin && !permissions.includes('*')) {
+            permissions = Array.from(new Set([
+                ...permissions,
+                'recruitment.read',
+                'recruitment.write',
+                'recruitment.manage',
+                'employees.read',
+                'employees.write',
+            ]));
+        }
         let primaryRole = 'Employee';
         if (isSuperAdmin) {
             primaryRole = 'Super Admin';

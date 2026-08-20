@@ -21,13 +21,13 @@ export declare class ComplianceTasksService {
                 lastName: string;
             } | null;
         } & {
-            dueDate: Date;
-            status: import(".prisma/client").$Enums.ComplianceStatus;
-            remarks: string | null;
             id: string;
             companyId: string;
+            status: import(".prisma/client").$Enums.ComplianceStatus;
             createdAt: Date;
             updatedAt: Date;
+            dueDate: Date;
+            remarks: string | null;
             complianceTypeId: string;
             periodLabel: string;
             filedDate: Date | null;
@@ -51,13 +51,13 @@ export declare class ComplianceTasksService {
             lastName: string;
         } | null;
     } & {
-        dueDate: Date;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
-        remarks: string | null;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
+        dueDate: Date;
+        remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
         filedDate: Date | null;
@@ -77,13 +77,13 @@ export declare class ComplianceTasksService {
             lastName: string;
         } | null;
     } & {
-        dueDate: Date;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
-        remarks: string | null;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
+        dueDate: Date;
+        remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
         filedDate: Date | null;
@@ -103,13 +103,13 @@ export declare class ComplianceTasksService {
             lastName: string;
         } | null;
     } & {
-        dueDate: Date;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
-        remarks: string | null;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
+        dueDate: Date;
+        remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
         filedDate: Date | null;

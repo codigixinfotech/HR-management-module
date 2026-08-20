@@ -23,8 +23,9 @@ import {
   MapPin,
   Calendar,
   Layers,
+  Brain,
 } from 'lucide-react';
-import { jobOpeningsApi, candidatesApi } from '@/api/recruitment';
+import { jobOpeningsApi, candidatesApi, assessmentsApi } from '@/api/recruitment';
 import { employeesApi } from '@/api/employees';
 import { tasksApi } from '@/api/tasks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +38,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import type { CandidateStage, CandidateScreening } from '@/api/types';
+import type { CandidateStage, CandidateScreening, AssessmentAssignment } from '@/api/types';
+import { ScheduleInterviewModal } from './ScheduleInterviewModal';
+import { interviewsApi } from '@/api/interviews';
+import { AssignAssessmentModal } from './AssignAssessmentModal';
+import { ViewAssessmentModal } from './ViewAssessmentModal';
 
 export function CandidatesTab() {
   const navigate = useNavigate();
@@ -53,6 +58,47 @@ export function CandidatesTab() {
   const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [selectedJobId, setSelectedJobId] = useState<string>('');
+
+  // Modal State: Schedule Interview
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleModalCandidateId, setScheduleModalCandidateId] = useState<string>('');
+
+  // Modal State: Assign & View Assessment Overview
+  const [isAssignAssessmentOpen, setIsAssignAssessmentOpen] = useState(false);
+  const [assignAssessmentCandidate, setAssignAssessmentCandidate] = useState<any>(null);
+  const [isViewAssessmentOpen, setIsViewAssessmentOpen] = useState(false);
+  const [viewAssessmentCandidate, setViewAssessmentCandidate] = useState<any>(null);
+  const [viewAssessmentAssignment, setViewAssessmentAssignment] = useState<AssessmentAssignment | null>(null);
+  const [assessmentAssignments, setAssessmentAssignments] = useState<Record<string, AssessmentAssignment>>({
+    'cand-siddharth': {
+      id: 'ATT-901',
+      candidateId: 'cand-siddharth',
+      candidateName: 'Siddharth Rao',
+      candidateEmail: 'siddharth.rao@example.com',
+      templateId: 'TST-201',
+      templateName: 'React Architecture & State Challenge',
+      assignedDate: '01 Aug 2026',
+      dueDate: '06 Aug 2026',
+      status: 'PASSED',
+      score: '92% (Pass)',
+      scorePercent: 92,
+      passingScorePercent: 70,
+    },
+    'cand-neha': {
+      id: 'ATT-902',
+      candidateId: 'cand-neha',
+      candidateName: 'Neha Gupta',
+      candidateEmail: 'neha.gupta@example.com',
+      templateId: 'TST-202',
+      templateName: 'DevOps Helm & Kubernetes Quiz',
+      assignedDate: '02 Aug 2026',
+      dueDate: '07 Aug 2026',
+      status: 'PASSED',
+      score: '88% (Pass)',
+      scorePercent: 88,
+      passingScorePercent: 75,
+    },
+  });
 
   // Modal State: Focused Candidate Screening Evaluation Form
   const [isScreeningOpen, setIsScreeningOpen] = useState(false);
@@ -96,6 +142,13 @@ export function CandidatesTab() {
   const { data: openings = [] } = useQuery({
     queryKey: ['job-openings'],
     queryFn: () => jobOpeningsApi.list(),
+  });
+
+  // Fetch Candidate Interview History for selected candidate
+  const { data: candidateInterviews = [] } = useQuery({
+    queryKey: ['candidate-interviews-history', screeningCandidate?.id],
+    queryFn: () => (screeningCandidate?.id ? interviewsApi.getCandidateHistory(screeningCandidate.id) : []),
+    enabled: Boolean(screeningCandidate?.id && isScreeningOpen),
   });
 
   // Fetch real employee roster from Employee Master
@@ -466,6 +519,30 @@ export function CandidatesTab() {
             <CheckCircle2 className="h-3 w-3 text-emerald-600" /> SHORTLISTED
           </Badge>
         );
+      case 'ASSESSMENT_ASSIGNED':
+        return (
+          <Badge className="bg-purple-500/15 text-purple-700 border-purple-300 text-[10px] gap-1">
+            <Brain className="h-3 w-3 text-purple-600 animate-pulse" /> ASSESSMENT ASSIGNED
+          </Badge>
+        );
+      case 'ASSESSMENT_COMPLETED':
+        return (
+          <Badge className="bg-amber-500/15 text-amber-700 border-amber-300 text-[10px] gap-1">
+            <Clock className="h-3 w-3 text-amber-600" /> PENDING EVALUATION
+          </Badge>
+        );
+      case 'ASSESSMENT_PASSED':
+        return (
+          <Badge className="bg-emerald-600 text-white text-[10px] gap-1 shadow-2xs">
+            <CheckCircle2 className="h-3 w-3" /> ASSESSMENT PASSED
+          </Badge>
+        );
+      case 'ASSESSMENT_FAILED':
+        return (
+          <Badge className="bg-rose-500/15 text-rose-700 border-rose-300 text-[10px] gap-1">
+            <AlertCircle className="h-3 w-3 text-rose-600" /> ASSESSMENT FAILED
+          </Badge>
+        );
       case 'ON_HOLD':
       case 'HOLD':
         return (
@@ -479,6 +556,8 @@ export function CandidatesTab() {
         return <Badge className="bg-purple-500/10 text-purple-700 border-purple-300 text-[10px]">OFFERED</Badge>;
       case 'HIRED':
         return <Badge className="bg-emerald-600 text-white text-[10px]">HIRED</Badge>;
+      case 'ONBOARDED':
+        return <Badge className="bg-emerald-700 text-white text-[10px]">ONBOARDED</Badge>;
       case 'REJECTED':
         return <Badge className="bg-rose-500/10 text-rose-700 border-rose-300 text-[10px]">REJECTED</Badge>;
       default:
@@ -568,7 +647,8 @@ export function CandidatesTab() {
                   { id: 'applied', label: 'Applied' },
                   { id: 'screening', label: 'Screening' },
                   { id: 'shortlisted', label: 'Shortlisted' },
-                  { id: 'on_hold', label: 'On Hold' },
+                  { id: 'assessment_assigned', label: 'Assessment Assigned' },
+                  { id: 'assessment_passed', label: 'Assessment Passed' },
                   { id: 'interview', label: 'Interview' },
                   { id: 'offered', label: 'Offered' },
                   { id: 'rejected', label: 'Rejected' },
@@ -744,11 +824,101 @@ export function CandidatesTab() {
                             : 'Screening Evaluation'}
                         </Button>
 
-                        {(c.stage === 'SHORTLISTED' || c.stage === 'INTERVIEW') && (
+                        {/* STAGE-SPECIFIC ASSESSMENT & INTERVIEW ACTIONS */}
+                        {c.stage === 'SHORTLISTED' && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-[10.5px] px-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1 shadow-2xs"
+                            onClick={() => {
+                              setAssignAssessmentCandidate(c);
+                              setIsAssignAssessmentOpen(true);
+                            }}
+                          >
+                            <Brain className="h-3.5 w-3.5" /> Assign Assessment
+                          </Button>
+                        )}
+
+                        {c.stage === 'ASSESSMENT_ASSIGNED' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10.5px] px-2 text-purple-700 border-purple-300 hover:bg-purple-50 font-semibold gap-1 shadow-2xs"
+                            onClick={() => {
+                              const activeAssign = assessmentAssignments[c.id] || {
+                                id: `ATT-${c.id.substring(0, 4)}`,
+                                candidateId: c.id,
+                                candidateName: c.name,
+                                candidateEmail: c.email,
+                                jobTitle: c.role,
+                                templateId: 'TST-201',
+                                templateName: 'React Architecture & State Challenge',
+                                assignedDate: '20 Aug 2026',
+                                dueDate: '25 Aug 2026',
+                                instructions: 'Please complete all coding challenges and submit the code within the allocated duration. Maintain clean modular architecture.',
+                                status: 'ASSIGNED',
+                                score: 'Awaiting Candidate Submission',
+                                passingScorePercent: 70,
+                              };
+                              setViewAssessmentCandidate(c);
+                              setViewAssessmentAssignment(activeAssign);
+                              setIsViewAssessmentOpen(true);
+                            }}
+                          >
+                            <Eye className="h-3.5 w-3.5 text-purple-600" /> View Assessment
+                          </Button>
+                        )}
+
+                        {c.stage === 'ASSESSMENT_COMPLETED' && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-[10.5px] px-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1"
+                            onClick={() => {
+                              navigate('/recruitment/assessments');
+                              toast.info(`Redirecting to Recruitment -> Assessments to grade evaluation for ${c.name}`);
+                            }}
+                          >
+                            <Clock className="h-3.5 w-3.5" /> Grade Assessment
+                          </Button>
+                        )}
+
+                        {c.stage === 'ASSESSMENT_PASSED' && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-[10.5px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1 shadow-2xs"
+                            onClick={() => {
+                              setScheduleModalCandidateId(c.id);
+                              setIsScheduleModalOpen(true);
+                            }}
+                          >
+                            <Calendar className="h-3.5 w-3.5" /> Schedule Interview
+                          </Button>
+                        )}
+
+                        {c.stage === 'ASSESSMENT_FAILED' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10.5px] px-2 text-amber-700 border-amber-300 hover:bg-amber-50 font-semibold gap-1"
+                            onClick={() => {
+                              if (confirm(`Assessment was not passed for ${c.name}. Do you want to manually override and continue to interview this candidate?`)) {
+                                updateStageMutation.mutate({ id: c.id, stage: 'ASSESSMENT_PASSED' });
+                                setScheduleModalCandidateId(c.id);
+                                setIsScheduleModalOpen(true);
+                              }
+                            }}
+                          >
+                            <AlertCircle className="h-3.5 w-3.5 text-amber-600" /> Override & Schedule Interview
+                          </Button>
+                        )}
+
+                        {(c.stage === 'APPLIED' || c.stage === 'INTERVIEW') && (
                           <Button
                             size="sm"
                             className="h-7 text-[10.5px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1"
-                            onClick={() => navigate('/recruitment/interviews')}
+                            onClick={() => {
+                              setScheduleModalCandidateId(c.id);
+                              setIsScheduleModalOpen(true);
+                            }}
                           >
                             <Calendar className="h-3 w-3" /> Schedule Interview
                           </Button>
@@ -862,6 +1032,70 @@ export function CandidatesTab() {
                     </Button>
                   </div>
                 </div>
+              </div>
+
+              {/* CANDIDATE INTERVIEW HISTORY */}
+              <div className="p-3.5 bg-primary/5 rounded-xl border border-primary/20 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between border-b border-primary/20 pb-1.5">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-primary" /> Candidate Interview Panel History
+                  </span>
+                  <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">
+                    {candidateInterviews.length} Round(s) Conducted
+                  </Badge>
+                </div>
+
+                {candidateInterviews.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {candidateInterviews.map((inv) => {
+                      const evalCount = inv.evaluations?.length || 0;
+                      const avgScore =
+                        evalCount > 0
+                          ? Math.round(
+                              (inv.evaluations.reduce((a, b) => a + b.overallRating, 0) / evalCount) * 10,
+                            ) / 10
+                          : 0;
+
+                      return (
+                        <div
+                          key={inv.id}
+                          className="p-3 bg-background rounded-lg border border-border/60 space-y-1.5 shadow-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-primary text-xs">{inv.interviewCode}</span>
+                              <Badge variant="outline" className="text-[10px]">{inv.interviewFormat}</Badge>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {avgScore > 0 && (
+                                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 font-bold text-[10px] flex items-center gap-1">
+                                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {avgScore} / 5.0
+                                </Badge>
+                              )}
+                              <Badge className="bg-slate-100 dark:bg-slate-800 text-foreground text-[10px]">
+                                {inv.status}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground pt-1">
+                            <span>
+                              Date: <strong>{new Date(inv.interviewDate).toLocaleDateString('en-GB')}, {inv.startTime}</strong>
+                            </span>
+                            <span>
+                              Panel: <strong>{inv.panelMembers.map((p) => `${p.interviewerName} (${p.panelRole})`).join(', ')}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground italic text-center py-2">
+                    No interview rounds scheduled yet for this candidate. Click "Schedule Interview" from the roster.
+                  </p>
+                )}
               </div>
 
               {/* 2. BASIC SCREENING INFORMATION */}
@@ -1282,6 +1516,65 @@ export function CandidatesTab() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* SCHEDULE INTERVIEW MODAL */}
+      <ScheduleInterviewModal
+        isOpen={isScheduleModalOpen}
+        initialCandidateId={scheduleModalCandidateId}
+        onClose={() => {
+          setIsScheduleModalOpen(false);
+          setScheduleModalCandidateId('');
+        }}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+          queryClient.invalidateQueries({ queryKey: ['interviews-list'] });
+          queryClient.invalidateQueries({ queryKey: ['interviews-summary'] });
+        }}
+      />
+
+      {/* ASSIGN ASSESSMENT MODAL */}
+      {assignAssessmentCandidate && (
+        <AssignAssessmentModal
+          isOpen={isAssignAssessmentOpen}
+          candidate={assignAssessmentCandidate}
+          onClose={() => {
+            setIsAssignAssessmentOpen(false);
+            setAssignAssessmentCandidate(null);
+          }}
+          onAssignSuccess={(assignment) => {
+            setAssessmentAssignments((prev) => ({
+              ...prev,
+              [assignment.candidateId]: assignment,
+            }));
+            updateStageMutation.mutate({ id: assignment.candidateId, stage: 'ASSESSMENT_ASSIGNED' });
+          }}
+        />
+      )}
+
+      {/* VIEW ASSESSMENT OVERVIEW MODAL */}
+      <ViewAssessmentModal
+        isOpen={isViewAssessmentOpen}
+        assignment={viewAssessmentAssignment}
+        candidateName={viewAssessmentCandidate?.name}
+        candidateEmail={viewAssessmentCandidate?.email}
+        jobTitle={viewAssessmentCandidate?.role}
+        onClose={() => {
+          setIsViewAssessmentOpen(false);
+          setViewAssessmentCandidate(null);
+          setViewAssessmentAssignment(null);
+        }}
+        onSimulateSubmission={() => {
+          if (!viewAssessmentCandidate) return;
+          updateStageMutation.mutate({ id: viewAssessmentCandidate.id, stage: 'ASSESSMENT_PASSED' });
+          toast.success(`Simulated test submission for ${viewAssessmentCandidate.name}! Score: 92% (Pass). Stage updated to ASSESSMENT_PASSED.`);
+          setIsViewAssessmentOpen(false);
+        }}
+        onGradeAssessment={() => {
+          setIsViewAssessmentOpen(false);
+          navigate('/recruitment/assessments');
+          toast.info(`Navigating to Recruitment -> Assessments tab to grade candidate attempt.`);
+        }}
+      />
     </div>
   );
 }

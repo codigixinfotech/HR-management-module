@@ -9,12 +9,10 @@ export declare class DesignationsService {
             name: string;
         } | null;
         reportingDesignation: {
-            title: string;
             id: string;
+            title: string;
         } | null;
     } & {
-        title: string;
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -22,6 +20,8 @@ export declare class DesignationsService {
         grade: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         code: string;
         effectiveFrom: Date;
         isActive: boolean;
@@ -36,12 +36,10 @@ export declare class DesignationsService {
             name: string;
         } | null;
         reportingDesignation: {
-            title: string;
             id: string;
+            title: string;
         } | null;
     } & {
-        title: string;
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -49,6 +47,8 @@ export declare class DesignationsService {
         grade: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         code: string;
         effectiveFrom: Date;
         isActive: boolean;
@@ -58,8 +58,6 @@ export declare class DesignationsService {
         maxSalary: number | null;
     }>;
     create(dto: CreateDesignationDto): Promise<{
-        title: string;
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -67,6 +65,8 @@ export declare class DesignationsService {
         grade: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         code: string;
         effectiveFrom: Date;
         isActive: boolean;
@@ -76,8 +76,6 @@ export declare class DesignationsService {
         maxSalary: number | null;
     }>;
     update(id: string, dto: UpdateDesignationDto): Promise<{
-        title: string;
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -85,6 +83,8 @@ export declare class DesignationsService {
         grade: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         code: string;
         effectiveFrom: Date;
         isActive: boolean;

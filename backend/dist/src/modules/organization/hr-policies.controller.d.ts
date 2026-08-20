@@ -12,14 +12,13 @@ export declare class HrPoliciesController {
         auditedStandard: string;
     }>;
     findAll(search?: string, category?: string, status?: string, companyId?: string): Promise<{
-        title: string;
-        description: string | null;
-        status: string;
-        updatedBy: string | null;
         id: string;
         companyId: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         category: string;
         policyCode: string;
         version: string;
@@ -29,8 +28,9 @@ export declare class HrPoliciesController {
         esignRequirement: boolean;
         totalEmployees: number;
         signedCount: number;
-        createdBy: string | null;
         publishedAt: Date;
+        createdBy: string | null;
+        updatedBy: string | null;
     }[]>;
     uploadFile(file: Express.Multer.File): {
         documentUrl: string;
@@ -41,14 +41,13 @@ export declare class HrPoliciesController {
     downloadFile(filename: string, res: Response): void;
     findOne(id: string): Promise<{
         versionHistory: {
-            title: string;
-            description: string | null;
-            status: string;
-            updatedBy: string | null;
             id: string;
             companyId: string | null;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
+            title: string;
+            description: string | null;
             category: string;
             policyCode: string;
             version: string;
@@ -58,17 +57,17 @@ export declare class HrPoliciesController {
             esignRequirement: boolean;
             totalEmployees: number;
             signedCount: number;
-            createdBy: string | null;
             publishedAt: Date;
+            createdBy: string | null;
+            updatedBy: string | null;
         }[];
-        title: string;
-        description: string | null;
-        status: string;
-        updatedBy: string | null;
         id: string;
         companyId: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         category: string;
         policyCode: string;
         version: string;
@@ -78,18 +77,18 @@ export declare class HrPoliciesController {
         esignRequirement: boolean;
         totalEmployees: number;
         signedCount: number;
-        createdBy: string | null;
         publishedAt: Date;
+        createdBy: string | null;
+        updatedBy: string | null;
     }>;
     create(dto: CreateHrPolicyDto): Promise<{
-        title: string;
-        description: string | null;
-        status: string;
-        updatedBy: string | null;
         id: string;
         companyId: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         category: string;
         policyCode: string;
         version: string;
@@ -99,18 +98,18 @@ export declare class HrPoliciesController {
         esignRequirement: boolean;
         totalEmployees: number;
         signedCount: number;
-        createdBy: string | null;
         publishedAt: Date;
+        createdBy: string | null;
+        updatedBy: string | null;
     }>;
     update(id: string, dto: UpdateHrPolicyDto): Promise<{
-        title: string;
-        description: string | null;
-        status: string;
-        updatedBy: string | null;
         id: string;
         companyId: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         category: string;
         policyCode: string;
         version: string;
@@ -120,18 +119,18 @@ export declare class HrPoliciesController {
         esignRequirement: boolean;
         totalEmployees: number;
         signedCount: number;
-        createdBy: string | null;
         publishedAt: Date;
+        createdBy: string | null;
+        updatedBy: string | null;
     }>;
     createVersion(id: string, dto: CreatePolicyVersionDto): Promise<{
-        title: string;
-        description: string | null;
-        status: string;
-        updatedBy: string | null;
         id: string;
         companyId: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         category: string;
         policyCode: string;
         version: string;
@@ -141,8 +140,9 @@ export declare class HrPoliciesController {
         esignRequirement: boolean;
         totalEmployees: number;
         signedCount: number;
-        createdBy: string | null;
         publishedAt: Date;
+        createdBy: string | null;
+        updatedBy: string | null;
     }>;
     sendReminder(id: string): Promise<{
         success: boolean;
@@ -152,14 +152,13 @@ export declare class HrPoliciesController {
         totalEmployees: number;
     }>;
     remove(id: string): Promise<{
-        title: string;
-        description: string | null;
-        status: string;
-        updatedBy: string | null;
         id: string;
         companyId: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        description: string | null;
         category: string;
         policyCode: string;
         version: string;
@@ -169,7 +168,8 @@ export declare class HrPoliciesController {
         esignRequirement: boolean;
         totalEmployees: number;
         signedCount: number;
-        createdBy: string | null;
         publishedAt: Date;
+        createdBy: string | null;
+        updatedBy: string | null;
     }>;
 }

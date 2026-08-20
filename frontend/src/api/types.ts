@@ -234,7 +234,10 @@ export interface Employee {
   kpis?: any[];
   hrNotes?: any[];
   timelineEvents?: any[];
-  currentAssets?: any[];
+  faceTemplate?: string | null;
+  facePhoto?: string | null;
+  faceRegisteredAt?: string | null;
+  faceRegisteredBy?: string | null;
   createdAt: string;
 }
 
@@ -260,7 +263,46 @@ export interface OnboardingTask {
   completedAt?: string | null;
 }
 
-export type CandidateStage = 'APPLIED' | 'SCREENING' | 'SHORTLISTED' | 'ON_HOLD' | 'INTERVIEW' | 'OFFERED' | 'HIRED' | 'REJECTED' | 'WITHDRAWN';
+export type CandidateStage =
+  | 'APPLIED'
+  | 'SCREENING'
+  | 'SHORTLISTED'
+  | 'ASSESSMENT_ASSIGNED'
+  | 'ASSESSMENT_COMPLETED'
+  | 'ASSESSMENT_PASSED'
+  | 'ASSESSMENT_FAILED'
+  | 'ON_HOLD'
+  | 'INTERVIEW'
+  | 'OFFERED'
+  | 'HIRED'
+  | 'ONBOARDED'
+  | 'REJECTED'
+  | 'WITHDRAWN';
+
+export interface AssessmentAssignment {
+  id: string;
+  candidateId: string;
+  candidateName?: string;
+  candidateEmail?: string;
+  jobId?: string;
+  jobTitle?: string;
+  templateId: string;
+  templateName: string;
+  assignedDate: string;
+  dueDate: string;
+  instructions?: string;
+  status: 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'PENDING_REVIEW' | 'EVALUATED' | 'PASSED' | 'FAILED';
+  score?: string;
+  scorePercent?: number;
+  passingScorePercent?: number;
+  evaluatedBy?: string;
+  evaluationDate?: string;
+  strengths?: string;
+  weaknesses?: string;
+  comments?: string;
+  recommendation?: string;
+  isOverridden?: boolean;
+}
 
 export interface CandidateScreening {
   id: string;
@@ -350,6 +392,114 @@ export interface Candidate {
   updatedAt?: string;
   jobOpening?: JobOpening;
   screenings?: CandidateScreening[];
+  interviews?: CandidateInterview[];
+  interviewEvaluations?: CandidateInterviewEvaluation[];
+}
+
+export type InterviewStatus =
+  | 'READY_TO_SCHEDULE'
+  | 'SCHEDULED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'EVALUATION_PENDING'
+  | 'EVALUATED'
+  | 'CANCELLED'
+  | 'RESCHEDULED';
+
+export interface CandidateInterviewPanel {
+  id: string;
+  interviewId: string;
+  interviewerId: string;
+  interviewerName: string;
+  designation?: string | null;
+  department?: string | null;
+  panelRole: string;
+  assignmentStatus: string;
+  createdAt: string;
+  interviewer?: {
+    id: string;
+    employeeCode: string;
+    firstName: string;
+    lastName: string;
+    department?: { id: string; name: string } | null;
+    designation?: { id: string; title: string } | null;
+  };
+}
+
+export interface CandidateInterviewEvaluation {
+  id: string;
+  interviewId: string;
+  candidateId: string;
+  interviewerId: string;
+  interviewerName: string;
+  technicalSkills: number;
+  communication: number;
+  problemSolving: number;
+  relevantExperience: number;
+  roleKnowledge: number;
+  overallRating: number;
+  strengths?: string | null;
+  weaknesses?: string | null;
+  interviewNotes?: string | null;
+  recommendation: 'Strong Hire' | 'Hire' | 'Hold' | 'Reject' | string;
+  submittedAt: string;
+  interviewer?: {
+    id: string;
+    employeeCode: string;
+    firstName: string;
+    lastName: string;
+    designation?: { id: string; title: string } | null;
+  };
+}
+
+export interface CandidateInterview {
+  id: string;
+  interviewCode: string;
+  candidateId: string;
+  jobOpeningId?: string | null;
+  position: string;
+  requisitionCode?: string | null;
+  interviewDate: string;
+  startTime: string;
+  endTime?: string | null;
+  interviewFormat: string;
+  meetingLink?: string | null;
+  notes?: string | null;
+  status: InterviewStatus | string;
+  createdById?: string | null;
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  candidate?: Candidate;
+  jobOpening?: JobOpening;
+  panelMembers: CandidateInterviewPanel[];
+  evaluations: CandidateInterviewEvaluation[];
+}
+
+export interface InterviewSummary {
+  total: number;
+  readyToSchedule: number;
+  scheduled: number;
+  todaysInterviews: number;
+  completed: number;
+  pendingEvaluation: number;
+  evaluated: number;
+}
+
+export interface InterviewReminderItem {
+  id: string;
+  interviewCode: string;
+  candidateName: string;
+  position: string;
+  requisitionCode?: string | null;
+  interviewDate: string;
+  startTime: string;
+  interviewFormat: string;
+  meetingLink?: string | null;
+  status: string;
+  panelRole: string;
+  panelMembersCount: number;
+  panelMembersNames: string[];
 }
 
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -632,6 +782,14 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   source: string;
   remarks?: string | null;
+  faceVerificationStatus?: string | null;
+  faceMatchScore?: number | null;
+  ipAddress?: string | null;
+  ipVerificationStatus?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationVerificationStatus?: string | null;
+  deviceType?: string | null;
   employee?: { id: string; firstName: string; lastName: string; employeeCode: string };
   shiftType?: { id: string; name: string } | null;
 }

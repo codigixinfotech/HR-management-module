@@ -4,21 +4,16 @@ import { toast } from 'sonner';
 import {
   Plus,
   Search,
-  Filter,
   CheckCircle2,
   Clock,
   UserCheck,
   Building2,
-  Briefcase,
-  AlertCircle,
-  FileText,
   Eye,
   RotateCcw,
   Check,
-  X,
   Sparkles,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +25,7 @@ import { Progress } from '@/components/ui/progress';
 import { tasksApi } from '@/api/tasks';
 import { employeesApi } from '@/api/employees';
 import type { EmployeeTask } from '@/api/types';
+import { TaskDetailModal } from './TaskDetailModal';
 
 export function AllTasksTab() {
   const queryClient = useQueryClient();
@@ -673,6 +669,26 @@ export function AllTasksTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* COMPREHENSIVE TASK DETAIL MODAL */}
+      <TaskDetailModal
+        task={detailTask}
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setDetailTask(null);
+        }}
+        onActionClick={(action) => {
+          if (!detailTask) return;
+          if (action === 'APPROVE') {
+            setIsDetailOpen(false);
+            handleOpenReviewModal(detailTask, 'APPROVE');
+          } else if (action === 'SEND_BACK') {
+            setIsDetailOpen(false);
+            handleOpenReviewModal(detailTask, 'SEND_BACK');
+          }
+        }}
+      />
     </div>
   );
 }

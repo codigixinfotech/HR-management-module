@@ -8,9 +8,9 @@ export declare class PayrollRunsService {
             payslips: number;
         };
     } & {
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
         year: number;
@@ -24,9 +24,9 @@ export declare class PayrollRunsService {
             payslips: number;
         };
     } & {
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
         year: number;
@@ -36,9 +36,9 @@ export declare class PayrollRunsService {
         paidAt: Date | null;
     }>;
     create(dto: CreatePayrollRunDto): Promise<{
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
         year: number;
@@ -48,9 +48,9 @@ export declare class PayrollRunsService {
         paidAt: Date | null;
     }>;
     updateStatus(id: string, dto: UpdatePayrollRunStatusDto): Promise<{
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
         year: number;
@@ -64,9 +64,9 @@ export declare class PayrollRunsService {
             payslips: number;
         };
     } & {
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
         year: number;

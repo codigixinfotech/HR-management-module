@@ -9,7 +9,6 @@ export declare class PayGradesController {
             name: string;
         } | null;
     } & {
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -17,6 +16,7 @@ export declare class PayGradesController {
         level: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
         jobFamily: string | null;
@@ -33,7 +33,6 @@ export declare class PayGradesController {
             name: string;
         } | null;
     } & {
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -41,6 +40,7 @@ export declare class PayGradesController {
         level: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
         jobFamily: string | null;
@@ -52,7 +52,6 @@ export declare class PayGradesController {
         category: string;
     }>;
     create(dto: CreatePayGradeDto): Promise<{
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -60,6 +59,7 @@ export declare class PayGradesController {
         level: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
         jobFamily: string | null;
@@ -71,7 +71,6 @@ export declare class PayGradesController {
         category: string;
     }>;
     update(id: string, dto: UpdatePayGradeDto): Promise<{
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -79,6 +78,7 @@ export declare class PayGradesController {
         level: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
         jobFamily: string | null;
@@ -90,7 +90,6 @@ export declare class PayGradesController {
         category: string;
     }>;
     remove(id: string): Promise<{
-        description: string | null;
         id: string;
         companyId: string;
         departmentId: string | null;
@@ -98,6 +97,7 @@ export declare class PayGradesController {
         level: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
         jobFamily: string | null;

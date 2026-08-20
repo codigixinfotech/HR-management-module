@@ -10,13 +10,13 @@ export declare class DepartmentsController {
         } | null;
     } & {
         costCenter: string | null;
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         parentDepartmentId: string | null;
@@ -33,13 +33,13 @@ export declare class DepartmentsController {
         } | null;
         childDepartments: {
             costCenter: string | null;
-            description: string | null;
             id: string;
             companyId: string;
             branchId: string | null;
             createdAt: Date;
             updatedAt: Date;
             name: string;
+            description: string | null;
             code: string;
             type: string;
             parentDepartmentId: string | null;
@@ -51,13 +51,13 @@ export declare class DepartmentsController {
         }[];
     } & {
         costCenter: string | null;
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         parentDepartmentId: string | null;
@@ -69,13 +69,13 @@ export declare class DepartmentsController {
     }>;
     create(dto: CreateDepartmentDto): Promise<{
         costCenter: string | null;
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         parentDepartmentId: string | null;
@@ -87,13 +87,13 @@ export declare class DepartmentsController {
     }>;
     update(id: string, dto: UpdateDepartmentDto): Promise<{
         costCenter: string | null;
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         parentDepartmentId: string | null;

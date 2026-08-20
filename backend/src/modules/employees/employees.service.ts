@@ -94,6 +94,7 @@ export class EmployeesService implements OnModuleInit {
       'kycVerificationDate',
       'pfEsicJoiningDate',
       'salaryEffectiveFrom',
+      'faceRegisteredAt',
     ];
     const parsed = { ...dto };
     for (const field of dateFields) {
@@ -188,11 +189,19 @@ export class EmployeesService implements OnModuleInit {
   async update(id: string, dto: UpdateEmployeeDto) {
     await this.findById(id);
     const parsedData = this.parseDates(dto);
-    return this.prisma.employee.update({
+    if (parsedData.faceTemplate) {
+      console.log(`[Face Registration] Saving face biometric template for Employee ID: ${id}`);
+      console.log(`[Face Registration] Face Template Length: ${parsedData.faceTemplate.length} chars`);
+    }
+    const updated = await this.prisma.employee.update({
       where: { id },
       data: parsedData,
       include: this.listInclude,
     });
+    if (parsedData.faceTemplate) {
+      console.log(`[Face Registration] Database save successful for Employee ID: ${id}`);
+    }
+    return updated;
   }
 
   async remove(id: string) {

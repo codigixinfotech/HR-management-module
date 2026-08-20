@@ -3,21 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 import {
-  UserCheck,
   Play,
   CheckCircle2,
   Clock,
   RotateCcw,
   Sparkles,
-  Calendar,
-  AlertTriangle,
-  FileText,
-  Upload,
   Check,
-  TrendingUp,
   History,
-  MessageSquare,
   ListTodo,
+  Eye,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +26,7 @@ import { Progress } from '@/components/ui/progress';
 import { tasksApi } from '@/api/tasks';
 import { employeesApi } from '@/api/employees';
 import type { EmployeeTask } from '@/api/types';
+import { TaskDetailModal } from './TaskDetailModal';
 
 export function MyTasksTab() {
   const queryClient = useQueryClient();
@@ -57,6 +52,10 @@ export function MyTasksTab() {
   const [historyTask, setHistoryTask] = useState<EmployeeTask | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
+  // Task Details Modal State
+  const [detailTask, setDetailTask] = useState<EmployeeTask | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
   // Fetch real employee list to select active employee persona
   const { data: employeesData } = useQuery({
     queryKey: ['employees-master-list'],
@@ -80,8 +79,9 @@ export function MyTasksTab() {
       if (foundByCode) return foundByCode;
     }
     // Match logged in user by userId first
-    if (user?.id) {
-      const foundByUserId = employeesList.find((e) => (e as any).userId === user.id);
+    const uAny = user as any;
+    if (uAny?.id) {
+      const foundByUserId = employeesList.find((e) => (e as any).userId === uAny.id);
       if (foundByUserId) return foundByUserId;
     }
     // Match logged in user by email
@@ -95,8 +95,8 @@ export function MyTasksTab() {
       if (foundByPersonalEmail) return foundByPersonalEmail;
     }
     // Match by name
-    if (user?.name) {
-      const nameLower = user.name.trim().toLowerCase();
+    if (uAny?.name) {
+      const nameLower = uAny.name.trim().toLowerCase();
       const foundByName = employeesList.find(
         (e) => `${e.firstName} ${e.lastName}`.toLowerCase().includes(nameLower) || nameLower.includes(e.firstName.toLowerCase()),
       );
@@ -105,7 +105,7 @@ export function MyTasksTab() {
     return employeesList.find((e) => e.employeeCode === 'EMP-8265' || e.employeeCode === 'EMP-SANIKA') || employeesList[0] || null;
   }, [selectedEmpId, employeesList, user]);
 
-  const activeEmployeeName = activeEmployee ? `${activeEmployee.firstName} ${activeEmployee.lastName}` : user?.name || 'Current Employee';
+  const activeEmployeeName = activeEmployee ? `${activeEmployee.firstName} ${activeEmployee.lastName}` : (user as any)?.name || 'Current Employee';
 
   // Fetch tasks assigned strictly to active employee
   const { data: myTasks = [], isLoading } = useQuery({
@@ -430,6 +430,19 @@ export function MyTasksTab() {
                           </Button>
                         )}
 
+                        {/* View Details Button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setDetailTask(task);
+                            setIsDetailOpen(true);
+                          }}
+                          className="h-7 px-2 text-xs"
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1" /> View
+                        </Button>
+
                         {/* View History Button */}
                         <Button
                           variant="ghost"
@@ -628,13 +641,13 @@ export function MyTasksTab() {
                       </div>
                       <p className="text-muted-foreground text-[11px]">{act.remarks || 'Status update logged.'}</p>
                       <div className="text-[10px] font-semibold text-foreground/80">
-                        Performed By: {act.performedByName} {act.progressPercent !== undefined ? `• Progress: ${act.progressPercent}%` : ''}
+                        Performed By: {act.performedBy} {act.progress !== undefined && act.progress !== null ? `• Progress: ${act.progress}%` : ''}
                       </div>
                     </div>
                   ))
                 ) : (
                   <div className="p-4 text-center text-xs text-muted-foreground bg-muted/20 rounded-lg">
-                    Task created and assigned to {historyTask.assignedToName || 'Employee'}.
+                    Task created and assigned to {historyTask.assignedTo ? `${historyTask.assignedTo.firstName} ${historyTask.assignedTo.lastName}` : 'Employee'}.
                   </div>
                 )}
               </div>
@@ -648,6 +661,27 @@ export function MyTasksTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* COMPREHENSIVE TASK DETAIL MODAL FOR EMPLOYEE */}
+      <TaskDetailModal
+        task={detailTask}
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setDetailTask(null);
+        }}
+        onActionClick={(action) => {
+          if (!detailTask) return;
+          setIsDetailOpen(false);
+          if (action === 'START') {
+            handleStartTask(detailTask);
+          } else if (action === 'UPDATE') {
+            handleOpenUpdateModal(detailTask);
+          } else if (action === 'COMPLETE') {
+            handleOpenCompleteModal(detailTask);
+          }
+        }}
+      />
     </div>
   );
 }

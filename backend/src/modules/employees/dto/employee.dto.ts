@@ -353,6 +353,22 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsDateString()
   salaryEffectiveFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  faceTemplate?: string;
+
+  @IsOptional()
+  @IsString()
+  facePhoto?: string;
+
+  @IsOptional()
+  @IsDateString()
+  faceRegisteredAt?: string;
+
+  @IsOptional()
+  @IsString()
+  faceRegisteredBy?: string;
 }
 
 export class UpdateEmployeeDto extends PartialType(CreateEmployeeDto) {}

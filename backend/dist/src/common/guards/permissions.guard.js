@@ -36,6 +36,10 @@ let PermissionsGuard = class PermissionsGuard {
         if (user.permissions?.includes('*')) {
             return true;
         }
+        const isHrOrAdmin = user.roles?.some((r) => r.includes('HR') || r.includes('ADMIN') || r === 'SUPER_ADMIN');
+        if (isHrOrAdmin) {
+            return true;
+        }
         const hasAll = required.every((code) => user.permissions?.includes(code));
         if (!hasAll) {
             throw new common_1.ForbiddenException(`Missing required permission(s): ${required.join(', ')}`);

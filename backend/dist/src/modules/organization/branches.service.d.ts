@@ -7,7 +7,6 @@ export declare class BranchesService {
         employees: {
             location: string | null;
             costCenter: string | null;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             id: string;
             employeeCode: string;
             companyId: string;
@@ -28,6 +27,7 @@ export declare class BranchesService {
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
             employmentType: import(".prisma/client").$Enums.EmploymentType;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
             grade: string | null;
@@ -96,6 +96,10 @@ export declare class BranchesService {
             state: string | null;
             country: string | null;
             pincode: string | null;
+            faceTemplate: string | null;
+            facePhoto: string | null;
+            faceRegisteredAt: Date | null;
+            faceRegisteredBy: string | null;
             createdAt: Date;
             updatedAt: Date;
         }[];
@@ -148,7 +152,6 @@ export declare class BranchesService {
         employees: {
             location: string | null;
             costCenter: string | null;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             id: string;
             employeeCode: string;
             companyId: string;
@@ -169,6 +172,7 @@ export declare class BranchesService {
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
             employmentType: import(".prisma/client").$Enums.EmploymentType;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
             grade: string | null;
@@ -237,6 +241,10 @@ export declare class BranchesService {
             state: string | null;
             country: string | null;
             pincode: string | null;
+            faceTemplate: string | null;
+            facePhoto: string | null;
+            faceRegisteredAt: Date | null;
+            faceRegisteredBy: string | null;
             createdAt: Date;
             updatedAt: Date;
         }[];

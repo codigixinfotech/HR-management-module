@@ -39,6 +39,15 @@ export const candidatesApi = {
   remove: async (id: string) => (await apiClient.delete(`/recruitment/candidates/${id}`)).data,
 };
 
+export const assessmentsApi = {
+  assign: async (payload: Partial<AssessmentAssignment>) =>
+    (await apiClient.post<AssessmentAssignment>('/recruitment/assessments/assign', payload)).data,
+  listAssignments: async (candidateId?: string) =>
+    (await apiClient.get<AssessmentAssignment[]>('/recruitment/assessments/assignments', { params: { candidateId } })).data,
+  evaluate: async (id: string, payload: { scorePercent: number; comments?: string; status: 'PASSED' | 'FAILED' }) =>
+    (await apiClient.patch<AssessmentAssignment>(`/recruitment/assessments/assignments/${id}/evaluate`, payload)).data,
+};
+
 export const manpowerPlansApi = {
   list: async (companyId?: string) =>
     (await apiClient.get<ManpowerPlan[]>('/recruitment/manpower-plans', { params: { companyId } })).data,
@@ -64,6 +73,27 @@ export const manpowerRequisitionsApi = {
   update: async (id: string, payload: Partial<ManpowerRequisition>) =>
     (await apiClient.patch<ManpowerRequisition>(`/recruitment/manpower-requisitions/${id}`, payload)).data,
   remove: async (id: string) => (await apiClient.delete(`/recruitment/manpower-requisitions/${id}`)).data,
+};
+
+export const offersApi = {
+  sendOfferEmail: async (payload: {
+    offerId: string;
+    candidateName: string;
+    candidateEmail: string;
+    position: string;
+    ctc: string;
+    joiningDate?: string;
+    requisitionCode?: string;
+    interviewCode?: string;
+    location?: string;
+    manager?: string;
+  }) => (await apiClient.post<{ success: boolean; offerId: string; candidateEmail: string; status: string; sentAt: string; attachmentFilename: string; previewUrl?: string; isEthereal?: boolean }>('/recruitment/offers/send-email', payload)).data,
+
+  testSmtp: async (email?: string) =>
+    (await apiClient.post<{ success: boolean; message: string; smtpHost?: string; smtpPort?: string; testedEmail?: string; error?: string }>('/recruitment/offers/test-smtp', { email })).data,
+
+  getAuditLogs: async (offerId?: string) =>
+    (await apiClient.get<any[]>('/recruitment/offers/audit-logs', { params: { offerId } })).data,
 };
 
 

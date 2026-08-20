@@ -111,6 +111,10 @@ class CreateEmployeeDto {
     grossSalary;
     annualCtc;
     salaryEffectiveFrom;
+    faceTemplate;
+    facePhoto;
+    faceRegisteredAt;
+    faceRegisteredBy;
 }
 exports.CreateEmployeeDto = CreateEmployeeDto;
 __decorate([
@@ -544,6 +548,26 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], CreateEmployeeDto.prototype, "salaryEffectiveFrom", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateEmployeeDto.prototype, "faceTemplate", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateEmployeeDto.prototype, "facePhoto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreateEmployeeDto.prototype, "faceRegisteredAt", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateEmployeeDto.prototype, "faceRegisteredBy", void 0);
 class UpdateEmployeeDto extends (0, mapped_types_1.PartialType)(CreateEmployeeDto) {
 }
 exports.UpdateEmployeeDto = UpdateEmployeeDto;

@@ -1,545 +1,570 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
   Plus,
-  Trash2,
   Search,
-  CheckCircle2,
   Video,
-  MapPin,
   Clock,
-  User,
-  Users,
-  ClipboardList,
-  Sparkles,
+  UserCheck,
+  Play,
+  Check,
+  Star,
+  Eye,
+  FileCheck,
+  FileSignature,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { StatusBadge } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
-import { jobOpeningsApi, candidatesApi } from '@/api/recruitment';
-import { useNavigate } from 'react-router-dom';
-import type { CandidateStage } from '@/api/types';
+import { employeesApi } from '@/api/employees';
+import { interviewsApi } from '@/api/interviews';
+import { ScheduleInterviewModal } from './ScheduleInterviewModal';
+import { InterviewDetailsModal } from './InterviewDetailsModal';
+import { useAuthStore } from '@/stores/auth-store';
 
-interface InterviewItem {
-  id: string;
-  candidateId?: string;
-  candidate: string;
-  role: string;
-  reqCode: string;
-  panel: string;
-  time: string;
-  format: 'Google Meet' | 'In-person Pune HQ' | 'Microsoft Teams';
-  status: 'READY_TO_SCHEDULE' | 'SCHEDULED' | 'PENDING_FEEDBACK' | 'COMPLETED' | 'CANCELLED';
-}
+import { InterviewReminderNotifier, InterviewReminderBanner } from '@/components/recruitment/InterviewReminderNotifier';
 
 export function InterviewsTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFormat, setSelectedFormat] = useState<string>('all');
-  const [scheduledCustomPanels, setScheduledCustomPanels] = useState<InterviewItem[]>([]);
+  const user = useAuthStore((s) => s.user);
 
-  // Fetch real Job Openings and candidates from DB
-  const { data: openings = [] } = useQuery({
-    queryKey: ['job-openings'],
-    queryFn: () => jobOpeningsApi.list(),
+  // Active persona selection for testing interviewer vs HR view
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('');
+  const [activeTabFilter, setActiveTabFilter] = useState<string>('ALL');
+  const [viewScope, setViewScope] = useState<'ALL' | 'MY_INTERVIEWS'>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedFormat, setSelectedFormat] = useState<string>('ALL');
+
+  // Modals state
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // Fetch Master Employees List to choose active interviewer persona
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees-master-list'],
+    queryFn: () => employeesApi.list({ pageSize: 100 }),
   });
 
-  // Extract candidates whose stage is 'INTERVIEW'
-  const dbInterviewCandidates = useMemo(() => {
-    const list: InterviewItem[] = [];
-    openings.forEach((job) => {
-      if (job.candidates && job.candidates.length > 0) {
-        job.candidates.forEach((c) => {
-          if (c.stage === 'INTERVIEW' || c.stage === 'SHORTLISTED') {
-            list.push({
-              id: `INT-${c.id.substring(0, 6).toUpperCase()}`,
-              candidateId: c.id,
-              candidate: `${c.firstName} ${c.lastName}`,
-              role: job.title,
-              reqCode: job.requisitionCode || 'JR-2026-001',
-              panel: 'Rajesh Sharma (CTO)',
-              time: '06 Aug 2026, 11:00 AM',
-              format: 'Google Meet',
-              status: 'READY_TO_SCHEDULE',
-            });
-          }
-        });
-      }
-    });
-    return list;
-  }, [openings]);
+  const employeesList = useMemo(() => {
+    return employeesData?.items || [];
+  }, [employeesData]);
 
-  // Combine DB candidates with any locally scheduled panels
-  const allInterviews = useMemo(() => {
-    const combined = [...dbInterviewCandidates];
-    scheduledCustomPanels.forEach((custom) => {
-      const idx = combined.findIndex(
-        (item) => item.candidateId && item.candidateId === custom.candidateId,
+  // Determine active logged-in employee persona
+  const activeEmployee = useMemo(() => {
+    if (selectedPersonaId) {
+      const found = employeesList.find((e) => e.id === selectedPersonaId);
+      if (found) return found;
+    }
+    const uAny = user as any;
+    if (user?.email) {
+      const emailLower = user.email.toLowerCase();
+      const foundByEmail = employeesList.find(
+        (e) => e.workEmail?.toLowerCase() === emailLower || e.personalEmail?.toLowerCase() === emailLower,
       );
-      if (idx !== -1) {
-        combined[idx] = { ...combined[idx], ...custom, status: custom.status };
-      } else {
-        combined.push(custom);
-      }
-    });
-    return combined;
-  }, [dbInterviewCandidates, scheduledCustomPanels]);
+      if (foundByEmail) return foundByEmail;
+    }
+    const rajesh = employeesList.find((e) => e.firstName.toLowerCase().includes('rajesh'));
+    if (rajesh) return rajesh;
+    return employeesList[0] || null;
+  }, [selectedPersonaId, employeesList, user]);
 
-  // Stage Mutation to advance candidate when interview feedback is completed
-  const updateStageMutation = useMutation({
-    mutationFn: ({ id, stage }: { id: string; stage: CandidateStage }) =>
-      candidatesApi.updateStage(id, stage),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
-      toast.success('Candidate advanced to OFFERED stage!');
-    },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Failed to update stage'),
+  const activeEmployeeName = activeEmployee
+    ? `${activeEmployee.firstName} ${activeEmployee.lastName}`
+    : (user as any)?.name || 'Rajesh Sharma (CTO)';
+
+  // Fetch active interview reminders for active persona
+  const { data: reminders = [] } = useQuery({
+    queryKey: ['interview-reminders', activeEmployee?.id],
+    queryFn: () => (activeEmployee?.id ? interviewsApi.getReminders(activeEmployee.id) : []),
+    enabled: Boolean(activeEmployee?.id),
+    refetchInterval: 15000,
   });
 
-  // Modal State
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
-  const [formCandidate, setFormCandidate] = useState('');
-  const [formRole, setFormRole] = useState('Chief Technology Officer');
-  const [formPanel, setFormPanel] = useState('Rajesh Sharma (CTO)');
-  const [formTime, setFormTime] = useState('06 Aug 2026, 11:00 AM');
-  const [formFormat, setFormFormat] = useState<'Google Meet' | 'In-person Pune HQ' | 'Microsoft Teams'>('Google Meet');
+  // Fetch Dashboard Summary KPIs
+  const { data: summary } = useQuery({
+    queryKey: ['interviews-summary'],
+    queryFn: () => interviewsApi.getSummary(),
+  });
 
-  const openAddModal = (cand?: InterviewItem) => {
-    if (cand) {
-      setSelectedCandidateId(cand.candidateId || '');
-      setFormCandidate(cand.candidate);
-      setFormRole(cand.role);
-    } else {
-      setSelectedCandidateId('');
-      setFormCandidate('');
-      setFormRole(openings[0]?.title || 'Chief Technology Officer');
-    }
-    setFormPanel('Rajesh Sharma (CTO)');
-    setFormTime('06 Aug 2026, 11:00 AM');
-    setFormFormat('Google Meet');
-    setIsOpen(true);
-  };
+  // Fetch Interviews List from Backend API
+  const { data: interviewsList = [], isLoading } = useQuery({
+    queryKey: ['interviews-list', viewScope, activeEmployee?.id, activeTabFilter, searchQuery, selectedFormat],
+    queryFn: () =>
+      interviewsApi.list({
+        interviewerId: viewScope === 'MY_INTERVIEWS' ? activeEmployee?.id : undefined,
+        status: activeTabFilter !== 'ALL' && activeTabFilter !== 'TODAY' && activeTabFilter !== 'UPCOMING' ? activeTabFilter : undefined,
+        filterTab: activeTabFilter === 'TODAY' ? 'today' : activeTabFilter === 'UPCOMING' ? 'upcoming' : undefined,
+        search: searchQuery.trim() ? searchQuery.trim() : undefined,
+      }),
+  });
 
-  const handleAddInterview = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formCandidate) {
-      toast.error('Candidate name is required');
-      return;
-    }
-
-    const newInterview: InterviewItem = {
-      id: `INT-${Math.floor(100 + Math.random() * 900)}`,
-      candidateId: selectedCandidateId || undefined,
-      candidate: formCandidate,
-      role: formRole,
-      reqCode: 'JR-2026-001',
-      panel: formPanel,
-      time: formTime,
-      format: formFormat,
-      status: 'SCHEDULED',
-    };
-
-    setScheduledCustomPanels((prev) => {
-      const filtered = prev.filter(
-        (item) => !selectedCandidateId || item.candidateId !== selectedCandidateId,
-      );
-      return [...filtered, newInterview];
-    });
-    toast.success(`Interview scheduled successfully for ${formCandidate}`);
-    setIsOpen(false);
-  };
-
-  const handleCancelInterview = (id: string) => {
-    setScheduledCustomPanels((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: 'CANCELLED' } : i)),
-    );
-    toast.error('Interview cancelled');
-  };
-
-  const handleFeedbackSubmit = (item: InterviewItem) => {
-    setScheduledCustomPanels((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, status: 'COMPLETED' } : i)),
-    );
-    if (item.candidateId) {
-      updateStageMutation.mutate(
-        { id: item.candidateId, stage: 'OFFERED' },
-        {
-          onSuccess: () => {
-            toast.success(
-              `Scorecard logged! Candidate selected & offer letter auto-generated. Opening Offers & Joining module...`,
-            );
-            navigate('/recruitment/offers');
-          },
-        },
-      );
-    } else {
-      toast.success('Interview scorecard logged! Opening Offers & Joining module...');
-      navigate('/recruitment/offers');
-    }
-  };
-
+  // Filter list by format if needed
   const filteredInterviews = useMemo(() => {
-    return allInterviews.filter((i) => {
-      const matchesSearch =
-        i.candidate.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        i.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        i.panel.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFormat =
-        selectedFormat === 'all'
-          ? true
-          : selectedFormat === 'online'
-          ? i.format.includes('Meet') || i.format.includes('Teams')
-          : i.format.includes('In-person');
-      return matchesSearch && matchesFormat;
-    });
-  }, [allInterviews, searchQuery, selectedFormat]);
+    if (selectedFormat === 'ALL') return interviewsList;
+    return interviewsList.filter((i) => i.interviewFormat === selectedFormat);
+  }, [interviewsList, selectedFormat]);
+
+  const handleOpenDetails = (id: string) => {
+    setSelectedInterviewId(id);
+    setIsDetailsOpen(true);
+  };
+
+  const statusBadge = (st: string) => {
+    switch (st?.toUpperCase()) {
+      case 'EVALUATED':
+        return (
+          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 flex items-center gap-1">
+            <Check className="h-3 w-3" /> Evaluated
+          </Badge>
+        );
+      case 'SELECTED':
+        return (
+          <Badge className="bg-emerald-600 text-white font-bold flex items-center gap-1">
+            <Check className="h-3 w-3 text-white" /> Selected
+          </Badge>
+        );
+      case 'REJECTED':
+        return <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-300">Rejected</Badge>;
+      case 'NEXT_ROUND':
+        return (
+          <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-300 flex items-center gap-1">
+            <Calendar className="h-3 w-3 text-blue-600" /> Next Round
+          </Badge>
+        );
+      case 'ON_HOLD':
+        return (
+          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 flex items-center gap-1">
+            <Clock className="h-3 w-3" /> On Hold
+          </Badge>
+        );
+      case 'EVALUATION_PENDING':
+      case 'COMPLETED':
+        return (
+          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Pending Evaluation
+          </Badge>
+        );
+      case 'IN_PROGRESS':
+        return (
+          <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-300 flex items-center gap-1">
+            <Play className="h-3 w-3 text-blue-600" /> In Progress
+          </Badge>
+        );
+      case 'CANCELLED':
+        return <Badge className="bg-rose-500/15 text-rose-700 border-rose-300">Cancelled</Badge>;
+      default:
+        return (
+          <Badge className="bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-300 flex items-center gap-1">
+            <Calendar className="h-3 w-3" /> Scheduled
+          </Badge>
+        );
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* ── 1. Top Interview Stats Cards ── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Card className="shadow-2xs border-border/80">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Ready to Schedule</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {allInterviews.filter((i) => i.status === 'READY_TO_SCHEDULE').length} Candidates
-              </p>
-              <p className="text-[10px] text-primary font-semibold mt-1">Shortlisted from Screening</p>
+      {/* Toast Notifier for 15-min and Starting Now alerts */}
+      <InterviewReminderNotifier
+        activeEmployeeId={activeEmployee?.id}
+        activeEmployeeName={activeEmployeeName}
+        onOpenDetails={handleOpenDetails}
+      />
+
+      {/* Top Banner Alert for Active Reminders */}
+      <InterviewReminderBanner
+        reminders={reminders}
+        activeEmployeeName={activeEmployeeName}
+        onOpenDetails={handleOpenDetails}
+      />
+      {/* Active Interviewer Persona Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-primary/10 via-primary/5 to-background p-4 rounded-xl border border-primary/20">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm">
+            {activeEmployeeName.charAt(0)}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-foreground">{activeEmployeeName}</h3>
+              <Badge className="bg-primary/15 text-primary text-[10px]">Active Evaluator Persona</Badge>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
-              <Sparkles className="h-5 w-5" />
-            </div>
-          </CardContent>
+            <p className="text-xs text-muted-foreground">
+              {activeEmployee?.designation?.title || 'CTO'} • {activeEmployee?.department?.name || 'Technology'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-medium text-muted-foreground">Persona:</Label>
+            <Select value={activeEmployee?.id || ''} onValueChange={(val) => setSelectedPersonaId(val)}>
+              <SelectTrigger className="h-9 text-xs w-[220px] bg-background">
+                <SelectValue placeholder="Select Evaluator Persona" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {employeesList.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                    {emp.firstName} {emp.lastName} ({emp.designation?.title || emp.department?.name})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            onClick={() => setIsScheduleOpen(true)}
+            className="h-9 text-xs font-semibold shadow-sm gap-1.5 bg-primary hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> Schedule Interview Panel
+          </Button>
+        </div>
+      </div>
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <Card className="border border-border/60 bg-card p-3">
+          <span className="text-[11px] text-muted-foreground block font-medium">Total Scheduled</span>
+          <strong className="text-xl font-bold text-foreground">{summary?.total || filteredInterviews.length}</strong>
         </Card>
 
-        <Card className="shadow-2xs border-border/80">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Scheduled Panels</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {allInterviews.filter((i) => i.status === 'SCHEDULED').length} Active
-              </p>
-              <p className="text-[10px] text-blue-600 font-semibold mt-1">Upcoming technical rounds</p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 shrink-0">
-              <Calendar className="h-5 w-5" />
-            </div>
-          </CardContent>
+        <Card className="border border-border/60 bg-card p-3">
+          <span className="text-[11px] text-muted-foreground block font-medium">Ready to Schedule</span>
+          <strong className="text-xl font-bold text-primary">{summary?.readyToSchedule || 0}</strong>
         </Card>
 
-        <Card className="shadow-2xs border-border/80">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Completed Rounds</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {allInterviews.filter((i) => i.status === 'COMPLETED').length} Evaluated
-              </p>
-              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Scorecards submitted</p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-          </CardContent>
+        <Card className="border border-border/60 bg-card p-3">
+          <span className="text-[11px] text-muted-foreground block font-medium">Active Panels</span>
+          <strong className="text-xl font-bold text-blue-600 dark:text-blue-400">{summary?.scheduled || 0}</strong>
         </Card>
 
-        <Card className="shadow-2xs border-border/80">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Panel Evaluators</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">18 Pool</p>
-              <p className="text-[10px] text-violet-600 font-semibold mt-1">Active panelists mapped</p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
-              <Users className="h-5 w-5" />
-            </div>
-          </CardContent>
+        <Card className="border border-border/60 bg-card p-3">
+          <span className="text-[11px] text-muted-foreground block font-medium">Today's Rounds</span>
+          <strong className="text-xl font-bold text-amber-600 dark:text-amber-400">{summary?.todaysInterviews || 0}</strong>
+        </Card>
+
+        <Card className="border border-border/60 bg-card p-3">
+          <span className="text-[11px] text-muted-foreground block font-medium">Completed</span>
+          <strong className="text-xl font-bold text-teal-600 dark:text-teal-400">{summary?.completed || 0}</strong>
+        </Card>
+
+        <Card className="border border-border/60 bg-card p-3">
+          <span className="text-[11px] text-muted-foreground block font-medium">Pending Feedback</span>
+          <strong className="text-xl font-bold text-amber-600 dark:text-amber-400">{summary?.pendingEvaluation || 0}</strong>
+        </Card>
+
+        <Card className="border border-border/60 bg-card p-3">
+          <span className="text-[11px] text-muted-foreground block font-medium">Evaluated</span>
+          <strong className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{summary?.evaluated || 0}</strong>
         </Card>
       </div>
 
-      {/* ── 2. Scheduled Interview Panels Table ── */}
-      <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-primary" /> Interview Schedule & Shortlisted Candidates
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Candidates in INTERVIEW stage dynamically load here for panel allocation and technical scorecards
-              </CardDescription>
-            </div>
+      {/* Main Interviews Roster & Filter Bar */}
+      <Card className="border border-border/60 bg-card">
+        <CardHeader className="pb-3 border-b border-border/40 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" /> Candidate Interview Schedule & Panel Evaluation Roster
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Manage interview panels, conduct technical evaluations, log 1-5 scorecards, and review ratings.
+            </CardDescription>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {/* Category Filter Pills */}
-              <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
-                {[
-                  { id: 'all', label: 'All' },
-                  { id: 'online', label: 'Video Call' },
-                  { id: 'onsite', label: 'On-Site HQ' },
-                ].map((format) => (
-                  <button
-                    key={format.id}
-                    onClick={() => setSelectedFormat(format.id)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${
-                      selectedFormat === format.id
-                        ? 'bg-background text-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {format.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Search Bar */}
-              <div className="relative w-40 sm:w-52">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Filter candidate or panel..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 text-xs bg-background"
-                />
-              </div>
-
-              {/* Add Interview Dialog */}
-              <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => openAddModal()}>
-                    <Plus className="h-3.5 w-3.5" /> Schedule Panel
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Schedule Interview Panel</DialogTitle>
-                  </DialogHeader>
-                  <form className="space-y-4" onSubmit={handleAddInterview}>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Candidate Name</Label>
-                      {dbInterviewCandidates.length > 0 ? (
-                        <Select
-                          value={selectedCandidateId}
-                          onValueChange={(val) => {
-                            setSelectedCandidateId(val);
-                            const cand = dbInterviewCandidates.find((c) => c.candidateId === val);
-                            if (cand) {
-                              setFormCandidate(cand.candidate);
-                              setFormRole(cand.role);
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select candidate in INTERVIEW stage" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {dbInterviewCandidates.map((c) => (
-                              <SelectItem key={c.id} value={c.candidateId || c.id} className="text-xs">
-                                {c.candidate} ({c.role})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          placeholder="e.g. Siddharth Rao"
-                          value={formCandidate}
-                          onChange={(e) => setFormCandidate(e.target.value)}
-                          className="h-9 text-xs"
-                        />
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Target Position</Label>
-                        <Input
-                          value={formRole}
-                          onChange={(e) => setFormRole(e.target.value)}
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Assigned Interviewer Panel</Label>
-                        <Select value={formPanel} onValueChange={setFormPanel}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select panel" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Rajesh Sharma (CTO)" className="text-xs">
-                              Rajesh Sharma (CTO)
-                            </SelectItem>
-                            <SelectItem value="Priya Verma (HR Lead)" className="text-xs">
-                              Priya Verma (HR Lead)
-                            </SelectItem>
-                            <SelectItem value="Karan Malhotra (VP Product)" className="text-xs">
-                              Karan Malhotra (VP Product)
-                            </SelectItem>
-                            <SelectItem value="Aishwarya Roy (Director HR)" className="text-xs">
-                              Aishwarya Roy (Director HR)
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Date & Start Time</Label>
-                        <Input
-                          placeholder="e.g. 06 Aug 2026, 11:00 AM"
-                          value={formTime}
-                          onChange={(e) => setFormTime(e.target.value)}
-                          className="h-9 text-xs font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Interview Format</Label>
-                        <Select value={formFormat} onValueChange={(v) => setFormFormat(v as any)}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select location" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Google Meet" className="text-xs">
-                              Google Meet
-                            </SelectItem>
-                            <SelectItem value="In-person Pune HQ" className="text-xs">
-                              In-person Pune HQ
-                            </SelectItem>
-                            <SelectItem value="Microsoft Teams" className="text-xs">
-                              Microsoft Teams
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit" size="sm" className="text-xs font-semibold">
-                        Confirm Schedule
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
+          {/* Scope Toggle: All Interviews vs My Assigned Interviews */}
+          <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl border border-border/50">
+            <Button
+              variant={viewScope === 'ALL' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewScope('ALL')}
+              className="h-7 text-xs px-3 rounded-lg font-semibold"
+            >
+              All Interviews (HR)
+            </Button>
+            <Button
+              variant={viewScope === 'MY_INTERVIEWS' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewScope('MY_INTERVIEWS')}
+              className="h-7 text-xs px-3 rounded-lg font-semibold gap-1"
+            >
+              <UserCheck className="h-3.5 w-3.5" /> My Assigned ({activeEmployeeName.split(' ')[0]})
+            </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6">
-          {filteredInterviews.length === 0 ? (
-            <div className="p-8 text-center border rounded-xl bg-muted/20 space-y-2">
-              <Calendar className="h-8 w-8 text-muted-foreground mx-auto" />
-              <p className="text-xs font-semibold text-foreground">No Candidates in Interview Stage</p>
-              <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-                Advance candidates from <strong className="text-primary">Candidates $\rightarrow$ SCREENING $\rightarrow$ INTERVIEW</strong> to populate them here for schedule allocation.
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
+
+        {/* Filter Controls Bar */}
+        <div className="p-4 border-b border-border/40 flex flex-col sm:flex-row items-center justify-between gap-3 bg-muted/10">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search candidate name, requisition code, position, or panel member..."
+              className="pl-9 h-9 text-xs bg-background"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Select value={activeTabFilter} onValueChange={setActiveTabFilter}>
+              <SelectTrigger className="h-9 text-xs w-[150px] bg-background">
+                <SelectValue placeholder="Status Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL" className="text-xs">All Statuses</SelectItem>
+                <SelectItem value="SCHEDULED" className="text-xs">Scheduled</SelectItem>
+                <SelectItem value="TODAY" className="text-xs">Today's Rounds</SelectItem>
+                <SelectItem value="UPCOMING" className="text-xs">Upcoming</SelectItem>
+                <SelectItem value="EVALUATION_PENDING" className="text-xs">Pending Feedback</SelectItem>
+                <SelectItem value="EVALUATED" className="text-xs">Evaluated</SelectItem>
+                <SelectItem value="SELECTED" className="text-xs">Selected</SelectItem>
+                <SelectItem value="REJECTED" className="text-xs">Rejected</SelectItem>
+                <SelectItem value="NEXT_ROUND" className="text-xs">Next Round</SelectItem>
+                <SelectItem value="ON_HOLD" className="text-xs">On Hold</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedFormat} onValueChange={setSelectedFormat}>
+              <SelectTrigger className="h-9 text-xs w-[140px] bg-background">
+                <SelectValue placeholder="Format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL" className="text-xs">All Formats</SelectItem>
+                <SelectItem value="Google Meet" className="text-xs">Google Meet</SelectItem>
+                <SelectItem value="Microsoft Teams" className="text-xs">Microsoft Teams</SelectItem>
+                <SelectItem value="On-site" className="text-xs">On-site HQ</SelectItem>
+                <SelectItem value="Phone" className="text-xs">Phone</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table className="text-xs">
+              <TableHeader className="bg-muted/40 text-[10px] uppercase tracking-wider font-semibold">
                 <TableRow>
-                  <TableHead className="text-xs">ID</TableHead>
-                  <TableHead className="text-xs">Candidate Name</TableHead>
-                  <TableHead className="text-xs">Target Position</TableHead>
-                  <TableHead className="text-xs">Interviewer Panel</TableHead>
-                  <TableHead className="text-xs">Date & Time</TableHead>
-                  <TableHead className="text-xs">Format & Location</TableHead>
-                  <TableHead className="text-xs">Status</TableHead>
-                  <TableHead className="text-right text-xs">Actions</TableHead>
+                  <TableHead className="py-3 px-4">Interview ID</TableHead>
+                  <TableHead className="py-3 px-4">Candidate & Position</TableHead>
+                  <TableHead className="py-3 px-4">Assigned Interview Panel</TableHead>
+                  <TableHead className="py-3 px-4">Date & Time</TableHead>
+                  <TableHead className="py-3 px-4">Format & Meeting Link</TableHead>
+                  <TableHead className="py-3 px-4">Status</TableHead>
+                  <TableHead className="py-3 px-4">Panel Rating</TableHead>
+                  <TableHead className="py-3 px-4 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {filteredInterviews.map((i) => (
-                  <TableRow key={i.id} className="hover:bg-muted/40 transition-colors">
-                    <TableCell className="font-mono text-xs font-semibold text-primary">{i.id}</TableCell>
-                    <TableCell className="font-semibold text-xs text-foreground">{i.candidate}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-semibold">{i.role}</TableCell>
-                    <TableCell className="text-xs font-semibold text-foreground">
-                      <div className="flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        {i.panel}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono font-medium">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        {i.time}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs font-semibold">
-                      <div className="flex items-center gap-1.5">
-                        {i.format.includes('In-person') ? (
-                          <MapPin className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                        ) : (
-                          <Video className="h-3.5 w-3.5 text-primary shrink-0" />
-                        )}
-                        {i.format}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {i.status === 'READY_TO_SCHEDULE' ? (
-                        <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] uppercase font-semibold">
-                          READY TO SCHEDULE
-                        </Badge>
-                      ) : (
-                        <StatusBadge status={i.status} className="text-[10px]" />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {i.status === 'READY_TO_SCHEDULE' && (
-                          <Button
-                            size="sm"
-                            className="h-7 text-[10.5px] px-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-1"
-                            onClick={() => openAddModal(i)}
-                          >
-                            <Calendar className="h-3 w-3" /> Schedule
-                          </Button>
-                        )}
-                        {i.status === 'SCHEDULED' && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-semibold"
-                              onClick={() => handleFeedbackSubmit(i)}
-                            >
-                              Submit Scorecard
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={() => handleCancelInterview(i.id)}
-                              title="Cancel Panel"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
-                        )}
-                        {i.status === 'COMPLETED' && (
-                          <Badge variant="outline" className="text-[9.5px] text-emerald-600 border-emerald-300 font-semibold">
-                            Evaluated
+
+              <TableBody className="divide-y divide-border/40 font-medium">
+                {filteredInterviews.map((item) => {
+                  const isAssigned = item.panelMembers.some(
+                    (pm) => pm.interviewerId === activeEmployee?.id,
+                  );
+                  const evalCount = item.evaluations?.length || 0;
+                  const panelCount = item.panelMembers?.length || 1;
+
+                  // Compute average panel rating
+                  const avgRating =
+                    evalCount > 0
+                      ? Math.round(
+                          (item.evaluations.reduce((a, b) => a + b.overallRating, 0) / evalCount) * 10,
+                        ) / 10
+                      : 0;
+
+                  return (
+                    <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
+                      <TableCell className="py-3 px-4 font-mono font-bold text-primary">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span>{item.interviewCode}</span>
+                          {item.notes?.includes('Round 2') ? (
+                            <Badge className="bg-blue-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 2</Badge>
+                          ) : item.notes?.includes('Round 3') ? (
+                            <Badge className="bg-purple-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 3</Badge>
+                          ) : item.notes?.includes('Round 4') ? (
+                            <Badge className="bg-indigo-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 4</Badge>
+                          ) : null}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3 px-4">
+                        <div className="font-semibold text-foreground">
+                          {item.candidate ? `${item.candidate.firstName} ${item.candidate.lastName}` : 'Candidate'}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                          <span>{item.position}</span>
+                          <span>•</span>
+                          <span className="font-mono">{item.requisitionCode || 'JR-2026-001'}</span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3 px-4 max-w-xs">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap gap-1">
+                            {item.panelMembers.map((pm) => {
+                              const isMe = pm.interviewerId === activeEmployee?.id;
+                              return (
+                                <Badge
+                                  key={pm.id}
+                                  variant={isMe ? 'default' : 'outline'}
+                                  className={`text-[10px] flex items-center gap-1 ${
+                                    isMe ? 'bg-primary/20 text-primary border-primary/30 font-bold' : 'bg-background'
+                                  }`}
+                                >
+                                  <span>{pm.interviewerName}</span>
+                                  <span className="text-[9px] text-muted-foreground">– {pm.panelRole}</span>
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3 px-4">
+                        <div className="font-mono text-[11px]">
+                          {new Date(item.interviewDate).toLocaleDateString('en-GB')}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> {item.startTime}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-[10px]">
+                            {item.interviewFormat}
                           </Badge>
+                          {item.meetingLink && (
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" asChild>
+                              <a
+                                href={item.meetingLink.startsWith('http') ? item.meetingLink : '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Join Meeting"
+                              >
+                                <Video className="h-3.5 w-3.5 text-primary" />
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3 px-4">{statusBadge(item.status)}</TableCell>
+
+                      <TableCell className="py-3 px-4">
+                        {avgRating > 0 ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1 font-mono font-bold text-amber-600 dark:text-amber-400 text-xs">
+                              <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                              <span>{avgRating}/5.0</span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground block">
+                              ({evalCount}/{panelCount} Evaluated)
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground italic">No ratings yet</span>
                         )}
-                      </div>
+                      </TableCell>
+
+                      <TableCell className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {item.status === 'SELECTED' && (
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1 shadow-xs"
+                              onClick={() => {
+                                const candName = item.candidate
+                                  ? `${item.candidate.firstName} ${item.candidate.lastName}`
+                                  : 'Selected Candidate';
+                                const urlParams = new URLSearchParams({
+                                  autoCreate: 'true',
+                                  candidateId: item.candidateId || '',
+                                  candidateName: candName,
+                                  candidateEmail: item.candidate?.email || 'candidate@example.com',
+                                  position: item.position || 'Product Designer',
+                                  requisitionCode: item.requisitionCode || 'JR-2026-001',
+                                  interviewCode: item.interviewCode || 'INT-2026-001',
+                                });
+                                navigate(`/recruitment/offers?${urlParams.toString()}`);
+                              }}
+                            >
+                              <FileSignature className="h-3.5 w-3.5" /> Release Offer
+                            </Button>
+                          )}
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenDetails(item.id)}
+                            className="h-7 px-2 text-xs"
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1" /> View Details
+                          </Button>
+
+                          {isAssigned && item.status !== 'SELECTED' && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenDetails(item.id)}
+                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold"
+                            >
+                              <FileCheck className="h-3.5 w-3.5" /> Evaluate
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+
+                {filteredInterviews.length === 0 && !isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-8 text-center text-xs text-muted-foreground">
+                      No interview schedules found matching your scope/filter. Click{' '}
+                      <strong>Schedule Interview Panel</strong> to create one.
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
-          )}
+          </div>
         </CardContent>
       </Card>
+
+      {/* SCHEDULE INTERVIEW MODAL */}
+      <ScheduleInterviewModal
+        isOpen={isScheduleOpen}
+        onClose={() => setIsScheduleOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['interviews-list'] });
+          queryClient.invalidateQueries({ queryKey: ['interviews-summary'] });
+        }}
+      />
+
+      {/* INTERVIEW DETAILS & EVALUATION MODAL */}
+      <InterviewDetailsModal
+        interviewId={selectedInterviewId}
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedInterviewId(null);
+        }}
+        activeEmployeeId={activeEmployee?.id}
+        activeEmployeeName={activeEmployeeName}
+        onScheduleNextRoundSuccess={(newInterviewId) => {
+          setIsDetailsOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['interviews-list'] });
+          queryClient.invalidateQueries({ queryKey: ['interviews-summary'] });
+          setTimeout(() => {
+            setSelectedInterviewId(newInterviewId);
+            setIsDetailsOpen(true);
+          }, 250);
+        }}
+      />
     </div>
   );
 }

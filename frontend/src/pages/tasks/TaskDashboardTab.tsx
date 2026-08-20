@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   CheckCircle2,
@@ -11,17 +11,23 @@ import {
   UserCheck,
   Building2,
   ArrowUpRight,
+  Eye,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { tasksApi } from '@/api/tasks';
+import type { EmployeeTask } from '@/api/types';
+import { TaskDetailModal } from './TaskDetailModal';
 
 interface TaskDashboardTabProps {
   onSelectTab: (tab: string) => void;
 }
 
 export function TaskDashboardTab({ onSelectTab }: TaskDashboardTabProps) {
+  const [selectedTask, setSelectedTask] = useState<EmployeeTask | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const { data: summary } = useQuery({
     queryKey: ['task-summary'],
     queryFn: () => tasksApi.getSummary(),
@@ -214,12 +220,26 @@ export function TaskDashboardTab({ onSelectTab }: TaskDashboardTabProps) {
                   </div>
                 </div>
 
-                <div className="w-32 space-y-1 text-right">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground">Progress</span>
-                    <strong className="text-foreground">{task.progress}%</strong>
+                <div className="flex items-center gap-3">
+                  <div className="w-28 space-y-1 text-right">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">Progress</span>
+                      <strong className="text-foreground">{task.progress}%</strong>
+                    </div>
+                    <Progress value={task.progress} className="h-1.5" />
                   </div>
-                  <Progress value={task.progress} className="h-1.5" />
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setIsDetailOpen(true);
+                    }}
+                    className="h-7 text-xs px-2.5 gap-1"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> View
+                  </Button>
                 </div>
               </div>
             ))}
@@ -232,6 +252,16 @@ export function TaskDashboardTab({ onSelectTab }: TaskDashboardTabProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* COMPREHENSIVE TASK DETAIL MODAL */}
+      <TaskDetailModal
+        task={selectedTask}
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setSelectedTask(null);
+        }}
+      />
     </div>
   );
 }

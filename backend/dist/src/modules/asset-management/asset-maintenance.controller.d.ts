@@ -10,27 +10,27 @@ export declare class AssetMaintenanceController {
             assetTag: string;
         };
     } & {
-        startDate: Date;
         id: string;
         createdAt: Date;
+        startDate: Date;
         endDate: Date | null;
         assetId: string;
         issue: string;
         cost: number | null;
     })[]>;
     create(dto: CreateAssetMaintenanceDto): Promise<{
-        startDate: Date;
         id: string;
         createdAt: Date;
+        startDate: Date;
         endDate: Date | null;
         assetId: string;
         issue: string;
         cost: number | null;
     }>;
     complete(id: string): Promise<{
-        startDate: Date;
         id: string;
         createdAt: Date;
+        startDate: Date;
         endDate: Date | null;
         assetId: string;
         issue: string;

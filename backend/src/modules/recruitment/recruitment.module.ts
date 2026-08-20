@@ -7,6 +7,10 @@ import { ManpowerPlansController } from './manpower-plans.controller';
 import { ManpowerPlansService } from './manpower-plans.service';
 import { ManpowerRequisitionsController } from './manpower-requisitions.controller';
 import { ManpowerRequisitionsService } from './manpower-requisitions.service';
+import { InterviewsController } from './interviews.controller';
+import { InterviewsService } from './interviews.service';
+import { OffersController } from './offers.controller';
+import { OfferEmailService } from './offer-email.service';
 
 @Module({
   controllers: [
@@ -14,18 +18,24 @@ import { ManpowerRequisitionsService } from './manpower-requisitions.service';
     CandidatesController,
     ManpowerPlansController,
     ManpowerRequisitionsController,
+    InterviewsController,
+    OffersController,
   ],
   providers: [
     JobOpeningsService,
     CandidatesService,
     ManpowerPlansService,
     ManpowerRequisitionsService,
+    InterviewsService,
+    OfferEmailService,
   ],
   exports: [
     JobOpeningsService,
     CandidatesService,
     ManpowerPlansService,
     ManpowerRequisitionsService,
+    InterviewsService,
+    OfferEmailService,
   ],
 })
 export class RecruitmentModule {}

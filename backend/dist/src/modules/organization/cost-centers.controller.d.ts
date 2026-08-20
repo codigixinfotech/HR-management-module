@@ -13,7 +13,6 @@ export declare class CostCentersController {
             name: string;
         } | null;
     } & {
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
@@ -21,6 +20,7 @@ export declare class CostCentersController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         headcountCapacity: number;
@@ -40,7 +40,6 @@ export declare class CostCentersController {
             name: string;
         } | null;
     } & {
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
@@ -48,6 +47,7 @@ export declare class CostCentersController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         headcountCapacity: number;
@@ -58,7 +58,6 @@ export declare class CostCentersController {
         budget: import("@prisma/client/runtime/library").Decimal;
     }>;
     create(dto: CreateCostCenterDto): Promise<{
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
@@ -66,6 +65,7 @@ export declare class CostCentersController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         headcountCapacity: number;
@@ -76,7 +76,6 @@ export declare class CostCentersController {
         budget: import("@prisma/client/runtime/library").Decimal;
     }>;
     update(id: string, dto: UpdateCostCenterDto): Promise<{
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
@@ -84,6 +83,7 @@ export declare class CostCentersController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         headcountCapacity: number;
@@ -94,7 +94,6 @@ export declare class CostCentersController {
         budget: import("@prisma/client/runtime/library").Decimal;
     }>;
     remove(id: string): Promise<{
-        description: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
@@ -102,6 +101,7 @@ export declare class CostCentersController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         type: string;
         headcountCapacity: number;

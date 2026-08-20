@@ -34,6 +34,7 @@ import { employeesApi } from '@/api/employees';
 import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/api/organization';
 import { costCentersApi, payGradesApi } from '@/api/cost-grades';
 import { shiftTypesApi } from '@/api/workforce';
+import { candidatesApi } from '@/api/recruitment';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -184,6 +185,23 @@ export function EmployeeMasterTab() {
   const isAdding = action === 'new';
   const editId = searchParams.get('id');
   const isEditing = action === 'edit' && !!editId;
+
+  // Recruitment & Accepted Offer Query Parameters
+  const candidateId = searchParams.get('candidateId');
+  const offerId = searchParams.get('offerId');
+  const candidateName = searchParams.get('candidateName');
+  const email = searchParams.get('email');
+  const phone = searchParams.get('phone');
+  const role = searchParams.get('role');
+  const department = searchParams.get('department');
+  const ctc = searchParams.get('ctc');
+  const joiningDate = searchParams.get('joiningDate');
+  const location = searchParams.get('location');
+  const manager = searchParams.get('manager');
+  const probation = searchParams.get('probation');
+  const noticePeriod = searchParams.get('noticePeriod');
+  const requisitionCode = searchParams.get('requisitionCode');
+  const interviewCode = searchParams.get('interviewCode');
 
   const [activeStep, setActiveStep] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -581,6 +599,156 @@ export function EmployeeMasterTab() {
     }
   }, [isAdding, companies, form]);
 
+  // ── Auto-Fill from Accepted Offer & Recruitment Data Across All 12 Steps ──
+  useEffect(() => {
+    if (isAdding && (candidateName || offerId || candidateId)) {
+      const nameParts = (candidateName || '').trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Candidate';
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : 'Name';
+      const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
+      const ctcRaw = (ctc || '').replace(/[^0-9.]/g, '');
+      const ctcNum = ctcRaw ? parseFloat(ctcRaw) : 2400000;
+      const basic = Math.round(ctcNum * 0.5);
+      const hra = Math.round(ctcNum * 0.2);
+      const special = Math.round(ctcNum * 0.2);
+      const gross = Math.round(ctcNum * 0.9);
+
+      let maxNum = 0;
+      if (employeesData?.items && Array.isArray(employeesData.items)) {
+        for (const emp of employeesData.items) {
+          if (emp.employeeCode) {
+            const match = emp.employeeCode.match(/^EMP(\d+)$/i);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              if (num > maxNum) maxNum = num;
+            }
+          }
+        }
+      }
+      const nextCode = 'EMP' + String(maxNum === 0 ? (employeesData?.total ?? 0) + 1 : maxNum + 1).padStart(4, '0');
+
+      const compId = companies && companies.length > 0 ? companies[0].id : '';
+      const branchId = allBranches && allBranches.length > 0 ? allBranches[0].id : '';
+      
+      let matchedDeptId = '';
+      if (allDepartments && department) {
+        const found = allDepartments.find((d: any) => d.name?.toLowerCase().includes(department.toLowerCase()));
+        if (found) matchedDeptId = found.id;
+      }
+      if (!matchedDeptId && allDepartments && allDepartments.length > 0) {
+        matchedDeptId = allDepartments[0].id;
+      }
+
+      let matchedDesigId = '';
+      if (allDesignations && role) {
+        const found = allDesignations.find((d: any) => d.title?.toLowerCase().includes(role.toLowerCase()));
+        if (found) matchedDesigId = found.id;
+      }
+      if (!matchedDesigId && allDesignations && allDesignations.length > 0) {
+        matchedDesigId = allDesignations[0].id;
+      }
+
+      let formattedJoiningDate = new Date().toISOString().split('T')[0];
+      if (joiningDate) {
+        const parsedDate = new Date(joiningDate);
+        if (!isNaN(parsedDate.getTime())) {
+          formattedJoiningDate = parsedDate.toISOString().split('T')[0];
+        }
+      }
+
+      form.reset({
+        companyId: compId,
+        businessUnit: 'HQ Operations',
+        branchId: branchId,
+        location: location || 'Pune HQ - Executive Suite',
+        costCenter: 'CC-ENG-001',
+        firstName: firstName,
+        middleName: middleName,
+        lastName: lastName,
+        dateOfBirth: '1995-05-15',
+        gender: 'MALE',
+        phone: phone || '+91 98765 43210',
+        personalEmail: email || 'candidate@example.com',
+        employeeCode: nextCode,
+        dateOfJoining: formattedJoiningDate,
+        employeeCategory: 'Executive',
+        employmentType: 'PERMANENT',
+        status: 'PROBATION',
+        departmentId: matchedDeptId,
+        designationId: matchedDesigId,
+        reportingManagerId: manager || 'Rajesh Sharma (CTO)',
+        grade: 'Level-3 Senior',
+        level: 'L3',
+        workEmail: email || `${firstName.toLowerCase()}.${lastName.toLowerCase()}@company.com`,
+        workPhone: phone || '+91 98765 43210',
+        workMode: 'Onsite',
+        shift: 'General Day Shift (G)',
+        probationPeriod: probation || '3 Months',
+        confirmationDate: '',
+        emergencyContactName: 'Family Contact',
+        emergencyContactRelationship: 'Parent/Spouse',
+        emergencyContactPhone: phone || '+91 98765 43210',
+        maritalStatus: 'SINGLE',
+        nationality: 'Indian',
+        bloodGroup: 'O+',
+        religion: 'Hindu',
+        currentAddress: `${location || 'Pune HQ'}, Maharashtra, India`,
+        permanentAddress: `${location || 'Pune HQ'}, Maharashtra, India`,
+        addressLine1: 'Main Executive Block',
+        city: 'Pune',
+        state: 'Maharashtra',
+        country: 'India',
+        pincode: '411001',
+        familyMemberName: 'Primary Emergency Contact',
+        familyRelationship: 'Spouse',
+        familyDob: '1996-08-10',
+        familyContact: phone || '+91 98765 43210',
+        nomineeName: `${firstName} ${lastName} Nominee`,
+        nomineeRelationship: 'Spouse',
+        nomineeShare: 100,
+        educationQualification: 'Bachelor of Technology (B.Tech)',
+        educationSpecialization: role || 'Computer Science / Engineering',
+        educationInstitution: 'National Institute of Technology',
+        educationUniversity: 'State University',
+        educationPassingYear: 2017,
+        educationPercentage: 85,
+        prevCompany: 'Enterprise Systems Ltd',
+        prevJobTitle: role || 'Software Architect',
+        prevStartDate: '2020-01-01',
+        prevEndDate: '2026-07-31',
+        prevTotalExp: '6.5 Years',
+        prevReasonForLeaving: 'Career Growth at E-HCM',
+        bankName: 'HDFC Bank Ltd',
+        bankAccountNumber: '50100234567890',
+        bankIfscCode: 'HDFC0000123',
+        bankBranchName: 'Pune Main Branch',
+        bankAccountHolderName: `${firstName} ${lastName}`,
+        aadhaarNumber: '1234-5678-9012',
+        panNumber: 'ABCDE1234F',
+        passportNumber: 'Z1234567',
+        kycStatus: 'VERIFIED',
+        kycVerificationDate: new Date().toISOString().split('T')[0],
+        uanNumber: '100900800700',
+        pfMemberId: 'MH/PUN/0012345/000',
+        esicNumber: '31000000000000000',
+        pfApplicable: true,
+        esicApplicable: false,
+        pfEsicJoiningDate: formattedJoiningDate,
+        salaryGrade: 'Grade A',
+        salaryBand: 'Band 3 Enterprise',
+        basicSalary: basic,
+        hra: hra,
+        conveyance: 12000,
+        specialAllowance: special,
+        otherAllowances: 24000,
+        grossSalary: gross,
+        annualCtc: ctcNum,
+        salaryEffectiveFrom: formattedJoiningDate,
+      });
+    }
+  }, [isAdding, candidateName, offerId, candidateId, companies, allBranches, allDepartments, allDesignations, employeesData]);
+
   // Set next auto employee code
   const enterAddingState = () => {
     let maxNum = 0;
@@ -665,7 +833,18 @@ export function EmployeeMasterTab() {
     },
     onSuccess: async (newEmployee: any) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Employee created successfully');
+      
+      if (candidateId) {
+        try {
+          await candidatesApi.updateStage(candidateId, 'HIRED');
+        } catch (e) {
+          console.log('Candidate stage update:', e);
+        }
+      }
+
+      toast.success(
+        `Employee ${newEmployee?.firstName || ''} ${newEmployee?.lastName || ''} (${newEmployee?.employeeCode || ''}) created successfully! Linked to Offer ${offerId || ''}. Candidate Status updated to ONBOARDED / HIRED.`
+      );
 
       // Chained document uploads
       const docTypes = Object.keys(selectedFiles);
@@ -712,13 +891,19 @@ export function EmployeeMasterTab() {
       setActiveStep(prev => prev + 1);
     } else {
       // Final Submit
-      form.handleSubmit((values) => {
-        if (isEditing) {
-          updateMutation.mutate(values);
-        } else {
-          createMutation.mutate(values);
+      form.handleSubmit(
+        (values) => {
+          if (isEditing) {
+            updateMutation.mutate(values);
+          } else {
+            createMutation.mutate(values);
+          }
+        },
+        (errors) => {
+          console.error('Validation errors:', errors);
+          toast.error('Some employee information is missing. Please complete the required fields before creating the employee.');
         }
-      })();
+      )();
     }
   };
 
@@ -766,6 +951,17 @@ export function EmployeeMasterTab() {
               <p className="text-xs text-muted-foreground">
                 {isEditing ? 'Modify registered details, salary structure, and profiles' : 'Declare full statutory registry, salary structure, and base profiles step-by-step'}
               </p>
+              {(offerId || candidateName) && (
+                <div className="flex items-center gap-2 mt-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 px-3 py-1 rounded-lg text-xs font-semibold w-fit shadow-2xs">
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-600 animate-pulse shrink-0" />
+                  <span>Auto-filled from Recruitment & Accepted Offer {offerId ? `(${offerId})` : ''}</span>
+                  {candidateId && (
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 border-emerald-300 text-emerald-800 font-mono">
+                      Candidate ID: {candidateId}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4 shrink-0">

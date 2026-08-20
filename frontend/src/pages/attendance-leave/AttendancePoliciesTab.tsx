@@ -4,7 +4,7 @@ import { HolidaysTab } from './HolidaysTab';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, MapPin } from 'lucide-react';
+import { Clock, MapPin, Brain } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function AttendancePoliciesTab() {
@@ -81,6 +81,38 @@ export function AttendancePoliciesTab() {
               <Button size="sm" variant="outline" className="w-full text-xs font-semibold" onClick={handleUpdatePolicy}>
                 Re-calibrate GPS Edge Terminals
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Face Recognition Policy Parameters ── */}
+        <Card className="shadow-xs border-border/80 md:col-span-2">
+          <CardHeader className="pb-3 border-b border-border/60">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Brain className="h-4 w-4 text-purple-600" /> Face Recognition & Biometric Verification Policies
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Configure minimum face match threshold, GPS geofence, and public IP network policies
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="flex flex-col justify-between p-3 border rounded-xl bg-muted/20">
+                <span className="text-xs font-semibold text-muted-foreground">Face Verification Required</span>
+                <Badge className="bg-emerald-600 text-white text-[10px] w-fit mt-2">REQUIRED</Badge>
+              </div>
+              <div className="flex flex-col justify-between p-3 border rounded-xl bg-muted/20">
+                <span className="text-xs font-semibold text-muted-foreground">Minimum Match Cutoff Score</span>
+                <Badge variant="outline" className="font-mono text-purple-700 border-purple-300 text-xs w-fit mt-2">85.0% Match</Badge>
+              </div>
+              <div className="flex flex-col justify-between p-3 border rounded-xl bg-muted/20">
+                <span className="text-xs font-semibold text-muted-foreground">GPS Geofence Max Radius</span>
+                <Badge variant="outline" className="font-mono text-emerald-700 border-emerald-300 text-xs w-fit mt-2">100 Meters</Badge>
+              </div>
+              <div className="flex flex-col justify-between p-3 border rounded-xl bg-muted/20">
+                <span className="text-xs font-semibold text-muted-foreground">Approved Office Gateway IP</span>
+                <Badge variant="outline" className="font-mono text-xs w-fit mt-2">182.73.12.98</Badge>
+              </div>
             </div>
           </CardContent>
         </Card>

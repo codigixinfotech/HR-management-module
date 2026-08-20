@@ -12,9 +12,9 @@ export declare class AssetsService {
             lastName: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AssetStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -34,26 +34,26 @@ export declare class AssetsService {
             lastName: string;
         } | null;
         allocations: {
-            remarks: string | null;
             id: string;
+            remarks: string | null;
             employeeId: string;
             assetId: string;
             allocatedAt: Date;
             returnedAt: Date | null;
         }[];
         maintenanceLogs: {
-            startDate: Date;
             id: string;
             createdAt: Date;
+            startDate: Date;
             endDate: Date | null;
             assetId: string;
             issue: string;
             cost: number | null;
         }[];
     } & {
-        status: import(".prisma/client").$Enums.AssetStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -73,9 +73,9 @@ export declare class AssetsService {
             lastName: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AssetStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -95,9 +95,9 @@ export declare class AssetsService {
             lastName: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AssetStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -120,9 +120,9 @@ export declare class AssetsService {
             lastName: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AssetStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -142,9 +142,9 @@ export declare class AssetsService {
             lastName: string;
         } | null;
     } & {
-        status: import(".prisma/client").$Enums.AssetStatus;
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;

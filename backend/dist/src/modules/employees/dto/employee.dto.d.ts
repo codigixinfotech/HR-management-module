@@ -91,6 +91,10 @@ export declare class CreateEmployeeDto {
     grossSalary?: number;
     annualCtc?: number;
     salaryEffectiveFrom?: string;
+    faceTemplate?: string;
+    facePhoto?: string;
+    faceRegisteredAt?: string;
+    faceRegisteredBy?: string;
 }
 declare const UpdateEmployeeDto_base: import("@nestjs/mapped-types").MappedType<Partial<CreateEmployeeDto>>;
 export declare class UpdateEmployeeDto extends UpdateEmployeeDto_base {

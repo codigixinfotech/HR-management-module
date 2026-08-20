@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, User, ChevronRight, Bell, ShieldCheck } from 'lucide-react';
+import { LogOut, User, ChevronRight, Bell, ShieldCheck, Video } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -91,15 +91,52 @@ export function Topbar() {
           Live System Connected
         </Badge>
 
-        {/* Notifications Mock */}
-        <button
-          type="button"
-          className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-          title="Notifications"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
-        </button>
+        {/* Notifications Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+              title="Notifications"
+            >
+              <Bell className="h-4 w-4" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary animate-ping" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80 p-2">
+            <DropdownMenuLabel className="text-xs font-bold flex items-center justify-between pb-1">
+              <span>Interview & Activity Reminders</span>
+              <Badge className="bg-primary/20 text-primary text-[10px]">Live Sync</Badge>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <div className="space-y-2 py-1">
+              <div
+                onClick={() => navigate('/recruitment/interviews')}
+                className="p-2.5 rounded-lg bg-primary/5 hover:bg-primary/10 border border-primary/20 cursor-pointer transition-colors space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Video className="h-3.5 w-3.5 text-primary" /> Interview Panel Scheduled
+                  </span>
+                  <span className="text-[9px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded">
+                    Reminders Active
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  You are assigned to candidate interview panels. Click to view roster & join meeting rooms.
+                </p>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => navigate('/recruitment/interviews')}
+              className="text-xs font-semibold text-primary justify-center cursor-pointer py-1.5"
+            >
+              Go to Recruitment Interviews Roster →
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* User Menu */}
         <DropdownMenu>

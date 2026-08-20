@@ -16,6 +16,10 @@ const manpower_plans_controller_1 = require("./manpower-plans.controller");
 const manpower_plans_service_1 = require("./manpower-plans.service");
 const manpower_requisitions_controller_1 = require("./manpower-requisitions.controller");
 const manpower_requisitions_service_1 = require("./manpower-requisitions.service");
+const interviews_controller_1 = require("./interviews.controller");
+const interviews_service_1 = require("./interviews.service");
+const offers_controller_1 = require("./offers.controller");
+const offer_email_service_1 = require("./offer-email.service");
 let RecruitmentModule = class RecruitmentModule {
 };
 exports.RecruitmentModule = RecruitmentModule;
@@ -26,18 +30,24 @@ exports.RecruitmentModule = RecruitmentModule = __decorate([
             candidates_controller_1.CandidatesController,
             manpower_plans_controller_1.ManpowerPlansController,
             manpower_requisitions_controller_1.ManpowerRequisitionsController,
+            interviews_controller_1.InterviewsController,
+            offers_controller_1.OffersController,
         ],
         providers: [
             job_openings_service_1.JobOpeningsService,
             candidates_service_1.CandidatesService,
             manpower_plans_service_1.ManpowerPlansService,
             manpower_requisitions_service_1.ManpowerRequisitionsService,
+            interviews_service_1.InterviewsService,
+            offer_email_service_1.OfferEmailService,
         ],
         exports: [
             job_openings_service_1.JobOpeningsService,
             candidates_service_1.CandidatesService,
             manpower_plans_service_1.ManpowerPlansService,
             manpower_requisitions_service_1.ManpowerRequisitionsService,
+            interviews_service_1.InterviewsService,
+            offer_email_service_1.OfferEmailService,
         ],
     })
 ], RecruitmentModule);

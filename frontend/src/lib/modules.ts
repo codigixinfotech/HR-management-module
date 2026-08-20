@@ -98,7 +98,6 @@ export const HCM_MODULES: HcmModule[] = [
     subItems: [
       { key: 'directory', label: 'Employee Directory', path: '/employees/directory' },
       { key: 'master', label: 'Employee Master', path: '/employees/master' },
-      { key: 'tasks', label: 'Task Management', path: '/tasks' },
       { key: 'documents', label: 'Documents', path: '/employees/documents' },
       { key: 'skills', label: 'Skills & Certifications', path: '/employees/skills' },
       { key: 'transfers', label: 'Transfers & Promotions', path: '/employees/transfers' },

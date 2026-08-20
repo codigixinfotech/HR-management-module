@@ -52,10 +52,15 @@ enum CandidateStage {
   APPLIED
   SCREENING
   SHORTLISTED
+  ASSESSMENT_ASSIGNED
+  ASSESSMENT_COMPLETED
+  ASSESSMENT_PASSED
+  ASSESSMENT_FAILED
   ON_HOLD
   INTERVIEW
   OFFERED
   HIRED
+  ONBOARDED
   REJECTED
   WITHDRAWN
 }
@@ -633,6 +638,11 @@ model Employee {
   country      String?
   pincode      String?
 
+  faceTemplate       String?   @db.Text
+  facePhoto          String?   @db.LongText
+  faceRegisteredAt   DateTime?
+  faceRegisteredBy   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -672,6 +682,9 @@ model Employee {
   assignedTasks     EmployeeTask[]     @relation("TaskAssignedTo")
   createdTasks      EmployeeTask[]     @relation("TaskAssignedBy")
   taskRequests      TaskRequest[]
+
+  interviewPanels      CandidateInterviewPanel[]
+  interviewEvaluations CandidateInterviewEvaluation[]
 
   @@unique([companyId, employeeCode])
   @@index([departmentId])
@@ -828,6 +841,7 @@ model JobOpening {
   designation         Designation?         @relation(fields: [designationId], references: [id], onDelete: SetNull)
   manpowerRequisition ManpowerRequisition? @relation(fields: [manpowerRequisitionId], references: [id], onDelete: SetNull)
   candidates          Candidate[]
+  interviews          CandidateInterview[]
 
   @@index([companyId])
   @@map("job_openings")
@@ -859,6 +873,8 @@ model Candidate {
 
   jobOpening JobOpening           @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
   screenings CandidateScreening[]
+  interviews CandidateInterview[]
+  interviewEvaluations CandidateInterviewEvaluation[]
 
   @@index([jobOpeningId])
   @@map("candidates")
@@ -1110,6 +1126,16 @@ model AttendanceRecord {
   status        AttendanceStatus @default(PRESENT)
   source        String           @default("MANUAL")
   remarks       String?
+
+  faceVerificationStatus     String?
+  faceMatchScore             Float?
+  ipAddress                  String?
+  ipVerificationStatus       String?
+  latitude                   Float?
+  longitude                  Float?
+  locationVerificationStatus String?
+  deviceType                 String?
+
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -1704,5 +1730,98 @@ model TaskNotification {
 
   @@index([employeeId])
   @@map("task_notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Module: Recruitment — Candidate Interviews, Panels & Evaluations
+// ---------------------------------------------------------------------------
+
+model CandidateInterview {
+  id              String   @id @default(cuid())
+  interviewCode   String   @unique
+  candidateId     String
+  jobOpeningId    String?
+  position        String
+  requisitionCode String?
+
+  interviewDate   DateTime
+  startTime       String
+  endTime         String?
+  interviewFormat String   @default("Google Meet") // Google Meet, On-site, Phone, Microsoft Teams
+  meetingLink     String?  @db.Text
+  notes           String?  @db.Text
+
+  status          String   @default("SCHEDULED") // READY_TO_SCHEDULE, SCHEDULED, IN_PROGRESS, COMPLETED, EVALUATION_PENDING, EVALUATED, CANCELLED, RESCHEDULED
+
+  createdById     String?
+  createdByName   String?  @default("HR Administrator")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  candidate    Candidate                      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobOpening   JobOpening?                    @relation(fields: [jobOpeningId], references: [id], onDelete: SetNull)
+  panelMembers CandidateInterviewPanel[]
+  evaluations  CandidateInterviewEvaluation[]
+
+  @@index([candidateId])
+  @@index([jobOpeningId])
+  @@index([status])
+  @@map("candidate_interviews")
+}
+
+model CandidateInterviewPanel {
+  id               String   @id @default(cuid())
+  interviewId      String
+  interviewerId    String
+  interviewerName  String
+  designation      String?
+  department       String?
+  panelRole        String   @default("Interviewer") // Technical Interviewer, HR Interviewer, Panel Member
+  assignmentStatus String   @default("ASSIGNED") // ASSIGNED, CONFIRMED, COMPLETED
+  createdAt        DateTime @default(now())
+
+  interview   CandidateInterview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  interviewer Employee           @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, interviewerId])
+  @@index([interviewId])
+  @@index([interviewerId])
+  @@map("candidate_interview_panels")
+}
+
+model CandidateInterviewEvaluation {
+  id                  String   @id @default(cuid())
+  interviewId         String
+  candidateId         String
+  interviewerId       String
+  interviewerName     String
+
+  // 1-5 Scorecard ratings
+  technicalSkills     Int      @default(3)
+  communication       Int      @default(3)
+  problemSolving      Int      @default(3)
+  relevantExperience  Int      @default(3)
+  roleKnowledge       Int      @default(3)
+  overallRating       Float    @default(3.0)
+
+  // Qualitative Feedback
+  strengths           String?  @db.Text
+  weaknesses          String?  @db.Text
+  interviewNotes      String?  @db.Text
+  recommendation      String   @default("Hire") // Strong Hire, Hire, Hold, Reject
+
+  submittedAt         DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  interview   CandidateInterview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  candidate   Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  interviewer Employee           @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, interviewerId])
+  @@index([interviewId])
+  @@index([candidateId])
+  @@index([interviewerId])
+  @@map("candidate_interview_evaluations")
 }
 
