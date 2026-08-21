@@ -63,8 +63,8 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = config.get<number>('PORT', 4000);
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
-  console.log(`EHCM backend listening on http://localhost:${port}/api`);
+  console.log(`EHCM backend listening on http://0.0.0.0:${port}/api`);
 }
 bootstrap();

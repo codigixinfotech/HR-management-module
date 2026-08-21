@@ -14,7 +14,12 @@ import {
   X,
 } from 'lucide-react';
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpenOnMobile?: boolean;
+  onCloseMobile?: () => void;
+}
+
+export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -24,6 +29,12 @@ export function Sidebar() {
 
   // Track expanded parent sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  // Close mobile sidebar on actual route changes only
+  useEffect(() => {
+    onCloseMobile?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search]);
 
   // Check if a sub-item / route is currently active
   const isSubItemActive = useCallback(
@@ -50,8 +61,6 @@ export function Sidebar() {
       }
 
       // If subPath has NO query string (e.g. /attendance-leave/live or /tasks/my-tasks)
-      // If current URL has a query parameter like ?tab=requests or ?details=me,
-      // it should NOT match a plain subPath without query string.
       if (currentSearch) {
         const currentParams = new URLSearchParams(currentSearch);
         const hasSpecificParam = currentParams.get('tab') || currentParams.get('details');
@@ -105,24 +114,111 @@ export function Sidebar() {
   }, [menuSearch, modulesForRole]);
 
   return (
-    <aside className="hidden shrink-0 transition-all duration-300 md:flex md:flex-col w-64 border-r border-border bg-card text-card-foreground shadow-2xs z-20 select-none h-screen sticky top-0">
-      {/* ── 1. Brand Header ── */}
-      <div className="h-16 px-4 flex items-center gap-3 border-b border-border bg-muted/20 shrink-0">
+    <>
+      {/* ── 1. DESKTOP SIDEBAR (Strictly md:flex, 100% untouched for Desktop/Laptop) ── */}
+      <aside className="hidden md:flex md:flex-col w-64 border-r border-border bg-card text-card-foreground shadow-2xs select-none h-screen sticky top-0 shrink-0 z-20">
+        <SidebarTreeContent
+          menuSearch={menuSearch}
+          setMenuSearch={setMenuSearch}
+          filteredModules={filteredModules}
+          openSections={openSections}
+          toggleSection={toggleSection}
+          isSubItemActive={isSubItemActive}
+          navigate={navigate}
+        />
+      </aside>
+
+      {/* ── 2. MOBILE NAVIGATION DRAWER (Strictly md:hidden, high z-index fixed drawer) ── */}
+      {/* Mobile Backdrop */}
+      {isOpenOnMobile && (
         <div
-          onClick={() => navigate('/dashboard')}
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/25 transition-transform hover:scale-105 active:scale-95 shrink-0"
-        >
-          <Building2 className="h-5 w-5 stroke-[2.2]" />
+          className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-xs md:hidden animate-in fade-in duration-200"
+          onClick={onCloseMobile}
+        />
+      )}
+
+      {/* Mobile Left Navigation Drawer */}
+      <aside
+        className={cn(
+          'fixed top-0 left-0 bottom-0 z-[9999] w-[min(280px,85vw)] h-[100dvh] bg-card text-card-foreground border-r border-border shadow-2xl flex flex-col transition-transform duration-250 ease-in-out overflow-y-auto overflow-x-hidden md:hidden select-none',
+          isOpenOnMobile ? 'translate-x-0' : '-translate-x-full pointer-events-none',
+        )}
+      >
+        <SidebarTreeContent
+          menuSearch={menuSearch}
+          setMenuSearch={setMenuSearch}
+          filteredModules={filteredModules}
+          openSections={openSections}
+          toggleSection={toggleSection}
+          isSubItemActive={isSubItemActive}
+          navigate={navigate}
+          onCloseMobile={onCloseMobile}
+          isMobileDrawer
+        />
+      </aside>
+    </>
+  );
+}
+
+interface SidebarTreeContentProps {
+  menuSearch: string;
+  setMenuSearch: (v: string) => void;
+  filteredModules: HcmModule[];
+  openSections: Record<string, boolean>;
+  toggleSection: (key: string) => void;
+  isSubItemActive: (path: string) => boolean;
+  navigate: (path: string) => void;
+  onCloseMobile?: () => void;
+  isMobileDrawer?: boolean;
+}
+
+function SidebarTreeContent({
+  menuSearch,
+  setMenuSearch,
+  filteredModules,
+  openSections,
+  toggleSection,
+  isSubItemActive,
+  navigate,
+  onCloseMobile,
+  isMobileDrawer,
+}: SidebarTreeContentProps) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* ── 1. Brand Header ── */}
+      <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-muted/20 shrink-0">
+        <div className="flex items-center gap-3">
+          <div
+            onClick={() => {
+              navigate('/dashboard');
+              onCloseMobile?.();
+            }}
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/25 transition-transform hover:scale-105 active:scale-95 shrink-0"
+          >
+            <Building2 className="h-5 w-5 stroke-[2.2]" />
+          </div>
+          <div className="flex flex-col truncate">
+            <span className="text-sm font-semibold text-foreground truncate leading-tight">
+              EHCM Platform
+            </span>
+            <span className="text-[9.5px] uppercase tracking-widest text-primary font-semibold flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Enterprise Suite
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col truncate">
-          <span className="text-sm font-semibold text-foreground truncate leading-tight">
-            EHCM Platform
-          </span>
-          <span className="text-[9.5px] uppercase tracking-widest text-primary font-semibold flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Enterprise Suite
-          </span>
-        </div>
+
+        {/* Close X button inside mobile drawer */}
+        {isMobileDrawer && (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer md:hidden"
+            title="Close Menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* ── 2. Search Filter ── */}
@@ -147,7 +243,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* ── 3. Scrollable Nested Navigation Tree ── */}
+      {/* ── 3. Scrollable Navigation Tree ── */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 custom-scrollbar">
         <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 flex items-center justify-between">
           <span>Main Navigation</span>
@@ -174,10 +270,12 @@ export function Sidebar() {
                     toggleSection(mod.key);
                   } else {
                     navigate(mod.path);
+                    onCloseMobile?.();
+                    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 }}
                 className={cn(
-                  'w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-all duration-150 group active:scale-98 relative',
+                  'w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-all duration-150 group active:scale-98 relative cursor-pointer',
                   isDirectActive
                     ? 'bg-primary text-primary-foreground font-semibold shadow-2xs'
                     : hasActiveChild
@@ -240,8 +338,12 @@ export function Sidebar() {
                       <NavLink
                         key={sub.key}
                         to={sub.path}
+                        onClick={() => {
+                          onCloseMobile?.();
+                          document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
                         className={cn(
-                          'group flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150 active:scale-95 relative',
+                          'group flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150 active:scale-95 relative cursor-pointer',
                           isSubActive
                             ? 'bg-primary text-primary-foreground font-semibold shadow-2xs scale-[1.01]'
                             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
@@ -302,6 +404,6 @@ export function Sidebar() {
           </span>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }

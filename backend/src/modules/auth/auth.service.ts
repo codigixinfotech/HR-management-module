@@ -82,6 +82,7 @@ const DEMO_ACCOUNTS_METADATA: DemoAccountInfo[] = [
 
 const DEMO_USER_SEED = [
   { email: 'admin@ehcm.local', password: 'Admin@123', role: 'SUPER_ADMIN' },
+  { email: 'motesanika@gmail.com', password: 'Sanika@123', role: 'EMPLOYEE' },
   { email: 'hr.manager@ehcm.local', password: 'Hr@123', role: 'HR_MANAGER' },
   { email: 'hr.executive@ehcm.local', password: 'HrExec@123', role: 'HR_EXECUTIVE' },
   { email: 'manager@ehcm.local', password: 'Manager@123', role: 'DEPARTMENT_MANAGER' },
@@ -168,20 +169,34 @@ export class AuthService implements OnModuleInit {
           },
         });
 
-        // Also create a linked employee record if needed
-        const empCode = `DEMO-${u.role.substring(0, 4)}-${Math.floor(100 + Math.random() * 900)}`;
-        await this.prisma.employee.create({
-          data: {
-            companyId: company.id,
-            userId: newUser.id,
-            employeeCode: empCode,
-            firstName: u.role.split('_').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' '),
-            lastName: 'Demo',
-            workEmail: u.email,
-            dateOfJoining: new Date(),
-            status: 'ACTIVE',
-          },
+        // Also create or link employee record
+        const existingEmp = await this.prisma.employee.findFirst({
+          where: { OR: [{ workEmail: u.email }, { userId: newUser.id }] },
         });
+
+        if (existingEmp) {
+          await this.prisma.employee.update({
+            where: { id: existingEmp.id },
+            data: { userId: newUser.id, workEmail: u.email },
+          });
+        } else {
+          const empCode = u.email === 'motesanika@gmail.com' ? 'EMP-8265' : `DEMO-${u.role.substring(0, 4)}-${Math.floor(100 + Math.random() * 900)}`;
+          const firstName = u.email === 'motesanika@gmail.com' ? 'Sanika' : u.role.split('_').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
+          const lastName = u.email === 'motesanika@gmail.com' ? 'Mote' : 'Demo';
+
+          await this.prisma.employee.create({
+            data: {
+              companyId: company.id,
+              userId: newUser.id,
+              employeeCode: empCode,
+              firstName,
+              lastName,
+              workEmail: u.email,
+              dateOfJoining: new Date(),
+              status: 'ACTIVE',
+            },
+          });
+        }
       } else {
         // Ensure password matches exact demo specification
         await this.prisma.user.update({

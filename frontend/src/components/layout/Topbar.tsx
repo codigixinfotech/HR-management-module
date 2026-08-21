@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, User, ChevronRight, Bell, ShieldCheck, Video } from 'lucide-react';
+import { LogOut, User, ChevronRight, Bell, ShieldCheck, Video, Menu } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,11 @@ import {
 import { logout as logoutApi } from '@/api/auth';
 import { HCM_MODULES } from '@/lib/modules';
 
-export function Topbar() {
+interface TopbarProps {
+  onToggleMobileMenu?: () => void;
+}
+
+export function Topbar({ onToggleMobileMenu }: TopbarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, refreshToken, clear } = useAuthStore();
@@ -72,12 +76,25 @@ export function Topbar() {
   }, [location.pathname, location.search]);
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card/80 px-6 backdrop-blur-md">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <span className="text-muted-foreground">{breadcrumb.moduleLabel}</span>
-        <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
-        <span className=" font-semibold text-foreground">{breadcrumb.subLabel}</span>
+    <header className="flex h-16 items-center justify-between border-b bg-card/80 px-4 md:px-6 backdrop-blur-md sticky top-0 z-30">
+      {/* Mobile Menu Toggle & Breadcrumb Navigation */}
+      <div className="flex items-center gap-2 text-xs md:text-sm font-medium">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleMobileMenu?.();
+          }}
+          className="p-2 rounded-xl bg-accent/60 text-foreground hover:bg-accent active:scale-95 transition-transform md:hidden cursor-pointer shrink-0 z-40"
+          title="Open Menu"
+          aria-label="Open Navigation Menu"
+        >
+          <Menu className="h-5 w-5 stroke-[2.2]" />
+        </button>
+
+        <span className="text-muted-foreground truncate max-w-[110px] sm:max-w-none">{breadcrumb.moduleLabel}</span>
+        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+        <span className="font-semibold text-foreground truncate max-w-[120px] sm:max-w-none">{breadcrumb.subLabel}</span>
       </div>
 
       {/* Right Actions & Profile */}

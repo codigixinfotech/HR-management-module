@@ -1,7 +1,16 @@
 import axios, { AxiosError } from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const hostname = window.location.hostname;
+    return `http://${hostname}:3001/api`;
+  }
+  return 'http://localhost:3001/api';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
 

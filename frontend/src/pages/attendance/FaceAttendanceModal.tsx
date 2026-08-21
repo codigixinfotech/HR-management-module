@@ -60,6 +60,7 @@ export function FaceAttendanceModal({
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   // Real Biometric Verification States — NO HARDCODED OR MOCK DEFAULTS
@@ -139,24 +140,66 @@ export function FaceAttendanceModal({
 
   const startCamera = async () => {
     setCameraError(null);
+    setIsCameraLoading(true);
     setIsScanning(true);
     setVerificationState('NO_FACE_DETECTED');
     setDetectedFacesCount(0);
     setCalculatedDistance(null);
     setCalculatedSimilarity(null);
 
+    // 1. Check if navigator.mediaDevices.getUserMedia exists
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setIsCameraLoading(false);
+      setIsCameraActive(false);
+      setIsScanning(false);
+      if (!window.isSecureContext) {
+        setCameraError('Camera access requires HTTPS or localhost on mobile browsers. Please access via HTTPS or localhost.');
+      } else {
+        setCameraError('Camera API not supported in this browser.');
+      }
+      return;
+    }
+
     try {
+      // 2. Request user front camera
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
+        video: { facingMode: 'user' },
         audio: false,
       });
       setStream(mediaStream);
       setIsCameraActive(true);
+      setIsCameraLoading(false);
     } catch (err: any) {
-      console.error('Camera error:', err);
-      setCameraError('Hardware camera unavailable or permission denied.');
+      const errName = err?.name || 'UnknownError';
+      const errMessage = err?.message || '';
+      console.error('Camera error:', errName, errMessage, err);
+
       setIsCameraActive(false);
+      setIsCameraLoading(false);
       setIsScanning(false);
+
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setCameraError('Camera permission denied. Please allow camera access in Safari settings and tap Retry.');
+      } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+        setCameraError('Camera is in use by another app or hardware is unavailable.');
+      } else if (errName === 'OverconstrainedError') {
+        // Fallback retry with basic video constraint
+        try {
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          setStream(fallbackStream);
+          setIsCameraActive(true);
+          return;
+        } catch (fallbackErr: any) {
+          console.error('Fallback camera error:', fallbackErr);
+          setCameraError('Camera constraints not supported on this device.');
+        }
+      } else if (errName === 'SecurityError' || !window.isSecureContext) {
+        setCameraError('iOS Safari blocks camera on http:// IP address. Open via localhost or HTTPS to grant camera access.');
+      } else if (errName === 'NotFoundError') {
+        setCameraError('No front camera found on this device.');
+      } else {
+        setCameraError(`Camera unavailable (${errName}): ${errMessage || 'Permission denied'}`);
+      }
     }
   };
 
@@ -478,24 +521,24 @@ export function FaceAttendanceModal({
           </div>
 
           {/* Live Camera Viewport */}
-          <div className="relative aspect-video bg-slate-950 rounded-2xl overflow-hidden border-2 border-border flex items-center justify-center shadow-md">
+          <div className="relative w-full max-w-full aspect-[4/3] sm:aspect-video bg-[#050817] rounded-2xl overflow-hidden border-2 border-border/80 shadow-md">
             {/* Mounted video element */}
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover scale-x-[-1]"
+              className="absolute inset-0 w-full h-full object-cover object-center scale-x-[-1] z-0"
             />
 
             {/* Overlays based on real frame detection */}
             {isCameraActive && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-3 pointer-events-none z-10">
                 {detectedFacesCount === 0 ? (
                   // NO FACE DETECTED OVERLAY
-                  <div className="w-56 h-56 rounded-3xl border-2 border-dashed border-amber-400 bg-amber-500/10 flex flex-col items-center justify-center p-3 text-center">
-                    <AlertCircle className="h-9 w-9 text-amber-400 mb-1 animate-pulse" />
-                    <span className="text-[11px] font-bold text-white bg-amber-600 px-2.5 py-0.5 rounded-full shadow-md">
+                  <div className="max-w-[85%] rounded-2xl border-2 border-dashed border-amber-400 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center p-3 text-center shadow-lg">
+                    <AlertCircle className="h-7 w-7 text-amber-400 mb-1 animate-pulse" />
+                    <span className="text-[10.5px] font-bold text-white bg-amber-600 px-2.5 py-0.5 rounded-full shadow-md">
                       ⚠️ No Face Detected (0)
                     </span>
                     <span className="text-[9.5px] text-amber-200 mt-1">
@@ -504,9 +547,9 @@ export function FaceAttendanceModal({
                   </div>
                 ) : detectedFacesCount > 1 ? (
                   // MULTIPLE FACES OVERLAY
-                  <div className="w-56 h-60 rounded-3xl border-2 border-dashed border-rose-500 bg-rose-500/15 flex flex-col items-center justify-center p-3 text-center animate-bounce">
-                    <Users className="h-10 w-10 text-rose-500 mb-1" />
-                    <span className="text-[11px] font-bold text-white bg-rose-600 px-2.5 py-0.5 rounded-full shadow-md">
+                  <div className="max-w-[85%] rounded-2xl border-2 border-dashed border-rose-500 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center p-3 text-center shadow-lg animate-bounce">
+                    <Users className="h-8 w-8 text-rose-500 mb-1" />
+                    <span className="text-[10.5px] font-bold text-white bg-rose-600 px-2.5 py-0.5 rounded-full shadow-md">
                       ⚠️ Multiple Faces Detected ({detectedFacesCount})
                     </span>
                     <span className="text-[9.5px] text-rose-200 mt-1">
@@ -515,7 +558,7 @@ export function FaceAttendanceModal({
                   </div>
                 ) : (
                   // SINGLE FACE SCANNER RING
-                  <div className={`w-44 h-56 rounded-full border-2 border-dashed ${
+                  <div className={`w-36 h-44 sm:w-44 sm:h-56 rounded-full border-2 border-dashed ${
                     isScanning
                       ? 'border-amber-400 bg-amber-400/5'
                       : isFaceVerified
@@ -540,15 +583,24 @@ export function FaceAttendanceModal({
 
             {/* Real-time Laser Line Scanner */}
             {isScanning && isCameraActive && (
-              <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse top-1/2 shadow-lg" />
+              <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse top-1/2 shadow-lg z-20" />
             )}
 
-            {!isCameraActive && cameraError && (
-              <div className="p-4 text-center space-y-2 text-white z-10">
+            {/* Camera Loading State */}
+            {isCameraLoading && !cameraError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center space-y-2 text-white bg-[#050817]/90 z-30">
+                <RefreshCw className="h-8 w-8 text-primary animate-spin mx-auto" />
+                <p className="text-xs text-slate-300 font-semibold">Starting camera...</p>
+              </div>
+            )}
+
+            {/* Camera Error / Permission Overlay - Centered */}
+            {!isCameraActive && !isCameraLoading && cameraError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center space-y-2 text-white bg-[#050817]/95 z-30 max-w-full">
                 <AlertCircle className="h-8 w-8 text-amber-400 mx-auto" />
-                <p className="text-xs text-amber-200 font-medium">{cameraError}</p>
-                <Button size="sm" variant="outline" className="text-xs text-white border-white/30" onClick={startCamera}>
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Retry WebCam
+                <p className="text-xs text-amber-200 font-semibold max-w-[240px] leading-snug">{cameraError}</p>
+                <Button size="sm" variant="outline" className="text-xs text-white border-white/30 hover:bg-white/10" onClick={startCamera}>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Retry Camera
                 </Button>
               </div>
             )}
@@ -557,7 +609,7 @@ export function FaceAttendanceModal({
           </div>
 
           {/* Real-Time Verification Telemetry Cards */}
-          <div className="grid grid-cols-3 gap-2.5 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
             {/* FACE ID TELEMETRY CARD */}
             <div className={`p-2.5 rounded-xl border transition-all ${
               isFaceVerified
@@ -631,7 +683,7 @@ export function FaceAttendanceModal({
               <span>🔍 Real Biometric Pipeline Diagnostics</span>
               <span className="text-[10px] text-slate-400">Model: Affine Aligned 128-D Landmark HOG</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-[10.5px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-[10.5px]">
               <div>
                 <span className="text-slate-500">Registered Descriptor:</span>{' '}
                 <strong className={selectedEmployee?.faceTemplate ? 'text-emerald-400' : 'text-amber-400'}>

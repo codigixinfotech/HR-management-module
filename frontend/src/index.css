@@ -97,19 +97,24 @@
   --radius-sm: calc(var(--radius) - 4px);
 }
 
-* {
-  border-color: hsl(var(--border));
-}
-
+html,
 body {
+  width: 100%;
+  min-height: 100%;
   margin: 0;
+  overflow-x: hidden;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: var(--font-sans);
-
   font-optical-sizing: auto;
   font-style: normal;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
 
+* {
+  border-color: hsl(var(--border));
+  box-sizing: border-box;
 }
 
 h1,
@@ -117,11 +122,13 @@ h2,
 h3,
 h4 {
   font-family: var(--font-sans);
-
 }
 
 #root {
+  width: 100%;
   min-height: 100vh;
+  overflow-x: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Custom Thin Scrollbar for Sidebar */
