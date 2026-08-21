@@ -4,6 +4,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto';
 import {
@@ -13,7 +14,7 @@ import {
 
 @Injectable()
 export class EmployeesService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async onModuleInit() {
     try {
@@ -53,19 +54,95 @@ export class EmployeesService implements OnModuleInit {
     documents: true,
   };
 
+  private readonly fullInclude = {
+    company: { select: { id: true, name: true } },
+    branch: { select: { id: true, name: true } },
+    department: { select: { id: true, name: true } },
+    designation: { select: { id: true, title: true } },
+    reportingManager: { select: { id: true, firstName: true, lastName: true } },
+    documents: true,
+    onboardingTasks: { orderBy: { createdAt: 'asc' as const } },
+    courseEnrollments: { orderBy: { enrollmentDate: 'desc' as const } },
+    kpis: { orderBy: { createdAt: 'desc' as const } },
+    hrNotes: { orderBy: { createdDate: 'desc' as const } },
+    timelineEvents: { orderBy: { date: 'asc' as const } },
+    currentAssets: true,
+    salaryComponents: {
+      include: {
+        salaryComponent: true,
+      },
+    },
+    directReports: {
+      select: { id: true, firstName: true, lastName: true },
+    },
+  };
+
+  async findMe(currentUser: any) {
+    if (!currentUser) {
+      throw new NotFoundException('Current session employee not found');
+    }
+
+    const searchConditions: any[] = [];
+    if (currentUser.employee?.id) searchConditions.push({ id: currentUser.employee.id });
+    if (currentUser.userId) searchConditions.push({ userId: currentUser.userId });
+    if (currentUser.email) searchConditions.push({ workEmail: currentUser.email });
+
+    let employee = await this.prisma.employee.findFirst({
+      where: searchConditions.length > 0 ? { OR: searchConditions } : {},
+      include: this.fullInclude,
+    });
+
+    if (!employee && currentUser.email) {
+      const emailPrefix = currentUser.email.split('@')[0];
+      employee = await this.prisma.employee.findFirst({
+        where: {
+          OR: [
+            { workEmail: { contains: emailPrefix } },
+            { status: 'ACTIVE' },
+          ],
+        },
+        include: this.fullInclude,
+      });
+    }
+
+    if (!employee) {
+      throw new NotFoundException('No employee record found for current user');
+    }
+
+    let resolvedGrade = employee.grade;
+    let resolvedLevel = employee.level;
+    if (employee.grade) {
+      const pg = await this.prisma.payGrade.findFirst({
+        where: { OR: [{ id: employee.grade }, { gradeCode: employee.grade }] },
+      });
+      if (pg) {
+        resolvedGrade = pg.gradeCode;
+        resolvedLevel = pg.level;
+      }
+    }
+
+    const positionHistory = await this.getPositionHistory(employee.id);
+    return {
+      ...employee,
+      grade: resolvedGrade,
+      level: resolvedLevel,
+      positionHistory,
+    };
+  }
+
   async list(query: PaginationQueryDto, companyId?: string) {
     const { skip, take, page, pageSize } = buildPagination(query);
     const where = {
       ...(companyId ? { companyId } : {}),
       ...(query.search
         ? {
-            OR: [
-              { firstName: { contains: query.search } },
-              { lastName: { contains: query.search } },
-              { employeeCode: { contains: query.search } },
-              { workEmail: { contains: query.search } },
-            ],
-          }
+          OR: [
+            { firstName: { contains: query.search } },
+            { lastName: { contains: query.search } },
+            { employeeCode: { contains: query.search } },
+            { workEmail: { contains: query.search } },
+          ],
+        }
         : {}),
     };
 
@@ -107,29 +184,55 @@ export class EmployeesService implements OnModuleInit {
     return parsed;
   }
 
-  async findById(id: string) {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id },
-      include: {
-        ...this.listInclude,
-        documents: true,
-        onboardingTasks: { orderBy: { createdAt: 'asc' } },
-        courseEnrollments: { orderBy: { enrollmentDate: 'desc' } },
-        kpis: { orderBy: { createdAt: 'desc' } },
-        hrNotes: { orderBy: { createdDate: 'desc' } },
-        timelineEvents: { orderBy: { date: 'asc' } },
-        currentAssets: true,
-        salaryComponents: {
-          include: {
-            salaryComponent: true,
-          },
-        },
-        directReports: {
-          select: { id: true, firstName: true, lastName: true },
-        },
-      },
+  private isUserHrOrAdmin(user?: any): boolean {
+    if (!user) return true;
+    if (user.permissions?.includes('*')) return true;
+    const isRoleAdmin = user.roles?.some((r: string) => {
+      const u = r.toUpperCase();
+      return u.includes('ADMIN') || u.includes('HR');
     });
-    if (!employee) throw new NotFoundException('Employee not found');
+    const isPrimaryAdmin =
+      user.primaryRole?.toUpperCase().includes('ADMIN') ||
+      user.primaryRole?.toUpperCase().includes('HR');
+    return Boolean(isRoleAdmin || isPrimaryAdmin);
+  }
+
+  async resolveEmployeeId(id: string, currentUser?: any): Promise<string> {
+    const isHrOrAdmin = currentUser ? this.isUserHrOrAdmin(currentUser) : true;
+    if (id === 'me' || (currentUser && !isHrOrAdmin)) {
+      if (currentUser?.employee?.id) return currentUser.employee.id;
+      const emp = await this.findMe(currentUser);
+      if (emp) return emp.id;
+    }
+    return id;
+  }
+
+  async findById(id: string, currentUser?: any) {
+    if (id === 'me') {
+      return this.findMe(currentUser);
+    }
+
+    let employee: any = null;
+    const isHrOrAdmin = currentUser ? this.isUserHrOrAdmin(currentUser) : true;
+
+    if (currentUser && !isHrOrAdmin) {
+      return this.findMe(currentUser);
+    }
+
+    employee = await this.prisma.employee.findFirst({
+      where: {
+        OR: [
+          { id },
+          { employeeCode: id },
+          { userId: id },
+        ],
+      },
+      include: this.fullInclude,
+    });
+
+    if (!employee) {
+      throw new NotFoundException(`Employee record not found for query '${id}'`);
+    }
 
     let resolvedGrade = employee.grade;
     let resolvedLevel = employee.level;
@@ -143,12 +246,118 @@ export class EmployeesService implements OnModuleInit {
       }
     }
 
-    const positionHistory = await this.getPositionHistory(id);
+    const positionHistory = await this.getPositionHistory(employee.id);
     return {
       ...employee,
       grade: resolvedGrade,
       level: resolvedLevel,
       positionHistory,
+    };
+  }
+
+  async createLoginAccount(id: string, dto: { email?: string; password?: string }) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { OR: [{ id }, { employeeCode: id }] },
+      include: { user: true },
+    });
+
+    if (!employee) {
+      throw new NotFoundException(`Employee record '${id}' not found`);
+    }
+
+    const workEmail = (
+      dto.email ||
+      employee.workEmail ||
+      `${employee.firstName.toLowerCase()}.${employee.lastName.toLowerCase()}@ehcm.local`
+    ).trim();
+
+    const tempPassword =
+      dto.password || `Rowan#2026!Temp`;
+
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
+
+    let user = employee.user;
+    if (!user) {
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: workEmail },
+      });
+
+      if (existingUser) {
+        user = await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            passwordHash,
+            mustResetPassword: true,
+            isActive: true,
+          },
+        });
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            companyId: employee.companyId,
+            email: workEmail,
+            passwordHash,
+            mustResetPassword: true,
+            isActive: true,
+          },
+        });
+
+        let empRole = await this.prisma.role.findFirst({
+          where: { name: 'EMPLOYEE' },
+        });
+        if (!empRole) {
+          empRole = await this.prisma.role.create({
+            data: {
+              name: 'EMPLOYEE',
+              description: 'Default Employee Self-Service Role',
+              isSystem: true,
+              companyId: employee.companyId,
+            },
+          });
+        }
+
+        await this.prisma.userRole.create({
+          data: {
+            userId: user.id,
+            roleId: empRole.id,
+          },
+        });
+      }
+
+      await this.prisma.employee.update({
+        where: { id: employee.id },
+        data: {
+          userId: user.id,
+          workEmail,
+        },
+      });
+    } else {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          email: workEmail,
+          passwordHash,
+          mustResetPassword: true,
+          isActive: true,
+        },
+      });
+      await this.prisma.employee.update({
+        where: { id: employee.id },
+        data: { workEmail },
+      });
+    }
+
+    return {
+      success: true,
+      message: `Login account created for ${employee.firstName} ${employee.lastName}`,
+      credentials: {
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeCode: employee.employeeCode,
+        email: workEmail,
+        temporaryPassword: tempPassword,
+        role: 'Employee',
+        mustResetPassword: true,
+      },
     };
   }
 

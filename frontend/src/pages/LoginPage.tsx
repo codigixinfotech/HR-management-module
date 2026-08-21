@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { login, register, fetchMe } from '@/api/auth';
+import { login, register, fetchMe, changePassword } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth-store';
 import {
   Building2,
@@ -78,6 +78,11 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [isResetSending, setIsResetSending] = useState(false);
 
+  // First login password reset modal
+  const [firstLoginModalOpen, setFirstLoginModalOpen] = useState(false);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmNewPasswordInput, setConfirmNewPasswordInput] = useState('');
+
   // Sign In form fields
   const [signInEmail, setSignInEmail] = useState('admin@ehcm.local');
   const [signInPassword, setSignInPassword] = useState('');
@@ -90,6 +95,34 @@ export default function LoginPage() {
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
 
+  // First login password change mutation
+  const changePasswordMutation = useMutation({
+    mutationFn: async () => {
+      if (newPasswordInput !== confirmNewPasswordInput) {
+        throw new Error('New passwords do not match');
+      }
+      if (newPasswordInput.length < 6) {
+        throw new Error('New password must be at least 6 characters');
+      }
+      return changePassword(newPasswordInput);
+    },
+    onSuccess: () => {
+      const user = useAuthStore.getState().user;
+      if (user) {
+        setUser({ ...user, mustResetPassword: false });
+      }
+      setFirstLoginModalOpen(false);
+      setIsSuccessTransitioning(true);
+      toast.success('Password updated successfully! Redirecting to Dashboard...');
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 600);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || err?.response?.data?.message || 'Password update failed');
+    },
+  });
+
   // Sign In Mutation
   const signInMutation = useMutation({
     mutationFn: async () => {
@@ -97,11 +130,16 @@ export default function LoginPage() {
       setTokens(tokens.accessToken, tokens.refreshToken);
       const me = await fetchMe(tokens.accessToken);
       setUser(me);
-      return me;
+      return { me, mustResetPassword: tokens.mustResetPassword || me.mustResetPassword };
     },
-    onSuccess: (me) => {
+    onSuccess: (res) => {
+      if (res.mustResetPassword) {
+        setFirstLoginModalOpen(true);
+        toast.info('First-time login detected. Please update your temporary password.');
+        return;
+      }
       setIsSuccessTransitioning(true);
-      toast.success(`Welcome back, ${me.email.split('@')[0]}! Redirecting...`);
+      toast.success(`Welcome back, ${res.me.email.split('@')[0]}! Redirecting...`);
       setTimeout(() => {
         navigate('/dashboard');
       }, 600);
@@ -558,6 +596,65 @@ export default function LoginPage() {
                 {isResetSending ? 'Sending...' : 'Send Reset Link'}
               </Button>
             </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── First-Time Login Password Change Dialog ── */}
+      <Dialog open={firstLoginModalOpen} onOpenChange={setFirstLoginModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+              <ShieldCheck className="h-5 w-5 text-primary" /> First-Time Login Security Setup
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Welcome! As this is your first login, please update your temporary password to a secure personal password.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              changePasswordMutation.mutate();
+            }}
+            className="space-y-4 pt-2"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">New Password</Label>
+              <Input
+                type="password"
+                placeholder="At least 6 characters"
+                value={newPasswordInput}
+                onChange={(e) => setNewPasswordInput(e.target.value)}
+                className="h-9.5 text-xs rounded-xl"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Confirm New Password</Label>
+              <Input
+                type="password"
+                placeholder="Re-enter new password"
+                value={confirmNewPasswordInput}
+                onChange={(e) => setConfirmNewPasswordInput(e.target.value)}
+                className="h-9.5 text-xs rounded-xl"
+                required
+              />
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
+              ⚠️ <strong>Password Security:</strong> Choose a strong password. This will update your temporary login credentials permanently.
+            </div>
+
+            <Button
+              type="submit"
+              disabled={changePasswordMutation.isPending}
+              className="w-full h-10 text-xs font-bold gap-2 rounded-xl bg-gradient-to-r from-primary via-indigo-600 to-violet-600 text-white shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all cursor-pointer"
+            >
+              {changePasswordMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : <ShieldCheck className="h-4 w-4" />}
+              {changePasswordMutation.isPending ? 'Updating Password...' : 'Save New Password & Continue'}
+            </Button>
           </form>
         </DialogContent>
       </Dialog>

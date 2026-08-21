@@ -11,6 +11,20 @@ export const employeesApi = {
     (await apiClient.patch<Employee>(`/employees/${id}`, payload)).data,
   remove: async (id: string) => (await apiClient.delete(`/employees/${id}`)).data,
 
+  createLogin: async (id: string, dto?: { email?: string; password?: string }) =>
+    (await apiClient.post<{
+      success: boolean;
+      message: string;
+      credentials: {
+        employeeName: string;
+        employeeCode: string;
+        email: string;
+        temporaryPassword: string;
+        role: string;
+        mustResetPassword: boolean;
+      };
+    }>(`/employees/${id}/create-login`, dto)).data,
+
   uploadDocument: async (id: string, file: File, docType: string) => {
     const formData = new FormData();
     formData.append('file', file);

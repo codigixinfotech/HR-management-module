@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   OnModuleInit,
@@ -293,7 +294,26 @@ export class AuthService implements OnModuleInit {
       data: { lastLoginAt: new Date() },
     });
 
-    return this.issueTokens(user.id, user.email);
+    const tokens = await this.issueTokens(user.id, user.email);
+    return {
+      ...tokens,
+      mustResetPassword: Boolean(user.mustResetPassword),
+    };
+  }
+
+  async changePassword(userId: string, dto: { newPassword: string }) {
+    if (!dto.newPassword || dto.newPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters');
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        mustResetPassword: false,
+      },
+    });
+    return { success: true, message: 'Password updated successfully' };
   }
 
   async refresh(refreshToken: string) {

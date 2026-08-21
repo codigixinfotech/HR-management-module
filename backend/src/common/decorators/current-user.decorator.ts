@@ -4,6 +4,7 @@ export interface CurrentUserPayload {
   userId: string;
   email: string;
   companyId: string | null;
+  mustResetPassword?: boolean;
   permissions: string[];
   roles: string[];
   primaryRole: string;

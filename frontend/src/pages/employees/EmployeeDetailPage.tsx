@@ -16,13 +16,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { useAuthStore } from '@/stores/auth-store';
 import type { ApprovalStatus, EmployeeStatus } from '@/api/types';
 import { RegisterFaceModal } from './RegisterFaceModal';
 
 const STATUS_OPTIONS: EmployeeStatus[] = ['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED', 'PROBATION', 'NOTICE_PERIOD', 'EXITED'];
 
 export default function EmployeeDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: rawId } = useParams<{ id: string }>();
+  const authUser = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
+
+  const id = rawId === 'me' || !rawId ? 'me' : rawId;
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -62,15 +67,37 @@ export default function EmployeeDetailPage() {
   // Queries
   const { data: employee, isLoading, isError } = useQuery({
     queryKey: ['employee', id],
-    queryFn: () => employeesApi.get(id!),
+    queryFn: async () => {
+      const res = await employeesApi.get(id!);
+      if (rawId === 'me' && res && authUser) {
+        // Sync auth store employee state with database record
+        setUser({
+          ...authUser,
+          employee: {
+            id: res.id,
+            employeeCode: res.employeeCode,
+            firstName: res.firstName,
+            lastName: res.lastName,
+            fullName: `${res.firstName} ${res.lastName}`,
+            departmentId: res.departmentId,
+            departmentName: res.department?.name || null,
+            designationId: res.designationId,
+            designationTitle: res.designation?.title || null,
+          },
+        });
+      }
+      return res;
+    },
     enabled: !!id,
     retry: 1,
   });
 
+  const targetEmpId = employee?.id || id;
+
   const { data: employeeExits = [] } = useQuery({
-    queryKey: ['employee-exits', id],
-    queryFn: () => exitsApi.list({ search: id }),
-    enabled: !!id,
+    queryKey: ['employee-exits', targetEmpId],
+    queryFn: () => exitsApi.list({ search: targetEmpId }),
+    enabled: !!targetEmpId,
   });
   const activeExitRecord = employeeExits[0] || null;
 
@@ -108,7 +135,7 @@ export default function EmployeeDetailPage() {
 
   // Mutations
   const statusMutation = useMutation({
-    mutationFn: (status: EmployeeStatus) => employeesApi.update(id!, { status }),
+    mutationFn: (status: EmployeeStatus) => employeesApi.update(targetEmpId, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
       toast.success('Status updated successfully');
@@ -116,7 +143,7 @@ export default function EmployeeDetailPage() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => employeesApi.uploadDocument(id!, file, docType),
+    mutationFn: (file: File) => employeesApi.uploadDocument(targetEmpId, file, docType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
       toast.success('Document uploaded to vault');
@@ -126,7 +153,7 @@ export default function EmployeeDetailPage() {
   });
 
   const removeDocMutation = useMutation({
-    mutationFn: (documentId: string) => employeesApi.removeDocument(id!, documentId),
+    mutationFn: (documentId: string) => employeesApi.removeDocument(targetEmpId, documentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
       toast.success('Document removed');
@@ -134,7 +161,7 @@ export default function EmployeeDetailPage() {
   });
 
   const createTaskMutation = useMutation({
-    mutationFn: () => employeesApi.createOnboardingTask(id!, { title: taskTitle, ownerType: taskOwner }),
+    mutationFn: () => employeesApi.createOnboardingTask(targetEmpId, { title: taskTitle, ownerType: taskOwner }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
       toast.success('Onboarding task added');
@@ -152,7 +179,7 @@ export default function EmployeeDetailPage() {
   });
 
   const allocateAssetMutation = useMutation({
-    mutationFn: () => assetsApi.allocate(selectedAssetId, { employeeId: id!, remarks: assetRemarks }),
+    mutationFn: () => assetsApi.allocate(selectedAssetId, { employeeId: targetEmpId, remarks: assetRemarks }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
       queryClient.invalidateQueries({ queryKey: ['assets'] });
@@ -174,7 +201,7 @@ export default function EmployeeDetailPage() {
   });
 
   const enrollCourseMutation = useMutation({
-    mutationFn: () => employeesApi.enrollInCourse(id!, {
+    mutationFn: () => employeesApi.enrollInCourse(targetEmpId, {
       courseName,
       courseType,
       status: courseStatus,
@@ -190,7 +217,7 @@ export default function EmployeeDetailPage() {
   });
 
   const addKpiMutation = useMutation({
-    mutationFn: () => employeesApi.addKpi(id!, {
+    mutationFn: () => employeesApi.addKpi(targetEmpId, {
       kpi: kpiTitle,
       category: kpiCategory,
       target: kpiTarget,
@@ -211,7 +238,7 @@ export default function EmployeeDetailPage() {
   });
 
   const addNoteMutation = useMutation({
-    mutationFn: () => employeesApi.addHrNote(id!, {
+    mutationFn: () => employeesApi.addHrNote(targetEmpId, {
       note: noteContent,
       noteType,
       createdBy: noteAuthor,

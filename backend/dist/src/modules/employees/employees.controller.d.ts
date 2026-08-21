@@ -3,6 +3,7 @@ import { EmployeesService } from './employees.service';
 import { OnboardingService } from './onboarding.service';
 import { CreateEmployeeDto, ListEmployeesQueryDto, UpdateEmployeeDto } from './dto/employee.dto';
 import { CreateOnboardingTaskDto } from './dto/onboarding-task.dto';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 export declare class EmployeesController {
     private readonly employeesService;
     private readonly onboardingService;
@@ -39,15 +40,17 @@ export declare class EmployeesController {
                 uploadedAt: Date;
             }[];
         } & {
-            location: string | null;
-            costCenter: string | null;
-            id: string;
-            employeeCode: string;
+            userId: string | null;
             companyId: string;
+            shift: string | null;
+            id: string;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            createdAt: Date;
+            updatedAt: Date;
+            employeeCode: string;
             branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
-            userId: string | null;
             reportingManagerId: string | null;
             firstName: string;
             middleName: string | null;
@@ -61,12 +64,12 @@ export declare class EmployeesController {
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
             employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
+            location: string | null;
             grade: string | null;
             level: string | null;
-            shift: string | null;
+            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -134,8 +137,6 @@ export declare class EmployeesController {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         })[];
         total: number;
         page: number;
@@ -151,7 +152,7 @@ export declare class EmployeesController {
     removeSkill(id: string): Promise<{
         success: boolean;
     }>;
-    findOne(id: string): Promise<{
+    findMe(user: CurrentUserPayload): Promise<{
         grade: string | null;
         level: string | null;
         positionHistory: any[];
@@ -191,32 +192,32 @@ export declare class EmployeesController {
         }[];
         onboardingTasks: {
             id: string;
+            employeeId: string;
             status: import(".prisma/client").$Enums.ApprovalStatus;
             createdAt: Date;
-            title: string;
             description: string | null;
+            title: string;
+            ownerType: string;
             dueDate: Date | null;
             completedAt: Date | null;
-            employeeId: string;
-            ownerType: string;
         }[];
         courseEnrollments: {
             id: string;
+            employeeId: string;
             status: string;
             createdAt: Date;
             updatedAt: Date;
-            employeeId: string;
-            enrollmentDate: Date;
             courseName: string;
             courseType: string;
+            enrollmentDate: Date;
             completionDate: Date | null;
             certification: string | null;
         }[];
         kpis: {
             id: string;
+            employeeId: string;
             createdAt: Date;
             updatedAt: Date;
-            employeeId: string;
             category: string;
             kpi: string;
             target: string;
@@ -228,10 +229,10 @@ export declare class EmployeesController {
         hrNotes: {
             id: string;
             employeeId: string;
-            createdBy: string;
-            createdDate: Date;
             note: string;
             noteType: string;
+            createdBy: string;
+            createdDate: Date;
         }[];
         timelineEvents: {
             id: string;
@@ -243,28 +244,28 @@ export declare class EmployeesController {
         }[];
         salaryComponents: ({
             salaryComponent: {
-                id: string;
                 companyId: string;
+                id: string;
                 createdAt: Date;
                 updatedAt: Date;
-                name: string;
                 code: string;
+                name: string;
                 type: import(".prisma/client").$Enums.SalaryComponentType;
                 isActive: boolean;
                 isStatutory: boolean;
             };
         } & {
             id: string;
+            employeeId: string;
             createdAt: Date;
             updatedAt: Date;
             effectiveFrom: Date;
-            employeeId: string;
             salaryComponentId: string;
             monthlyAmount: number;
         })[];
         currentAssets: {
-            id: string;
             companyId: string;
+            id: string;
             status: import(".prisma/client").$Enums.AssetStatus;
             createdAt: Date;
             updatedAt: Date;
@@ -277,15 +278,17 @@ export declare class EmployeesController {
             warrantyExpiry: Date | null;
             notes: string | null;
         }[];
-        location: string | null;
-        costCenter: string | null;
-        id: string;
-        employeeCode: string;
+        userId: string | null;
         companyId: string;
+        shift: string | null;
+        id: string;
+        status: import(".prisma/client").$Enums.EmployeeStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        employeeCode: string;
         branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
-        userId: string | null;
         reportingManagerId: string | null;
         firstName: string;
         middleName: string | null;
@@ -299,10 +302,10 @@ export declare class EmployeesController {
         emergencyContactPhone: string | null;
         dateOfJoining: Date | null;
         employmentType: import(".prisma/client").$Enums.EmploymentType;
-        status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
         businessUnit: string | null;
-        shift: string | null;
+        location: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -370,9 +373,23 @@ export declare class EmployeesController {
         facePhoto: string | null;
         faceRegisteredAt: Date | null;
         faceRegisteredBy: string | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
+    createLogin(id: string, dto: {
+        email?: string;
+        password?: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
+        credentials: {
+            employeeName: string;
+            employeeCode: string;
+            email: string;
+            temporaryPassword: string;
+            role: string;
+            mustResetPassword: boolean;
+        };
+    }>;
+    findOne(id: string, user: CurrentUserPayload): Promise<any>;
     getPositionHistory(id: string): Promise<any[]>;
     create(dto: CreateEmployeeDto): Promise<{
         company: {
@@ -405,15 +422,17 @@ export declare class EmployeesController {
             uploadedAt: Date;
         }[];
     } & {
-        location: string | null;
-        costCenter: string | null;
-        id: string;
-        employeeCode: string;
+        userId: string | null;
         companyId: string;
+        shift: string | null;
+        id: string;
+        status: import(".prisma/client").$Enums.EmployeeStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        employeeCode: string;
         branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
-        userId: string | null;
         reportingManagerId: string | null;
         firstName: string;
         middleName: string | null;
@@ -427,12 +446,12 @@ export declare class EmployeesController {
         emergencyContactPhone: string | null;
         dateOfJoining: Date | null;
         employmentType: import(".prisma/client").$Enums.EmploymentType;
-        status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
         businessUnit: string | null;
+        location: string | null;
         grade: string | null;
         level: string | null;
-        shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -500,8 +519,6 @@ export declare class EmployeesController {
         facePhoto: string | null;
         faceRegisteredAt: Date | null;
         faceRegisteredBy: string | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     update(id: string, dto: UpdateEmployeeDto): Promise<{
         company: {
@@ -534,15 +551,17 @@ export declare class EmployeesController {
             uploadedAt: Date;
         }[];
     } & {
-        location: string | null;
-        costCenter: string | null;
-        id: string;
-        employeeCode: string;
+        userId: string | null;
         companyId: string;
+        shift: string | null;
+        id: string;
+        status: import(".prisma/client").$Enums.EmployeeStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        employeeCode: string;
         branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
-        userId: string | null;
         reportingManagerId: string | null;
         firstName: string;
         middleName: string | null;
@@ -556,12 +575,12 @@ export declare class EmployeesController {
         emergencyContactPhone: string | null;
         dateOfJoining: Date | null;
         employmentType: import(".prisma/client").$Enums.EmploymentType;
-        status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
         businessUnit: string | null;
+        location: string | null;
         grade: string | null;
         level: string | null;
-        shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -629,8 +648,6 @@ export declare class EmployeesController {
         facePhoto: string | null;
         faceRegisteredAt: Date | null;
         faceRegisteredBy: string | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     remove(id: string): Promise<{
         success: boolean;
@@ -656,36 +673,36 @@ export declare class EmployeesController {
     }>;
     listOnboardingTasks(id: string): Promise<{
         id: string;
+        employeeId: string;
         status: import(".prisma/client").$Enums.ApprovalStatus;
         createdAt: Date;
-        title: string;
         description: string | null;
+        title: string;
+        ownerType: string;
         dueDate: Date | null;
         completedAt: Date | null;
-        employeeId: string;
-        ownerType: string;
     }[]>;
     createOnboardingTask(id: string, dto: CreateOnboardingTaskDto): Promise<{
         id: string;
+        employeeId: string;
         status: import(".prisma/client").$Enums.ApprovalStatus;
         createdAt: Date;
-        title: string;
         description: string | null;
+        title: string;
+        ownerType: string;
         dueDate: Date | null;
         completedAt: Date | null;
-        employeeId: string;
-        ownerType: string;
     }>;
     updateOnboardingTaskStatus(taskId: string, status: ApprovalStatus): Promise<{
         id: string;
+        employeeId: string;
         status: import(".prisma/client").$Enums.ApprovalStatus;
         createdAt: Date;
-        title: string;
         description: string | null;
+        title: string;
+        ownerType: string;
         dueDate: Date | null;
         completedAt: Date | null;
-        employeeId: string;
-        ownerType: string;
     }>;
     enrollInCourse(id: string, dto: {
         courseName: string;
@@ -694,13 +711,13 @@ export declare class EmployeesController {
         certification?: string;
     }): Promise<{
         id: string;
+        employeeId: string;
         status: string;
         createdAt: Date;
         updatedAt: Date;
-        employeeId: string;
-        enrollmentDate: Date;
         courseName: string;
         courseType: string;
+        enrollmentDate: Date;
         completionDate: Date | null;
         certification: string | null;
     }>;
@@ -714,9 +731,9 @@ export declare class EmployeesController {
         managerFeedback?: string;
     }): Promise<{
         id: string;
+        employeeId: string;
         createdAt: Date;
         updatedAt: Date;
-        employeeId: string;
         category: string;
         kpi: string;
         target: string;
@@ -732,9 +749,9 @@ export declare class EmployeesController {
     }): Promise<{
         id: string;
         employeeId: string;
-        createdBy: string;
-        createdDate: Date;
         note: string;
         noteType: string;
+        createdBy: string;
+        createdDate: Date;
     }>;
 }

@@ -49,6 +49,43 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
+    let employeeRecord = user.employee;
+    if (!employeeRecord) {
+      const matchedEmp = await this.prisma.employee.findFirst({
+        where: { OR: [{ userId: user.id }, { workEmail: user.email }] },
+        include: { department: true, designation: true },
+      });
+      if (matchedEmp) {
+        if (!matchedEmp.userId) {
+          await this.prisma.employee.update({
+            where: { id: matchedEmp.id },
+            data: { userId: user.id },
+          });
+        }
+        employeeRecord = matchedEmp;
+      } else {
+        const company = await this.prisma.company.findFirst();
+        const empCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+        const nameParts = user.email.split('@')[0].split('.');
+        const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : 'Employee';
+        const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'User';
+
+        employeeRecord = await this.prisma.employee.create({
+          data: {
+            companyId: company?.id || 'default-company',
+            userId: user.id,
+            employeeCode: empCode,
+            firstName,
+            lastName,
+            workEmail: user.email,
+            status: 'ACTIVE',
+            dateOfJoining: new Date(),
+          },
+          include: { department: true, designation: true },
+        });
+      }
+    }
+
     const isSuperAdmin = user.roles.some(
       (ur) => ur.role.name === 'SUPER_ADMIN' && ur.role.isSystem,
     );
@@ -67,15 +104,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           ),
         );
 
-    if (isHrOrAdmin && !permissions.includes('*')) {
+    if (!permissions.includes('*')) {
       permissions = Array.from(
         new Set([
           ...permissions,
-          'recruitment.read',
-          'recruitment.write',
-          'recruitment.manage',
           'employees.read',
-          'employees.write',
+          'asset_management.read',
+          'attendance.read',
+          'tasks.read',
+          'leave.read',
+          ...(isHrOrAdmin
+            ? ['recruitment.read', 'recruitment.write', 'recruitment.manage', 'employees.write']
+            : []),
         ]),
       );
     }
@@ -99,28 +139,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         .join(' ');
     }
 
-    const fullName = user.employee
-      ? `${user.employee.firstName} ${user.employee.lastName}`.trim()
+    const fullName = employeeRecord
+      ? `${employeeRecord.firstName} ${employeeRecord.lastName}`.trim()
       : user.email.split('@')[0];
 
     return {
       userId: user.id,
       email: user.email,
       companyId: user.companyId,
+      mustResetPassword: user.mustResetPassword,
       permissions,
       roles: rolesList,
       primaryRole,
-      employee: user.employee
+      employee: employeeRecord
         ? {
-            id: user.employee.id,
-            employeeCode: user.employee.employeeCode,
-            firstName: user.employee.firstName,
-            lastName: user.employee.lastName,
+            id: employeeRecord.id,
+            employeeCode: employeeRecord.employeeCode,
+            firstName: employeeRecord.firstName,
+            lastName: employeeRecord.lastName,
             fullName,
-            departmentId: user.employee.departmentId,
-            departmentName: user.employee.department?.name || null,
-            designationId: user.employee.designationId,
-            designationTitle: user.employee.designation?.title || null,
+            departmentId: employeeRecord.departmentId,
+            departmentName: employeeRecord.department?.name || null,
+            designationId: employeeRecord.designationId,
+            designationTitle: employeeRecord.designation?.title || null,
           }
         : null,
     };

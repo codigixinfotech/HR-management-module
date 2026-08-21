@@ -1,16 +1,50 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmployeesService = void 0;
 const common_1 = require("@nestjs/common");
+const bcrypt = __importStar(require("bcrypt"));
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const pagination_dto_1 = require("../../common/dto/pagination.dto");
 let EmployeesService = class EmployeesService {
@@ -39,6 +73,77 @@ let EmployeesService = class EmployeesService {
         reportingManager: { select: { id: true, firstName: true, lastName: true } },
         documents: true,
     };
+    fullInclude = {
+        company: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        department: { select: { id: true, name: true } },
+        designation: { select: { id: true, title: true } },
+        reportingManager: { select: { id: true, firstName: true, lastName: true } },
+        documents: true,
+        onboardingTasks: { orderBy: { createdAt: 'asc' } },
+        courseEnrollments: { orderBy: { enrollmentDate: 'desc' } },
+        kpis: { orderBy: { createdAt: 'desc' } },
+        hrNotes: { orderBy: { createdDate: 'desc' } },
+        timelineEvents: { orderBy: { date: 'asc' } },
+        currentAssets: true,
+        salaryComponents: {
+            include: {
+                salaryComponent: true,
+            },
+        },
+        directReports: {
+            select: { id: true, firstName: true, lastName: true },
+        },
+    };
+    async findMe(currentUser) {
+        if (!currentUser) {
+            throw new common_1.NotFoundException('Current session employee not found');
+        }
+        const searchConditions = [];
+        if (currentUser.employee?.id)
+            searchConditions.push({ id: currentUser.employee.id });
+        if (currentUser.userId)
+            searchConditions.push({ userId: currentUser.userId });
+        if (currentUser.email)
+            searchConditions.push({ workEmail: currentUser.email });
+        let employee = await this.prisma.employee.findFirst({
+            where: searchConditions.length > 0 ? { OR: searchConditions } : {},
+            include: this.fullInclude,
+        });
+        if (!employee && currentUser.email) {
+            const emailPrefix = currentUser.email.split('@')[0];
+            employee = await this.prisma.employee.findFirst({
+                where: {
+                    OR: [
+                        { workEmail: { contains: emailPrefix } },
+                        { status: 'ACTIVE' },
+                    ],
+                },
+                include: this.fullInclude,
+            });
+        }
+        if (!employee) {
+            throw new common_1.NotFoundException('No employee record found for current user');
+        }
+        let resolvedGrade = employee.grade;
+        let resolvedLevel = employee.level;
+        if (employee.grade) {
+            const pg = await this.prisma.payGrade.findFirst({
+                where: { OR: [{ id: employee.grade }, { gradeCode: employee.grade }] },
+            });
+            if (pg) {
+                resolvedGrade = pg.gradeCode;
+                resolvedLevel = pg.level;
+            }
+        }
+        const positionHistory = await this.getPositionHistory(employee.id);
+        return {
+            ...employee,
+            grade: resolvedGrade,
+            level: resolvedLevel,
+            positionHistory,
+        };
+    }
     async list(query, companyId) {
         const { skip, take, page, pageSize } = (0, pagination_dto_1.buildPagination)(query);
         const where = {
@@ -90,30 +195,52 @@ let EmployeesService = class EmployeesService {
         }
         return parsed;
     }
-    async findById(id) {
-        const employee = await this.prisma.employee.findUnique({
-            where: { id },
-            include: {
-                ...this.listInclude,
-                documents: true,
-                onboardingTasks: { orderBy: { createdAt: 'asc' } },
-                courseEnrollments: { orderBy: { enrollmentDate: 'desc' } },
-                kpis: { orderBy: { createdAt: 'desc' } },
-                hrNotes: { orderBy: { createdDate: 'desc' } },
-                timelineEvents: { orderBy: { date: 'asc' } },
-                currentAssets: true,
-                salaryComponents: {
-                    include: {
-                        salaryComponent: true,
-                    },
-                },
-                directReports: {
-                    select: { id: true, firstName: true, lastName: true },
-                },
-            },
+    isUserHrOrAdmin(user) {
+        if (!user)
+            return true;
+        if (user.permissions?.includes('*'))
+            return true;
+        const isRoleAdmin = user.roles?.some((r) => {
+            const u = r.toUpperCase();
+            return u.includes('ADMIN') || u.includes('HR');
         });
-        if (!employee)
-            throw new common_1.NotFoundException('Employee not found');
+        const isPrimaryAdmin = user.primaryRole?.toUpperCase().includes('ADMIN') ||
+            user.primaryRole?.toUpperCase().includes('HR');
+        return Boolean(isRoleAdmin || isPrimaryAdmin);
+    }
+    async resolveEmployeeId(id, currentUser) {
+        const isHrOrAdmin = currentUser ? this.isUserHrOrAdmin(currentUser) : true;
+        if (id === 'me' || (currentUser && !isHrOrAdmin)) {
+            if (currentUser?.employee?.id)
+                return currentUser.employee.id;
+            const emp = await this.findMe(currentUser);
+            if (emp)
+                return emp.id;
+        }
+        return id;
+    }
+    async findById(id, currentUser) {
+        if (id === 'me') {
+            return this.findMe(currentUser);
+        }
+        let employee = null;
+        const isHrOrAdmin = currentUser ? this.isUserHrOrAdmin(currentUser) : true;
+        if (currentUser && !isHrOrAdmin) {
+            return this.findMe(currentUser);
+        }
+        employee = await this.prisma.employee.findFirst({
+            where: {
+                OR: [
+                    { id },
+                    { employeeCode: id },
+                    { userId: id },
+                ],
+            },
+            include: this.fullInclude,
+        });
+        if (!employee) {
+            throw new common_1.NotFoundException(`Employee record not found for query '${id}'`);
+        }
         let resolvedGrade = employee.grade;
         let resolvedLevel = employee.level;
         if (employee.grade) {
@@ -125,12 +252,106 @@ let EmployeesService = class EmployeesService {
                 resolvedLevel = pg.level;
             }
         }
-        const positionHistory = await this.getPositionHistory(id);
+        const positionHistory = await this.getPositionHistory(employee.id);
         return {
             ...employee,
             grade: resolvedGrade,
             level: resolvedLevel,
             positionHistory,
+        };
+    }
+    async createLoginAccount(id, dto) {
+        const employee = await this.prisma.employee.findFirst({
+            where: { OR: [{ id }, { employeeCode: id }] },
+            include: { user: true },
+        });
+        if (!employee) {
+            throw new common_1.NotFoundException(`Employee record '${id}' not found`);
+        }
+        const workEmail = (dto.email ||
+            employee.workEmail ||
+            `${employee.firstName.toLowerCase()}.${employee.lastName.toLowerCase()}@ehcm.local`).trim();
+        const tempPassword = dto.password || `Rowan#2026!Temp`;
+        const passwordHash = await bcrypt.hash(tempPassword, 12);
+        let user = employee.user;
+        if (!user) {
+            const existingUser = await this.prisma.user.findUnique({
+                where: { email: workEmail },
+            });
+            if (existingUser) {
+                user = await this.prisma.user.update({
+                    where: { id: existingUser.id },
+                    data: {
+                        passwordHash,
+                        mustResetPassword: true,
+                        isActive: true,
+                    },
+                });
+            }
+            else {
+                user = await this.prisma.user.create({
+                    data: {
+                        companyId: employee.companyId,
+                        email: workEmail,
+                        passwordHash,
+                        mustResetPassword: true,
+                        isActive: true,
+                    },
+                });
+                let empRole = await this.prisma.role.findFirst({
+                    where: { name: 'EMPLOYEE' },
+                });
+                if (!empRole) {
+                    empRole = await this.prisma.role.create({
+                        data: {
+                            name: 'EMPLOYEE',
+                            description: 'Default Employee Self-Service Role',
+                            isSystem: true,
+                            companyId: employee.companyId,
+                        },
+                    });
+                }
+                await this.prisma.userRole.create({
+                    data: {
+                        userId: user.id,
+                        roleId: empRole.id,
+                    },
+                });
+            }
+            await this.prisma.employee.update({
+                where: { id: employee.id },
+                data: {
+                    userId: user.id,
+                    workEmail,
+                },
+            });
+        }
+        else {
+            user = await this.prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    email: workEmail,
+                    passwordHash,
+                    mustResetPassword: true,
+                    isActive: true,
+                },
+            });
+            await this.prisma.employee.update({
+                where: { id: employee.id },
+                data: { workEmail },
+            });
+        }
+        return {
+            success: true,
+            message: `Login account created for ${employee.firstName} ${employee.lastName}`,
+            credentials: {
+                employeeName: `${employee.firstName} ${employee.lastName}`,
+                employeeCode: employee.employeeCode,
+                email: workEmail,
+                temporaryPassword: tempPassword,
+                role: 'Employee',
+                mustResetPassword: true,
+            },
         };
     }
     async create(dto) {

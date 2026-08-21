@@ -22,8 +22,8 @@ export declare class AttendanceController {
             name: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
+        id: string;
         employeeId: string;
         date: Date;
         shiftTypeId: string | null;
@@ -69,8 +69,8 @@ export declare class AttendanceController {
             name: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
+        id: string;
         employeeId: string;
         date: Date;
         shiftTypeId: string | null;
@@ -116,8 +116,8 @@ export declare class AttendanceController {
             name: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
+        id: string;
         employeeId: string;
         date: Date;
         shiftTypeId: string | null;
@@ -163,8 +163,8 @@ export declare class AttendanceController {
             name: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
+        id: string;
         employeeId: string;
         date: Date;
         shiftTypeId: string | null;

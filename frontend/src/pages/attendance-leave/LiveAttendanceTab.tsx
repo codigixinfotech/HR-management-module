@@ -23,6 +23,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
 import { VerificationDetailsModal } from '@/components/attendance/VerificationDetailsModal';
 
+import { useSearchParams } from 'react-router-dom';
+import { EmployeeAttendanceView } from '@/components/attendance/EmployeeAttendanceView';
+
 interface LivePunch {
   id?: string;
   time: string;
@@ -154,6 +157,9 @@ const INITIAL_PUNCHES: LivePunch[] = [
 
 export function LiveAttendanceTab() {
   const user = useAuthStore((s) => s.user);
+  const [searchParams] = useSearchParams();
+  const isDetailsMe = searchParams.get('details') === 'me';
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isFaceAttendanceOpen, setIsFaceAttendanceOpen] = useState(false);
   const [isVerificationDetailsOpen, setIsVerificationDetailsOpen] = useState(false);
@@ -173,6 +179,10 @@ export function LiveAttendanceTab() {
       user.primaryRole?.toUpperCase().includes('HR');
     return Boolean(isRoleAdmin || isPrimaryAdmin);
   }, [user]);
+
+  if (!isHrOrAdmin || isDetailsMe) {
+    return <EmployeeAttendanceView />;
+  }
 
   const loggedInEmpCode = user?.employee?.employeeCode || 'EMP-8265';
 

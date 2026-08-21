@@ -47,4 +47,12 @@ export class AuthController {
   me(@CurrentUser() user: CurrentUserPayload) {
     return user;
   }
+
+  @Post('change-password')
+  changePassword(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: { newPassword: string },
+  ) {
+    return this.authService.changePassword(user.userId, dto);
+  }
 }

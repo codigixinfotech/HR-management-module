@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { employeesApi } from '@/api/employees';
 import { useAuthStore } from '@/stores/auth-store';
+import { isHrOrAdminUser } from '@/lib/modules';
 import { attendanceApi } from '@/api/attendance-leave';
 import {
   extractFacialLandmarkDescriptor,
@@ -448,7 +449,7 @@ export function FaceAttendanceModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Select Employee Profile *</Label>
-              <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+              <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId} disabled={!isHrOrAdminUser(authUser)}>
                 <SelectTrigger className="h-8.5 text-xs">
                   <SelectValue placeholder="Select Employee" />
                 </SelectTrigger>

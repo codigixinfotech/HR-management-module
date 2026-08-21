@@ -8,6 +8,7 @@ export declare class AuthController {
     constructor(authService: AuthService);
     getDemoAccounts(): import("./auth.service").DemoAccountInfo[];
     login(dto: LoginDto): Promise<{
+        mustResetPassword: boolean;
         accessToken: string;
         refreshToken: string;
     }>;
@@ -23,4 +24,10 @@ export declare class AuthController {
         success: boolean;
     }>;
     me(user: CurrentUserPayload): CurrentUserPayload;
+    changePassword(user: CurrentUserPayload, dto: {
+        newPassword: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
+    }>;
 }

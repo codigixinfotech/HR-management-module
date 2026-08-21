@@ -404,23 +404,44 @@ async function main() {
       const dateOfJoining = addDays(today, dojOffset);
       dateOfJoining.setFullYear(today.getFullYear() - joiningYearsAgo);
 
+      const isRowan = code === 'EMP0025';
+      const fName = isRowan ? 'Rowan' : firstName;
+      const lName = isRowan ? 'Ortiz' : lastName;
+      const wEmail = isRowan ? 'rowan.ortiz@ehcm.local' : `${firstName.toLowerCase()}.${lastName.toLowerCase()}${empIndex}@demo-manufacturing.com`;
+
       const employee = await prisma.employee.upsert({
         where: { companyId_employeeCode: { companyId: company.id, employeeCode: code } },
-        update: {},
+        update: {
+          firstName: fName,
+          lastName: lName,
+          workEmail: wEmail,
+          panNumber: isRowan ? 'ABCDE1234F' : undefined,
+          uanNumber: isRowan ? '100900800700' : undefined,
+          bankName: isRowan ? 'HDFC Bank Ltd' : undefined,
+          bankAccountNumber: isRowan ? '50100234567890' : undefined,
+          emergencyContactName: isRowan ? 'Parent/Spouse' : undefined,
+          emergencyContactPhone: isRowan ? '+91 98230 44112' : undefined,
+        },
         create: {
           companyId: company.id,
           branchId: branch.id,
           departmentId: departmentsByCode[group.deptCode].id,
           designationId: designationsByCode[group.desigCode].id,
           employeeCode: code,
-          firstName,
-          lastName,
+          firstName: fName,
+          lastName: lName,
           gender: empIndex % 2 === 0 ? 'FEMALE' : 'MALE',
           dateOfBirth,
-          workEmail: `${firstName.toLowerCase()}.${lastName.toLowerCase()}${empIndex}@demo-manufacturing.com`,
+          workEmail: wEmail,
           dateOfJoining,
           employmentType: 'PERMANENT',
           status,
+          panNumber: isRowan ? 'ABCDE1234F' : undefined,
+          uanNumber: isRowan ? '100900800700' : undefined,
+          bankName: isRowan ? 'HDFC Bank Ltd' : undefined,
+          bankAccountNumber: isRowan ? '50100234567890' : undefined,
+          emergencyContactName: isRowan ? 'Parent/Spouse' : undefined,
+          emergencyContactPhone: isRowan ? '+91 98230 44112' : undefined,
         },
       });
       seededEmployees.push({ id: employee.id, status });

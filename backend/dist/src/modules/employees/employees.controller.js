@@ -22,6 +22,7 @@ const employee_dto_1 = require("./dto/employee.dto");
 const onboarding_task_dto_1 = require("./dto/onboarding-task.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 const multer_config_1 = require("./multer.config");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 let EmployeesController = class EmployeesController {
     employeesService;
     onboardingService;
@@ -41,8 +42,14 @@ let EmployeesController = class EmployeesController {
     removeSkill(id) {
         return this.employeesService.removeSkill(id);
     }
-    findOne(id) {
-        return this.employeesService.findById(id);
+    findMe(user) {
+        return this.employeesService.findMe(user);
+    }
+    createLogin(id, dto) {
+        return this.employeesService.createLoginAccount(id, dto);
+    }
+    findOne(id, user) {
+        return this.employeesService.findById(id, user);
     }
     getPositionHistory(id) {
         return this.employeesService.getPositionHistory(id);
@@ -117,11 +124,28 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], EmployeesController.prototype, "removeSkill", null);
 __decorate([
+    (0, common_1.Get)('me'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "findMe", null);
+__decorate([
+    (0, common_1.Post)(':id/create-login'),
+    (0, permissions_decorator_1.Permissions)('employees.write'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "createLogin", null);
+__decorate([
     (0, common_1.Get)(':id'),
     (0, permissions_decorator_1.Permissions)('employees.read'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], EmployeesController.prototype, "findOne", null);
 __decorate([

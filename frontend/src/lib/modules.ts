@@ -380,3 +380,97 @@ export const HCM_MODULES: HcmModule[] = [
     ],
   },
 ];
+
+export const EMPLOYEE_MODULES: HcmModule[] = [
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    path: '/dashboard',
+    phase: 1,
+    status: 'active',
+    icon: LayoutDashboard,
+    subItems: [
+      { key: 'my-dashboard', label: 'My Dashboard', path: '/dashboard' },
+    ],
+  },
+  {
+    key: 'my-attendance',
+    label: 'My Attendance',
+    path: '/attendance-leave/live',
+    phase: 1,
+    status: 'active',
+    icon: Clock,
+    subItems: [
+      { key: 'attendance', label: 'Attendance', path: '/attendance-leave/live' },
+      { key: 'attendance-history', label: 'Attendance History', path: '/attendance-leave/register' },
+      { key: 'my-attendance-details', label: 'My Attendance Details', path: '/attendance-leave/live?details=me' },
+    ],
+  },
+  {
+    key: 'my-leave',
+    label: 'My Leave',
+    path: '/attendance-leave/leave',
+    phase: 1,
+    status: 'active',
+    icon: CalendarClock,
+    subItems: [
+      { key: 'apply-leave', label: 'Apply Leave', path: '/attendance-leave/leave?tab=apply' },
+      { key: 'my-leave-requests', label: 'My Leave Requests', path: '/attendance-leave/leave?tab=requests' },
+      { key: 'leave-balance', label: 'Leave Balance', path: '/attendance-leave/leave?tab=balance' },
+    ],
+  },
+  {
+    key: 'my-tasks',
+    label: 'My Tasks',
+    path: '/tasks/my-tasks',
+    phase: 1,
+    status: 'active',
+    icon: CheckSquare,
+    subItems: [
+      { key: 'my-tasks-list', label: 'My Tasks', path: '/tasks/my-tasks' },
+      { key: 'task-requests', label: 'Task Requests', path: '/tasks/requests' },
+      { key: 'task-history', label: 'Task History', path: '/tasks/my-tasks?tab=history' },
+    ],
+  },
+  {
+    key: 'my-profile',
+    label: 'My Profile',
+    path: '/employees/detail/me',
+    phase: 1,
+    status: 'active',
+    icon: Users,
+    subItems: [
+      { key: 'personal-info', label: 'Personal Information', path: '/employees/detail/me' },
+      { key: 'documents', label: 'Documents', path: '/employees/detail/me?tab=documents' },
+      { key: 'biometric', label: 'Attendance & Biometric', path: '/employees/detail/me?tab=biometric' },
+    ],
+  },
+  {
+    key: 'notifications',
+    label: 'Notifications',
+    path: '/workflow-automation/notifications',
+    phase: 1,
+    status: 'active',
+    icon: Workflow,
+  },
+];
+
+export function isHrOrAdminUser(user?: any): boolean {
+  if (!user) return true;
+  if (user.permissions?.includes('*')) return true;
+  const isRoleAdmin = user.roles?.some((r: string) => {
+    const u = r.toUpperCase();
+    return u.includes('ADMIN') || u.includes('HR');
+  });
+  const isPrimaryAdmin =
+    user.primaryRole?.toUpperCase().includes('ADMIN') ||
+    user.primaryRole?.toUpperCase().includes('HR');
+  return Boolean(isRoleAdmin || isPrimaryAdmin);
+}
+
+export function getModulesForRole(user?: any): HcmModule[] {
+  if (isHrOrAdminUser(user)) {
+    return HCM_MODULES;
+  }
+  return EMPLOYEE_MODULES;
+}

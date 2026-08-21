@@ -25,6 +25,10 @@ import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { RealTimeMetricsView } from './dashboard/RealTimeMetricsView';
 
+import { useAuthStore } from '@/stores/auth-store';
+import { isHrOrAdminUser } from '@/lib/modules';
+import { EmployeeDashboardView } from './dashboard/EmployeeDashboardView';
+
 const DEPT_COLORS = ['bg-primary', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-cyan-500', 'bg-rose-500', 'bg-blue-500', 'bg-lime-500'];
 
 const PIPELINE_COLORS: Record<string, string> = {
@@ -67,11 +71,19 @@ function timeAgo(iso: string): string {
 }
 
 export default function DashboardPage() {
+  const user = useAuthStore((s) => s.user);
+  const isHrOrAdmin = isHrOrAdminUser(user);
+
   const navigate = useNavigate();
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'overview';
   const [selectedModuleCategory, setSelectedModuleCategory] = useState<string>('all');
+
+  // Render Employee Self Service Dashboard if logged in user is a normal employee
+  if (!isHrOrAdmin) {
+    return <EmployeeDashboardView />;
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-summary'],

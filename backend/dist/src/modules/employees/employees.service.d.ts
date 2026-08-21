@@ -7,6 +7,229 @@ export declare class EmployeesService implements OnModuleInit {
     constructor(prisma: PrismaService);
     onModuleInit(): Promise<void>;
     private readonly listInclude;
+    private readonly fullInclude;
+    findMe(currentUser: any): Promise<{
+        grade: string | null;
+        level: string | null;
+        positionHistory: any[];
+        company: {
+            id: string;
+            name: string;
+        };
+        branch: {
+            id: string;
+            name: string;
+        } | null;
+        department: {
+            id: string;
+            name: string;
+        } | null;
+        designation: {
+            id: string;
+            title: string;
+        } | null;
+        reportingManager: {
+            id: string;
+            firstName: string;
+            lastName: string;
+        } | null;
+        directReports: {
+            id: string;
+            firstName: string;
+            lastName: string;
+        }[];
+        documents: {
+            id: string;
+            employeeId: string;
+            docType: string;
+            fileName: string;
+            filePath: string;
+            uploadedAt: Date;
+        }[];
+        onboardingTasks: {
+            id: string;
+            status: import(".prisma/client").$Enums.ApprovalStatus;
+            createdAt: Date;
+            description: string | null;
+            title: string;
+            employeeId: string;
+            ownerType: string;
+            dueDate: Date | null;
+            completedAt: Date | null;
+        }[];
+        courseEnrollments: {
+            id: string;
+            status: string;
+            createdAt: Date;
+            updatedAt: Date;
+            employeeId: string;
+            courseName: string;
+            courseType: string;
+            enrollmentDate: Date;
+            completionDate: Date | null;
+            certification: string | null;
+        }[];
+        kpis: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            category: string;
+            employeeId: string;
+            kpi: string;
+            target: string;
+            weightage: number;
+            reviewPeriod: string;
+            performanceRating: number | null;
+            managerFeedback: string | null;
+        }[];
+        hrNotes: {
+            id: string;
+            employeeId: string;
+            note: string;
+            noteType: string;
+            createdBy: string;
+            createdDate: Date;
+        }[];
+        timelineEvents: {
+            id: string;
+            employeeId: string;
+            date: Date;
+            eventTitle: string;
+            details: string | null;
+            eventType: string;
+        }[];
+        salaryComponents: ({
+            salaryComponent: {
+                id: string;
+                companyId: string;
+                createdAt: Date;
+                updatedAt: Date;
+                code: string;
+                name: string;
+                isActive: boolean;
+                type: import(".prisma/client").$Enums.SalaryComponentType;
+                isStatutory: boolean;
+            };
+        } & {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            effectiveFrom: Date;
+            employeeId: string;
+            salaryComponentId: string;
+            monthlyAmount: number;
+        })[];
+        currentAssets: {
+            id: string;
+            companyId: string;
+            status: import(".prisma/client").$Enums.AssetStatus;
+            createdAt: Date;
+            updatedAt: Date;
+            name: string;
+            category: string;
+            assetTag: string;
+            value: number | null;
+            currentEmployeeId: string | null;
+            purchaseDate: Date | null;
+            warrantyExpiry: Date | null;
+            notes: string | null;
+        }[];
+        id: string;
+        employeeCode: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
+        designationId: string | null;
+        userId: string | null;
+        reportingManagerId: string | null;
+        firstName: string;
+        middleName: string | null;
+        lastName: string;
+        gender: import(".prisma/client").$Enums.Gender | null;
+        dateOfBirth: Date | null;
+        personalEmail: string | null;
+        workEmail: string | null;
+        phone: string | null;
+        emergencyContactName: string | null;
+        emergencyContactPhone: string | null;
+        dateOfJoining: Date | null;
+        employmentType: import(".prisma/client").$Enums.EmploymentType;
+        status: import(".prisma/client").$Enums.EmployeeStatus;
+        dateOfExit: Date | null;
+        businessUnit: string | null;
+        location: string | null;
+        shift: string | null;
+        costCenter: string | null;
+        employeeCategory: string | null;
+        workPhone: string | null;
+        workMode: string | null;
+        probationPeriod: string | null;
+        confirmationDate: Date | null;
+        emergencyContactRelationship: string | null;
+        maritalStatus: string | null;
+        nationality: string | null;
+        bloodGroup: string | null;
+        religion: string | null;
+        currentAddress: string | null;
+        permanentAddress: string | null;
+        familyMemberName: string | null;
+        familyRelationship: string | null;
+        familyDob: Date | null;
+        familyContact: string | null;
+        nomineeName: string | null;
+        nomineeRelationship: string | null;
+        nomineeShare: number | null;
+        educationQualification: string | null;
+        educationSpecialization: string | null;
+        educationInstitution: string | null;
+        educationUniversity: string | null;
+        educationPassingYear: number | null;
+        educationPercentage: number | null;
+        prevCompany: string | null;
+        prevJobTitle: string | null;
+        prevStartDate: Date | null;
+        prevEndDate: Date | null;
+        prevTotalExp: string | null;
+        prevReasonForLeaving: string | null;
+        bankName: string | null;
+        bankAccountNumber: string | null;
+        bankIfscCode: string | null;
+        bankBranchName: string | null;
+        bankAccountHolderName: string | null;
+        aadhaarNumber: string | null;
+        panNumber: string | null;
+        passportNumber: string | null;
+        kycStatus: string | null;
+        kycVerificationDate: Date | null;
+        uanNumber: string | null;
+        pfMemberId: string | null;
+        esicNumber: string | null;
+        pfApplicable: boolean;
+        esicApplicable: boolean;
+        pfEsicJoiningDate: Date | null;
+        salaryGrade: string | null;
+        salaryBand: string | null;
+        basicSalary: number | null;
+        hra: number | null;
+        conveyance: number | null;
+        specialAllowance: number | null;
+        otherAllowances: number | null;
+        grossSalary: number | null;
+        annualCtc: number | null;
+        salaryEffectiveFrom: Date | null;
+        addressLine1: string | null;
+        addressLine2: string | null;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        pincode: string | null;
+        faceTemplate: string | null;
+        facePhoto: string | null;
+        faceRegisteredAt: Date | null;
+        faceRegisteredBy: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
     list(query: PaginationQueryDto, companyId?: string): Promise<{
         items: ({
             company: {
@@ -39,8 +262,6 @@ export declare class EmployeesService implements OnModuleInit {
                 uploadedAt: Date;
             }[];
         } & {
-            location: string | null;
-            costCenter: string | null;
             id: string;
             employeeCode: string;
             companyId: string;
@@ -64,9 +285,11 @@ export declare class EmployeesService implements OnModuleInit {
             status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
+            location: string | null;
             grade: string | null;
             level: string | null;
             shift: string | null;
+            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -142,227 +365,23 @@ export declare class EmployeesService implements OnModuleInit {
         pageSize: number;
     }>;
     private parseDates;
-    findById(id: string): Promise<{
-        grade: string | null;
-        level: string | null;
-        positionHistory: any[];
-        company: {
-            id: string;
-            name: string;
+    private isUserHrOrAdmin;
+    resolveEmployeeId(id: string, currentUser?: any): Promise<string>;
+    findById(id: string, currentUser?: any): Promise<any>;
+    createLoginAccount(id: string, dto: {
+        email?: string;
+        password?: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
+        credentials: {
+            employeeName: string;
+            employeeCode: string;
+            email: string;
+            temporaryPassword: string;
+            role: string;
+            mustResetPassword: boolean;
         };
-        branch: {
-            id: string;
-            name: string;
-        } | null;
-        department: {
-            id: string;
-            name: string;
-        } | null;
-        designation: {
-            id: string;
-            title: string;
-        } | null;
-        reportingManager: {
-            id: string;
-            firstName: string;
-            lastName: string;
-        } | null;
-        directReports: {
-            id: string;
-            firstName: string;
-            lastName: string;
-        }[];
-        documents: {
-            id: string;
-            employeeId: string;
-            docType: string;
-            fileName: string;
-            filePath: string;
-            uploadedAt: Date;
-        }[];
-        onboardingTasks: {
-            id: string;
-            status: import(".prisma/client").$Enums.ApprovalStatus;
-            createdAt: Date;
-            title: string;
-            description: string | null;
-            dueDate: Date | null;
-            completedAt: Date | null;
-            employeeId: string;
-            ownerType: string;
-        }[];
-        courseEnrollments: {
-            id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
-            employeeId: string;
-            enrollmentDate: Date;
-            courseName: string;
-            courseType: string;
-            completionDate: Date | null;
-            certification: string | null;
-        }[];
-        kpis: {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            employeeId: string;
-            category: string;
-            kpi: string;
-            target: string;
-            weightage: number;
-            reviewPeriod: string;
-            performanceRating: number | null;
-            managerFeedback: string | null;
-        }[];
-        hrNotes: {
-            id: string;
-            employeeId: string;
-            createdBy: string;
-            createdDate: Date;
-            note: string;
-            noteType: string;
-        }[];
-        timelineEvents: {
-            id: string;
-            employeeId: string;
-            date: Date;
-            eventTitle: string;
-            details: string | null;
-            eventType: string;
-        }[];
-        salaryComponents: ({
-            salaryComponent: {
-                id: string;
-                companyId: string;
-                createdAt: Date;
-                updatedAt: Date;
-                name: string;
-                code: string;
-                type: import(".prisma/client").$Enums.SalaryComponentType;
-                isActive: boolean;
-                isStatutory: boolean;
-            };
-        } & {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            effectiveFrom: Date;
-            employeeId: string;
-            salaryComponentId: string;
-            monthlyAmount: number;
-        })[];
-        currentAssets: {
-            id: string;
-            companyId: string;
-            status: import(".prisma/client").$Enums.AssetStatus;
-            createdAt: Date;
-            updatedAt: Date;
-            name: string;
-            category: string;
-            assetTag: string;
-            value: number | null;
-            currentEmployeeId: string | null;
-            purchaseDate: Date | null;
-            warrantyExpiry: Date | null;
-            notes: string | null;
-        }[];
-        location: string | null;
-        costCenter: string | null;
-        id: string;
-        employeeCode: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
-        designationId: string | null;
-        userId: string | null;
-        reportingManagerId: string | null;
-        firstName: string;
-        middleName: string | null;
-        lastName: string;
-        gender: import(".prisma/client").$Enums.Gender | null;
-        dateOfBirth: Date | null;
-        personalEmail: string | null;
-        workEmail: string | null;
-        phone: string | null;
-        emergencyContactName: string | null;
-        emergencyContactPhone: string | null;
-        dateOfJoining: Date | null;
-        employmentType: import(".prisma/client").$Enums.EmploymentType;
-        status: import(".prisma/client").$Enums.EmployeeStatus;
-        dateOfExit: Date | null;
-        businessUnit: string | null;
-        shift: string | null;
-        employeeCategory: string | null;
-        workPhone: string | null;
-        workMode: string | null;
-        probationPeriod: string | null;
-        confirmationDate: Date | null;
-        emergencyContactRelationship: string | null;
-        maritalStatus: string | null;
-        nationality: string | null;
-        bloodGroup: string | null;
-        religion: string | null;
-        currentAddress: string | null;
-        permanentAddress: string | null;
-        familyMemberName: string | null;
-        familyRelationship: string | null;
-        familyDob: Date | null;
-        familyContact: string | null;
-        nomineeName: string | null;
-        nomineeRelationship: string | null;
-        nomineeShare: number | null;
-        educationQualification: string | null;
-        educationSpecialization: string | null;
-        educationInstitution: string | null;
-        educationUniversity: string | null;
-        educationPassingYear: number | null;
-        educationPercentage: number | null;
-        prevCompany: string | null;
-        prevJobTitle: string | null;
-        prevStartDate: Date | null;
-        prevEndDate: Date | null;
-        prevTotalExp: string | null;
-        prevReasonForLeaving: string | null;
-        bankName: string | null;
-        bankAccountNumber: string | null;
-        bankIfscCode: string | null;
-        bankBranchName: string | null;
-        bankAccountHolderName: string | null;
-        aadhaarNumber: string | null;
-        panNumber: string | null;
-        passportNumber: string | null;
-        kycStatus: string | null;
-        kycVerificationDate: Date | null;
-        uanNumber: string | null;
-        pfMemberId: string | null;
-        esicNumber: string | null;
-        pfApplicable: boolean;
-        esicApplicable: boolean;
-        pfEsicJoiningDate: Date | null;
-        salaryGrade: string | null;
-        salaryBand: string | null;
-        basicSalary: number | null;
-        hra: number | null;
-        conveyance: number | null;
-        specialAllowance: number | null;
-        otherAllowances: number | null;
-        grossSalary: number | null;
-        annualCtc: number | null;
-        salaryEffectiveFrom: Date | null;
-        addressLine1: string | null;
-        addressLine2: string | null;
-        city: string | null;
-        state: string | null;
-        country: string | null;
-        pincode: string | null;
-        faceTemplate: string | null;
-        facePhoto: string | null;
-        faceRegisteredAt: Date | null;
-        faceRegisteredBy: string | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     create(dto: CreateEmployeeDto): Promise<{
         company: {
@@ -395,8 +414,6 @@ export declare class EmployeesService implements OnModuleInit {
             uploadedAt: Date;
         }[];
     } & {
-        location: string | null;
-        costCenter: string | null;
         id: string;
         employeeCode: string;
         companyId: string;
@@ -420,9 +437,11 @@ export declare class EmployeesService implements OnModuleInit {
         status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
         businessUnit: string | null;
+        location: string | null;
         grade: string | null;
         level: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -524,8 +543,6 @@ export declare class EmployeesService implements OnModuleInit {
             uploadedAt: Date;
         }[];
     } & {
-        location: string | null;
-        costCenter: string | null;
         id: string;
         employeeCode: string;
         companyId: string;
@@ -549,9 +566,11 @@ export declare class EmployeesService implements OnModuleInit {
         status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
         businessUnit: string | null;
+        location: string | null;
         grade: string | null;
         level: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -655,9 +674,9 @@ export declare class EmployeesService implements OnModuleInit {
         createdAt: Date;
         updatedAt: Date;
         employeeId: string;
-        enrollmentDate: Date;
         courseName: string;
         courseType: string;
+        enrollmentDate: Date;
         completionDate: Date | null;
         certification: string | null;
     }>;
@@ -673,8 +692,8 @@ export declare class EmployeesService implements OnModuleInit {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        employeeId: string;
         category: string;
+        employeeId: string;
         kpi: string;
         target: string;
         weightage: number;
@@ -689,10 +708,10 @@ export declare class EmployeesService implements OnModuleInit {
     }): Promise<{
         id: string;
         employeeId: string;
-        createdBy: string;
-        createdDate: Date;
         note: string;
         noteType: string;
+        createdBy: string;
+        createdDate: Date;
     }>;
     listSkills(): Promise<unknown>;
     createSkill(dto: {

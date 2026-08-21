@@ -24,8 +24,15 @@ export declare class AuthService implements OnModuleInit {
         refreshToken: string;
     }>;
     login(email: string, password: string): Promise<{
+        mustResetPassword: boolean;
         accessToken: string;
         refreshToken: string;
+    }>;
+    changePassword(userId: string, dto: {
+        newPassword: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
     }>;
     refresh(refreshToken: string): Promise<{
         accessToken: string;

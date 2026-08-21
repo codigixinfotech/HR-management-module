@@ -28,6 +28,10 @@ import {
   IdCard,
   Clock,
   HeartHandshake,
+  Key,
+  Copy,
+  Check,
+  CheckCircle2,
 } from 'lucide-react';
 
 import { employeesApi } from '@/api/employees';
@@ -43,6 +47,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // ── 1. VALIDATION SCHEMA ──
 const employeeSchema = z.object({
@@ -216,6 +227,46 @@ export function EmployeeMasterTab() {
     workingCalendar: string;
   } | null>(null);
 
+  // Login account creation modal states
+  const [selectedEmpForLogin, setSelectedEmpForLogin] = useState<any | null>(null);
+  const [loginEmailInput, setLoginEmailInput] = useState('');
+  const [loginTempPasswordInput, setLoginTempPasswordInput] = useState('Rowan#2026!Temp');
+  const [createdCredentialsData, setCreatedCredentialsData] = useState<any | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const createLoginMutation = useMutation({
+    mutationFn: (emp: any) =>
+      employeesApi.createLogin(emp.id, {
+        email: loginEmailInput,
+        password: loginTempPasswordInput,
+      }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      setCreatedCredentialsData(data.credentials);
+      setSelectedEmpForLogin(null);
+      toast.success(data.message || 'Login account created successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Failed to create login account');
+    },
+  });
+
+  const handleOpenCreateLoginModal = (emp: any) => {
+    setSelectedEmpForLogin(emp);
+    const defaultEmail = emp.workEmail || `${emp.firstName.toLowerCase()}.${emp.lastName.toLowerCase()}@ehcm.local`;
+    setLoginEmailInput(defaultEmail);
+    setLoginTempPasswordInput(`${emp.firstName}#2026!Temp`);
+  };
+
+  const handleCopyCredentials = () => {
+    if (!createdCredentialsData) return;
+    const credText = `EHCM Workspace Credentials\n========================\nEmployee Name: ${createdCredentialsData.employeeName}\nWork Email: ${createdCredentialsData.email}\nEmployee Code: ${createdCredentialsData.employeeCode}\nTemporary Password: ${createdCredentialsData.temporaryPassword}\nRole: ${createdCredentialsData.role}\nLogin URL: http://localhost:5173/login\nNote: You will be required to set a new password on your first login.`;
+    navigator.clipboard.writeText(credText);
+    setIsCopied(true);
+    toast.success('Login credentials copied to clipboard');
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
   // ── Queries & Lookups ──
   const { data: editEmployee } = useQuery({
     queryKey: ['employee', editId],
@@ -224,7 +275,7 @@ export function EmployeeMasterTab() {
   });
 
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  
+
   const { data: employeesData } = useQuery({
     queryKey: ['employees', 1, ''],
     queryFn: () => employeesApi.list({ page: 1, pageSize: 500 }),
@@ -436,7 +487,7 @@ export function EmployeeMasterTab() {
       form.setValue('grade', gradeVal);
       const matchingGrade = payGradesList?.find((pg) => pg.gradeCode === gradeVal);
       form.setValue('level', matchingGrade?.level || gradeVal);
-      
+
       setAutoPolicies({
         payrollGroup: 'Standard IT Payroll Group',
         attendancePolicy: 'Flexible Core Hours Policy',
@@ -571,7 +622,7 @@ export function EmployeeMasterTab() {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       queryClient.invalidateQueries({ queryKey: ['employee', editId] });
       toast.success('Employee updated successfully');
-      
+
       const docTypes = Object.keys(selectedFiles);
       if (docTypes.length > 0 && editId) {
         toast.info(`Uploading ${docTypes.length} documents...`);
@@ -630,7 +681,7 @@ export function EmployeeMasterTab() {
 
       const compId = companies && companies.length > 0 ? companies[0].id : '';
       const branchId = allBranches && allBranches.length > 0 ? allBranches[0].id : '';
-      
+
       let matchedDeptId = '';
       if (allDepartments && department) {
         const found = allDepartments.find((d: any) => d.name?.toLowerCase().includes(department.toLowerCase()));
@@ -766,7 +817,7 @@ export function EmployeeMasterTab() {
       }
     }
     const nextCode = 'EMP' + String(maxNum === 0 ? (employeesData?.total ?? 0) + 1 : maxNum + 1).padStart(4, '0');
-    
+
     form.reset({
       companyId: companies?.[0]?.id ?? '',
       businessUnit: 'Technology Services',
@@ -833,7 +884,7 @@ export function EmployeeMasterTab() {
     },
     onSuccess: async (newEmployee: any) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      
+
       if (candidateId) {
         try {
           await candidatesApi.updateStage(candidateId, 'HIRED');
@@ -914,7 +965,7 @@ export function EmployeeMasterTab() {
         emp.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         emp.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         emp.employeeCode.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       const isVerified = emp.panNumber && emp.uanNumber && emp.bankAccountNumber;
       const isPending = !isVerified && (emp.panNumber || emp.uanNumber || emp.bankAccountNumber);
       const isIncomplete = !emp.panNumber && !emp.uanNumber && !emp.bankAccountNumber;
@@ -1001,19 +1052,17 @@ export function EmployeeMasterTab() {
                   <button
                     key={step.id}
                     onClick={() => setActiveStep(idx)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
-                      isSelected
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${isSelected
                         ? 'bg-primary text-primary-foreground shadow-sm font-semibold'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    }`}
+                      }`}
                   >
-                    <div className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 border ${
-                      isSelected 
+                    <div className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 border ${isSelected
                         ? 'border-primary-foreground/30 bg-primary-foreground/15 text-primary-foreground'
                         : isCompleted
-                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
-                        : 'border-border bg-background text-muted-foreground'
-                    }`}>
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
+                          : 'border-border bg-background text-muted-foreground'
+                      }`}>
                       {isCompleted ? <ShieldCheck className="h-3.5 w-3.5" /> : <StepIcon className="h-3.5 w-3.5" />}
                     </div>
                     <span className="text-xs truncate">{step.title}</span>
@@ -1934,11 +1983,10 @@ export function EmployeeMasterTab() {
                   <button
                     key={status.id}
                     onClick={() => setSelectedStatus(status.id)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${
-                      selectedStatus === status.id
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${selectedStatus === status.id
                         ? 'bg-background text-foreground shadow-xs'
                         : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                      }`}
                   >
                     {status.label}
                   </button>
@@ -1974,7 +2022,7 @@ export function EmployeeMasterTab() {
                 <TableHead className="font-semibold">Provident Fund (PF) ID</TableHead>
                 <TableHead className="font-semibold">Bank details</TableHead>
                 <TableHead className="font-semibold">Emergency Contact</TableHead>
-                <TableHead className="text-right font-semibold">Statutory Status</TableHead>
+                <TableHead className="text-right font-semibold">Statutory & Login Setup</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1998,12 +2046,27 @@ export function EmployeeMasterTab() {
                         {emp.emergencyContactName ? `${emp.emergencyContactRelationship || 'Contact'}: ${emp.emergencyContactPhone || ''}` : 'Not declared'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge
-                          variant={badgeVariant}
-                          className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
-                        >
-                          {statusLabel}
-                        </Badge>
+                        <div className="flex items-center justify-end gap-2">
+                          <Badge
+                            variant={badgeVariant}
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                          >
+                            {statusLabel}
+                          </Badge>
+                          {emp.userId ? (
+                            <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1 shrink-0">
+                              <ShieldCheck className="h-3 w-3" /> Account Active
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="xs"
+                              className="h-7 text-[10px] font-semibold gap-1 bg-primary text-primary-foreground shadow-2xs hover:bg-primary/90 shrink-0"
+                              onClick={() => handleOpenCreateLoginModal(emp)}
+                            >
+                              <Key className="h-3 w-3" /> Create Login
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -2019,6 +2082,151 @@ export function EmployeeMasterTab() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* ── Create Login Modal ── */}
+      <Dialog open={!!selectedEmpForLogin} onOpenChange={(open) => !open && setSelectedEmpForLogin(null)}>
+        <DialogContent className="max-w-md rounded-2xl bg-background border-border">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Key className="h-5 w-5 text-primary" /> Setup Employee Login Account
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Generate workspace login credentials for {selectedEmpForLogin?.firstName} {selectedEmpForLogin?.lastName} ({selectedEmpForLogin?.employeeCode})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Employee Name & Code</Label>
+              <Input
+                readOnly
+                value={`${selectedEmpForLogin?.firstName} ${selectedEmpForLogin?.lastName} (${selectedEmpForLogin?.employeeCode})`}
+                className="h-9 text-xs font-medium bg-muted/40"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Work Email / Username</Label>
+              <Input
+                type="email"
+                value={loginEmailInput}
+                onChange={(e) => setLoginEmailInput(e.target.value)}
+                placeholder="employee@ehcm.local"
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Temporary Password</Label>
+                <button
+                  type="button"
+                  onClick={() => setLoginTempPasswordInput(`${selectedEmpForLogin?.firstName || 'Temp'}#2026!Temp`)}
+                  className="text-[11px] font-semibold text-primary hover:underline"
+                >
+                  Regenerate
+                </button>
+              </div>
+              <Input
+                type="text"
+                value={loginTempPasswordInput}
+                onChange={(e) => setLoginTempPasswordInput(e.target.value)}
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs space-y-1">
+              <p className="font-semibold flex items-center gap-1">
+                <ShieldAlert className="h-3.5 w-3.5" /> First-Login Security Policy
+              </p>
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                The employee will be required to change this temporary password upon their first login before accessing their dashboard.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedEmpForLogin(null)}
+              className="h-8 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={createLoginMutation.isPending}
+              onClick={() => createLoginMutation.mutate(selectedEmpForLogin)}
+              className="h-8 text-xs font-semibold gap-1 bg-primary text-primary-foreground"
+            >
+              {createLoginMutation.isPending ? 'Creating...' : 'Create Account & Generate Login'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Credentials Success Modal ── */}
+      <Dialog open={!!createdCredentialsData} onOpenChange={(open) => !open && setCreatedCredentialsData(null)}>
+        <DialogContent className="max-w-md rounded-2xl bg-background border-border">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" /> Login Account Created Successfully
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Provide these secure login details to {createdCredentialsData?.employeeName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-2.5 text-xs font-mono">
+              <div className="flex justify-between border-b pb-1.5">
+                <span className="text-muted-foreground font-sans font-semibold">Employee Name:</span>
+                <span className="font-semibold">{createdCredentialsData?.employeeName}</span>
+              </div>
+              <div className="flex justify-between border-b pb-1.5">
+                <span className="text-muted-foreground font-sans font-semibold">Work Email:</span>
+                <span className="font-semibold text-primary">{createdCredentialsData?.email}</span>
+              </div>
+              <div className="flex justify-between border-b pb-1.5">
+                <span className="text-muted-foreground font-sans font-semibold">Employee Code:</span>
+                <span className="font-semibold">{createdCredentialsData?.employeeCode}</span>
+              </div>
+              <div className="flex justify-between border-b pb-1.5">
+                <span className="text-muted-foreground font-sans font-semibold">Temporary Password:</span>
+                <span className="font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded">{createdCredentialsData?.temporaryPassword}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground font-sans font-semibold">System Role:</span>
+                <span className="font-semibold">{createdCredentialsData?.role}</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-xs">
+              🔒 <strong>Security Note:</strong> The password hash is securely encrypted in the database. Share credentials directly with the employee.
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyCredentials}
+              className="h-8 text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+            >
+              {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+              {isCopied ? 'Copied!' : 'Copy Credentials'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setCreatedCredentialsData(null)}
+              className="h-8 text-xs font-semibold"
+            >
+              Done & Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -23,6 +23,9 @@ import { CreateOnboardingTaskDto } from './dto/onboarding-task.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { employeeDocumentStorage } from './multer.config';
 
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+
 @Controller('employees')
 export class EmployeesController {
   constructor(
@@ -54,10 +57,24 @@ export class EmployeesController {
     return this.employeesService.removeSkill(id);
   }
 
+  @Get('me')
+  findMe(@CurrentUser() user: CurrentUserPayload) {
+    return this.employeesService.findMe(user);
+  }
+
+  @Post(':id/create-login')
+  @Permissions('employees.write')
+  createLogin(
+    @Param('id') id: string,
+    @Body() dto: { email?: string; password?: string },
+  ) {
+    return this.employeesService.createLoginAccount(id, dto);
+  }
+
   @Get(':id')
   @Permissions('employees.read')
-  findOne(@Param('id') id: string) {
-    return this.employeesService.findById(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.employeesService.findById(id, user);
   }
 
   @Get(':id/position-history')

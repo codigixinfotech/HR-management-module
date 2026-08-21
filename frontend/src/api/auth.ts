@@ -4,6 +4,7 @@ import type { AuthUser } from '@/stores/auth-store';
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
+  mustResetPassword?: boolean;
 }
 
 export interface DemoAccountInfo {
@@ -46,4 +47,9 @@ export async function fetchDemoAccounts(): Promise<DemoAccountInfo[]> {
 
 export async function logout(refreshToken: string) {
   await apiClient.post('/auth/logout', { refreshToken });
+}
+
+export async function changePassword(newPassword: string): Promise<{ success: boolean; message: string }> {
+  const { data } = await apiClient.post('/auth/change-password', { newPassword });
+  return data;
 }

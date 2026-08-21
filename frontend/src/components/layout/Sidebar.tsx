@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { HCM_MODULES, type HcmModule, type SubModuleItem } from '@/lib/modules';
+import { getModulesForRole, type HcmModule, type SubModuleItem } from '@/lib/modules';
+import { useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -16,68 +17,66 @@ import {
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const [menuSearch, setMenuSearch] = useState('');
 
+  const modulesForRole = useMemo(() => getModulesForRole(user), [user]);
+
   // Track expanded parent sections
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    dashboard: true,
-    organization: true,
-  });
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  // Check if a sub-item / route is currently active
+  const isSubItemActive = useCallback(
+    (subPath: string) => {
+      const currentPath = location.pathname;
+      const currentSearch = location.search;
+
+      const normCurrent = currentPath === '/profile' ? '/employees/detail/me' : currentPath;
+      const [subBasePath, subQuery] = subPath.split('?');
+      const normSubBase = subBasePath === '/profile' ? '/employees/detail/me' : subBasePath;
+
+      // Base path must match
+      if (normCurrent !== normSubBase) return false;
+
+      // If subPath specifies a query string (e.g. ?tab=apply or ?details=me)
+      if (subQuery) {
+        const subParams = new URLSearchParams(subQuery);
+        const currentParams = new URLSearchParams(currentSearch);
+
+        for (const [key, val] of subParams.entries()) {
+          if (currentParams.get(key) !== val) return false;
+        }
+        return true;
+      }
+
+      // If subPath has NO query string (e.g. /attendance-leave/live or /tasks/my-tasks)
+      // If current URL has a query parameter like ?tab=requests or ?details=me,
+      // it should NOT match a plain subPath without query string.
+      if (currentSearch) {
+        const currentParams = new URLSearchParams(currentSearch);
+        const hasSpecificParam = currentParams.get('tab') || currentParams.get('details');
+        if (hasSpecificParam) {
+          return false;
+        }
+      }
+
+      return true;
+    },
+    [location.pathname, location.search],
+  );
 
   // Auto-expand section containing the active route/tab
   useEffect(() => {
-    const currentPath = location.pathname;
-    const currentSearch = location.search;
-
-    const matchedModule = HCM_MODULES.find(
+    const matchedModule = modulesForRole.find(
       (m) =>
-        m.path === currentPath ||
-        m.subItems?.some((sub) => {
-          const subBase = sub.path.split('?')[0];
-          return subBase === currentPath || sub.path === `${currentPath}${currentSearch}`;
-        }),
+        m.subItems?.some((sub) => isSubItemActive(sub.path)) ||
+        (!m.subItems?.length && isSubItemActive(m.path)),
     );
 
     if (matchedModule) {
       setOpenSections((prev) => ({ ...prev, [matchedModule.key]: true }));
     }
-  }, [location.pathname, location.search]);
-
-  // Check if a sub-item is currently active based on path and query parameters
-  const isSubItemActive = (subPath: string, parentPath: string) => {
-    const currentPath = location.pathname;
-    const currentSearch = location.search;
-    const currentFull = `${currentPath}${currentSearch}`;
-
-    // 1. Direct full match
-    if (currentFull === subPath) return true;
-
-    // 2. Tab parameter matching
-    const currentParams = new URLSearchParams(currentSearch);
-    const currentTab = currentParams.get('tab');
-
-    if (subPath.includes('?tab=')) {
-      const subTab = subPath.split('?tab=')[1]?.split('&')[0];
-      const subBasePath = subPath.split('?')[0];
-
-      if (currentPath === subBasePath) {
-        if (currentTab) {
-          return currentTab === subTab;
-        } else {
-          // Default to matching the first subItem of the parent module if no tab is explicitly in URL
-          const parentMod = HCM_MODULES.find((m) => m.path === parentPath);
-          return parentMod?.subItems?.[0]?.path === subPath;
-        }
-      }
-    }
-
-    // 3. Exact path match without search
-    if (!currentSearch && (subPath === currentPath || subPath === parentPath)) {
-      return true;
-    }
-
-    return false;
-  };
+  }, [modulesForRole, isSubItemActive]);
 
   const toggleSection = (key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -85,23 +84,25 @@ export function Sidebar() {
 
   // Filter modules and subItems by search query
   const filteredModules = useMemo(() => {
-    if (!menuSearch.trim()) return HCM_MODULES;
+    if (!menuSearch.trim()) return modulesForRole;
 
     const query = menuSearch.toLowerCase();
 
-    return HCM_MODULES.map((mod) => {
-      const parentMatches = mod.label.toLowerCase().includes(query);
-      const matchedSubs = mod.subItems?.filter((sub) => sub.label.toLowerCase().includes(query)) || [];
+    return modulesForRole
+      .map((mod) => {
+        const parentMatches = mod.label.toLowerCase().includes(query);
+        const matchedSubs = mod.subItems?.filter((sub) => sub.label.toLowerCase().includes(query)) || [];
 
-      if (parentMatches || matchedSubs.length > 0) {
-        return {
-          ...mod,
-          subItems: matchedSubs.length > 0 ? matchedSubs : mod.subItems,
-        };
-      }
-      return null;
-    }).filter(Boolean) as HcmModule[];
-  }, [menuSearch]);
+        if (parentMatches || matchedSubs.length > 0) {
+          return {
+            ...mod,
+            subItems: matchedSubs.length > 0 ? matchedSubs : mod.subItems,
+          };
+        }
+        return null;
+      })
+      .filter(Boolean) as HcmModule[];
+  }, [menuSearch, modulesForRole]);
 
   return (
     <aside className="hidden shrink-0 transition-all duration-300 md:flex md:flex-col w-64 border-r border-border bg-card text-card-foreground shadow-2xs z-20 select-none h-screen sticky top-0">
@@ -114,7 +115,7 @@ export function Sidebar() {
           <Building2 className="h-5 w-5 stroke-[2.2]" />
         </div>
         <div className="flex flex-col truncate">
-          <span className=" text-sm font-semibold text-foreground  truncate leading-tight">
+          <span className="text-sm font-semibold text-foreground truncate leading-tight">
             EHCM Platform
           </span>
           <span className="text-[9.5px] uppercase tracking-widest text-primary font-semibold flex items-center gap-1">
@@ -160,10 +161,8 @@ export function Sidebar() {
           const hasSubItems = mod.subItems && mod.subItems.length > 0;
           const isExpanded = Boolean(openSections[mod.key]) || Boolean(menuSearch);
 
-          // Check if any child is active or parent route is active
-          const isParentActive =
-            location.pathname === mod.path ||
-            mod.subItems?.some((sub) => isSubItemActive(sub.path, mod.path));
+          const hasActiveChild = Boolean(mod.subItems?.some((sub) => isSubItemActive(sub.path)));
+          const isDirectActive = !hasSubItems && isSubItemActive(mod.path);
 
           return (
             <div key={mod.key} className="space-y-0.5">
@@ -173,22 +172,27 @@ export function Sidebar() {
                 onClick={() => {
                   if (hasSubItems) {
                     toggleSection(mod.key);
+                  } else {
+                    navigate(mod.path);
                   }
-                  navigate(mod.path);
                 }}
                 className={cn(
                   'w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-all duration-150 group active:scale-98 relative',
-                  isParentActive
-                    ? 'bg-primary/10 text-primary font-semibold shadow-2xs border-l-3 border-primary'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                  isDirectActive
+                    ? 'bg-primary text-primary-foreground font-semibold shadow-2xs'
+                    : hasActiveChild
+                    ? 'bg-muted/40 text-foreground font-semibold'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
                 <div className="flex items-center gap-2.5 truncate">
                   <div
                     className={cn(
                       'flex h-7 w-7 items-center justify-center rounded-lg transition-colors shrink-0',
-                      isParentActive
-                        ? 'bg-primary text-primary-foreground shadow-2xs'
+                      isDirectActive
+                        ? 'bg-primary-foreground/20 text-primary-foreground'
+                        : hasActiveChild
+                        ? 'bg-primary/10 text-primary'
                         : 'bg-muted text-muted-foreground group-hover:bg-accent group-hover:text-foreground',
                     )}
                   >
@@ -202,7 +206,7 @@ export function Sidebar() {
                     <span
                       className={cn(
                         'text-[9.5px] px-1.5 py-0.5 rounded-full font-semibold tabular-nums',
-                        isParentActive ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground',
+                        hasActiveChild ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground',
                       )}
                     >
                       {mod.subItems?.length}
@@ -230,7 +234,7 @@ export function Sidebar() {
               {hasSubItems && isExpanded && (
                 <div className="mt-0.5 ml-4 pl-3 border-l-2 border-border/70 space-y-1 py-1 animate-in fade-in duration-150">
                   {mod.subItems?.map((sub: SubModuleItem) => {
-                    const isSubActive = isSubItemActive(sub.path, mod.path);
+                    const isSubActive = isSubItemActive(sub.path);
 
                     return (
                       <NavLink

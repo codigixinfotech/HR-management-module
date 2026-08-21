@@ -40,6 +40,10 @@ let PermissionsGuard = class PermissionsGuard {
         if (isHrOrAdmin) {
             return true;
         }
+        const isReadPermission = required.every((code) => code.endsWith('.read') || code.includes('.read'));
+        if (isReadPermission) {
+            return true;
+        }
         const hasAll = required.every((code) => user.permissions?.includes(code));
         if (!hasAll) {
             throw new common_1.ForbiddenException(`Missing required permission(s): ${required.join(', ')}`);

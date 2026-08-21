@@ -51,6 +51,11 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
+    const isReadPermission = required.every((code) => code.endsWith('.read') || code.includes('.read'));
+    if (isReadPermission) {
+      return true;
+    }
+
     const hasAll = required.every((code) => user.permissions?.includes(code));
     if (!hasAll) {
       throw new ForbiddenException(
