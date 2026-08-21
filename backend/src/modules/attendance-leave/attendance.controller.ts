@@ -10,6 +10,7 @@ import {
 import { AttendanceService } from './attendance.service';
 import { MarkAttendanceDto, UpdateAttendanceDto } from './dto/attendance.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 @Controller('attendance-leave/attendance')
 export class AttendanceController {
@@ -22,14 +23,15 @@ export class AttendanceController {
     @Query('companyId') companyId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @CurrentUser() user?: CurrentUserPayload,
   ) {
-    return this.attendanceService.list(employeeId, companyId, from, to);
+    return this.attendanceService.list(employeeId, companyId, from, to, user);
   }
 
   @Get(':id')
   @Permissions('attendance_leave.read')
-  findOne(@Param('id') id: string) {
-    return this.attendanceService.findById(id);
+  findOne(@Param('id') id: string, @CurrentUser() user?: CurrentUserPayload) {
+    return this.attendanceService.findById(id, user);
   }
 
   @Post()

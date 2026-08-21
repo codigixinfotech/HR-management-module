@@ -790,7 +790,22 @@ export interface AttendanceRecord {
   longitude?: number | null;
   locationVerificationStatus?: string | null;
   deviceType?: string | null;
-  employee?: { id: string; firstName: string; lastName: string; employeeCode: string };
+  capturedFacePhoto?: string | null;
+  officeLocation?: string | null;
+  distanceMeters?: number | null;
+  allowedRadiusMeters?: number | null;
+  verificationMethod?: string | null;
+  failureReason?: string | null;
+  punchType?: string | null;
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+    facePhoto?: string | null;
+    faceTemplate?: string | null;
+    department?: { id: string; name: string } | null;
+  } | null;
   shiftType?: { id: string; name: string } | null;
 }
 

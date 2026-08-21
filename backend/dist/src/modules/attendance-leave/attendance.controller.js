@@ -17,16 +17,17 @@ const common_1 = require("@nestjs/common");
 const attendance_service_1 = require("./attendance.service");
 const attendance_dto_1 = require("./dto/attendance.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 let AttendanceController = class AttendanceController {
     attendanceService;
     constructor(attendanceService) {
         this.attendanceService = attendanceService;
     }
-    list(employeeId, companyId, from, to) {
-        return this.attendanceService.list(employeeId, companyId, from, to);
+    list(employeeId, companyId, from, to, user) {
+        return this.attendanceService.list(employeeId, companyId, from, to, user);
     }
-    findOne(id) {
-        return this.attendanceService.findById(id);
+    findOne(id, user) {
+        return this.attendanceService.findById(id, user);
     }
     mark(dto) {
         return this.attendanceService.mark(dto);
@@ -43,16 +44,18 @@ __decorate([
     __param(1, (0, common_1.Query)('companyId')),
     __param(2, (0, common_1.Query)('from')),
     __param(3, (0, common_1.Query)('to')),
+    __param(4, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, Object]),
     __metadata("design:returntype", void 0)
 ], AttendanceController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, permissions_decorator_1.Permissions)('attendance_leave.read'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], AttendanceController.prototype, "findOne", null);
 __decorate([

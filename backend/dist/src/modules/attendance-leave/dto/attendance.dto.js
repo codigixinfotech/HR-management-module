@@ -21,6 +21,21 @@ class MarkAttendanceDto {
     checkIn;
     checkOut;
     remarks;
+    faceVerificationStatus;
+    faceMatchScore;
+    ipAddress;
+    ipVerificationStatus;
+    latitude;
+    longitude;
+    locationVerificationStatus;
+    deviceType;
+    capturedFacePhoto;
+    officeLocation;
+    distanceMeters;
+    allowedRadiusMeters;
+    verificationMethod;
+    failureReason;
+    punchType;
 }
 exports.MarkAttendanceDto = MarkAttendanceDto;
 __decorate([
@@ -55,6 +70,76 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], MarkAttendanceDto.prototype, "remarks", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "faceVerificationStatus", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], MarkAttendanceDto.prototype, "faceMatchScore", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "ipAddress", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "ipVerificationStatus", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], MarkAttendanceDto.prototype, "latitude", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], MarkAttendanceDto.prototype, "longitude", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "locationVerificationStatus", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "deviceType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "capturedFacePhoto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "officeLocation", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], MarkAttendanceDto.prototype, "distanceMeters", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], MarkAttendanceDto.prototype, "allowedRadiusMeters", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "verificationMethod", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "failureReason", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "punchType", void 0);
 class UpdateAttendanceDto extends (0, mapped_types_1.PartialType)(MarkAttendanceDto) {
 }
 exports.UpdateAttendanceDto = UpdateAttendanceDto;

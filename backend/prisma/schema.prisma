@@ -1135,6 +1135,13 @@ model AttendanceRecord {
   longitude                  Float?
   locationVerificationStatus String?
   deviceType                 String?
+  capturedFacePhoto          String?          @db.LongText
+  officeLocation             String?
+  distanceMeters             Float?
+  allowedRadiusMeters        Float?           @default(100)
+  verificationMethod         String?          @default("Biometric Face ID")
+  failureReason              String?
+  punchType                  String?          @default("CHECK_IN")
 
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
