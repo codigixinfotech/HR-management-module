@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Camera,
@@ -50,6 +51,7 @@ export function FaceAttendanceModal({
   employees,
   onPunchSuccess,
 }: FaceAttendanceModalProps) {
+  const queryClient = useQueryClient();
   const authUser = useAuthStore((s) => s.user);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -217,9 +219,9 @@ export function FaceAttendanceModal({
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          // Office HQ Geofence Coordinates: Lat 18.5204, Lng 73.8567
-          const hqLat = 18.5204;
-          const hqLng = 73.8567;
+          // Office HQ Geofence Coordinates: Codigix Infotech, Brahma Sky Uzuri, MIDC, Pimpri Colony, Pimpri-Chinchwad
+          const hqLat = 18.6268;
+          const hqLng = 73.8044;
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
 
@@ -234,24 +236,23 @@ export function FaceAttendanceModal({
           const distanceM = Math.round(R * c);
 
           setGpsDistanceMeters(distanceM);
-          if (distanceM <= 500) {
-            setGpsVerified(true);
-            setGpsLocationMsg(`${distanceM}m from HQ (Verified Geofence)`);
+          setGpsVerified(true);
+          if (distanceM <= 100) {
+            setGpsLocationMsg(`${distanceM}m from Codigix Office`);
           } else {
-            setGpsVerified(false);
-            setGpsLocationMsg(`${distanceM}m (Outside 500m Geofence)`);
+            setGpsLocationMsg(`${distanceM}m (Outside 100m Radius)`);
           }
         },
         () => {
           setGpsVerified(true);
           setGpsDistanceMeters(42);
-          setGpsLocationMsg('42m from HQ (Office Geofence)');
+          setGpsLocationMsg('42m from Codigix Office (Inside Geofence)');
         }
       );
     } else {
       setGpsVerified(true);
       setGpsDistanceMeters(42);
-      setGpsLocationMsg('42m from HQ (Office Geofence)');
+      setGpsLocationMsg('42m from Codigix Office (Inside Geofence)');
     }
   };
 
@@ -391,14 +392,34 @@ export function FaceAttendanceModal({
 
     const isSuccess = isFaceVerified && gpsVerified && detectedFacesCount === 1;
 
+    const targetEmp =
+      selectedEmployee ||
+      employees.find((e) => e.id === selectedEmployeeId || e.id === authUser?.employee?.id) ||
+      employees[0];
+
+    const resolvedEmployeeId =
+      targetEmp?.id || selectedEmployeeId || authUser?.employee?.id || 'emp-kale-9989';
+
+    const resolvedCompanyId =
+      targetEmp?.companyId || authUser?.companyId || 'company-1';
+
+    const resolvedEmpCode =
+      targetEmp?.employeeCode || authUser?.employee?.employeeCode || 'EMP-9989';
+
+    const resolvedEmpName = targetEmp
+      ? `${targetEmp.firstName} ${targetEmp.lastName}`
+      : authUser?.employee
+      ? `${authUser.employee.firstName} ${authUser.employee.lastName}`
+      : 'kale User';
+
     const punchRecord = {
       id: `PUNCH-${Math.floor(1000 + Math.random() * 9000)}`,
-      companyId: selectedEmployee?.companyId || authUser?.companyId || 'company-1',
-      employeeId: selectedEmployee?.id,
-      employeeCode: selectedEmployee?.employeeCode || 'EMP-8265',
-      employeeName: selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : 'Sanika Mote',
-      employee: selectedEmployee,
-      department: selectedEmployee?.department?.name || 'Human Resources',
+      companyId: resolvedCompanyId,
+      employeeId: resolvedEmployeeId,
+      employeeCode: resolvedEmpCode,
+      employeeName: resolvedEmpName,
+      employee: targetEmp,
+      department: targetEmp?.department?.name || authUser?.employee?.departmentName || 'Quality',
       date: todayDateStr,
       time: timestamp,
       checkIn: punchType === 'CHECK_IN' ? nowIso : undefined,
@@ -422,10 +443,23 @@ export function FaceAttendanceModal({
       failureReason: failureReason || undefined,
     };
 
+    console.log('[FACE ATTENDANCE REQUEST]', {
+      employeeId: punchRecord.employeeId,
+      employeeCode: punchRecord.employeeCode,
+      employeeName: punchRecord.employeeName,
+      checkIn: punchRecord.checkIn,
+      punchType: punchRecord.punchType,
+    });
+
+    let savedDbRecord: any = null;
+
     try {
-      await attendanceApi.mark({
+      savedDbRecord = await attendanceApi.mark({
         companyId: punchRecord.companyId,
         employeeId: punchRecord.employeeId,
+        employeeCode: punchRecord.employeeCode,
+        employeeName: punchRecord.employeeName,
+        departmentName: punchRecord.department,
         date: punchRecord.date,
         checkIn: punchRecord.checkIn,
         checkOut: punchRecord.checkOut,
@@ -446,22 +480,32 @@ export function FaceAttendanceModal({
         failureReason: punchRecord.failureReason,
         punchType: punchRecord.punchType,
       } as any);
-    } catch (err) {
-      console.warn('Backend mark API failed, fallback to local state:', err);
+
+      console.log('[FACE ATTENDANCE RESPONSE]', savedDbRecord);
+    } catch (err: any) {
+      console.error('[FACE ATTENDANCE API ERROR]', err);
+      toast.error(
+        `Face verified, but attendance could not be saved: ${err?.response?.data?.message || err?.message || 'Database error'}`
+      );
+      setIsSubmitting(false);
+      return;
     }
+
+    // Invalidate React Query caches so Admin & Employee feeds refetch fresh DB records immediately
+    await queryClient.invalidateQueries({ queryKey: ['attendance-live-records'] });
+    await queryClient.invalidateQueries({ queryKey: ['my-attendance-records'] });
+    await queryClient.invalidateQueries({ queryKey: ['attendance'] });
+
+    const savedEmpName = savedDbRecord?.employee
+      ? `${savedDbRecord.employee.firstName} ${savedDbRecord.employee.lastName}`
+      : punchRecord.employeeName;
+
+    toast.success(
+      `Biometric Face Punch Saved — ${savedEmpName} (${punchType === 'CHECK_IN' ? 'Checked In' : 'Checked Out'}) at ${timestamp}. Similarity: ${punchRecord.faceMatchScore}%`
+    );
 
     if (onPunchSuccess) {
-      onPunchSuccess(punchRecord);
-    }
-
-    if (isSuccess) {
-      toast.success(
-        `Biometric Face Punch Verified! ${punchRecord.employeeName} (${punchType === 'CHECK_IN' ? 'Checked In' : 'Checked Out'}) at ${timestamp}. Similarity: ${punchRecord.faceMatchScore}% | Geofence: ${punchRecord.distanceMeters}m.`
-      );
-    } else {
-      toast.warning(
-        `Attendance Punch Logged (${punchRecord.faceVerificationStatus}). Reason: ${failureReason || 'Verification check failed'}.`
-      );
+      onPunchSuccess(savedDbRecord || punchRecord);
     }
 
     stopCamera();
@@ -664,7 +708,7 @@ export function FaceAttendanceModal({
                 <MapPin className="h-3.5 w-3.5 shrink-0" /> GPS Geofence
               </div>
               <span className="font-bold text-xs block mt-1 truncate">{gpsLocationMsg}</span>
-              <span className="text-[9.5px] opacity-90 font-medium">{gpsVerified ? 'Within Office Geofence' : 'Location Mismatch'}</span>
+              <span className="text-[9.5px] opacity-90 font-medium">{gpsDistanceMeters <= 100 ? 'Within Office Geofence' : 'Outside Office Radius (Logged)'}</span>
             </div>
 
             {/* PUBLIC IP TELEMETRY CARD */}

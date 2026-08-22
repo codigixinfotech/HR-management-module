@@ -97,6 +97,8 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
                 'employees.read',
                 'asset_management.read',
                 'attendance.read',
+                'attendance_leave.read',
+                'attendance_leave.write',
                 'tasks.read',
                 'leave.read',
                 ...(isHrOrAdmin

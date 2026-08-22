@@ -164,7 +164,7 @@ export function OffersTab() {
     openings.forEach((job) => {
       if (job.candidates && job.candidates.length > 0) {
         job.candidates.forEach((c) => {
-          if (c.stage === 'OFFERED' || c.stage === 'HIRED' || c.stage === 'SELECTED') {
+          if (c.stage === 'OFFERED' || c.stage === 'HIRED') {
             const formattedCtc = c.expectedCtc
               ? `₹${c.expectedCtc.toLocaleString()} / yr`
               : '₹24,00,000 / yr';
@@ -184,7 +184,7 @@ export function OffersTab() {
               selectionDate: new Date().toLocaleDateString('en-GB'),
               joiningDate: '20 Sep 2026',
               expiryDate: '27 Aug 2026',
-              status: c.stage === 'HIRED' ? 'ACCEPTED' : c.stage === 'SELECTED' ? 'DRAFT' : 'PENDING_SIGNATURE',
+              status: c.stage === 'HIRED' ? 'ACCEPTED' : 'PENDING_SIGNATURE',
               probation: '3 Months',
               noticePeriod: '30 Days',
               location: 'Pune HQ',

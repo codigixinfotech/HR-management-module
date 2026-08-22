@@ -70,7 +70,7 @@ export function AttendancePoliciesTab() {
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground font-semibold">HQ Coordinates (Latitude/Longitude)</span>
-                <Badge variant="outline" className="font-mono">18.5204° N, 73.8567° E</Badge>
+                <Badge variant="outline" className="font-mono">18.6268° N, 73.8044° E</Badge>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground font-semibold">Biometric CCTV Face Sync</span>

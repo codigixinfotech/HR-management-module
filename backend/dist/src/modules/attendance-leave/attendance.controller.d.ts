@@ -4,7 +4,8 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 export declare class AttendanceController {
     private readonly attendanceService;
     constructor(attendanceService: AttendanceService);
-    list(employeeId?: string, companyId?: string, from?: string, to?: string, user?: CurrentUserPayload): Promise<never[]> | import(".prisma/client").Prisma.PrismaPromise<({
+    list(employeeId?: string, companyId?: string, from?: string, to?: string, user?: CurrentUserPayload): Promise<{
+        status: string;
         employee: {
             id: string;
             employeeCode: string;
@@ -20,17 +21,17 @@ export declare class AttendanceController {
         shiftType: {
             id: string;
             name: string;
+            startTime: string;
+            endTime: string;
         } | null;
-    } & {
-        companyId: string;
         id: string;
+        companyId: string;
         employeeId: string;
         date: Date;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
-        status: import(".prisma/client").$Enums.AttendanceStatus;
         source: string;
         remarks: string | null;
         faceVerificationStatus: string | null;
@@ -50,8 +51,9 @@ export declare class AttendanceController {
         punchType: string | null;
         createdAt: Date;
         updatedAt: Date;
-    })[]>;
+    }[]>;
     findOne(id: string, user?: CurrentUserPayload): Promise<{
+        status: string;
         employee: {
             id: string;
             employeeCode: string;
@@ -67,17 +69,17 @@ export declare class AttendanceController {
         shiftType: {
             id: string;
             name: string;
+            startTime: string;
+            endTime: string;
         } | null;
-    } & {
-        companyId: string;
         id: string;
+        companyId: string;
         employeeId: string;
         date: Date;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
-        status: import(".prisma/client").$Enums.AttendanceStatus;
         source: string;
         remarks: string | null;
         faceVerificationStatus: string | null;
@@ -98,7 +100,8 @@ export declare class AttendanceController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    mark(dto: MarkAttendanceDto): import(".prisma/client").Prisma.Prisma__AttendanceRecordClient<{
+    mark(dto: MarkAttendanceDto): Promise<{
+        status: any;
         employee: {
             id: string;
             employeeCode: string;
@@ -114,17 +117,17 @@ export declare class AttendanceController {
         shiftType: {
             id: string;
             name: string;
+            startTime: string;
+            endTime: string;
         } | null;
-    } & {
-        companyId: string;
         id: string;
+        companyId: string;
         employeeId: string;
         date: Date;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
-        status: import(".prisma/client").$Enums.AttendanceStatus;
         source: string;
         remarks: string | null;
         faceVerificationStatus: string | null;
@@ -144,7 +147,7 @@ export declare class AttendanceController {
         punchType: string | null;
         createdAt: Date;
         updatedAt: Date;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    }>;
     update(id: string, dto: UpdateAttendanceDto): Promise<{
         employee: {
             id: string;
@@ -161,10 +164,12 @@ export declare class AttendanceController {
         shiftType: {
             id: string;
             name: string;
+            startTime: string;
+            endTime: string;
         } | null;
     } & {
-        companyId: string;
         id: string;
+        companyId: string;
         employeeId: string;
         date: Date;
         shiftTypeId: string | null;

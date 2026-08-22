@@ -67,6 +67,7 @@ enum CandidateStage {
 
 enum AttendanceStatus {
   PRESENT
+  LATE_ARRIVING
   ABSENT
   HALF_DAY
   ON_LEAVE

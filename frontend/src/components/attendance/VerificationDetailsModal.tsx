@@ -41,11 +41,11 @@ export function VerificationDetailsModal({
     faceMatchScore = 96.7,
     capturedFacePhoto,
     locationVerificationStatus = 'VERIFIED',
-    officeLocation = 'Pune Head Office',
+    officeLocation = 'Codigix HQ - Brahma Sky Uzuri',
     distanceMeters = 42,
     allowedRadiusMeters = 100,
-    latitude = 18.5204,
-    longitude = 73.8567,
+    latitude = 18.6268,
+    longitude = 73.8044,
     ipAddress = '165.99.175.245',
     ipVerificationStatus = 'Approved Gateway',
     verificationMethod = 'Biometric Face ID',
@@ -77,8 +77,8 @@ export function VerificationDetailsModal({
     String(locationVerificationStatus).toLowerCase().includes('inside');
 
   // Time & Punch format
-  const rawTimestamp = checkIn || checkOut || date;
-  let formattedDateTime = '21/08/2026 09:02:14 AM';
+  const rawTimestamp = checkIn || checkOut || attendanceRecord.time;
+  let formattedDateTime = '—';
   try {
     if (rawTimestamp) {
       const parsedDate = new Date(rawTimestamp);
@@ -93,11 +93,13 @@ export function VerificationDetailsModal({
           hour12: true,
         });
       } else {
-        formattedDateTime = `${date || '21/08/2026'} ${attendanceRecord.time || '09:02:14 AM'}`;
+        formattedDateTime = `${attendanceRecord.dateDisplay || date || '22 Aug 2026'} ${attendanceRecord.time || attendanceRecord.clockIn || ''}`.trim();
       }
+    } else {
+      formattedDateTime = `${attendanceRecord.dateDisplay || date || '22 Aug 2026'} ${attendanceRecord.time || attendanceRecord.clockIn || ''}`.trim();
     }
   } catch {
-    formattedDateTime = `${date || '21/08/2026'} ${attendanceRecord.time || '09:02:14 AM'}`;
+    formattedDateTime = `${attendanceRecord.dateDisplay || date || '22 Aug 2026'} ${attendanceRecord.time || attendanceRecord.clockIn || ''}`.trim();
   }
 
   const isCheckIn = punchType === 'CHECK_IN' || (!checkOut && checkIn) || attendanceRecord.time;

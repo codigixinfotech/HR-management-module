@@ -111,6 +111,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           'employees.read',
           'asset_management.read',
           'attendance.read',
+          'attendance_leave.read',
+          'attendance_leave.write',
           'tasks.read',
           'leave.read',
           ...(isHrOrAdmin

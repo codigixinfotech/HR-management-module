@@ -84,7 +84,7 @@ export function CareersPortalTab() {
     }
   };
 
-  const handleViewResume = (path?: string | null) => {
+  const handleViewResume = (path?: string | null, _candidateName?: string) => {
     if (!path) {
       toast.error('No resume document attached for this candidate.');
       return;

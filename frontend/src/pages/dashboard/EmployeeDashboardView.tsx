@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAttendanceRequestsStore } from '@/stores/attendance-requests-store';
 import { attendanceApi } from '@/api/attendance-leave';
 import { employeesApi } from '@/api/employees';
 import { tasksApi } from '@/api/tasks';
@@ -26,6 +27,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
 import { VerificationDetailsModal } from '@/components/attendance/VerificationDetailsModal';
+import { EditAttendanceRequestModal } from '@/components/attendance/EditAttendanceRequestModal';
+import { FileSignature } from 'lucide-react';
 
 export function EmployeeDashboardView() {
   const navigate = useNavigate();
@@ -33,12 +36,32 @@ export function EmployeeDashboardView() {
 
   const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [selectedRecordForEdit, setSelectedRecordForEdit] = useState<any>(null);
 
   const empName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : 'Sanika Mote';
   const empCode = user?.employee?.employeeCode || 'EMP-8265';
   const deptName = user?.employee?.departmentName || 'Human Resources';
   const designation = user?.employee?.designationTitle || 'Employee';
+
+  // Shared store for attendance requests
+  const requests = useAttendanceRequestsStore((s) => s.requests);
+  const approvedCorrections = useAttendanceRequestsStore((s) => s.approvedCorrections);
+  const deleteRequest = useAttendanceRequestsStore((s) => s.deleteRequest);
+
+  useEffect(() => {
+    useAttendanceRequestsStore.persist.rehydrate();
+    const handleFocus = () => useAttendanceRequestsStore.persist.rehydrate();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
+  const myEditRequests = useMemo(() => {
+    return requests.filter(
+      (r) => r.employeeCode === empCode || r.requestedBy === empName
+    );
+  }, [requests, empCode, empName]);
 
   // Fetch logged-in employee profile
   const { data: employeeData } = useQuery({
@@ -292,14 +315,14 @@ export function EmployeeDashboardView() {
                 <span>{todayRecord?.distanceMeters || 42} m</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Office: <strong className="text-foreground">{todayRecord?.officeLocation || 'Pune Head Office'}</strong> (Radius: {todayRecord?.allowedRadiusMeters || 100} m)
+                Office: <strong className="text-foreground">{todayRecord?.officeLocation || 'Codigix HQ - Brahma Sky Uzuri'}</strong> (Radius: {todayRecord?.allowedRadiusMeters || 100} m)
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div className="p-2 rounded-lg bg-muted/20 border border-border/60 flex justify-between items-center">
                 <span className="text-muted-foreground">Coordinates:</span>
-                <span className="font-mono font-semibold">18.5204°, 73.8567°</span>
+                <span className="font-mono font-semibold">18.6268°, 73.8044°</span>
               </div>
               <div className="p-2 rounded-lg bg-muted/20 border border-border/60 flex justify-between items-center">
                 <span className="text-muted-foreground">Network IP:</span>
@@ -429,15 +452,35 @@ export function EmployeeDashboardView() {
                     </span>
                   </TableCell>
                   <TableCell className="text-xs font-mono text-muted-foreground">{r.officeLocation || 'Pune Head Office'}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenDetails(r)}
-                      className="h-7 text-xs font-semibold text-purple-600 hover:text-purple-700 hover:bg-purple-500/10 gap-1 cursor-pointer"
-                    >
-                      <ExternalLink className="h-3 w-3" /> Details
-                    </Button>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedRecordForEdit({
+                            ...r,
+                            dateDisplay: r.date,
+                            clockIn: r.time || '09:02 AM',
+                            clockOut: r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
+                            code: empCode,
+                            name: empName,
+                          });
+                          setIsEditModalOpen(true);
+                        }}
+                        className="h-7 text-xs font-semibold text-primary hover:bg-primary/10 gap-1 cursor-pointer"
+                      >
+                        <FileSignature className="h-3 w-3" /> Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenDetails(r)}
+                        className="h-7 text-xs font-semibold text-purple-600 hover:text-purple-700 hover:bg-purple-500/10 gap-1 cursor-pointer"
+                      >
+                        <ExternalLink className="h-3 w-3" /> Details
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -458,6 +501,13 @@ export function EmployeeDashboardView() {
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
         attendanceRecord={selectedRecord}
+      />
+
+      {/* Edit Attendance Request Modal */}
+      <EditAttendanceRequestModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        record={selectedRecordForEdit}
       />
     </div>
   );

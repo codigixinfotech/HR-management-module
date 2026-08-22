@@ -115,8 +115,8 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
 
   return (
     <>
-      {/* ── 1. DESKTOP SIDEBAR (Strictly md:flex, 100% untouched for Desktop/Laptop) ── */}
-      <aside className="hidden md:flex md:flex-col w-64 border-r border-border bg-card text-card-foreground shadow-2xs select-none h-screen sticky top-0 shrink-0 z-20">
+      {/* ── 1. DESKTOP SIDEBAR (Full Viewport Height Pinned) ── */}
+      <aside className="hidden md:flex md:flex-col w-64 border-r border-border bg-card text-card-foreground shadow-2xs select-none h-full shrink-0 z-20 overflow-hidden">
         <SidebarTreeContent
           menuSearch={menuSearch}
           setMenuSearch={setMenuSearch}
@@ -140,7 +140,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       {/* Mobile Left Navigation Drawer */}
       <aside
         className={cn(
-          'fixed top-0 left-0 bottom-0 z-[9999] w-[min(280px,85vw)] h-[100dvh] bg-card text-card-foreground border-r border-border shadow-2xl flex flex-col transition-transform duration-250 ease-in-out overflow-y-auto overflow-x-hidden md:hidden select-none',
+          'fixed top-0 left-0 bottom-0 z-[9999] w-[min(280px,85vw)] h-[100dvh] bg-card text-card-foreground border-r border-border shadow-2xl flex flex-col transition-transform duration-250 ease-in-out overflow-hidden md:hidden select-none',
           isOpenOnMobile ? 'translate-x-0' : '-translate-x-full pointer-events-none',
         )}
       >
@@ -184,7 +184,7 @@ function SidebarTreeContent({
   isMobileDrawer,
 }: SidebarTreeContentProps) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* ── 1. Brand Header ── */}
       <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-muted/20 shrink-0">
         <div className="flex items-center gap-3">
@@ -244,7 +244,7 @@ function SidebarTreeContent({
       </div>
 
       {/* ── 3. Scrollable Navigation Tree ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 custom-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1 custom-scrollbar">
         <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 flex items-center justify-between">
           <span>Main Navigation</span>
           <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-mono text-[9px] font-semibold">
@@ -393,7 +393,7 @@ function SidebarTreeContent({
       </div>
 
       {/* ── 4. System Status Footer ── */}
-      <div className="p-3 border-t border-border bg-muted/20 shrink-0">
+      <div className="p-3 border-t border-border bg-muted/20 mt-auto shrink-0">
         <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium">
           <span className="flex items-center gap-1">
             <Zap className="h-3 w-3 text-amber-500 fill-amber-400" /> EHCM System

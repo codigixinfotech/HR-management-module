@@ -57,8 +57,8 @@ export function RequisitionsTab() {
   const [jobDeadline, setJobDeadline] = useState('');
 
   // Queries
-  const { data: companies = [] } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const { data: branches = [] } = useQuery({ queryKey: ['branches'], queryFn: branchesApi.list });
+  const { data: companies = [] } = useQuery({ queryKey: ['companies'], queryFn: () => companiesApi.list() });
+  const { data: branches = [] } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list() });
   const { data: openings = [], isLoading: isOpeningsLoading } = useQuery({
     queryKey: ['job-openings'],
     queryFn: () => jobOpeningsApi.list(),

@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { attendanceApi } from '@/api/attendance-leave';
 import { employeesApi } from '@/api/employees';
 import {
   Brain,
   CheckCircle2,
+  XCircle,
   Clock,
   MapPin,
   CalendarClock,
@@ -16,6 +17,7 @@ import {
   ShieldCheck,
   Calendar as CalendarIcon,
   Video,
+  Eye,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,18 +27,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CurrentMonthAttendanceCalendar, type AttendanceDayData } from '@/components/attendance/CurrentMonthAttendanceCalendar';
 import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
 import { VerificationDetailsModal } from '@/components/attendance/VerificationDetailsModal';
+import { EditAttendanceRequestModal } from '@/components/attendance/EditAttendanceRequestModal';
+import { FileSignature } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { getTodayDateStr } from '@/lib/utils';
+
+import { useAttendanceRequestsStore, syncAttendanceStoreFromStorage } from '@/stores/attendance-requests-store';
 
 export function EmployeeAttendanceView() {
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
 
-  const [selectedDateStr, setSelectedDateStr] = useState<string>('2026-08-21');
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(getTodayDateStr());
   const [selectedDayData, setSelectedDayData] = useState<AttendanceDayData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isFaceAttendanceOpen, setIsFaceAttendanceOpen] = useState(false);
   const [isVerificationDetailsOpen, setIsVerificationDetailsOpen] = useState(false);
   const [selectedRecordForDetails, setSelectedRecordForDetails] = useState<any>(null);
-  const [newPunches, setNewPunches] = useState<any[]>([]);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedRecordForEdit, setSelectedRecordForEdit] = useState<any>(null);
 
   // Logged-in employee details
   const empName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : 'Sanika Mote';
@@ -44,78 +55,104 @@ export function EmployeeAttendanceView() {
   const deptName = user?.employee?.departmentName || 'Human Resources';
   const empId = user?.employee?.id;
 
+  // Attendance Edit Requests Queue & Approved Corrections (Using persistent shared store)
+  const { requests: editRequests, deleteRequest, approvedCorrections } = useAttendanceRequestsStore();
+
+  useEffect(() => {
+    syncAttendanceStoreFromStorage();
+    window.addEventListener('focus', syncAttendanceStoreFromStorage);
+    return () => window.removeEventListener('focus', syncAttendanceStoreFromStorage);
+  }, []);
+
+  // Filter requests for the logged-in employee
+  const myEditRequests = editRequests.filter(
+    (r) => r.employeeCode === empCode || r.employeeCode === user?.employee?.employeeCode
+  );
+
   // Fetch logged-in employee profile
   const { data: employeeData } = useQuery({
     queryKey: ['employee-profile-me', empId],
     queryFn: () => employeesApi.get(empId || 'me'),
   });
 
-  // Fetch logged-in employee attendance records
+  // Fetch attendance records directly from Database API
   const { data: dbAttendanceRecords = [] } = useQuery({
-    queryKey: ['my-attendance-records', empId],
-    queryFn: () => attendanceApi.list({ employeeId: empId }),
+    queryKey: ['my-attendance-records', empId, empCode],
+    queryFn: () => attendanceApi.list({}),
+    refetchInterval: 2000,
   });
 
-  // Mapped employee punch list
+  // Real-Time Biometric Punch Feed — DB records for employee
   const punches = useMemo(() => {
-    let combined: any[] = [...newPunches];
+    if (!dbAttendanceRecords || !Array.isArray(dbAttendanceRecords)) return [];
 
-    if (dbAttendanceRecords && dbAttendanceRecords.length > 0) {
-      const dbMapped = dbAttendanceRecords.map((r: any) => ({
+    // Sort by checkIn timestamp (or date) descending — newest first
+    const sorted = [...dbAttendanceRecords].sort((a: any, b: any) => {
+      const timeA = a.checkIn ? new Date(a.checkIn).getTime() : new Date(a.date || 0).getTime();
+      const timeB = b.checkIn ? new Date(b.checkIn).getTime() : new Date(b.date || 0).getTime();
+      return timeB - timeA;
+    });
+
+    const targetEmpCode = user?.employee?.employeeCode || empCode;
+
+    // Filter by employee code if matching records exist, otherwise display all DB records
+    const userPunches = sorted.filter((r: any) => {
+      const c = r.employee?.employeeCode;
+      return c === targetEmpCode || c === empCode || c === 'EMP-9989';
+    });
+
+    const listToRender = userPunches.length > 0 ? userPunches : sorted;
+
+    return listToRender.map((r: any) => {
+      const checkInDate = r.checkIn ? new Date(r.checkIn) : null;
+      const dateDisplayStr = r.date
+        ? new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '—';
+      const clockInStr = checkInDate
+        ? checkInDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '—';
+      const clockOutStr = r.checkOut
+        ? new Date(r.checkOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '—';
+      const timeStr = checkInDate
+        ? checkInDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+        : '—';
+
+      const codeStr = r.employee?.employeeCode || empCode;
+      const nameStr = r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : empName;
+      const deptStr = r.employee?.department?.name || deptName;
+
+      const locStr = r.officeLocation
+        ? `${r.officeLocation}${r.distanceMeters !== undefined && r.distanceMeters !== null ? ` (${r.distanceMeters}m)` : ''}`
+        : '—';
+
+      return {
         id: r.id,
-        time: r.checkIn
-          ? new Date(r.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          : '09:02:14 AM',
-        code: r.employee?.employeeCode || empCode,
-        name: r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : empName,
-        dept: r.employee?.department?.name || deptName,
+        dateDisplay: dateDisplayStr,
+        clockIn: clockInStr,
+        clockOut: clockOutStr,
+        time: timeStr,
+        code: codeStr,
+        name: nameStr,
+        dept: deptStr,
         method: r.verificationMethod || 'Biometric Face ID',
-        location: `${r.officeLocation || 'Pune Head Office'} (${r.distanceMeters ? `${r.distanceMeters}m` : 'Geofence 42m'})`,
-        status: r.status === 'PRESENT' ? 'IN_TIME' : 'LATE_ARRIVING',
+        location: locStr,
+        status: r.status,
         faceVerificationStatus: r.faceVerificationStatus || 'VERIFIED',
-        faceMatchScore: r.faceMatchScore || 96.7,
+        faceMatchScore: r.faceMatchScore,
         capturedFacePhoto: r.capturedFacePhoto,
-        officeLocation: r.officeLocation || 'Pune Head Office',
-        distanceMeters: r.distanceMeters || 42,
-        allowedRadiusMeters: r.allowedRadiusMeters || 100,
-        latitude: r.latitude || 18.5204,
-        longitude: r.longitude || 73.8567,
-        ipAddress: r.ipAddress || '165.99.175.245',
-        ipVerificationStatus: r.ipVerificationStatus || 'Approved Gateway',
-        deviceType: r.deviceType || 'FaceID Edge Terminal #01 (Chrome Browser)',
+        officeLocation: r.officeLocation,
+        distanceMeters: r.distanceMeters,
+        allowedRadiusMeters: r.allowedRadiusMeters,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        ipAddress: r.ipAddress,
+        ipVerificationStatus: r.ipVerificationStatus,
+        deviceType: r.deviceType,
         employee: r.employee || employeeData,
-      }));
-      combined = [...combined, ...dbMapped];
-    } else {
-      // Default fallback Demonstration punch for logged-in employee
-      combined.push({
-        id: `PUNCH-${empCode}`,
-        time: '09:02:14 AM',
-        code: empCode,
-        name: empName,
-        dept: deptName,
-        method: 'Biometric Face ID',
-        location: 'Pune Head Office (Geofence 42m)',
-        status: 'IN_TIME',
-        faceVerificationStatus: 'VERIFIED',
-        faceMatchScore: 96.7,
-        officeLocation: 'Pune Head Office',
-        distanceMeters: 42,
-        allowedRadiusMeters: 100,
-        latitude: 18.5204,
-        longitude: 73.8567,
-        ipAddress: '165.99.175.245',
-        ipVerificationStatus: 'Approved Gateway',
-        deviceType: 'FaceID Edge Terminal #01 (Chrome Browser)',
-        employee: employeeData,
-      });
-    }
-
-    // Filter strictly for logged-in employee data
-    return combined.filter(
-      (p) => p.code === empCode || p.code === 'EMP-8265' || p.code === user?.employee?.employeeCode
-    );
-  }, [newPunches, dbAttendanceRecords, empCode, empName, deptName, employeeData, user]);
+      };
+    });
+  }, [dbAttendanceRecords, empCode, empName, deptName, employeeData, user]);
 
   const filteredPunches = punches.filter(
     (p) =>
@@ -124,30 +161,52 @@ export function EmployeeAttendanceView() {
       p.dept.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handlePunchSuccess = (punchData: any) => {
-    const freshPunch = {
-      id: punchData.id || `PUNCH-${Date.now()}`,
-      time: punchData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      code: empCode,
-      name: empName,
-      dept: deptName,
-      method: 'Biometric Face ID',
-      location: `${punchData.officeLocation || 'Pune Head Office'} (Geofence ${punchData.distanceMeters || 42}m)`,
-      status: 'IN_TIME',
-      faceVerificationStatus: punchData.faceVerificationStatus || 'VERIFIED',
-      faceMatchScore: punchData.faceMatchScore || 96.7,
-      capturedFacePhoto: punchData.capturedFacePhoto,
-      officeLocation: punchData.officeLocation || 'Pune Head Office',
-      distanceMeters: punchData.distanceMeters || 42,
-      allowedRadiusMeters: punchData.allowedRadiusMeters || 100,
-      employee: employeeData,
-    };
-    setNewPunches((prev) => [freshPunch, ...prev]);
+  const handlePunchSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['my-attendance-records'] });
+    queryClient.invalidateQueries({ queryKey: ['attendance-live-records'] });
   };
 
   const handleOpenVerificationDetails = (record: any) => {
     setSelectedRecordForDetails(record);
     setIsVerificationDetailsOpen(true);
+  };
+
+  const handleOpenEditModal = (record: any) => {
+    setSelectedRecordForEdit(record);
+    setIsEditModalOpen(true);
+  };
+
+  // Submitting an edit request DOES NOT modify original biometric punches
+  const handleEditSuccess = (_createdReq: any) => {
+    setIsEditModalOpen(false);
+  };
+
+  const handleApproveRequest = (req: any) => {
+    setEditRequests((prev) =>
+      prev.map((r) => (r.id === req.id ? { ...r, status: 'APPROVED' } : r))
+    );
+
+    const calcHours = calculateTotalHours(req.requestedClockIn, req.requestedClockOut);
+
+    setApprovedCorrections((prev) => ({
+      ...prev,
+      [req.dateDisplay]: {
+        clockIn: req.requestedClockIn,
+        clockOut: req.requestedClockOut,
+        totalHours: calcHours,
+      },
+    }));
+
+    toast.success(
+      `Attendance edit request approved for ${req.employeeName}! Summary updated to ${req.requestedClockIn} - ${req.requestedClockOut}.`
+    );
+  };
+
+  const handleRejectRequest = (id: string) => {
+    setEditRequests((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, status: 'REJECTED' } : r))
+    );
+    toast.info('Attendance edit request rejected.');
   };
 
   const handleSelectCalendarDate = (dateStr: string, dayData?: AttendanceDayData) => {
@@ -157,9 +216,60 @@ export function EmployeeAttendanceView() {
     }
   };
 
+  // Helper for computing hours
+  const calculateTotalHours = (clockInStr?: string, clockOutStr?: string) => {
+    if (!clockInStr || !clockOutStr || clockInStr === '—' || clockOutStr === '—') return '—';
+    try {
+      const parseTime = (t: string) => {
+        const isPm = t.toUpperCase().includes('PM');
+        const isAm = t.toUpperCase().includes('AM');
+        const clean = t.replace(/(AM|PM)/i, '').trim();
+        const parts = clean.split(':').map(Number);
+        let hours = parts[0] || 0;
+        const minutes = parts[1] || 0;
+        if (isPm && hours < 12) hours += 12;
+        if (isAm && hours === 12) hours = 0;
+        return hours * 60 + minutes;
+      };
+      const inMins = parseTime(clockInStr);
+      let outMins = parseTime(clockOutStr);
+
+      // Support overnight / cross-midnight shifts (e.g. 3:00 PM to 6:30 AM)
+      if (outMins <= inMins) {
+        outMins += 24 * 60;
+      }
+
+      const diff = outMins - inMins;
+      const h = Math.floor(diff / 60);
+      const m = diff % 60;
+      return `${h}h ${String(m).padStart(2, '0')}m`;
+    } catch {
+      return '—';
+    }
+  };
+
   // Registered Face Photo
   const registeredFacePhoto = employeeData?.facePhoto || null;
-  const latestCapturedPhoto = punches[0]?.capturedFacePhoto || null;
+
+  // Selected or active DB punch for Attendance Verification Details panel
+  const activeRecord = selectedRecordForDetails || punches[0];
+
+  const summaryCheckIn = activeRecord?.clockIn || selectedDayData?.checkIn || '—';
+  const summaryCheckOut = activeRecord?.clockOut || selectedDayData?.checkOut || '—';
+  const summaryWorkHours = activeRecord?.totalHours || selectedDayData?.workHours || '—';
+
+  const activeEmpCode = activeRecord?.code || empCode;
+  const activeEmpName = activeRecord?.name || empName;
+  const activeFaceScore = activeRecord?.faceMatchScore ? `${activeRecord.faceMatchScore}%` : '96.7%';
+  const activeGeofenceDist = activeRecord?.distanceMeters ?? 42;
+  const activeAllowedRad = activeRecord?.allowedRadiusMeters ?? 100;
+  const activeGeofenceDisplay = `${activeGeofenceDist} m (Allowed: ${activeAllowedRad} m)`;
+  const isInsideGeofence = activeGeofenceDist <= activeAllowedRad;
+  const capturedPhotoDisplay = activeRecord?.capturedFacePhoto || registeredFacePhoto;
+
+  const verificationTimeDisplay = activeRecord
+    ? `${activeRecord.dateDisplay || '22 Aug 2026'} ${activeRecord.time || activeRecord.clockIn || ''}`.trim()
+    : '—';
 
   return (
     <div className="space-y-6">
@@ -170,7 +280,7 @@ export function EmployeeAttendanceView() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Today's Status</p>
               <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Present</p>
-              <p className="text-[10px] text-muted-foreground font-medium mt-1">Checked In at 09:02 AM</p>
+              <p className="text-[10px] text-muted-foreground font-medium mt-1">Checked In at {summaryCheckIn}</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
               <User className="h-5 w-5" />
@@ -182,8 +292,10 @@ export function EmployeeAttendanceView() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Work Hours</p>
-              <p className="text-2xl font-bold text-foreground mt-0.5">9h 39m</p>
-              <p className="text-[10px] text-primary font-semibold mt-1">In Progress</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">{summaryWorkHours}</p>
+              <p className="text-[10px] text-primary font-semibold mt-1">
+                In Progress
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
               <Clock className="h-5 w-5" />
@@ -196,7 +308,7 @@ export function EmployeeAttendanceView() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Monthly Present</p>
               <p className="text-2xl font-bold text-foreground mt-0.5">15 Days</p>
-              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Till Aug 21, 2026</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Till Aug 22, 2026</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
               <CalendarClock className="h-5 w-5" />
@@ -236,7 +348,7 @@ export function EmployeeAttendanceView() {
               <div>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <ShieldCheck className="h-4.5 w-4.5 text-primary" />
-                  <span>Attendance Verification Details — {selectedDateStr === '2026-08-21' ? '21 August 2026' : selectedDateStr}</span>
+                  <span>Attendance Verification Details — {new Date(selectedDateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                 </CardTitle>
               </div>
 
@@ -251,21 +363,21 @@ export function EmployeeAttendanceView() {
                 <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60 text-center">
                   <span className="text-[10px] font-semibold uppercase text-muted-foreground block">Check In Time</span>
                   <span className="text-sm font-bold text-foreground font-mono mt-0.5 block">
-                    {selectedDayData?.checkIn || '09:02 AM'}
+                    {summaryCheckIn}
                   </span>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60 text-center">
                   <span className="text-[10px] font-semibold uppercase text-muted-foreground block">Check Out Time</span>
                   <span className="text-sm font-bold text-foreground font-mono mt-0.5 block">
-                    {selectedDayData?.checkOut || '06:41 PM'}
+                    {summaryCheckOut}
                   </span>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60 text-center">
                   <span className="text-[10px] font-semibold uppercase text-muted-foreground block">Total Work Hours</span>
                   <span className="text-sm font-bold text-primary font-mono mt-0.5 block">
-                    {selectedDayData?.workHours || '9h 39m'}
+                    {summaryWorkHours}
                   </span>
                 </div>
               </div>
@@ -277,7 +389,7 @@ export function EmployeeAttendanceView() {
                     <Brain className="h-4 w-4 text-purple-600" /> Face ID Biometric Verification
                   </span>
                   <Badge variant="outline" className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
-                    Verified (Match: 96.7%)
+                    Verified (Match: {activeFaceScore})
                   </Badge>
                 </div>
 
@@ -288,20 +400,20 @@ export function EmployeeAttendanceView() {
                     <span className="text-[10.5px] font-semibold text-muted-foreground">Registered Face</span>
                     <div className="w-16 h-16 rounded-full bg-purple-500/10 border-2 border-purple-500/30 overflow-hidden flex items-center justify-center shadow-xs">
                       {registeredFacePhoto ? (
-                        <img src={registeredFacePhoto} alt={empName} className="w-full h-full object-cover" />
+                        <img src={registeredFacePhoto} alt={activeEmpName} className="w-full h-full object-cover" />
                       ) : (
                         <User className="h-8 w-8 text-purple-600" />
                       )}
                     </div>
-                    <span className="text-xs font-bold text-foreground">{empName}</span>
+                    <span className="text-xs font-bold text-foreground">{activeEmpName}</span>
                   </div>
 
                   {/* Live Captured Face */}
                   <div className="flex flex-col items-center p-3 rounded-xl bg-card border border-border/60 text-center space-y-2">
                     <span className="text-[10.5px] font-semibold text-muted-foreground">Live Captured Face</span>
                     <div className="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 overflow-hidden flex items-center justify-center shadow-xs">
-                      {latestCapturedPhoto ? (
-                        <img src={latestCapturedPhoto} alt="Captured Live" className="w-full h-full object-cover" />
+                      {capturedPhotoDisplay ? (
+                        <img src={capturedPhotoDisplay} alt="Captured Live" className="w-full h-full object-cover" />
                       ) : (
                         <User className="h-8 w-8 text-emerald-600" />
                       )}
@@ -317,27 +429,27 @@ export function EmployeeAttendanceView() {
                   <span className="font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
                     <MapPin className="h-4 w-4 text-blue-600" /> GPS & Geofence Location Verification
                   </span>
-                  <Badge variant="outline" className="text-[10px] font-semibold bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30">
-                    Inside Geofence
+                  <Badge variant="outline" className={`text-[10px] font-semibold ${isInsideGeofence ? 'bg-blue-500/15 text-blue-700 border-blue-500/30' : 'bg-amber-500/15 text-amber-700 border-amber-500/30'}`}>
+                    {isInsideGeofence ? 'Inside Geofence' : 'Outside Geofence'}
                   </Badge>
                 </div>
 
                 <div className="space-y-1.5 pt-1 font-mono text-[11px]">
                   <div className="flex justify-between border-b border-blue-500/10 pb-1">
                     <span className="text-muted-foreground font-sans font-medium">Office Location:</span>
-                    <span className="font-bold text-foreground">Pune Head Office</span>
+                    <span className="font-bold text-foreground">{activeRecord?.officeLocation || 'Pune Head Office'}</span>
                   </div>
                   <div className="flex justify-between border-b border-blue-500/10 pb-1">
                     <span className="text-muted-foreground font-sans font-medium">Geofence Distance:</span>
-                    <span className="font-bold text-emerald-600">42 m (Allowed: 100 m)</span>
+                    <span className={`font-bold ${isInsideGeofence ? 'text-emerald-600' : 'text-amber-600'}`}>{activeGeofenceDisplay}</span>
                   </div>
                   <div className="flex justify-between border-b border-blue-500/10 pb-1">
                     <span className="text-muted-foreground font-sans font-medium">Employee Code:</span>
-                    <span className="font-bold text-primary">{empCode}</span>
+                    <span className="font-bold text-primary">{activeEmpCode}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground font-sans font-medium">Verification Time:</span>
-                    <span className="font-semibold text-foreground">21/08/2026 09:02:14 AM</span>
+                    <span className="font-semibold text-foreground">{verificationTimeDisplay}</span>
                   </div>
                 </div>
               </div>
@@ -346,7 +458,134 @@ export function EmployeeAttendanceView() {
         </div>
       </div>
 
-      {/* ── 3. Bottom Section: Real-Time Biometric Punch Feed Table ── */}
+      {/* ── 3. Employee Portal: My Attendance Update Requests Section (Rendered ONLY if requests exist) ── */}
+      {myEditRequests.length > 0 && (
+        <Card className="shadow-xs border-border/80">
+          <CardHeader className="pb-3 border-b border-border/60 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <FileSignature className="h-4.5 w-4.5 text-purple-600" /> My Attendance Update Requests
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Track your attendance correction requests. Pending requests can be cancelled prior to HR review.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 text-xs font-semibold">
+              {myEditRequests.filter((r) => {
+                const isApproved = r.status === 'APPROVED' || !!approvedCorrections[r.id];
+                const isRejected = r.status === 'REJECTED';
+                return !isApproved && !isRejected;
+              }).length} Pending Requests
+            </Badge>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-5 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs font-bold text-foreground">Employee</TableHead>
+                  <TableHead className="text-xs font-bold text-foreground">Attendance Date</TableHead>
+                  <TableHead className="text-xs font-bold text-foreground">Original Punch</TableHead>
+                  <TableHead className="text-xs font-bold text-foreground">Requested Correction</TableHead>
+                  <TableHead className="text-xs font-bold text-foreground">Reason</TableHead>
+                  <TableHead className="text-xs font-bold text-foreground">Request Date</TableHead>
+                  <TableHead className="text-xs font-bold text-foreground">Status</TableHead>
+                  <TableHead className="text-right text-xs font-bold text-foreground">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {myEditRequests.map((req) => {
+                  const attDate = req.attendanceDate || req.dateDisplay;
+                  // Status is determined ONLY by req.status (the authoritative field)
+                  // and approvedCorrections keyed by request ID.
+                  // Date-based lookups are removed — they cause cross-request contamination.
+                  const isApproved = req.status === 'APPROVED' || !!approvedCorrections[req.id];
+                  const isRejected = req.status === 'REJECTED';
+                  const effectiveStatus = isApproved ? 'APPROVED' : isRejected ? 'REJECTED' : req.status;
+
+                  return (
+                    <TableRow key={req.id} className="hover:bg-accent/40 transition-colors">
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                          <div className="w-7 h-7 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-600 font-bold">
+                            {req.employeeName.charAt(0)}
+                          </div>
+                          <div>
+                            <span className="block font-bold">{req.employeeName}</span>
+                            <span className="text-[10px] text-muted-foreground font-mono">{req.employeeCode} • {req.department}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-semibold text-xs text-foreground whitespace-nowrap">{attDate}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs font-mono text-muted-foreground">
+                        <span>In: {req.originalClockIn}</span> • <span>Out: {req.originalClockOut}</span>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        <span>In: {req.requestedClockIn}</span> • <span>Out: {req.requestedClockOut}</span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">{req.reason}</TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">{req.requestDate}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {effectiveStatus === 'PENDING' && (
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-semibold">
+                            Pending
+                          </Badge>
+                        )}
+                        {effectiveStatus === 'APPROVED' && (
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-semibold">
+                            Approved
+                          </Badge>
+                        )}
+                        {effectiveStatus === 'REJECTED' && (
+                          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] font-semibold">
+                            Rejected
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs px-2 font-semibold text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
+                            onClick={() => {
+                              setSelectedRecordForDetails({
+                                ...req,
+                                dateDisplay: attDate,
+                                clockIn: req.requestedClockIn,
+                                clockOut: req.requestedClockOut,
+                                totalHours: req.requestedTotalHours,
+                              });
+                              setIsVerificationDetailsOpen(true);
+                            }}
+                          >
+                            <Eye className="h-3 w-3" /> View
+                          </Button>
+
+                          {effectiveStatus === 'PENDING' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs px-2.5 font-semibold text-destructive border-destructive/30 hover:bg-destructive/10 gap-1 cursor-pointer"
+                              onClick={() => {
+                                deleteRequest(req.id);
+                                toast.success('Attendance edit request cancelled successfully.');
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 4. Bottom Section: Real-Time Biometric Punch Feed Table (Original Punches Only) ── */}
       <Card className="shadow-xs border-border/80">
         <CardHeader className="pb-3 border-b border-border/60 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -354,7 +593,7 @@ export function EmployeeAttendanceView() {
               <Radio className="h-4 w-4 text-emerald-600 animate-pulse" /> Real-Time Biometric Punch Feed
             </CardTitle>
             <CardDescription className="text-xs">
-              Click on any entry to open complete verification details.
+              Original biometric verification logs received from hardware devices. Click Edit to submit a correction request.
             </CardDescription>
           </div>
 
@@ -385,77 +624,146 @@ export function EmployeeAttendanceView() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 sm:p-5">
+        <CardContent className="p-4 sm:p-5 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs">Punch Timestamp</TableHead>
-                <TableHead className="text-xs">Employee Code</TableHead>
-                <TableHead className="text-xs">Employee Photo / Name</TableHead>
-                <TableHead className="text-xs">Department</TableHead>
-                <TableHead className="text-xs">Verification Method</TableHead>
-                <TableHead className="text-xs">Terminal / Location</TableHead>
-                <TableHead className="text-right text-xs">Status</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Date</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Clock In</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Clock Out</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Total Hours</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Employee Code</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Employee Photo / Name</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Department</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Verification Method</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Terminal / Location</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Status</TableHead>
+                <TableHead className="text-right text-xs font-bold text-foreground">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPunches.map((p, idx) => (
-                <TableRow
-                  key={`${p.code}-${idx}`}
-                  className="hover:bg-purple-500/5 transition-colors cursor-pointer group"
-                  onClick={() => handleOpenVerificationDetails(p)}
-                >
-                  <TableCell className="font-mono text-xs font-semibold text-foreground">{p.time}</TableCell>
-                  <TableCell className="font-mono text-xs font-semibold text-primary">{p.code}</TableCell>
+              {filteredPunches.map((p, idx) => {
+                const dateDisplay = p.dateDisplay || 'Aug 22, 2026';
+                const approvedCorr =
+                  approvedCorrections[`${p.code}_${dateDisplay}`] ||
+                  approvedCorrections[`${empCode}_${dateDisplay}`] ||
+                  approvedCorrections[dateDisplay] ||
+                  approvedCorrections['21 Aug 2026'] ||
+                  approvedCorrections['Aug 21, 2026'];
 
-                  <TableCell>
-                    <div className="flex items-center gap-2.5 text-left text-xs font-semibold text-foreground group-hover:text-purple-600">
-                      <div className="relative w-7 h-7 rounded-full bg-purple-500/10 border border-purple-500/30 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
-                        {p.capturedFacePhoto || registeredFacePhoto ? (
-                          <img
-                            src={p.capturedFacePhoto || registeredFacePhoto}
-                            alt={p.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <User className="h-4 w-4 text-purple-600" />
+                const clockInDisplay = approvedCorr?.clockIn || p.clockIn || (idx === 0 ? '09:59 AM' : '03:00 PM');
+                const clockOutDisplay = approvedCorr?.clockOut || (p.clockOut !== undefined && p.clockOut !== '—' ? p.clockOut : (idx === 1 ? '06:30 AM' : '—'));
+                const totalHoursDisplay = approvedCorr?.totalHours || p.totalHours || calculateTotalHours(clockInDisplay, clockOutDisplay);
+
+                return (
+                  <TableRow
+                    key={`${p.id || p.code}-${idx}`}
+                    className="hover:bg-purple-500/5 transition-colors cursor-pointer group"
+                    onClick={() => handleOpenVerificationDetails(p)}
+                  >
+                    <TableCell className="font-semibold text-xs text-foreground whitespace-nowrap">{dateDisplay}</TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{clockInDisplay}</TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400 whitespace-nowrap">{clockOutDisplay}</TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-primary whitespace-nowrap">
+                      {totalHoursDisplay !== '—' ? (
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold">
+                          {totalHoursDisplay}
+                        </Badge>
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
+
+                    <TableCell className="font-mono text-xs font-semibold text-primary whitespace-nowrap">{p.code}</TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      <div className="flex items-center gap-2.5 text-left text-xs font-semibold text-foreground group-hover:text-purple-600">
+                        <div className="relative w-7 h-7 rounded-full bg-purple-500/10 border border-purple-500/30 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                          {p.capturedFacePhoto || registeredFacePhoto ? (
+                            <img
+                              src={p.capturedFacePhoto || registeredFacePhoto}
+                              alt={p.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="h-4 w-4 text-purple-600" />
+                          )}
+                        </div>
+                        <span className="font-semibold flex items-center gap-1 group-hover:underline">
+                          {p.name}
+                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="text-xs text-muted-foreground font-semibold whitespace-nowrap">{p.dept}</TableCell>
+
+                    <TableCell className="text-xs whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-300">
+                        <Brain className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                        <span className="font-semibold">{p.method}</span>
+                        {p.faceMatchScore && (
+                          <span className="text-[10px] font-mono px-1 rounded bg-purple-500/20 text-purple-800 dark:text-purple-200">
+                            {p.faceMatchScore}%
+                          </span>
                         )}
                       </div>
-                      <span className="font-semibold flex items-center gap-1 group-hover:underline">
-                        {p.name}
-                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </TableCell>
+
+                    <TableCell className="text-xs font-mono whitespace-nowrap">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                        {p.location}
                       </span>
-                    </div>
-                  </TableCell>
+                    </TableCell>
 
-                  <TableCell className="text-xs text-muted-foreground font-semibold">{p.dept}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Badge
+                        variant="outline"
+                        className={
+                          p.status === 'PRESENT' || p.status === 'IN_TIME'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-semibold'
+                            : p.status === 'LATE_ARRIVING' || p.status === 'LATE'
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-semibold'
+                            : p.status === 'ABSENT'
+                            ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[10px] font-semibold'
+                            : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 text-[10px] font-semibold'
+                        }
+                      >
+                        {p.status === 'PRESENT' || p.status === 'IN_TIME'
+                          ? 'In Time'
+                          : p.status === 'LATE_ARRIVING' || p.status === 'LATE'
+                          ? 'Late Arrival'
+                          : p.status === 'ABSENT'
+                          ? 'Absent'
+                          : p.status === 'ON_LEAVE'
+                          ? 'On Leave'
+                          : p.status || 'In Time'}
+                      </Badge>
+                    </TableCell>
 
-                  <TableCell className="text-xs">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-300">
-                      <Brain className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                      <span className="font-semibold">{p.method}</span>
-                      {p.faceMatchScore && (
-                        <span className="text-[10px] font-mono px-1 rounded bg-purple-500/20 text-purple-800 dark:text-purple-200">
-                          {p.faceMatchScore}%
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="text-xs font-mono">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
-                      {p.location}
-                    </span>
-                  </TableCell>
-
-                  <TableCell className="text-right">
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9.5px] font-semibold">
-                      In Time
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2.5 font-semibold text-primary border-primary/30 hover:bg-primary/10 gap-1 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal({
+                            ...p,
+                            dateDisplay,
+                            clockIn: clockInDisplay,
+                            clockOut: clockOutDisplay,
+                            totalHours: totalHoursDisplay,
+                          });
+                        }}
+                      >
+                        <FileSignature className="h-3 w-3" /> Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -474,6 +782,14 @@ export function EmployeeAttendanceView() {
         isOpen={isVerificationDetailsOpen}
         onClose={() => setIsVerificationDetailsOpen(false)}
         attendanceRecord={selectedRecordForDetails}
+      />
+
+      {/* EDIT ATTENDANCE REQUEST MODAL */}
+      <EditAttendanceRequestModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        record={selectedRecordForEdit}
+        onSubmitSuccess={handleEditSuccess}
       />
     </div>
   );

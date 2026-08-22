@@ -13,6 +13,18 @@ export class MarkAttendanceDto {
   date: string;
 
   @IsOptional()
+  @IsString()
+  employeeCode?: string;
+
+  @IsOptional()
+  @IsString()
+  employeeName?: string;
+
+  @IsOptional()
+  @IsString()
+  departmentName?: string;
+
+  @IsOptional()
   @IsEnum(AttendanceStatus)
   status?: AttendanceStatus;
 

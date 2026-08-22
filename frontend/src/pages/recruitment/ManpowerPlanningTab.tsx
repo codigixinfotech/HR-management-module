@@ -33,9 +33,9 @@ import { Badge } from '@/components/ui/badge';
 
 import { manpowerPlansApi, manpowerRequisitionsApi } from '@/api/recruitment';
 import { departmentsApi, designationsApi, branchesApi } from '@/api/organization';
-import { costCentersApi } from '@/api/cost-grades';
+import { costCentersApi, type CostCenter } from '@/api/cost-grades';
 import { employeesApi } from '@/api/employees';
-import type { ManpowerPlan, Department, Designation, CostCenter, Branch, ManpowerRequisition } from '@/api/types';
+import type { ManpowerPlan, Department, Designation, Branch, ManpowerRequisition } from '@/api/types';
 
 const HIRING_QUARTERS = [
   'Q1 2026',

@@ -63,6 +63,7 @@ export function InterviewDetailsModal({
   onScheduleNextRoundSuccess,
 }: InterviewDetailsModalProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -1155,11 +1156,11 @@ export function InterviewDetailsModal({
       <ScheduleNextRoundModal
         isOpen={isNextRoundModalOpen}
         onClose={() => setIsNextRoundModalOpen(false)}
-        previousInterview={interview}
+        previousInterview={interview || null}
         onSuccess={(newId) => {
           setIsNextRoundModalOpen(false);
           onClose();
-          if (onScheduleNextRoundSuccess) {
+          if (onScheduleNextRoundSuccess && newId) {
             onScheduleNextRoundSuccess(newId);
           }
         }}

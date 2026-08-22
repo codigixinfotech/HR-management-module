@@ -38,16 +38,16 @@ export function AppLayout() {
       ];
 
   return (
-    <div className="flex min-h-screen w-full bg-background relative pb-16 md:pb-0">
+    <div className="flex h-screen w-full bg-background relative overflow-hidden">
       <Sidebar
         isOpenOnMobile={isMobileMenuOpen}
         onCloseMobile={handleCloseMobile}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
         <Topbar onToggleMobileMenu={handleToggleMobileMenu} />
 
-        <main className="flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
+        <main className="flex-1 min-h-0 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
           <div className="mx-auto max-w-[1600px] w-full">
             <Outlet />
           </div>

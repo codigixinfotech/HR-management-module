@@ -17,6 +17,9 @@ class MarkAttendanceDto {
     companyId;
     employeeId;
     date;
+    employeeCode;
+    employeeName;
+    departmentName;
     status;
     checkIn;
     checkOut;
@@ -50,6 +53,21 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], MarkAttendanceDto.prototype, "date", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "employeeCode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "employeeName", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], MarkAttendanceDto.prototype, "departmentName", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEnum)(client_1.AttendanceStatus),

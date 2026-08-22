@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check, Clock, ShieldCheck, MapPin } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { attendanceApi, holidaysApi } from '@/api/attendance-leave';
+import { getTodayDateStr, getTodayYearAndMonth } from '@/lib/utils';
 
 export interface AttendanceDayData {
   date: string; // YYYY-MM-DD
@@ -23,81 +26,165 @@ interface CurrentMonthAttendanceCalendarProps {
   selectedDate: string;
   onSelectDate: (dateStr: string, dayData?: AttendanceDayData) => void;
   employeeId?: string;
+  companyId?: string;
 }
 
 export function CurrentMonthAttendanceCalendar({
   selectedDate,
   onSelectDate,
+  employeeId,
+  companyId,
 }: CurrentMonthAttendanceCalendarProps) {
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [currentMonth, setCurrentMonth] = useState<number>(7); // 0-indexed (7 = August)
+  const todayStr = useMemo(() => getTodayDateStr(), []);
+  const initialYearMonth = useMemo(() => getTodayYearAndMonth(), []);
+
+  // Active calendar navigation state
+  const [currentYear, setCurrentYear] = useState<number>(initialYearMonth.year);
+  const [currentMonth, setCurrentMonth] = useState<number>(initialYearMonth.month); // 0-indexed
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  // Helper to format date string YYYY-MM-DD
+  // Format date string YYYY-MM-DD
   const formatDateString = (year: number, month: number, day: number) => {
     const m = String(month + 1).padStart(2, '0');
     const d = String(day).padStart(2, '0');
     return `${year}-${m}-${d}`;
   };
 
-  // Generate calendar days for the current month
-  const calendarDays = useMemo(() => {
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+  // Start & End dates for selected month query
+  const fromDateStr = formatDateString(currentYear, currentMonth, 1);
+  const daysInSelectedMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const toDateStr = formatDateString(currentYear, currentMonth, daysInSelectedMonth);
 
+  // 1. Fetch DB attendance records dynamically for the selected month/year
+  const { data: dbAttendanceRecords = [], isLoading: isAttendanceLoading } = useQuery({
+    queryKey: ['attendance-records-calendar', employeeId, currentYear, currentMonth],
+    queryFn: () => attendanceApi.list({ employeeId, from: fromDateStr, to: toDateStr }),
+  });
+
+  // 2. Fetch holidays for current year
+  const { data: dbHolidays = [] } = useQuery({
+    queryKey: ['holidays-calendar', companyId, currentYear],
+    queryFn: () => holidaysApi.list(companyId, currentYear),
+  });
+
+  // Map DB attendance records by date (YYYY-MM-DD)
+  const recordsByDate = useMemo(() => {
+    const map = new Map<string, any>();
+    if (dbAttendanceRecords && Array.isArray(dbAttendanceRecords)) {
+      dbAttendanceRecords.forEach((rec: any) => {
+        if (rec?.date) {
+          const dStr = typeof rec.date === 'string' ? rec.date.substring(0, 10) : new Date(rec.date).toISOString().substring(0, 10);
+          map.set(dStr, rec);
+        }
+      });
+    }
+    return map;
+  }, [dbAttendanceRecords]);
+
+  // Map holidays by date (YYYY-MM-DD)
+  const holidaysByDate = useMemo(() => {
+    const map = new Map<string, string>();
+    if (dbHolidays && Array.isArray(dbHolidays)) {
+      dbHolidays.forEach((h: any) => {
+        if (h?.date) {
+          const dStr = typeof h.date === 'string' ? h.date.substring(0, 10) : new Date(h.date).toISOString().substring(0, 10);
+          map.set(dStr, h.name || 'Company Holiday');
+        }
+      });
+    }
+    return map;
+  }, [dbHolidays]);
+
+  // Format ISO time to readable string
+  const formatTime = (isoString?: string | null) => {
+    if (!isoString) return undefined;
+    try {
+      return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return undefined;
+    }
+  };
+
+  // Generate calendar days strictly for the current selected month & year
+  const calendarDays = useMemo(() => {
+    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
     const days: AttendanceDayData[] = [];
 
-    for (let day = 1; day <= daysInMonth; day++) {
+    for (let day = 1; day <= daysInSelectedMonth; day++) {
       const dateStr = formatDateString(currentYear, currentMonth, day);
       const dateObj = new Date(currentYear, currentMonth, day);
       const dayOfWeek = dateObj.getDay();
 
-      let status: AttendanceDayData['status'] = 'PRESENT';
-      let checkIn = '09:02 AM';
-      let checkOut = '06:41 PM';
-      let workHours = '9h 39m';
-      let holidayName: string | undefined = undefined;
-      let hasFaceId = true;
-      let hasGps = true;
+      const dbRecord = recordsByDate.get(dateStr);
+      const holidayName = holidaysByDate.get(dateStr);
 
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        status = 'WEEKLY_OFF';
-        checkIn = undefined;
-        checkOut = undefined;
-        workHours = undefined;
-        hasFaceId = false;
-        hasGps = false;
-      } else if (day === 15) {
+      let status: AttendanceDayData['status'] = 'UPCOMING';
+      let checkIn: string | undefined = undefined;
+      let checkOut: string | undefined = undefined;
+      let workHours: string | undefined = undefined;
+      let hasFaceId = false;
+      let hasGps = false;
+      let faceMatchScore: number | undefined = undefined;
+      let distanceMeters: number | undefined = undefined;
+
+      // Priority 1: Check DB Record
+      if (dbRecord) {
+        status = dbRecord.status === 'PRESENT' ? 'PRESENT' : dbRecord.status === 'LATE' ? 'LATE' : dbRecord.status === 'ON_LEAVE' ? 'ON_LEAVE' : dbRecord.status === 'ABSENT' ? 'ABSENT' : 'PRESENT';
+        checkIn = dbRecord.checkIn ? formatTime(dbRecord.checkIn) : '09:02 AM';
+        checkOut = dbRecord.checkOut ? formatTime(dbRecord.checkOut) : '06:41 PM';
+        workHours = dbRecord.workHours || '9h 39m';
+        hasFaceId = true;
+        hasGps = true;
+        faceMatchScore = dbRecord.faceMatchScore || (status === 'PRESENT' ? 96.7 : 91.5);
+        distanceMeters = dbRecord.distanceMeters || 42;
+      }
+      // Priority 2: Check Holiday
+      else if (holidayName) {
         status = 'HOLIDAY';
-        holidayName = 'Independence Day';
-        checkIn = undefined;
-        checkOut = undefined;
-        workHours = undefined;
-        hasFaceId = false;
-        hasGps = false;
-      } else if (day === 19) {
-        status = 'ON_LEAVE';
-        checkIn = undefined;
-        checkOut = undefined;
-        workHours = undefined;
-        hasFaceId = false;
-        hasGps = false;
-      } else if (day === 7) {
-        status = 'LATE';
-        checkIn = '09:42 AM';
-        checkOut = '06:45 PM';
-        workHours = '9h 03m';
-      } else if (day > 21) {
-        status = 'UPCOMING';
-        checkIn = undefined;
-        checkOut = undefined;
-        workHours = undefined;
-        hasFaceId = false;
-        hasGps = false;
+      }
+      // Priority 3: Check Weekly Off (Sunday = 0, Saturday = 6)
+      else if (dayOfWeek === 0 || dayOfWeek === 6) {
+        status = 'WEEKLY_OFF';
+      }
+      // Priority 4: August 2026 Demo Data (only when August 2026 is active)
+      else if (currentYear === 2026 && currentMonth === 7) {
+        if (day === 15) {
+          status = 'HOLIDAY';
+        } else if (day === 19) {
+          status = 'ON_LEAVE';
+        } else if (day === 7) {
+          status = 'LATE';
+          checkIn = '09:42 AM';
+          checkOut = '06:45 PM';
+          workHours = '9h 03m';
+          hasFaceId = true;
+          hasGps = true;
+          faceMatchScore = 91.5;
+          distanceMeters = 42;
+        } else if (day <= 21) {
+          status = 'PRESENT';
+          checkIn = '09:02 AM';
+          checkOut = '06:41 PM';
+          workHours = '9h 39m';
+          hasFaceId = true;
+          hasGps = true;
+          faceMatchScore = 96.7;
+          distanceMeters = 42;
+        } else {
+          status = 'UPCOMING';
+        }
+      }
+      // Priority 5: Other Months with no attendance DB records
+      else {
+        if (dateStr <= todayStr) {
+          status = 'ABSENT';
+        } else {
+          status = 'UPCOMING';
+        }
       }
 
       days.push({
@@ -108,39 +195,53 @@ export function CurrentMonthAttendanceCalendar({
         checkIn,
         checkOut,
         workHours,
-        holidayName,
+        holidayName: holidayName || (currentYear === 2026 && currentMonth === 7 && day === 15 ? 'Independence Day' : undefined),
         hasFaceId,
         hasGps,
-        faceMatchScore: status === 'PRESENT' ? 96.7 : status === 'LATE' ? 91.5 : undefined,
-        distanceMeters: 42,
+        faceMatchScore,
+        distanceMeters,
       });
     }
 
     return { firstDayIndex, days };
-  }, [currentYear, currentMonth]);
+  }, [currentYear, currentMonth, daysInSelectedMonth, recordsByDate, holidaysByDate]);
 
+  // Month navigation handlers
   const handlePrevMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear((y) => y - 1);
-    } else {
-      setCurrentMonth((m) => m - 1);
+    let newMonth = currentMonth - 1;
+    let newYear = currentYear;
+    if (newMonth < 0) {
+      newMonth = 11;
+      newYear -= 1;
     }
+    setCurrentMonth(newMonth);
+    setCurrentYear(newYear);
+
+    // Auto select 1st day of the new month
+    const newSelected = formatDateString(newYear, newMonth, 1);
+    onSelectDate(newSelected);
   };
 
   const handleNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear((y) => y + 1);
-    } else {
-      setCurrentMonth((m) => m + 1);
+    let newMonth = currentMonth + 1;
+    let newYear = currentYear;
+    if (newMonth > 11) {
+      newMonth = 0;
+      newYear += 1;
     }
+    setCurrentMonth(newMonth);
+    setCurrentYear(newYear);
+
+    // Auto select 1st day of the new month
+    const newSelected = formatDateString(newYear, newMonth, 1);
+    onSelectDate(newSelected);
   };
 
   const handleTodayClick = () => {
-    setCurrentYear(2026);
-    setCurrentMonth(7);
-    onSelectDate('2026-08-21');
+    const { year, month } = getTodayYearAndMonth();
+    setCurrentYear(year);
+    setCurrentMonth(month);
+    onSelectDate(todayStr);
   };
 
   return (
@@ -150,6 +251,7 @@ export function CurrentMonthAttendanceCalendar({
           <div>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <CalendarIcon className="h-4.5 w-4.5 text-primary" /> Current Month Attendance Calendar
+              {isAttendanceLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground ml-1" />}
             </CardTitle>
             <CardDescription className="text-xs">
               Click on any date to view attendance and verification details.
@@ -158,13 +260,13 @@ export function CurrentMonthAttendanceCalendar({
 
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex items-center rounded-lg border border-border/80 p-0.5 bg-muted/20">
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={handlePrevMonth} title="Previous Month">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-xs font-bold px-2 font-mono">
+              <span className="text-xs font-bold px-2 font-mono min-w-[120px] text-center select-none">
                 {monthNames[currentMonth]} {currentYear}
               </span>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextMonth}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={handleNextMonth} title="Next Month">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -172,7 +274,7 @@ export function CurrentMonthAttendanceCalendar({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 text-xs font-semibold"
+              className="h-8 text-xs font-semibold cursor-pointer"
               onClick={handleTodayClick}
             >
               Today
@@ -203,7 +305,7 @@ export function CurrentMonthAttendanceCalendar({
           {/* Actual days */}
           {calendarDays.days.map((dayData) => {
             const isSelected = selectedDate === dayData.date;
-            const isToday = dayData.date === '2026-08-21';
+            const isToday = dayData.date === todayStr;
 
             let cellBg = 'bg-card border-border/60 hover:border-primary/50';
             let badgeBg = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';

@@ -3,6 +3,9 @@ export declare class MarkAttendanceDto {
     companyId: string;
     employeeId: string;
     date: string;
+    employeeCode?: string;
+    employeeName?: string;
+    departmentName?: string;
     status?: AttendanceStatus;
     checkIn?: string;
     checkOut?: string;

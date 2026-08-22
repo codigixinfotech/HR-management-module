@@ -8,7 +8,7 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    mkcert(),
+    // mkcert(), // Disabled to prevent ERR_EMPTY_RESPONSE when opening http://localhost:5174
     react(),
     tailwindcss(),
     VitePWA({
