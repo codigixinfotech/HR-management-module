@@ -15,10 +15,10 @@ export declare class SalaryStructureController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
         employeeId: string;
         salaryComponentId: string;
         monthlyAmount: number;
+        effectiveFrom: Date;
     })[]>;
     assign(dto: AssignSalaryComponentDto): import(".prisma/client").Prisma.Prisma__EmployeeSalaryComponentClient<{
         salaryComponent: {
@@ -32,10 +32,10 @@ export declare class SalaryStructureController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
         employeeId: string;
         salaryComponentId: string;
         monthlyAmount: number;
+        effectiveFrom: Date;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     remove(id: string): Promise<{
         success: boolean;

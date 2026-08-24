@@ -11,8 +11,8 @@ export declare class ComplianceTasksService {
             complianceType: {
                 id: string;
                 name: string;
-                code: string;
                 category: string;
+                code: string;
                 frequency: import(".prisma/client").$Enums.ComplianceFrequency;
             };
             filedBy: {
@@ -23,13 +23,13 @@ export declare class ComplianceTasksService {
         } & {
             id: string;
             companyId: string;
-            status: import(".prisma/client").$Enums.ComplianceStatus;
             createdAt: Date;
             updatedAt: Date;
-            dueDate: Date;
+            status: import(".prisma/client").$Enums.ComplianceStatus;
             remarks: string | null;
             complianceTypeId: string;
             periodLabel: string;
+            dueDate: Date;
             filedDate: Date | null;
             filedById: string | null;
         })[];
@@ -41,8 +41,8 @@ export declare class ComplianceTasksService {
         complianceType: {
             id: string;
             name: string;
-            code: string;
             category: string;
+            code: string;
             frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
@@ -53,13 +53,13 @@ export declare class ComplianceTasksService {
     } & {
         id: string;
         companyId: string;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
-        dueDate: Date;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
+        dueDate: Date;
         filedDate: Date | null;
         filedById: string | null;
     }>;
@@ -67,8 +67,8 @@ export declare class ComplianceTasksService {
         complianceType: {
             id: string;
             name: string;
-            code: string;
             category: string;
+            code: string;
             frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
@@ -79,13 +79,13 @@ export declare class ComplianceTasksService {
     } & {
         id: string;
         companyId: string;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
-        dueDate: Date;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
+        dueDate: Date;
         filedDate: Date | null;
         filedById: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
@@ -93,8 +93,8 @@ export declare class ComplianceTasksService {
         complianceType: {
             id: string;
             name: string;
-            code: string;
             category: string;
+            code: string;
             frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
@@ -105,13 +105,13 @@ export declare class ComplianceTasksService {
     } & {
         id: string;
         companyId: string;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
-        dueDate: Date;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
+        dueDate: Date;
         filedDate: Date | null;
         filedById: string | null;
     }>;

@@ -7,25 +7,25 @@ export declare class PpeController {
         id: string;
         companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
         category: string;
         stockQuantity: number;
+        updatedAt: Date;
     }[]>;
     listIssuances(ppeItemId?: string): import(".prisma/client").Prisma.PrismaPromise<({
+        ppeItem: {
+            id: string;
+            name: string;
+        };
         employee: {
             id: string;
             firstName: string;
             lastName: string;
         };
-        ppeItem: {
-            id: string;
-            name: string;
-        };
     } & {
         id: string;
-        employeeId: string;
         ppeItemId: string;
+        employeeId: string;
         quantity: number;
         issuedAt: Date;
     })[]>;
@@ -33,27 +33,27 @@ export declare class PpeController {
         id: string;
         companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
         category: string;
         stockQuantity: number;
+        updatedAt: Date;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdatePpeItemDto): Promise<{
         id: string;
         companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
         category: string;
         stockQuantity: number;
+        updatedAt: Date;
     }>;
     remove(id: string): Promise<{
         success: boolean;
     }>;
     issue(id: string, dto: IssuePpeDto): Promise<{
         id: string;
-        employeeId: string;
         ppeItemId: string;
+        employeeId: string;
         quantity: number;
         issuedAt: Date;
     }>;

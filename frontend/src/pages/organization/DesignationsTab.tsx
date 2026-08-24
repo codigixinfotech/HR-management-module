@@ -73,7 +73,7 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
       title: '',
       jobFamily: 'Engineering',
       grade: 'E2',
-      reportingDesignationId: '',
+      reportingDesignationId: 'none',
       employmentType: 'Full Time',
       minSalary: null as any,
       maxSalary: null as any,
@@ -128,8 +128,8 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
     mutationFn: async (values: DesignationFormValues) => {
       const payload = {
         ...values,
-        departmentId: values.departmentId || null,
-        reportingDesignationId: values.reportingDesignationId || null,
+        departmentId: (values.departmentId && values.departmentId !== 'none') ? values.departmentId : null,
+        reportingDesignationId: (values.reportingDesignationId && values.reportingDesignationId !== 'none') ? values.reportingDesignationId : null,
         minSalary: values.minSalary || null,
         maxSalary: values.maxSalary || null,
         effectiveFrom: new Date(values.effectiveFrom).toISOString(),
@@ -164,7 +164,7 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
       title: '',
       jobFamily: 'Engineering',
       grade: 'E2',
-      reportingDesignationId: '',
+      reportingDesignationId: 'none',
       employmentType: 'Full Time',
       minSalary: null as any,
       maxSalary: null as any,
@@ -184,7 +184,7 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
       title: designation.title,
       jobFamily: designation.jobFamily ?? 'Engineering',
       grade: designation.grade ?? 'E2',
-      reportingDesignationId: designation.reportingDesignationId ?? '',
+      reportingDesignationId: designation.reportingDesignationId ?? 'none',
       employmentType: designation.employmentType ?? 'Full Time',
       minSalary: designation.minSalary ?? (null as any),
       maxSalary: designation.maxSalary ?? (null as any),
@@ -335,13 +335,13 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Reporting Designation (Optional)</Label>
-                      <Select value={form.watch('reportingDesignationId')} onValueChange={(v) => form.setValue('reportingDesignationId', v)}>
+                      <Select value={form.watch('reportingDesignationId') || 'none'} onValueChange={(v) => form.setValue('reportingDesignationId', v)}>
                         <SelectTrigger className="h-9 text-xs">
                           <SelectValue placeholder="Select reporting line" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="" className="text-xs">None (Reports to MD/Self)</SelectItem>
-                          {departmentOptions && designations?.filter(d => d.id !== editing?.id).map((d) => (
+                          <SelectItem value="none" className="text-xs">None (Reports to MD/Self)</SelectItem>
+                          {designations?.filter(d => d.id !== editing?.id).map((d) => (
                             <SelectItem key={d.id} value={d.id} className="text-xs">
                               {d.title} ({d.code})
                             </SelectItem>

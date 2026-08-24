@@ -15,6 +15,13 @@ export declare class ExitsService implements OnModuleInit {
     }>;
     findAll(search?: string, status?: string, companyId?: string): Promise<({
         employee: {
+            id: string;
+            employeeCode: string;
+            firstName: string;
+            lastName: string;
+            workEmail: string | null;
+            phone: string | null;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
             department: {
                 id: string;
                 name: string;
@@ -23,64 +30,51 @@ export declare class ExitsService implements OnModuleInit {
                 id: string;
                 title: string;
             } | null;
-            id: string;
-            employeeCode: string;
-            firstName: string;
-            lastName: string;
-            workEmail: string | null;
-            phone: string | null;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             reportingManager: {
                 id: string;
                 firstName: string;
                 lastName: string;
             } | null;
         };
+        clearanceItems: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            status: string;
+            department: string;
+            remarks: string | null;
+            exitId: string;
+            itemKey: string;
+            itemLabel: string;
+            verifiedBy: string | null;
+            verifiedAt: Date | null;
+        }[];
         exitInterview: {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            completedAt: Date | null;
-            managerFeedback: string | null;
             exitId: string;
             primaryReason: string;
             secondaryReason: string | null;
+            managerFeedback: string | null;
             employeeFeedback: string | null;
             workEnvironmentRating: number | null;
             compensationRating: number | null;
             recommendCompany: boolean;
             rehireEligible: boolean;
             hrRemarks: string | null;
+            completedAt: Date | null;
         } | null;
-        auditLogs: {
-            id: string;
-            createdAt: Date;
-            performedBy: string;
-            action: string;
-            previousStatus: string | null;
-            newStatus: string;
-            remarks: string | null;
-            exitId: string;
-        }[];
-        clearanceItems: {
-            department: string;
-            id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
-            remarks: string | null;
-            itemKey: string;
-            itemLabel: string;
-            verifiedBy: string | null;
-            verifiedAt: Date | null;
-            exitId: string;
-        }[];
         fnfSettlement: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             remarks: string | null;
+            otherDeductions: number;
+            approvedAt: Date | null;
+            approvedBy: string | null;
+            exitId: string;
             salaryPayable: number;
             leaveEncashment: number;
             incentives: number;
@@ -88,22 +82,29 @@ export declare class ExitsService implements OnModuleInit {
             noticeRecovery: number;
             loanAdvanceRecovery: number;
             assetRecovery: number;
-            otherDeductions: number;
             grossPayable: number;
             totalDeductions: number;
             netPayable: number;
-            approvedBy: string | null;
-            approvedAt: Date | null;
-            exitId: string;
         } | null;
+        auditLogs: {
+            id: string;
+            createdAt: Date;
+            remarks: string | null;
+            exitId: string;
+            action: string;
+            previousStatus: string | null;
+            newStatus: string;
+            performedBy: string;
+        }[];
     } & {
         id: string;
         companyId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        status: string;
+        remarks: string | null;
+        createdById: string | null;
         exitCode: string;
         resignationDate: Date;
         noticePeriodDays: number;
@@ -116,7 +117,6 @@ export declare class ExitsService implements OnModuleInit {
         clearanceStatus: string;
         fnfStatus: string;
         exitInterviewStatus: string;
-        createdById: string | null;
         updatedById: string | null;
     })[]>;
     findOne(id: string): Promise<{
@@ -140,6 +140,9 @@ export declare class ExitsService implements OnModuleInit {
             } | null;
             positionHistory: {
                 id: string;
+                createdAt: Date;
+                updatedAt: Date;
+                employeeId: string;
                 branchId: string | null;
                 departmentId: string | null;
                 designationId: string | null;
@@ -147,14 +150,11 @@ export declare class ExitsService implements OnModuleInit {
                 status: string;
                 grade: string | null;
                 level: string | null;
-                createdAt: Date;
-                updatedAt: Date;
-                departmentName: string | null;
                 remarks: string | null;
-                employeeId: string;
+                departmentName: string | null;
+                reason: string | null;
                 approvedBy: string | null;
                 effectiveDate: Date;
-                reason: string | null;
                 transferId: string | null;
                 movementType: string;
                 designationTitle: string | null;
@@ -167,11 +167,12 @@ export declare class ExitsService implements OnModuleInit {
                 approvedDate: Date | null;
             }[];
         } & {
-            location: string | null;
-            costCenter: string | null;
             id: string;
-            employeeCode: string;
             companyId: string;
+            location: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            employeeCode: string;
             branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
@@ -195,6 +196,7 @@ export declare class ExitsService implements OnModuleInit {
             grade: string | null;
             level: string | null;
             shift: string | null;
+            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -262,54 +264,46 @@ export declare class ExitsService implements OnModuleInit {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
+        };
+        clearanceItems: {
+            id: string;
             createdAt: Date;
             updatedAt: Date;
-        };
+            status: string;
+            department: string;
+            remarks: string | null;
+            exitId: string;
+            itemKey: string;
+            itemLabel: string;
+            verifiedBy: string | null;
+            verifiedAt: Date | null;
+        }[];
         exitInterview: {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            completedAt: Date | null;
-            managerFeedback: string | null;
             exitId: string;
             primaryReason: string;
             secondaryReason: string | null;
+            managerFeedback: string | null;
             employeeFeedback: string | null;
             workEnvironmentRating: number | null;
             compensationRating: number | null;
             recommendCompany: boolean;
             rehireEligible: boolean;
             hrRemarks: string | null;
+            completedAt: Date | null;
         } | null;
-        auditLogs: {
-            id: string;
-            createdAt: Date;
-            performedBy: string;
-            action: string;
-            previousStatus: string | null;
-            newStatus: string;
-            remarks: string | null;
-            exitId: string;
-        }[];
-        clearanceItems: {
-            department: string;
-            id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
-            remarks: string | null;
-            itemKey: string;
-            itemLabel: string;
-            verifiedBy: string | null;
-            verifiedAt: Date | null;
-            exitId: string;
-        }[];
         fnfSettlement: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             remarks: string | null;
+            otherDeductions: number;
+            approvedAt: Date | null;
+            approvedBy: string | null;
+            exitId: string;
             salaryPayable: number;
             leaveEncashment: number;
             incentives: number;
@@ -317,22 +311,29 @@ export declare class ExitsService implements OnModuleInit {
             noticeRecovery: number;
             loanAdvanceRecovery: number;
             assetRecovery: number;
-            otherDeductions: number;
             grossPayable: number;
             totalDeductions: number;
             netPayable: number;
-            approvedBy: string | null;
-            approvedAt: Date | null;
-            exitId: string;
         } | null;
+        auditLogs: {
+            id: string;
+            createdAt: Date;
+            remarks: string | null;
+            exitId: string;
+            action: string;
+            previousStatus: string | null;
+            newStatus: string;
+            performedBy: string;
+        }[];
     } & {
         id: string;
         companyId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        status: string;
+        remarks: string | null;
+        createdById: string | null;
         exitCode: string;
         resignationDate: Date;
         noticePeriodDays: number;
@@ -345,39 +346,32 @@ export declare class ExitsService implements OnModuleInit {
         clearanceStatus: string;
         fnfStatus: string;
         exitInterviewStatus: string;
-        createdById: string | null;
         updatedById: string | null;
     }>;
     create(dto: CreateExitDto): Promise<{
-        auditLogs: {
-            id: string;
-            createdAt: Date;
-            performedBy: string;
-            action: string;
-            previousStatus: string | null;
-            newStatus: string;
-            remarks: string | null;
-            exitId: string;
-        }[];
         clearanceItems: {
-            department: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
+            department: string;
             remarks: string | null;
+            exitId: string;
             itemKey: string;
             itemLabel: string;
             verifiedBy: string | null;
             verifiedAt: Date | null;
-            exitId: string;
         }[];
         fnfSettlement: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             remarks: string | null;
+            otherDeductions: number;
+            approvedAt: Date | null;
+            approvedBy: string | null;
+            exitId: string;
             salaryPayable: number;
             leaveEncashment: number;
             incentives: number;
@@ -385,22 +379,29 @@ export declare class ExitsService implements OnModuleInit {
             noticeRecovery: number;
             loanAdvanceRecovery: number;
             assetRecovery: number;
-            otherDeductions: number;
             grossPayable: number;
             totalDeductions: number;
             netPayable: number;
-            approvedBy: string | null;
-            approvedAt: Date | null;
-            exitId: string;
         } | null;
+        auditLogs: {
+            id: string;
+            createdAt: Date;
+            remarks: string | null;
+            exitId: string;
+            action: string;
+            previousStatus: string | null;
+            newStatus: string;
+            performedBy: string;
+        }[];
     } & {
         id: string;
         companyId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        status: string;
+        remarks: string | null;
+        createdById: string | null;
         exitCode: string;
         resignationDate: Date;
         noticePeriodDays: number;
@@ -413,17 +414,17 @@ export declare class ExitsService implements OnModuleInit {
         clearanceStatus: string;
         fnfStatus: string;
         exitInterviewStatus: string;
-        createdById: string | null;
         updatedById: string | null;
     }>;
     updateStatus(id: string, dto: UpdateExitStatusDto): Promise<{
         id: string;
         companyId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        status: string;
+        remarks: string | null;
+        createdById: string | null;
         exitCode: string;
         resignationDate: Date;
         noticePeriodDays: number;
@@ -436,17 +437,17 @@ export declare class ExitsService implements OnModuleInit {
         clearanceStatus: string;
         fnfStatus: string;
         exitInterviewStatus: string;
-        createdById: string | null;
         updatedById: string | null;
     }>;
     adjustLwd(id: string, dto: AdjustLwdDto): Promise<{
         id: string;
         companyId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        status: string;
+        remarks: string | null;
+        createdById: string | null;
         exitCode: string;
         resignationDate: Date;
         noticePeriodDays: number;
@@ -459,44 +460,47 @@ export declare class ExitsService implements OnModuleInit {
         clearanceStatus: string;
         fnfStatus: string;
         exitInterviewStatus: string;
-        createdById: string | null;
         updatedById: string | null;
     }>;
     updateClearanceItem(itemId: string, dto: UpdateClearanceItemDto): Promise<{
-        department: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
+        department: string;
         remarks: string | null;
+        exitId: string;
         itemKey: string;
         itemLabel: string;
         verifiedBy: string | null;
         verifiedAt: Date | null;
-        exitId: string;
     }>;
     saveExitInterview(exitId: string, dto: SaveExitInterviewDto): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        completedAt: Date | null;
-        managerFeedback: string | null;
         exitId: string;
         primaryReason: string;
         secondaryReason: string | null;
+        managerFeedback: string | null;
         employeeFeedback: string | null;
         workEnvironmentRating: number | null;
         compensationRating: number | null;
         recommendCompany: boolean;
         rehireEligible: boolean;
         hrRemarks: string | null;
+        completedAt: Date | null;
     }>;
     saveFnfSettlement(exitId: string, dto: SaveFnfSettlementDto): Promise<{
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         remarks: string | null;
+        otherDeductions: number;
+        approvedAt: Date | null;
+        approvedBy: string | null;
+        exitId: string;
         salaryPayable: number;
         leaveEncashment: number;
         incentives: number;
@@ -504,22 +508,19 @@ export declare class ExitsService implements OnModuleInit {
         noticeRecovery: number;
         loanAdvanceRecovery: number;
         assetRecovery: number;
-        otherDeductions: number;
         grossPayable: number;
         totalDeductions: number;
         netPayable: number;
-        approvedBy: string | null;
-        approvedAt: Date | null;
-        exitId: string;
     }>;
     completeExit(id: string, performedBy?: string): Promise<{
         id: string;
         companyId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        status: string;
+        remarks: string | null;
+        createdById: string | null;
         exitCode: string;
         resignationDate: Date;
         noticePeriodDays: number;
@@ -532,7 +533,6 @@ export declare class ExitsService implements OnModuleInit {
         clearanceStatus: string;
         fnfStatus: string;
         exitInterviewStatus: string;
-        createdById: string | null;
         updatedById: string | null;
     }>;
     remove(id: string): Promise<{

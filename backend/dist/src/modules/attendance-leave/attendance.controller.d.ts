@@ -7,16 +7,16 @@ export declare class AttendanceController {
     list(employeeId?: string, companyId?: string, from?: string, to?: string, user?: CurrentUserPayload): Promise<{
         status: string;
         employee: {
-            department: {
-                id: string;
-                name: string;
-            } | null;
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
             faceTemplate: string | null;
             facePhoto: string | null;
+            department: {
+                id: string;
+                name: string;
+            } | null;
         };
         shiftType: {
             id: string;
@@ -28,14 +28,14 @@ export declare class AttendanceController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        remarks: string | null;
         date: Date;
-        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        source: string;
         faceVerificationStatus: string | null;
         faceMatchScore: number | null;
         ipAddress: string | null;
@@ -55,16 +55,16 @@ export declare class AttendanceController {
     findOne(id: string, user?: CurrentUserPayload): Promise<{
         status: string;
         employee: {
-            department: {
-                id: string;
-                name: string;
-            } | null;
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
             faceTemplate: string | null;
             facePhoto: string | null;
+            department: {
+                id: string;
+                name: string;
+            } | null;
         };
         shiftType: {
             id: string;
@@ -76,14 +76,14 @@ export declare class AttendanceController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        remarks: string | null;
         date: Date;
-        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        source: string;
         faceVerificationStatus: string | null;
         faceMatchScore: number | null;
         ipAddress: string | null;
@@ -103,16 +103,16 @@ export declare class AttendanceController {
     mark(dto: MarkAttendanceDto): Promise<{
         status: any;
         employee: {
-            department: {
-                id: string;
-                name: string;
-            } | null;
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
             faceTemplate: string | null;
             facePhoto: string | null;
+            department: {
+                id: string;
+                name: string;
+            } | null;
         };
         shiftType: {
             id: string;
@@ -124,14 +124,14 @@ export declare class AttendanceController {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        remarks: string | null;
         date: Date;
-        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        source: string;
         faceVerificationStatus: string | null;
         faceMatchScore: number | null;
         ipAddress: string | null;
@@ -150,16 +150,16 @@ export declare class AttendanceController {
     }>;
     update(id: string, dto: UpdateAttendanceDto): Promise<{
         employee: {
-            department: {
-                id: string;
-                name: string;
-            } | null;
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
             faceTemplate: string | null;
             facePhoto: string | null;
+            department: {
+                id: string;
+                name: string;
+            } | null;
         };
         shiftType: {
             id: string;
@@ -170,17 +170,17 @@ export declare class AttendanceController {
     } & {
         id: string;
         companyId: string;
-        status: import(".prisma/client").$Enums.AttendanceStatus;
         createdAt: Date;
         updatedAt: Date;
-        remarks: string | null;
         employeeId: string;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
+        remarks: string | null;
         date: Date;
-        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        source: string;
         faceVerificationStatus: string | null;
         faceMatchScore: number | null;
         ipAddress: string | null;

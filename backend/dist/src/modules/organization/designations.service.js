@@ -45,11 +45,32 @@ let DesignationsService = class DesignationsService {
         });
         if (existing)
             throw new common_1.ConflictException('A designation with this code already exists for this company');
-        return this.prisma.designation.create({ data: dto });
+        const { departmentId, reportingDesignationId, effectiveFrom, ...rest } = dto;
+        const cleanDepartmentId = departmentId && departmentId !== 'none' ? departmentId : null;
+        const cleanReportingId = reportingDesignationId && reportingDesignationId !== 'none' ? reportingDesignationId : null;
+        return this.prisma.designation.create({
+            data: {
+                ...rest,
+                departmentId: cleanDepartmentId,
+                reportingDesignationId: cleanReportingId,
+                effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : undefined,
+            },
+        });
     }
     async update(id, dto) {
         await this.findById(id);
-        return this.prisma.designation.update({ where: { id }, data: dto });
+        const { departmentId, reportingDesignationId, effectiveFrom, ...rest } = dto;
+        const data = { ...rest };
+        if (departmentId !== undefined) {
+            data.departmentId = departmentId && departmentId !== 'none' ? departmentId : null;
+        }
+        if (reportingDesignationId !== undefined) {
+            data.reportingDesignationId = reportingDesignationId && reportingDesignationId !== 'none' ? reportingDesignationId : null;
+        }
+        if (effectiveFrom) {
+            data.effectiveFrom = new Date(effectiveFrom);
+        }
+        return this.prisma.designation.update({ where: { id }, data });
     }
     async remove(id) {
         await this.findById(id);

@@ -5,6 +5,10 @@ export declare class TasksController {
     constructor(tasksService: TasksService);
     listTasks(assignedToId?: string, assignedToName?: string, status?: string, priority?: string, departmentName?: string, search?: string): Promise<({
         assignedTo: {
+            id: string;
+            employeeCode: string;
+            firstName: string;
+            lastName: string;
             department: {
                 id: string;
                 name: string;
@@ -13,49 +17,47 @@ export declare class TasksController {
                 id: string;
                 title: string;
             } | null;
+        };
+        assignedBy: {
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
-        };
-        assignedBy: {
             designation: {
                 id: string;
                 title: string;
             } | null;
-            id: string;
-            employeeCode: string;
-            firstName: string;
-            lastName: string;
         };
         activities: {
             id: string;
             createdAt: Date;
-            progress: number | null;
-            performedBy: string;
+            remarks: string | null;
             action: string;
             previousStatus: string | null;
             newStatus: string | null;
-            remarks: string | null;
+            performedBy: string;
+            progress: number | null;
             taskId: string;
         }[];
     } & {
         id: string;
-        departmentId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        taskCode: string;
-        title: string;
+        departmentId: string | null;
+        status: string;
         description: string | null;
-        taskType: string;
-        departmentName: string | null;
-        projectName: string | null;
-        priority: string;
-        assignedToId: string;
-        assignedById: string;
         startDate: Date | null;
         dueDate: Date | null;
+        departmentName: string | null;
+        title: string;
+        priority: string;
+        rejectionReason: string | null;
+        completedAt: Date | null;
+        taskCode: string;
+        taskType: string;
+        projectName: string | null;
+        assignedToId: string;
+        assignedById: string;
         estimatedHours: number | null;
         actualHours: number | null;
         attachments: string | null;
@@ -63,10 +65,8 @@ export declare class TasksController {
         managerRemarks: string | null;
         completionRemarks: string | null;
         completionAttachment: string | null;
-        rejectionReason: string | null;
         progress: number;
         startedAt: Date | null;
-        completedAt: Date | null;
         closedAt: Date | null;
     })[]>;
     getDashboardSummary(employeeId?: string): Promise<{
@@ -81,34 +81,34 @@ export declare class TasksController {
     }>;
     listRequests(requestedById?: string): Promise<({
         requestedBy: {
-            department: {
-                costCenter: string | null;
-                id: string;
-                companyId: string;
-                branchId: string | null;
-                createdAt: Date;
-                updatedAt: Date;
-                name: string;
-                description: string | null;
-                code: string;
-                type: string;
-                parentDepartmentId: string | null;
-                manager: string | null;
-                headcountCapacity: number;
-                annualBudget: number | null;
-                effectiveFrom: Date;
-                isActive: boolean;
-            } | null;
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
+            department: {
+                id: string;
+                companyId: string;
+                createdAt: Date;
+                name: string;
+                updatedAt: Date;
+                branchId: string | null;
+                costCenter: string | null;
+                description: string | null;
+                code: string;
+                isActive: boolean;
+                type: string;
+                effectiveFrom: Date;
+                parentDepartmentId: string | null;
+                manager: string | null;
+                headcountCapacity: number;
+                annualBudget: number | null;
+            } | null;
         };
     } & {
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         description: string | null;
         priority: string;
         requestCode: string;
@@ -122,9 +122,9 @@ export declare class TasksController {
     })[]>;
     createRequest(dto: CreateTaskRequestDto): Promise<{
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         description: string | null;
         priority: string;
         requestCode: string;
@@ -138,9 +138,9 @@ export declare class TasksController {
     }>;
     reviewRequest(id: string, dto: ReviewTaskRequestDto): Promise<{
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         description: string | null;
         priority: string;
         requestCode: string;
@@ -154,6 +154,10 @@ export declare class TasksController {
     }>;
     findOne(id: string): Promise<{
         assignedTo: {
+            id: string;
+            employeeCode: string;
+            firstName: string;
+            lastName: string;
             department: {
                 id: string;
                 name: string;
@@ -162,49 +166,47 @@ export declare class TasksController {
                 id: string;
                 title: string;
             } | null;
+        };
+        assignedBy: {
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
-        };
-        assignedBy: {
             designation: {
                 id: string;
                 title: string;
             } | null;
-            id: string;
-            employeeCode: string;
-            firstName: string;
-            lastName: string;
         };
         activities: {
             id: string;
             createdAt: Date;
-            progress: number | null;
-            performedBy: string;
+            remarks: string | null;
             action: string;
             previousStatus: string | null;
             newStatus: string | null;
-            remarks: string | null;
+            performedBy: string;
+            progress: number | null;
             taskId: string;
         }[];
     } & {
         id: string;
-        departmentId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        taskCode: string;
-        title: string;
+        departmentId: string | null;
+        status: string;
         description: string | null;
-        taskType: string;
-        departmentName: string | null;
-        projectName: string | null;
-        priority: string;
-        assignedToId: string;
-        assignedById: string;
         startDate: Date | null;
         dueDate: Date | null;
+        departmentName: string | null;
+        title: string;
+        priority: string;
+        rejectionReason: string | null;
+        completedAt: Date | null;
+        taskCode: string;
+        taskType: string;
+        projectName: string | null;
+        assignedToId: string;
+        assignedById: string;
         estimatedHours: number | null;
         actualHours: number | null;
         attachments: string | null;
@@ -212,10 +214,8 @@ export declare class TasksController {
         managerRemarks: string | null;
         completionRemarks: string | null;
         completionAttachment: string | null;
-        rejectionReason: string | null;
         progress: number;
         startedAt: Date | null;
-        completedAt: Date | null;
         closedAt: Date | null;
     }>;
     createTask(dto: CreateTaskDto): Promise<{
@@ -231,21 +231,23 @@ export declare class TasksController {
         };
     } & {
         id: string;
-        departmentId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        taskCode: string;
-        title: string;
+        departmentId: string | null;
+        status: string;
         description: string | null;
-        taskType: string;
-        departmentName: string | null;
-        projectName: string | null;
-        priority: string;
-        assignedToId: string;
-        assignedById: string;
         startDate: Date | null;
         dueDate: Date | null;
+        departmentName: string | null;
+        title: string;
+        priority: string;
+        rejectionReason: string | null;
+        completedAt: Date | null;
+        taskCode: string;
+        taskType: string;
+        projectName: string | null;
+        assignedToId: string;
+        assignedById: string;
         estimatedHours: number | null;
         actualHours: number | null;
         attachments: string | null;
@@ -253,19 +255,18 @@ export declare class TasksController {
         managerRemarks: string | null;
         completionRemarks: string | null;
         completionAttachment: string | null;
-        rejectionReason: string | null;
         progress: number;
         startedAt: Date | null;
-        completedAt: Date | null;
         closedAt: Date | null;
     }>;
     startTask(id: string, startedBy?: string): Promise<{
         assignedTo: {
-            location: string | null;
-            costCenter: string | null;
             id: string;
-            employeeCode: string;
             companyId: string;
+            location: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            employeeCode: string;
             branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
@@ -289,6 +290,7 @@ export declare class TasksController {
             grade: string | null;
             level: string | null;
             shift: string | null;
+            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -356,15 +358,14 @@ export declare class TasksController {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         };
         assignedBy: {
-            location: string | null;
-            costCenter: string | null;
             id: string;
-            employeeCode: string;
             companyId: string;
+            location: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            employeeCode: string;
             branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
@@ -388,6 +389,7 @@ export declare class TasksController {
             grade: string | null;
             level: string | null;
             shift: string | null;
+            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -455,26 +457,26 @@ export declare class TasksController {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         };
     } & {
         id: string;
-        departmentId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        taskCode: string;
-        title: string;
+        departmentId: string | null;
+        status: string;
         description: string | null;
-        taskType: string;
-        departmentName: string | null;
-        projectName: string | null;
-        priority: string;
-        assignedToId: string;
-        assignedById: string;
         startDate: Date | null;
         dueDate: Date | null;
+        departmentName: string | null;
+        title: string;
+        priority: string;
+        rejectionReason: string | null;
+        completedAt: Date | null;
+        taskCode: string;
+        taskType: string;
+        projectName: string | null;
+        assignedToId: string;
+        assignedById: string;
         estimatedHours: number | null;
         actualHours: number | null;
         attachments: string | null;
@@ -482,29 +484,29 @@ export declare class TasksController {
         managerRemarks: string | null;
         completionRemarks: string | null;
         completionAttachment: string | null;
-        rejectionReason: string | null;
         progress: number;
         startedAt: Date | null;
-        completedAt: Date | null;
         closedAt: Date | null;
     }>;
     updateProgress(id: string, dto: UpdateTaskProgressDto): Promise<{
         id: string;
-        departmentId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        taskCode: string;
-        title: string;
+        departmentId: string | null;
+        status: string;
         description: string | null;
-        taskType: string;
-        departmentName: string | null;
-        projectName: string | null;
-        priority: string;
-        assignedToId: string;
-        assignedById: string;
         startDate: Date | null;
         dueDate: Date | null;
+        departmentName: string | null;
+        title: string;
+        priority: string;
+        rejectionReason: string | null;
+        completedAt: Date | null;
+        taskCode: string;
+        taskType: string;
+        projectName: string | null;
+        assignedToId: string;
+        assignedById: string;
         estimatedHours: number | null;
         actualHours: number | null;
         attachments: string | null;
@@ -512,29 +514,29 @@ export declare class TasksController {
         managerRemarks: string | null;
         completionRemarks: string | null;
         completionAttachment: string | null;
-        rejectionReason: string | null;
         progress: number;
         startedAt: Date | null;
-        completedAt: Date | null;
         closedAt: Date | null;
     }>;
     completeTask(id: string, dto: CompleteTaskDto): Promise<{
         id: string;
-        departmentId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        taskCode: string;
-        title: string;
+        departmentId: string | null;
+        status: string;
         description: string | null;
-        taskType: string;
-        departmentName: string | null;
-        projectName: string | null;
-        priority: string;
-        assignedToId: string;
-        assignedById: string;
         startDate: Date | null;
         dueDate: Date | null;
+        departmentName: string | null;
+        title: string;
+        priority: string;
+        rejectionReason: string | null;
+        completedAt: Date | null;
+        taskCode: string;
+        taskType: string;
+        projectName: string | null;
+        assignedToId: string;
+        assignedById: string;
         estimatedHours: number | null;
         actualHours: number | null;
         attachments: string | null;
@@ -542,29 +544,29 @@ export declare class TasksController {
         managerRemarks: string | null;
         completionRemarks: string | null;
         completionAttachment: string | null;
-        rejectionReason: string | null;
         progress: number;
         startedAt: Date | null;
-        completedAt: Date | null;
         closedAt: Date | null;
     }>;
     reviewTask(id: string, dto: ReviewTaskDto): Promise<{
         id: string;
-        departmentId: string | null;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        taskCode: string;
-        title: string;
+        departmentId: string | null;
+        status: string;
         description: string | null;
-        taskType: string;
-        departmentName: string | null;
-        projectName: string | null;
-        priority: string;
-        assignedToId: string;
-        assignedById: string;
         startDate: Date | null;
         dueDate: Date | null;
+        departmentName: string | null;
+        title: string;
+        priority: string;
+        rejectionReason: string | null;
+        completedAt: Date | null;
+        taskCode: string;
+        taskType: string;
+        projectName: string | null;
+        assignedToId: string;
+        assignedById: string;
         estimatedHours: number | null;
         actualHours: number | null;
         attachments: string | null;
@@ -572,10 +574,8 @@ export declare class TasksController {
         managerRemarks: string | null;
         completionRemarks: string | null;
         completionAttachment: string | null;
-        rejectionReason: string | null;
         progress: number;
         startedAt: Date | null;
-        completedAt: Date | null;
         closedAt: Date | null;
     }>;
 }
