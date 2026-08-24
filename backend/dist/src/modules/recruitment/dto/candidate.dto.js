@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SaveCandidateScreeningDto = exports.UpdateCandidateStageDto = exports.CreateCandidateDto = void 0;
 const client_1 = require("@prisma/client");
@@ -107,7 +108,7 @@ class UpdateCandidateStageDto {
 exports.UpdateCandidateStageDto = UpdateCandidateStageDto;
 __decorate([
     (0, class_validator_1.IsEnum)(client_1.CandidateStage),
-    __metadata("design:type", String)
+    __metadata("design:type", typeof (_a = typeof client_1.CandidateStage !== "undefined" && client_1.CandidateStage) === "function" ? _a : Object)
 ], UpdateCandidateStageDto.prototype, "stage", void 0);
 class SaveCandidateScreeningDto {
     relevantExperienceYears;

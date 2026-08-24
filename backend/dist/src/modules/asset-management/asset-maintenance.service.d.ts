@@ -12,28 +12,28 @@ export declare class AssetMaintenanceService {
     } & {
         id: string;
         createdAt: Date;
-        assetId: string;
-        issue: string;
         startDate: Date;
         endDate: Date | null;
+        assetId: string;
+        issue: string;
         cost: number | null;
     })[]>;
     create(dto: CreateAssetMaintenanceDto): Promise<{
         id: string;
         createdAt: Date;
-        assetId: string;
-        issue: string;
         startDate: Date;
         endDate: Date | null;
+        assetId: string;
+        issue: string;
         cost: number | null;
     }>;
     complete(id: string): Promise<{
         id: string;
         createdAt: Date;
-        assetId: string;
-        issue: string;
         startDate: Date;
         endDate: Date | null;
+        assetId: string;
+        issue: string;
         cost: number | null;
     }>;
 }

@@ -5,19 +5,18 @@ export declare class CompaniesController {
     constructor(companiesService: CompaniesService);
     list(): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         phone: string | null;
         businessUnit: string | null;
         city: string | null;
         state: string | null;
         country: string;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         email: string | null;
-        timezone: string | null;
         legalName: string | null;
         shortName: string | null;
         entityType: string | null;
@@ -27,6 +26,7 @@ export declare class CompaniesController {
         pan: string | null;
         tan: string | null;
         msme: string | null;
+        timezone: string | null;
         currency: string;
         registeredAddress: string | null;
         website: string | null;
@@ -34,19 +34,18 @@ export declare class CompaniesController {
     }[]>;
     findOne(id: string): Promise<{
         id: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         phone: string | null;
         businessUnit: string | null;
         city: string | null;
         state: string | null;
         country: string;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         email: string | null;
-        timezone: string | null;
         legalName: string | null;
         shortName: string | null;
         entityType: string | null;
@@ -56,6 +55,7 @@ export declare class CompaniesController {
         pan: string | null;
         tan: string | null;
         msme: string | null;
+        timezone: string | null;
         currency: string;
         registeredAddress: string | null;
         website: string | null;
@@ -63,19 +63,18 @@ export declare class CompaniesController {
     }>;
     create(dto: CreateCompanyDto): Promise<{
         id: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         phone: string | null;
         businessUnit: string | null;
         city: string | null;
         state: string | null;
         country: string;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         email: string | null;
-        timezone: string | null;
         legalName: string | null;
         shortName: string | null;
         entityType: string | null;
@@ -85,6 +84,7 @@ export declare class CompaniesController {
         pan: string | null;
         tan: string | null;
         msme: string | null;
+        timezone: string | null;
         currency: string;
         registeredAddress: string | null;
         website: string | null;
@@ -92,19 +92,18 @@ export declare class CompaniesController {
     }>;
     update(id: string, dto: UpdateCompanyDto): Promise<{
         id: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         phone: string | null;
         businessUnit: string | null;
         city: string | null;
         state: string | null;
         country: string;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         email: string | null;
-        timezone: string | null;
         legalName: string | null;
         shortName: string | null;
         entityType: string | null;
@@ -114,6 +113,7 @@ export declare class CompaniesController {
         pan: string | null;
         tan: string | null;
         msme: string | null;
+        timezone: string | null;
         currency: string;
         registeredAddress: string | null;
         website: string | null;

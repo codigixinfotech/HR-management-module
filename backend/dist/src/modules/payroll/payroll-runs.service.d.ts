@@ -10,13 +10,13 @@ export declare class PayrollRunsService {
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
-        month: number;
         year: number;
-        processedAt: Date | null;
         approvedAt: Date | null;
+        month: number;
+        processedAt: Date | null;
         paidAt: Date | null;
     })[]>;
     findById(id: string): Promise<{
@@ -26,37 +26,37 @@ export declare class PayrollRunsService {
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
-        month: number;
         year: number;
-        processedAt: Date | null;
         approvedAt: Date | null;
+        month: number;
+        processedAt: Date | null;
         paidAt: Date | null;
     }>;
     create(dto: CreatePayrollRunDto): Promise<{
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
-        month: number;
         year: number;
-        processedAt: Date | null;
         approvedAt: Date | null;
+        month: number;
+        processedAt: Date | null;
         paidAt: Date | null;
     }>;
     updateStatus(id: string, dto: UpdatePayrollRunStatusDto): Promise<{
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
-        month: number;
         year: number;
-        processedAt: Date | null;
         approvedAt: Date | null;
+        month: number;
+        processedAt: Date | null;
         paidAt: Date | null;
     }>;
     process(id: string): Promise<{
@@ -66,13 +66,13 @@ export declare class PayrollRunsService {
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.PayrollRunStatus;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.PayrollRunStatus;
-        month: number;
         year: number;
-        processedAt: Date | null;
         approvedAt: Date | null;
+        month: number;
+        processedAt: Date | null;
         paidAt: Date | null;
     }>;
 }

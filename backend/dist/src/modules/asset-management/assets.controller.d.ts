@@ -13,11 +13,11 @@ export declare class AssetsController {
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
+        updatedAt: Date;
         name: string;
         category: string;
-        updatedAt: Date;
-        status: import(".prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -34,29 +34,29 @@ export declare class AssetsController {
         } | null;
         allocations: {
             id: string;
+            remarks: string | null;
             employeeId: string;
             assetId: string;
             allocatedAt: Date;
             returnedAt: Date | null;
-            remarks: string | null;
         }[];
         maintenanceLogs: {
             id: string;
             createdAt: Date;
-            assetId: string;
-            issue: string;
             startDate: Date;
             endDate: Date | null;
+            assetId: string;
+            issue: string;
             cost: number | null;
         }[];
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
+        updatedAt: Date;
         name: string;
         category: string;
-        updatedAt: Date;
-        status: import(".prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -74,11 +74,11 @@ export declare class AssetsController {
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
+        updatedAt: Date;
         name: string;
         category: string;
-        updatedAt: Date;
-        status: import(".prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -96,11 +96,11 @@ export declare class AssetsController {
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
+        updatedAt: Date;
         name: string;
         category: string;
-        updatedAt: Date;
-        status: import(".prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -121,11 +121,11 @@ export declare class AssetsController {
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
+        updatedAt: Date;
         name: string;
         category: string;
-        updatedAt: Date;
-        status: import(".prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;
@@ -143,11 +143,11 @@ export declare class AssetsController {
     } & {
         id: string;
         companyId: string;
+        status: import(".prisma/client").$Enums.AssetStatus;
         createdAt: Date;
+        updatedAt: Date;
         name: string;
         category: string;
-        updatedAt: Date;
-        status: import(".prisma/client").$Enums.AssetStatus;
         assetTag: string;
         value: number | null;
         currentEmployeeId: string | null;

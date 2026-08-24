@@ -127,7 +127,7 @@ export class DashboardService {
       where: companyId ? { jobOpening: { companyId } } : {},
       _count: { _all: true },
     });
-    const countByStage = new Map(groups.map((g) => [g.stage, g._count._all]));
+    const countByStage = new Map<CandidateStage, number>(groups.map((g) => [g.stage, g._count._all]));
 
     return PIPELINE_STAGES.map((stage) => ({
       stage,
@@ -141,7 +141,7 @@ export class DashboardService {
       where: { date: today, ...(companyId ? { companyId } : {}) },
       _count: { _all: true },
     });
-    const countByStatus = new Map(groups.map((g) => [g.status, g._count._all]));
+    const countByStatus = new Map<AttendanceStatus, number>(groups.map((g) => [g.status, g._count._all]));
     const present = (countByStatus.get(AttendanceStatus.PRESENT) ?? 0) + (countByStatus.get(AttendanceStatus.HALF_DAY) ?? 0);
     const absent = countByStatus.get(AttendanceStatus.ABSENT) ?? 0;
     const onLeave = countByStatus.get(AttendanceStatus.ON_LEAVE) ?? 0;
