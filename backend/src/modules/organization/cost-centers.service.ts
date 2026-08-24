@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCostCenterDto, UpdateCostCenterDto } from './dto/cost-center.dto';
 
@@ -30,6 +30,13 @@ export class CostCentersService {
   }
 
   async create(dto: CreateCostCenterDto) {
+    const existing = await this.prisma.costCenter.findUnique({
+      where: { code: dto.code },
+    });
+    if (existing) {
+      throw new ConflictException(`Cost Center code '${dto.code}' already exists.`);
+    }
+
     return this.prisma.costCenter.create({
       data: {
         companyId:         dto.companyId,

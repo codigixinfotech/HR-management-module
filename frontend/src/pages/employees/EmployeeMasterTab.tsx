@@ -708,6 +708,15 @@ export function EmployeeMasterTab() {
         }
       }
 
+      let matchedManagerId = '';
+      if (manager && employeesData?.items) {
+        const found = employeesData.items.find((e: any) =>
+          `${e.firstName} ${e.lastName}`.toLowerCase().includes(manager.toLowerCase()) ||
+          e.id === manager
+        );
+        if (found) matchedManagerId = found.id;
+      }
+
       form.reset({
         companyId: compId,
         businessUnit: 'HQ Operations',
@@ -728,7 +737,7 @@ export function EmployeeMasterTab() {
         status: 'PROBATION',
         departmentId: matchedDeptId,
         designationId: matchedDesigId,
-        reportingManagerId: manager || 'Rajesh Sharma (CTO)',
+        reportingManagerId: matchedManagerId || '',
         grade: 'Level-3 Senior',
         level: 'L3',
         workEmail: email || `${firstName.toLowerCase()}.${lastName.toLowerCase()}@company.com`,

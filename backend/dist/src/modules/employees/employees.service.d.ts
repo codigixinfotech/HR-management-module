@@ -50,12 +50,12 @@ export declare class EmployeesService implements OnModuleInit {
             id: string;
             status: import(".prisma/client").$Enums.ApprovalStatus;
             createdAt: Date;
-            title: string;
             description: string | null;
-            dueDate: Date | null;
-            completedAt: Date | null;
+            title: string;
             employeeId: string;
             ownerType: string;
+            dueDate: Date | null;
+            completedAt: Date | null;
         }[];
         courseEnrollments: {
             id: string;
@@ -73,8 +73,8 @@ export declare class EmployeesService implements OnModuleInit {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            employeeId: string;
             category: string;
+            employeeId: string;
             kpi: string;
             target: string;
             weightage: number;
@@ -85,9 +85,9 @@ export declare class EmployeesService implements OnModuleInit {
         hrNotes: {
             id: string;
             employeeId: string;
-            createdBy: string;
             note: string;
             noteType: string;
+            createdBy: string;
             createdDate: Date;
         }[];
         timelineEvents: {
@@ -104,10 +104,10 @@ export declare class EmployeesService implements OnModuleInit {
                 companyId: string;
                 createdAt: Date;
                 updatedAt: Date;
-                name: string;
                 code: string;
-                type: import(".prisma/client").$Enums.SalaryComponentType;
+                name: string;
                 isActive: boolean;
+                type: import(".prisma/client").$Enums.SalaryComponentType;
                 isStatutory: boolean;
             };
         } & {
@@ -134,8 +134,6 @@ export declare class EmployeesService implements OnModuleInit {
             warrantyExpiry: Date | null;
             notes: string | null;
         }[];
-        location: string | null;
-        costCenter: string | null;
         id: string;
         employeeCode: string;
         companyId: string;
@@ -159,7 +157,9 @@ export declare class EmployeesService implements OnModuleInit {
         status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
         businessUnit: string | null;
+        location: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -262,8 +262,6 @@ export declare class EmployeesService implements OnModuleInit {
                 uploadedAt: Date;
             }[];
         } & {
-            location: string | null;
-            costCenter: string | null;
             id: string;
             employeeCode: string;
             companyId: string;
@@ -287,9 +285,11 @@ export declare class EmployeesService implements OnModuleInit {
             status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
+            location: string | null;
             grade: string | null;
             level: string | null;
             shift: string | null;
+            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -383,6 +383,7 @@ export declare class EmployeesService implements OnModuleInit {
             mustResetPassword: boolean;
         };
     }>;
+    private sanitizeForeignKeys;
     create(dto: CreateEmployeeDto): Promise<{
         company: {
             id: string;
@@ -414,8 +415,6 @@ export declare class EmployeesService implements OnModuleInit {
             uploadedAt: Date;
         }[];
     } & {
-        location: string | null;
-        costCenter: string | null;
         id: string;
         employeeCode: string;
         companyId: string;
@@ -439,9 +438,11 @@ export declare class EmployeesService implements OnModuleInit {
         status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
         businessUnit: string | null;
+        location: string | null;
         grade: string | null;
         level: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -543,8 +544,6 @@ export declare class EmployeesService implements OnModuleInit {
             uploadedAt: Date;
         }[];
     } & {
-        location: string | null;
-        costCenter: string | null;
         id: string;
         employeeCode: string;
         companyId: string;
@@ -568,9 +567,11 @@ export declare class EmployeesService implements OnModuleInit {
         status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
         businessUnit: string | null;
+        location: string | null;
         grade: string | null;
         level: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -692,8 +693,8 @@ export declare class EmployeesService implements OnModuleInit {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        employeeId: string;
         category: string;
+        employeeId: string;
         kpi: string;
         target: string;
         weightage: number;
@@ -708,9 +709,9 @@ export declare class EmployeesService implements OnModuleInit {
     }): Promise<{
         id: string;
         employeeId: string;
-        createdBy: string;
         note: string;
         noteType: string;
+        createdBy: string;
         createdDate: Date;
     }>;
     listSkills(): Promise<unknown>;

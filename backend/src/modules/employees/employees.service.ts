@@ -361,6 +361,37 @@ export class EmployeesService implements OnModuleInit {
     };
   }
 
+  private async sanitizeForeignKeys(data: any) {
+    if (data.reportingManagerId) {
+      const valid = await this.prisma.employee.findUnique({
+        where: { id: data.reportingManagerId },
+        select: { id: true },
+      });
+      if (!valid) data.reportingManagerId = null;
+    }
+    if (data.branchId) {
+      const valid = await this.prisma.branch.findUnique({
+        where: { id: data.branchId },
+        select: { id: true },
+      });
+      if (!valid) data.branchId = null;
+    }
+    if (data.departmentId) {
+      const valid = await this.prisma.department.findUnique({
+        where: { id: data.departmentId },
+        select: { id: true },
+      });
+      if (!valid) data.departmentId = null;
+    }
+    if (data.designationId) {
+      const valid = await this.prisma.designation.findUnique({
+        where: { id: data.designationId },
+        select: { id: true },
+      });
+      if (!valid) data.designationId = null;
+    }
+  }
+
   async create(dto: CreateEmployeeDto) {
     const existing = await this.prisma.employee.findFirst({
       where: { companyId: dto.companyId, employeeCode: dto.employeeCode },
@@ -371,6 +402,7 @@ export class EmployeesService implements OnModuleInit {
       );
 
     const parsedData = this.parseDates(dto);
+    await this.sanitizeForeignKeys(parsedData);
 
     const employee = await this.prisma.employee.create({
       data: parsedData,
@@ -398,6 +430,8 @@ export class EmployeesService implements OnModuleInit {
   async update(id: string, dto: UpdateEmployeeDto) {
     await this.findById(id);
     const parsedData = this.parseDates(dto);
+    await this.sanitizeForeignKeys(parsedData);
+
     if (parsedData.faceTemplate) {
       console.log(`[Face Registration] Saving face biometric template for Employee ID: ${id}`);
       console.log(`[Face Registration] Face Template Length: ${parsedData.faceTemplate.length} chars`);

@@ -38,6 +38,12 @@ let PayGradesService = class PayGradesService {
         return grade;
     }
     async create(dto) {
+        const existing = await this.prisma.payGrade.findUnique({
+            where: { gradeCode: dto.gradeCode },
+        });
+        if (existing) {
+            throw new common_1.ConflictException(`Job Grade code '${dto.gradeCode}' already exists.`);
+        }
         return this.prisma.payGrade.create({
             data: {
                 companyId: dto.companyId,

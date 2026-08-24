@@ -23,6 +23,10 @@ export class PrismaService
       dbUrl = `mysql://${user}:${password}@${host}:${port}/${name}`;
     }
 
+    if (dbUrl && !dbUrl.includes('connection_limit')) {
+      dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=30&pool_timeout=30';
+    }
+
     super(
       dbUrl
         ? {

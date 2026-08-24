@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreatePayGradeDto, UpdatePayGradeDto } from './dto/pay-grade.dto';
 
@@ -28,6 +28,13 @@ export class PayGradesService {
   }
 
   async create(dto: CreatePayGradeDto) {
+    const existing = await this.prisma.payGrade.findUnique({
+      where: { gradeCode: dto.gradeCode },
+    });
+    if (existing) {
+      throw new ConflictException(`Job Grade code '${dto.gradeCode}' already exists.`);
+    }
+
     return this.prisma.payGrade.create({
       data: {
         companyId:     dto.companyId,

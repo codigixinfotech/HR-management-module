@@ -40,6 +40,12 @@ let CostCentersService = class CostCentersService {
         return cc;
     }
     async create(dto) {
+        const existing = await this.prisma.costCenter.findUnique({
+            where: { code: dto.code },
+        });
+        if (existing) {
+            throw new common_1.ConflictException(`Cost Center code '${dto.code}' already exists.`);
+        }
         return this.prisma.costCenter.create({
             data: {
                 companyId: dto.companyId,

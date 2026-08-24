@@ -27,6 +27,9 @@ let PrismaService = PrismaService_1 = class PrismaService extends client_1.Prism
             const name = process.env.DB_NAME || config.get('DB_NAME') || 'hrm_db';
             dbUrl = `mysql://${user}:${password}@${host}:${port}/${name}`;
         }
+        if (dbUrl && !dbUrl.includes('connection_limit')) {
+            dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=30&pool_timeout=30';
+        }
         super(dbUrl
             ? {
                 datasources: {
