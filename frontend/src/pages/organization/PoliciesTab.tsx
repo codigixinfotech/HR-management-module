@@ -33,7 +33,11 @@ import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { hrPoliciesApi, type HrPolicy } from '@/api/hr-policies';
 
-export function PoliciesTab() {
+import { useCompany } from '@/context/CompanyContext';
+
+export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }) {
+  const { activeCompanyId: ctxCompanyId } = useCompany();
+  const activeCompanyId = propCompanyId || ctxCompanyId;
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 

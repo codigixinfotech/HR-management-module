@@ -255,7 +255,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                       <Button variant="outline" size="sm" className="h-7 text-xs font-semibold" asChild>
                         <Link to={`/employees/master?action=edit&id=${employee.id}`}>Edit</Link>
                       </Button>
-                      {!employee.userId && (
+                      {!(employee as any).userId && (
                         <Button variant="outline" size="sm" className="h-7 text-xs font-semibold text-primary border-primary/20 hover:bg-primary/5 gap-1" asChild>
                           <Link to="/employees/master">
                             <Key className="h-3 w-3" /> Create Login

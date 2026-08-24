@@ -187,8 +187,12 @@ const STEPS = [
   { id: 'documents', title: '12. Onboarding Docs', icon: FileText },
 ];
 
+import { useCompany } from '@/context/CompanyContext';
+
 export function EmployeeMasterTab() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { activeCompanyId } = useCompany();
+  const searchParams = useSearchParams()[0];
+  const setSearchParams = useSearchParams()[1];
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -277,14 +281,14 @@ export function EmployeeMasterTab() {
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
 
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 500 }),
+    queryKey: ['employees', 1, '', activeCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 500, companyId: activeCompanyId }),
   });
 
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema) as any,
     defaultValues: {
-      companyId: '',
+      companyId: activeCompanyId || '',
       businessUnit: 'Technology Services',
       branchId: '',
       location: '',
@@ -374,37 +378,37 @@ export function EmployeeMasterTab() {
     },
   });
 
-  const selectedCompanyId = form.watch('companyId');
+  const selectedCompanyId = form.watch('companyId') || activeCompanyId;
   const selectedBranchId = form.watch('branchId');
   const watchedDesigId = form.watch('designationId');
 
   const { data: allBranches } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchesApi.list(),
+    queryKey: ['branches', selectedCompanyId],
+    queryFn: () => branchesApi.list(selectedCompanyId),
   });
 
   const { data: allDepartments } = useQuery({
-    queryKey: ['departments'],
-    queryFn: () => departmentsApi.list(),
+    queryKey: ['departments', selectedCompanyId],
+    queryFn: () => departmentsApi.list(selectedCompanyId),
   });
 
   const { data: allDesignations } = useQuery({
-    queryKey: ['designations'],
-    queryFn: () => designationsApi.list(),
+    queryKey: ['designations', selectedCompanyId],
+    queryFn: () => designationsApi.list(selectedCompanyId),
   });
 
   const { data: allCostCenters } = useQuery({
-    queryKey: ['cost-centers'],
-    queryFn: () => costCentersApi.list(),
+    queryKey: ['cost-centers', selectedCompanyId],
+    queryFn: () => costCentersApi.list(selectedCompanyId),
   });
 
   const { data: allPayGrades } = useQuery({
-    queryKey: ['pay-grades'],
-    queryFn: () => payGradesApi.list(),
+    queryKey: ['pay-grades', selectedCompanyId],
+    queryFn: () => payGradesApi.list(selectedCompanyId),
   });
 
   const { data: allShiftTypes } = useQuery({
-    queryKey: ['shift-types'],
+    queryKey: ['shift-types', selectedCompanyId],
     queryFn: () => shiftTypesApi.list(),
   });
 
@@ -2068,7 +2072,7 @@ export function EmployeeMasterTab() {
                             </Badge>
                           ) : (
                             <Button
-                              size="xs"
+                              size="sm"
                               className="h-7 text-[10px] font-semibold gap-1 bg-primary text-primary-foreground shadow-2xs hover:bg-primary/90 shrink-0"
                               onClick={() => handleOpenCreateLoginModal(emp)}
                             >

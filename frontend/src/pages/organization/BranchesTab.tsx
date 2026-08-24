@@ -117,8 +117,8 @@ export function BranchesTab({
 
   // Fetch all employees for the Facility Manager dropdown
   const { data: employeeData } = useQuery({
-    queryKey: ['employees-all'],
-    queryFn: () => employeesApi.list({ pageSize: 500 }),
+    queryKey: ['employees-all', companyId],
+    queryFn: () => employeesApi.list({ pageSize: 500, companyId }),
   });
   const allEmployees = employeeData?.items ?? [];
   const form = useForm<BranchFormValues>({

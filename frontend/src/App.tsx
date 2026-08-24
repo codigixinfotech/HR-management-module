@@ -29,6 +29,8 @@ import WorkflowAutomationPage from '@/pages/workflow-automation/WorkflowAutomati
 import IntegrationsPage from '@/pages/integrations/IntegrationsPage';
 import AdministrationPage from '@/pages/administration/AdministrationPage';
 
+import { CompanyProvider } from '@/context/CompanyContext';
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
@@ -36,7 +38,8 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <CompanyProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
@@ -139,6 +142,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
+      </CompanyProvider>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );

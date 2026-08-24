@@ -15,15 +15,19 @@ import { TransfersPromotionsTab } from './TransfersPromotionsTab';
 import { ExitManagementTab } from './ExitManagementTab';
 import { EmployeeReportsTab } from './EmployeeReportsTab';
 
+import { useCompany } from '@/context/CompanyContext';
+
 export default function EmployeeListPage() {
   const navigate = useNavigate();
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'directory';
 
+  const { activeCompanyId } = useCompany();
+
   const { data, isLoading } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 200 }),
+    queryKey: ['employees', 1, '', activeCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 500, companyId: activeCompanyId }),
   });
 
   const isAddingMaster = activeTab === 'master' && searchParams.get('action') === 'new';

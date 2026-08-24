@@ -48,7 +48,11 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
   { id: 'h8', date: '01', month: 'MAY', year: '2026', fullDate: '01 May 2026', title: 'International Labour Day', day: 'Friday', type: 'Regional', locations: 'Pune Manufacturing Plant', color: 'bg-blue-500' },
 ];
 
-export function WorkCalendarTab() {
+import { useCompany } from '@/context/CompanyContext';
+
+export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: string }) {
+  const { activeCompanyId: ctxCompanyId } = useCompany();
+  const activeCompanyId = propCompanyId || ctxCompanyId;
   const [holidays, setHolidays] = useState<HolidayItem[]>(INITIAL_HOLIDAYS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');

@@ -30,7 +30,11 @@ import { costCentersApi, payGradesApi, type CostCenter, type PayGrade } from '@/
 
 
 
-export function CostCentersTab() {
+import { useCompany } from '@/context/CompanyContext';
+
+export function CostCentersTab({ companyId: propCompanyId }: { companyId?: string }) {
+  const { activeCompanyId: ctxCompanyId } = useCompany();
+  const activeCompanyId = propCompanyId || ctxCompanyId;
   const queryClient = useQueryClient();
   const [searchCcQuery, setSearchCcQuery] = useState('');
   const [searchGradeQuery, setSearchGradeQuery] = useState('');
@@ -38,9 +42,9 @@ export function CostCentersTab() {
 
   // ── Real API queries ──
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: () => employeesApi.list({ page: 1, pageSize: 200 }) });
+  const companyIdForLists = (activeCompanyId || companies?.[0]?.id) ?? '';
 
-  const companyIdForLists = companies?.[0]?.id ?? '';
+  const { data: employees } = useQuery({ queryKey: ['employees', companyIdForLists], queryFn: () => employeesApi.list({ page: 1, pageSize: 500, companyId: companyIdForLists }) });
 
   const { data: branches } = useQuery({
     queryKey: ['branches', companyIdForLists],
@@ -193,7 +197,7 @@ export function CostCentersTab() {
   // Cost Center Actions
   const openAddCc = () => {
     setEditingCc(null);
-    setCcCompanyId(companies?.[0]?.id ?? '');
+    setCcCompanyId(companyIdForLists);
     setCcCode('');
     setCcName('');
     setCcType('Department');
@@ -247,7 +251,7 @@ export function CostCentersTab() {
     };
 
     if (!editingCc?.id) {
-      payloadData.companyId = ccCompanyId;
+      payloadData.companyId = ccCompanyId || companyIdForLists;
       payloadData.code = ccCode || `CC-${String(costCenters.length + 101).padStart(3, '0')}`;
     }
 
@@ -266,7 +270,7 @@ export function CostCentersTab() {
   // Grade Actions
   const openAddGrade = () => {
     setEditingGrade(null);
-    setGradeCompanyId(companies?.[0]?.id ?? '');
+    setGradeCompanyId(companyIdForLists);
     setGradeBusinessUnit(companies?.[0]?.businessUnit ?? '');
     setGradeCode('');
     setGradeName('');

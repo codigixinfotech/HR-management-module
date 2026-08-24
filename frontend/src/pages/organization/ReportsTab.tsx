@@ -110,7 +110,11 @@ const DEPT_DISTRIBUTION = [
   { name: 'Product & UX Design', count: 18, percentage: 7.2, color: 'bg-rose-500' },
 ];
 
-export function ReportsTab() {
+import { useCompany } from '@/context/CompanyContext';
+
+export function ReportsTab({ companyId: propCompanyId }: { companyId?: string }) {
+  const { activeCompanyId: ctxCompanyId } = useCompany();
+  const activeCompanyId = propCompanyId || ctxCompanyId;
   const [reports, setReports] = useState<ReportItem[]>(INITIAL_REPORTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');

@@ -27,15 +27,16 @@ import {
   Layers,
 } from 'lucide-react';
 
+import { useCompany } from '@/context/CompanyContext';
+
 export default function OrganizationPage() {
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'structure';
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const { data: branches } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list() });
-  const { data: departments } = useQuery({ queryKey: ['departments'], queryFn: () => departmentsApi.list() });
-  const [companyId, setCompanyId] = useState<string | undefined>(undefined);
+  const { activeCompanyId, setActiveCompanyId, companies } = useCompany();
+  const { data: branches } = useQuery({ queryKey: ['branches', activeCompanyId], queryFn: () => branchesApi.list(activeCompanyId) });
+  const { data: departments } = useQuery({ queryKey: ['departments', activeCompanyId], queryFn: () => departmentsApi.list(activeCompanyId) });
   const [triggerAddBranchCompanyId, setTriggerAddBranchCompanyId] = useState<string | null>(null);
 
   const getPageHeaderInfo = () => {
@@ -107,9 +108,9 @@ export default function OrganizationPage() {
           companies &&
           companies.length > 0 && (
             <div className="w-64">
-              <Select value={companyId} onValueChange={setCompanyId}>
+              <Select value={activeCompanyId} onValueChange={setActiveCompanyId}>
                 <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="All Companies" />
+                  <SelectValue placeholder="Select Company" />
                 </SelectTrigger>
                 <SelectContent>
                   {companies.map((c) => (
@@ -127,21 +128,21 @@ export default function OrganizationPage() {
       {/* ── 2. Render Dedicated Page View Based on Tab ── */}
 
       {/* VIEW 1: Organization Structure View */}
-      {activeTab === 'structure' && <OrgStructureTab companyId={companyId} />}
+      {activeTab === 'structure' && <OrgStructureTab companyId={activeCompanyId} />}
 
       {/* VIEW 2: Departments & Designations Page */}
       {activeTab === 'departments' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <StatCard icon={Network} label="Functional Departments" value={departments?.length ?? 6} accent="primary" />
+            <StatCard icon={Network} label="Functional Departments" value={departments?.length ?? 0} accent="primary" />
             <StatCard icon={Award} label="Configured Designations" value={24} accent="info" />
             <StatCard icon={Layers} label="Average Dept Size" value="41 Employees" accent="success" />
             <StatCard icon={ShieldCheck} label="Dept Annual Budget" value="₹40.9 Cr" accent="warning" />
           </div>
 
           <div className="space-y-6">
-            <DepartmentsTab companyId={companyId} companies={companies ?? []} />
-            <DesignationsTab companyId={companyId} companies={companies ?? []} />
+            <DepartmentsTab companyId={activeCompanyId} companies={companies ?? []} />
+            <DesignationsTab companyId={activeCompanyId} companies={companies ?? []} />
           </div>
         </div>
       )}
@@ -151,15 +152,15 @@ export default function OrganizationPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <StatCard icon={Building2} label="Corporate Entities" value={companies?.length ?? 1} accent="primary" />
-            <StatCard icon={GitFork} label="Registered Branches" value={branches?.length ?? 4} accent="info" />
-            <StatCard icon={Clock} label="Primary Headquarters" value="New York HQ" accent="success" />
+            <StatCard icon={GitFork} label="Registered Branches" value={branches?.length ?? 0} accent="info" />
+            <StatCard icon={Clock} label="Primary Headquarters" value="Headquarters" accent="success" />
             <StatCard icon={Layers} label="Manufacturing Plants" value="1 Facility" accent="warning" />
           </div>
 
           <div className="space-y-6">
             <CompaniesTab onCompanyCreated={(id) => setTriggerAddBranchCompanyId(id)} />
             <BranchesTab
-              companyId={companyId}
+              companyId={activeCompanyId}
               companies={companies ?? []}
               triggerOpenWithCompanyId={triggerAddBranchCompanyId}
               onTriggerHandled={() => setTriggerAddBranchCompanyId(null)}
@@ -169,16 +170,16 @@ export default function OrganizationPage() {
       )}
 
       {/* VIEW 4: Cost Centers & Pay Grades Page */}
-      {activeTab === 'cost-centers' && <CostCentersTab />}
+      {activeTab === 'cost-centers' && <CostCentersTab companyId={activeCompanyId} />}
 
       {/* VIEW 5: Work Calendar & Holidays Page */}
-      {activeTab === 'holidays' && <WorkCalendarTab />}
+      {activeTab === 'holidays' && <WorkCalendarTab companyId={activeCompanyId} />}
 
       {/* VIEW 6: HR Policies & Handbooks Page */}
-      {activeTab === 'policies' && <PoliciesTab />}
+      {activeTab === 'policies' && <PoliciesTab companyId={activeCompanyId} />}
 
       {/* VIEW 7: Organization Reports Page */}
-      {activeTab === 'reports' && <ReportsTab />}
+      {activeTab === 'reports' && <ReportsTab companyId={activeCompanyId} />}
     </div>
   );
 }

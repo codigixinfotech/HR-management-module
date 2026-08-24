@@ -100,8 +100,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
   });
 
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+    queryKey: ['employees', 1, '', selectedCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId }),
   });
 
   const { data: costCentersList } = useQuery({

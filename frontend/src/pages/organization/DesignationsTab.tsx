@@ -91,8 +91,8 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   });
 
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+    queryKey: ['employees', 1, '', selectedCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId }),
   });
 
   const { data: payGradesList } = useQuery({

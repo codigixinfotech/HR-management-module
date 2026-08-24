@@ -122,7 +122,11 @@ interface OrgStructureTabProps {
   companyId?: string;
 }
 
-export function OrgStructureTab({ companyId }: OrgStructureTabProps) {
+import { useCompany } from '@/context/CompanyContext';
+
+export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabProps) {
+  const { activeCompanyId: ctxCompanyId } = useCompany();
+  const companyId = propCompanyId || ctxCompanyId;
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'chart' | 'tree'>('chart');
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
