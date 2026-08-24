@@ -7,8 +7,8 @@ export declare class LeaveTypesController {
         id: string;
         companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -19,8 +19,8 @@ export declare class LeaveTypesController {
         id: string;
         companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -31,8 +31,8 @@ export declare class LeaveTypesController {
         id: string;
         companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -43,8 +43,8 @@ export declare class LeaveTypesController {
         id: string;
         companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
         code: string;
         isActive: boolean;
         isPaid: boolean;

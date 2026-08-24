@@ -22,9 +22,9 @@ export declare class ShiftAssignmentsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
-        isActive: boolean;
         employeeId: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         shiftTypeId: string;
         effectiveTo: Date | null;
     })[]>;
@@ -46,9 +46,9 @@ export declare class ShiftAssignmentsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
-        isActive: boolean;
         employeeId: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         shiftTypeId: string;
         effectiveTo: Date | null;
     }>;
@@ -70,9 +70,9 @@ export declare class ShiftAssignmentsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
-        isActive: boolean;
         employeeId: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         shiftTypeId: string;
         effectiveTo: Date | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
@@ -94,9 +94,9 @@ export declare class ShiftAssignmentsService {
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
-        isActive: boolean;
         employeeId: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         shiftTypeId: string;
         effectiveTo: Date | null;
     }>;

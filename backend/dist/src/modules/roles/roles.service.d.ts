@@ -23,8 +23,8 @@ export declare class RolesService {
         id: string;
         companyId: string | null;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
         description: string | null;
         isSystem: boolean;
     })[]>;
@@ -46,8 +46,8 @@ export declare class RolesService {
         id: string;
         companyId: string | null;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
         description: string | null;
         isSystem: boolean;
     }>;
@@ -69,8 +69,8 @@ export declare class RolesService {
         id: string;
         companyId: string | null;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
         description: string | null;
         isSystem: boolean;
     }>;
@@ -92,8 +92,8 @@ export declare class RolesService {
         id: string;
         companyId: string | null;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
         description: string | null;
         isSystem: boolean;
     }>;

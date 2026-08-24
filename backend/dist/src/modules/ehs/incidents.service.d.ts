@@ -11,16 +11,16 @@ export declare class IncidentsService {
             lastName: string;
         } | null;
     } & {
-        location: string;
         id: string;
         companyId: string;
-        status: import(".prisma/client").$Enums.IncidentStatus;
+        location: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: import(".prisma/client").$Enums.IncidentStatus;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
+        description: string | null;
         correctiveAction: string | null;
         reportedById: string | null;
     })[]>;
@@ -31,16 +31,16 @@ export declare class IncidentsService {
             lastName: string;
         } | null;
     } & {
-        location: string;
         id: string;
         companyId: string;
-        status: import(".prisma/client").$Enums.IncidentStatus;
+        location: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: import(".prisma/client").$Enums.IncidentStatus;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
+        description: string | null;
         correctiveAction: string | null;
         reportedById: string | null;
     }>;
@@ -51,16 +51,16 @@ export declare class IncidentsService {
             lastName: string;
         } | null;
     } & {
-        location: string;
         id: string;
         companyId: string;
-        status: import(".prisma/client").$Enums.IncidentStatus;
+        location: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: import(".prisma/client").$Enums.IncidentStatus;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
+        description: string | null;
         correctiveAction: string | null;
         reportedById: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
@@ -71,16 +71,16 @@ export declare class IncidentsService {
             lastName: string;
         } | null;
     } & {
-        location: string;
         id: string;
         companyId: string;
-        status: import(".prisma/client").$Enums.IncidentStatus;
+        location: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        status: import(".prisma/client").$Enums.IncidentStatus;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
+        description: string | null;
         correctiveAction: string | null;
         reportedById: string | null;
     }>;

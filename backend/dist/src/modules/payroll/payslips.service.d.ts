@@ -13,22 +13,22 @@ export declare class PayslipsService {
         components: {
             id: string;
             name: string;
-            type: import(".prisma/client").$Enums.SalaryComponentType;
-            salaryComponentId: string | null;
             payslipId: string;
+            salaryComponentId: string | null;
+            type: import(".prisma/client").$Enums.SalaryComponentType;
             amount: number;
         }[];
     } & {
         id: string;
         createdAt: Date;
         employeeId: string;
-        otherDeductions: number;
+        payrollRunId: string;
         grossEarnings: number;
         pf: number;
         esic: number;
         professionalTax: number;
+        otherDeductions: number;
         netPay: number;
-        payrollRunId: string;
     })[]>;
     findById(id: string): Promise<{
         employee: {
@@ -40,21 +40,21 @@ export declare class PayslipsService {
         components: {
             id: string;
             name: string;
-            type: import(".prisma/client").$Enums.SalaryComponentType;
-            salaryComponentId: string | null;
             payslipId: string;
+            salaryComponentId: string | null;
+            type: import(".prisma/client").$Enums.SalaryComponentType;
             amount: number;
         }[];
     } & {
         id: string;
         createdAt: Date;
         employeeId: string;
-        otherDeductions: number;
+        payrollRunId: string;
         grossEarnings: number;
         pf: number;
         esic: number;
         professionalTax: number;
+        otherDeductions: number;
         netPay: number;
-        payrollRunId: string;
     }>;
 }

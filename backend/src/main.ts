@@ -65,6 +65,13 @@ async function bootstrap() {
   const port = config.get<number>('PORT', 4000);
   await app.listen(port, '0.0.0.0');
 
-  console.log(`EHCM backend listening on http://0.0.0.0:${port}/api`);
+  const dbUser = process.env.DB_USER || 'hrm_user';
+  const dbPort = process.env.DB_PORT || '3307';
+  const dbName = process.env.DB_NAME || 'hrm_db';
+
+  console.log('\x1b[1m\x1b[32m%s\x1b[0m', `=========================================================`);
+  console.log('\x1b[1m\x1b[32m%s\x1b[0m', `  ✅ DATABASE CONNECTED: MySQL (${dbName}) on port ${dbPort} as ${dbUser}`);
+  console.log('\x1b[1m\x1b[32m%s\x1b[0m', `  🚀 EHCM backend listening on http://0.0.0.0:${port}/api`);
+  console.log('\x1b[1m\x1b[32m%s\x1b[0m', `=========================================================`);
 }
 bootstrap();
