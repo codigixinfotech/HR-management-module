@@ -63,13 +63,30 @@ let BranchesService = class BranchesService {
         return location;
     }
     async createLocation(branchId, dto) {
-        const existing = await this.prisma.location.findFirst({
-            where: { branchId, code: dto.code },
-        });
-        if (existing)
-            throw new common_1.ConflictException('A location with this code already exists for this branch');
+        let code = dto.code;
+        if (!code) {
+            const branch = await this.prisma.branch.findUnique({
+                where: { id: branchId },
+                include: { locations: true },
+            });
+            const existingCodes = new Set((branch?.locations ?? []).map((l) => l.code));
+            let count = (branch?.locations?.length ?? 0) + 1;
+            code = `${branch?.code || 'BR'}-LOC-${String(count).padStart(2, '0')}`;
+            while (existingCodes.has(code)) {
+                count++;
+                code = `${branch?.code || 'BR'}-LOC-${String(count).padStart(2, '0')}`;
+            }
+        }
+        else {
+            const existing = await this.prisma.location.findFirst({
+                where: { branchId, code },
+            });
+            if (existing) {
+                throw new common_1.ConflictException('A location with this code already exists for this branch');
+            }
+        }
         return this.prisma.location.create({
-            data: { ...dto, branchId },
+            data: { ...dto, code, branchId },
         });
     }
     async updateLocation(id, dto) {

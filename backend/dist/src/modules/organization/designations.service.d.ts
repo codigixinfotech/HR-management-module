@@ -3,7 +3,7 @@ import { CreateDesignationDto, UpdateDesignationDto } from './dto/designation.dt
 export declare class DesignationsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<({
+    list(companyId?: string, departmentId?: string): never[] | import(".prisma/client").Prisma.PrismaPromise<({
         department: {
             id: string;
             name: string;

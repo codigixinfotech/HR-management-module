@@ -6,6 +6,9 @@ type StatusTone = 'success' | 'warning' | 'info' | 'destructive' | 'secondary';
 const POSITIVE = [
   'ACTIVE',
   'APPROVED',
+  'MANAGER_APPROVED',
+  'HR_APPROVED',
+  'FINANCE_APPROVED',
   'COMPLETED',
   'COMPLETE',
   'OPERATIONAL',

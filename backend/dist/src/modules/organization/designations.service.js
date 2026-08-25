@@ -17,9 +17,14 @@ let DesignationsService = class DesignationsService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    list(companyId) {
+    list(companyId, departmentId) {
+        if (!companyId)
+            return [];
         return this.prisma.designation.findMany({
-            where: companyId ? { companyId } : undefined,
+            where: {
+                companyId,
+                ...(departmentId ? { departmentId } : {}),
+            },
             include: {
                 department: { select: { id: true, name: true } },
                 reportingDesignation: { select: { id: true, title: true } },

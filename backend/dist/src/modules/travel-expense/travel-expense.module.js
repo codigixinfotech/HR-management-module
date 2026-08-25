@@ -10,13 +10,16 @@ exports.TravelExpenseModule = void 0;
 const common_1 = require("@nestjs/common");
 const travel_expense_controller_1 = require("./travel-expense.controller");
 const travel_expense_service_1 = require("./travel-expense.service");
+const prisma_module_1 = require("../../common/prisma/prisma.module");
 let TravelExpenseModule = class TravelExpenseModule {
 };
 exports.TravelExpenseModule = TravelExpenseModule;
 exports.TravelExpenseModule = TravelExpenseModule = __decorate([
     (0, common_1.Module)({
+        imports: [prisma_module_1.PrismaModule],
         controllers: [travel_expense_controller_1.TravelExpenseController],
         providers: [travel_expense_service_1.TravelExpenseService],
+        exports: [travel_expense_service_1.TravelExpenseService],
     })
 ], TravelExpenseModule);
 //# sourceMappingURL=travel-expense.module.js.map
