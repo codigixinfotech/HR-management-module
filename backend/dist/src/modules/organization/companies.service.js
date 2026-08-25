@@ -40,8 +40,46 @@ let CompaniesService = class CompaniesService {
     }
     async remove(id) {
         await this.findById(id);
-        await this.prisma.company.delete({ where: { id } });
-        return { success: true };
+        const employeeCount = await this.prisma.employee.count({
+            where: { companyId: id },
+        });
+        if (employeeCount > 0) {
+            throw new common_1.BadRequestException(`Cannot delete corporate entity because ${employeeCount} employee(s) are assigned to it. Please reassign or remove employees first.`);
+        }
+        try {
+            await this.prisma.company.updateMany({
+                where: { parentCompanyId: id },
+                data: { parentCompanyId: null },
+            });
+            await this.prisma.location.deleteMany({
+                where: { branch: { companyId: id } },
+            });
+            await this.prisma.branch.deleteMany({
+                where: { companyId: id },
+            });
+            await this.prisma.department.deleteMany({
+                where: { companyId: id },
+            });
+            await this.prisma.designation.deleteMany({
+                where: { companyId: id },
+            });
+            await this.prisma.costCenter.deleteMany({
+                where: { companyId: id },
+            });
+            await this.prisma.payGrade.deleteMany({
+                where: { companyId: id },
+            });
+            await this.prisma.hrPolicy.deleteMany({
+                where: { companyId: id },
+            });
+            await this.prisma.company.delete({
+                where: { id },
+            });
+            return { success: true };
+        }
+        catch (err) {
+            throw new common_1.BadRequestException(err?.message ?? 'Failed to delete corporate entity due to associated record constraints.');
+        }
     }
 };
 exports.CompaniesService = CompaniesService;

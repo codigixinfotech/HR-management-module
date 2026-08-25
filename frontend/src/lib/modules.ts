@@ -242,7 +242,8 @@ export const HCM_MODULES: HcmModule[] = [
     status: 'active',
     icon: Plane,
     subItems: [
-      { key: 'travel', label: 'Travel Booking', path: '/travel-expense/travel' },
+      { key: 'travel', label: 'Travel Bookings', path: '/travel-expense/travel' },
+      { key: 'pending', label: 'Pending Approvals', path: '/travel-expense/pending' },
       { key: 'claims', label: 'Expense Claims', path: '/travel-expense/claims' },
       { key: 'reimbursements', label: 'Reimbursements', path: '/travel-expense/reimbursements' },
       { key: 'reports', label: 'Travel Reports', path: '/travel-expense/reports' },
@@ -443,6 +444,18 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
       { key: 'personal-info', label: 'Personal Information', path: '/employees/detail/me' },
       { key: 'documents', label: 'Documents', path: '/employees/detail/me?tab=documents' },
       { key: 'biometric', label: 'Attendance & Biometric', path: '/employees/detail/me?tab=biometric' },
+    ],
+  },
+  {
+    key: 'my-travel-expense',
+    label: 'My Travel & Expense',
+    path: '/travel-expense/travel',
+    phase: 1,
+    status: 'active',
+    icon: Plane,
+    subItems: [
+      { key: 'my-travel-bookings', label: 'My Travel Bookings', path: '/travel-expense/travel' },
+      { key: 'my-expense-claims', label: 'My Expense Claims', path: '/travel-expense/claims' },
     ],
   },
   {

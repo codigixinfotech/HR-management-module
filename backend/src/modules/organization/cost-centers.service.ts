@@ -30,17 +30,30 @@ export class CostCentersService {
   }
 
   async create(dto: CreateCostCenterDto) {
+    let code = dto.code;
     const existing = await this.prisma.costCenter.findUnique({
-      where: { code: dto.code },
+      where: { code },
     });
     if (existing) {
-      throw new ConflictException(`Cost Center code '${dto.code}' already exists.`);
+      if (code.startsWith('CC-')) {
+        const allCCs = await this.prisma.costCenter.findMany({ select: { code: true } });
+        const existingCodes = new Set(allCCs.map((c) => c.code));
+        let count = allCCs.length + 101;
+        let nextCode = `CC-${count}`;
+        while (existingCodes.has(nextCode)) {
+          count++;
+          nextCode = `CC-${count}`;
+        }
+        code = nextCode;
+      } else {
+        throw new ConflictException(`Cost Center code '${dto.code}' already exists.`);
+      }
     }
 
     return this.prisma.costCenter.create({
       data: {
         companyId:         dto.companyId,
-        code:              dto.code,
+        code,
         name:              dto.name,
         type:              dto.type ?? 'Department',
         branchId:          dto.branchId || null,

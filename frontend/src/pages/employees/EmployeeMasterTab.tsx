@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -381,45 +381,92 @@ export function EmployeeMasterTab() {
   const selectedCompanyId = form.watch('companyId') || activeCompanyId;
   const selectedBranchId = form.watch('branchId');
   const watchedDesigId = form.watch('designationId');
+  const watchedDeptId = form.watch('departmentId');
+
+  // Auto-sync companyId with activeCompanyId or first available company
+  useEffect(() => {
+    if (activeCompanyId) {
+      if (form.getValues('companyId') !== activeCompanyId) {
+        form.setValue('companyId', activeCompanyId);
+      }
+    } else if (!form.getValues('companyId') && companies && companies.length > 0) {
+      form.setValue('companyId', companies[0].id);
+    }
+  }, [activeCompanyId, companies, form]);
+
+  // Auto-generate sequential employeeCode (e.g. EMP-001) if empty and not editing
+  useEffect(() => {
+    if (!isEditing && !form.getValues('employeeCode')) {
+      let maxNum = 0;
+      if (employeesData?.items && Array.isArray(employeesData.items)) {
+        for (const emp of employeesData.items) {
+          if (emp.employeeCode) {
+            const match = emp.employeeCode.match(/^EMP-?(\d+)$/i);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              if (num > maxNum) maxNum = num;
+            }
+          }
+        }
+      }
+      const nextCode = `EMP-${String(maxNum + 1).padStart(3, '0')}`;
+      form.setValue('employeeCode', nextCode);
+    }
+  }, [isEditing, employeesData, form]);
+
+  const watchedFirstName = form.watch('firstName');
+  const watchedLastName = form.watch('lastName');
+
+  // Auto-fill workEmail if empty when firstName and lastName are provided
+  useEffect(() => {
+    if (!isEditing && watchedFirstName && watchedLastName && !form.getValues('workEmail')) {
+      const cleanFirst = watchedFirstName.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      const cleanLast = watchedLastName.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      if (cleanFirst && cleanLast) {
+        form.setValue('workEmail', `${cleanFirst}.${cleanLast}@codigix.com`);
+      }
+    }
+  }, [watchedFirstName, watchedLastName, isEditing, form]);
 
   const { data: allBranches } = useQuery({
     queryKey: ['branches', selectedCompanyId],
     queryFn: () => branchesApi.list(selectedCompanyId),
+    enabled: !!selectedCompanyId,
   });
 
   const { data: allDepartments } = useQuery({
     queryKey: ['departments', selectedCompanyId],
     queryFn: () => departmentsApi.list(selectedCompanyId),
+    enabled: !!selectedCompanyId,
   });
 
   const { data: allDesignations } = useQuery({
-    queryKey: ['designations', selectedCompanyId],
-    queryFn: () => designationsApi.list(selectedCompanyId),
+    queryKey: ['designations', selectedCompanyId, watchedDeptId],
+    queryFn: () => designationsApi.list(selectedCompanyId, watchedDeptId),
+    enabled: !!selectedCompanyId,
   });
 
   const { data: allCostCenters } = useQuery({
     queryKey: ['cost-centers', selectedCompanyId],
     queryFn: () => costCentersApi.list(selectedCompanyId),
+    enabled: !!selectedCompanyId,
   });
 
   const { data: allPayGrades } = useQuery({
     queryKey: ['pay-grades', selectedCompanyId],
     queryFn: () => payGradesApi.list(selectedCompanyId),
+    enabled: !!selectedCompanyId,
   });
 
   const { data: allShiftTypes } = useQuery({
     queryKey: ['shift-types', selectedCompanyId],
     queryFn: () => shiftTypesApi.list(),
+    enabled: !!selectedCompanyId,
   });
 
-  const watchedDeptId = form.watch('departmentId');
-  const watchedDesigIdInForm = form.watch('designationId');
-
   const branchOptions = useMemo(() => {
-    if (!allBranches) return [];
-    if (!selectedCompanyId) return allBranches;
-    const filtered = allBranches.filter((b: any) => !b.companyId || b.companyId === selectedCompanyId);
-    return filtered.length > 0 ? filtered : allBranches;
+    if (!allBranches || !selectedCompanyId) return [];
+    return allBranches.filter((b: any) => b.companyId === selectedCompanyId);
   }, [allBranches, selectedCompanyId]);
 
   const selectedBranch = useMemo(() => {
@@ -433,7 +480,7 @@ export function EmployeeMasterTab() {
     if (selectedBranch?.city) {
       return [{ name: selectedBranch.city }, { name: `${selectedBranch.city} Main Facility` }];
     }
-    return [{ name: 'Main Office' }, { name: 'Headquarters Facility' }];
+    return [];
   }, [selectedBranch]);
 
   useEffect(() => {
@@ -443,39 +490,72 @@ export function EmployeeMasterTab() {
   }, [selectedBranchId, locationOptions, form]);
 
   const departmentOptions = useMemo(() => {
-    if (!allDepartments) return [];
-    if (!selectedCompanyId) return allDepartments;
-    const filtered = allDepartments.filter((d: any) => !d.companyId || d.companyId === selectedCompanyId || d.id === watchedDeptId);
-    return filtered.length > 0 ? filtered : allDepartments;
-  }, [allDepartments, selectedCompanyId, watchedDeptId]);
+    if (!allDepartments || !selectedCompanyId) return [];
+    return allDepartments.filter((d: any) => d.companyId === selectedCompanyId);
+  }, [allDepartments, selectedCompanyId]);
 
   const designationOptions = useMemo(() => {
-    if (!allDesignations) return [];
-    if (!selectedCompanyId) return allDesignations;
-    const filtered = allDesignations.filter((d: any) => !d.companyId || d.companyId === selectedCompanyId || d.id === watchedDesigIdInForm);
-    return filtered.length > 0 ? filtered : allDesignations;
-  }, [allDesignations, selectedCompanyId, watchedDesigIdInForm]);
+    if (!allDesignations || !selectedCompanyId || !watchedDeptId) return [];
+    const targetDept = departmentOptions?.find((dept: any) => dept.id === watchedDeptId);
+    const targetDeptName = targetDept?.name;
+
+    return allDesignations.filter(
+      (d: any) =>
+        d.companyId === selectedCompanyId &&
+        (d.departmentId === watchedDeptId ||
+          d.department?.id === watchedDeptId ||
+          (targetDeptName && (d.department?.name === targetDeptName || d.departmentName === targetDeptName)))
+    );
+  }, [allDesignations, selectedCompanyId, watchedDeptId, departmentOptions]);
+
+  const reportingManagerOptions = useMemo(() => {
+    const list = employeesData?.items ?? [];
+    if (!selectedCompanyId) return [];
+    return list.filter((e: any) => e.companyId === selectedCompanyId && e.id !== editEmployee?.id);
+  }, [employeesData, selectedCompanyId, editEmployee]);
 
   const costCentersList = useMemo(() => {
-    if (!allCostCenters) return [];
-    if (!selectedCompanyId) return allCostCenters;
-    const filtered = allCostCenters.filter((c: any) => !c.companyId || c.companyId === selectedCompanyId);
-    return filtered.length > 0 ? filtered : allCostCenters;
+    if (!allCostCenters || !selectedCompanyId) return [];
+    return allCostCenters.filter((c: any) => c.companyId === selectedCompanyId);
   }, [allCostCenters, selectedCompanyId]);
 
   const payGradesList = useMemo(() => {
-    if (!allPayGrades) return [];
-    if (!selectedCompanyId) return allPayGrades;
-    const filtered = allPayGrades.filter((p: any) => !p.companyId || p.companyId === selectedCompanyId);
-    return filtered.length > 0 ? filtered : allPayGrades;
+    if (!allPayGrades || !selectedCompanyId) return [];
+    return allPayGrades.filter((p: any) => p.companyId === selectedCompanyId);
   }, [allPayGrades, selectedCompanyId]);
 
   const shiftTypesList = useMemo(() => {
-    if (!allShiftTypes) return [];
-    if (!selectedCompanyId) return allShiftTypes;
-    const filtered = allShiftTypes.filter((s: any) => !s.companyId || s.companyId === selectedCompanyId);
-    return filtered.length > 0 ? filtered : allShiftTypes;
+    if (!allShiftTypes || !selectedCompanyId) return [];
+    return allShiftTypes.filter((s: any) => s.companyId === selectedCompanyId);
   }, [allShiftTypes, selectedCompanyId]);
+
+  // Reset child organization state when Company changes
+  const prevCompanyIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevCompanyIdRef.current && prevCompanyIdRef.current !== selectedCompanyId) {
+      form.setValue('departmentId', '');
+      form.setValue('designationId', '');
+      form.setValue('grade', '');
+      form.setValue('level', '');
+      form.setValue('reportingManagerId', '');
+      form.setValue('shift', '');
+      form.setValue('branchId', '');
+      form.setValue('location', '');
+      form.setValue('costCenter', '');
+    }
+    prevCompanyIdRef.current = selectedCompanyId ?? null;
+  }, [selectedCompanyId, form]);
+
+  // Reset designation & derived grade/level when Department changes
+  const prevDeptIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevDeptIdRef.current && prevDeptIdRef.current !== watchedDeptId) {
+      form.setValue('designationId', '');
+      form.setValue('grade', '');
+      form.setValue('level', '');
+    }
+    prevDeptIdRef.current = watchedDeptId ?? null;
+  }, [watchedDeptId, form]);
 
   // Automatically trigger Grade/Level/Policies auto-fill when designation is selected
   useEffect(() => {
@@ -485,21 +565,21 @@ export function EmployeeMasterTab() {
       setAutoPolicies(null);
       return;
     }
-    const desig = designationOptions?.find((d) => d.id === watchedDesigId);
+    const desig = allDesignations?.find((d: any) => d.id === watchedDesigId);
     if (desig) {
-      const gradeVal = desig.grade || '';
+      const gradeVal = desig.gradeBand || desig.grade || '';
       form.setValue('grade', gradeVal);
-      const matchingGrade = payGradesList?.find((pg) => pg.gradeCode === gradeVal);
-      form.setValue('level', matchingGrade?.level || gradeVal);
+      const levelVal = desig.level || (gradeVal.includes('(') ? gradeVal.split('(')[1]?.replace(')', '') : gradeVal);
+      form.setValue('level', levelVal);
 
       setAutoPolicies({
-        payrollGroup: 'Standard IT Payroll Group',
-        attendancePolicy: 'Flexible Core Hours Policy',
-        leavePolicy: 'Standard Dev Leave Grant',
-        workingCalendar: '5-Day Tech Work Calendar',
+        payrollGroup: `${desig.title} Standard Payroll`,
+        attendancePolicy: 'Standard Shift Attendance Policy',
+        leavePolicy: 'Standard Leave Entitlement',
+        workingCalendar: 'Standard Work Calendar',
       });
     }
-  }, [watchedDesigId, designationOptions, payGradesList, form]);
+  }, [watchedDesigId, allDesignations, form]);
 
   // Prefill form when in edit mode
   useEffect(() => {
@@ -939,7 +1019,7 @@ export function EmployeeMasterTab() {
     if (activeStep === 0) {
       isValid = await form.trigger(['firstName', 'lastName', 'dateOfBirth', 'phone']);
     } else if (activeStep === 1) {
-      isValid = await form.trigger(['employeeCode', 'dateOfJoining', 'departmentId', 'designationId']);
+      isValid = await form.trigger(['companyId', 'branchId', 'employeeCode', 'dateOfJoining', 'departmentId', 'designationId']);
     } else if (activeStep === 2) {
       isValid = await form.trigger(['companyId', 'branchId', 'location']);
     } else if (activeStep === 3) {
@@ -947,7 +1027,12 @@ export function EmployeeMasterTab() {
     }
 
     if (!isValid) {
-      toast.error('Please correct validation errors on the current section before proceeding');
+      console.warn(`Step ${activeStep + 1} validation errors:`, form.formState.errors);
+      const errorMsg = Object.values(form.formState.errors)
+        .map((e: any) => e?.message)
+        .filter(Boolean)
+        .join(', ');
+      toast.error(errorMsg || 'Please correct validation errors on the current section before proceeding');
       return;
     }
 
@@ -964,8 +1049,11 @@ export function EmployeeMasterTab() {
           }
         },
         (errors) => {
-          console.error('Validation errors:', errors);
-          toast.error('Some employee information is missing. Please complete the required fields before creating the employee.');
+          console.error('Final Submission Validation Errors:', errors);
+          const errorDetails = Object.entries(errors)
+            .map(([field, err]: [string, any]) => `${field} (${err?.message || 'required'})`)
+            .join(', ');
+          toast.error(`Please complete required fields: ${errorDetails}`);
         }
       )();
     }
@@ -1193,6 +1281,73 @@ export function EmployeeMasterTab() {
                   {/* Step 2: Employment Details */}
                   {activeStep === 1 && (
                     <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-muted/40 rounded-lg border border-border/50">
+                        <div className="space-y-1.5">
+                          <Label className="font-semibold text-primary flex items-center gap-1.5 text-xs">
+                            <Building2 className="h-3.5 w-3.5" /> Company Entity *
+                          </Label>
+                          <Select
+                            value={form.watch('companyId') || ''}
+                            onValueChange={(v) => form.setValue('companyId', v, { shouldValidate: true })}
+                          >
+                            <SelectTrigger className="h-9 text-xs font-semibold bg-background">
+                              <SelectValue placeholder="Select Corporate Entity" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {companies?.map((c: any) => (
+                                <SelectItem key={c.id} value={c.id} className="text-xs font-medium">
+                                  {c.name} ({c.code})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {form.formState.errors.companyId && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.companyId.message}</p>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="font-semibold text-primary flex items-center gap-1.5 text-xs">
+                            <MapPin className="h-3.5 w-3.5" /> Branch / Location *
+                          </Label>
+                          <Select
+                            value={form.watch('branchId') || ''}
+                            onValueChange={(v) => {
+                              form.setValue('branchId', v, { shouldValidate: true });
+                              const br = branchOptions.find((b: any) => b.id === v);
+                              if (br) {
+                                form.setValue('location', br.name || br.city || '');
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-9 text-xs font-semibold bg-background">
+                              <SelectValue
+                                placeholder={
+                                  branchOptions.length === 0
+                                    ? 'No branches configured for this company'
+                                    : 'Select Branch / Location'
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {branchOptions.length === 0 ? (
+                                <SelectItem value="__empty_branch__" disabled className="text-xs text-muted-foreground italic">
+                                  No branches configured for this company
+                                </SelectItem>
+                              ) : (
+                                branchOptions.map((b: any) => (
+                                  <SelectItem key={b.id} value={b.id} className="text-xs font-medium">
+                                    {b.name} ({b.code})
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                          {form.formState.errors.branchId && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.branchId.message}</p>
+                          )}
+                        </div>
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Employee Code (Auto / Custom) *</Label>
@@ -1252,40 +1407,74 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Department *</Label>
-                          <Select value={form.watch('departmentId') || ''} onValueChange={(v) => form.setValue('departmentId', v)}>
+                          <Select
+                            value={form.watch('departmentId') || ''}
+                            onValueChange={(v) => {
+                              form.setValue('departmentId', v, { shouldValidate: true });
+                              form.setValue('designationId', '');
+                              form.setValue('grade', '');
+                              form.setValue('level', '');
+                            }}
+                          >
                             <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select department" />
+                              <SelectValue
+                                placeholder={
+                                  departmentOptions.length === 0
+                                    ? 'No departments configured for this company'
+                                    : 'Select department'
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              {departmentOptions?.map((d: any) => (
-                                <SelectItem key={d.id} value={d.id} className="text-xs">
-                                  {d.name}
+                              {departmentOptions.length === 0 ? (
+                                <SelectItem value="__empty_dept__" disabled className="text-xs text-muted-foreground italic">
+                                  No departments configured for this company
                                 </SelectItem>
-                              ))}
+                              ) : (
+                                departmentOptions.map((d: any) => (
+                                  <SelectItem key={d.id} value={d.id} className="text-xs">
+                                    {d.name}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                           {form.formState.errors.departmentId && <p className="text-[10px] text-destructive">{form.formState.errors.departmentId.message}</p>}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Designation *</Label>
-                          <Select value={form.watch('designationId') || ''} onValueChange={(v) => form.setValue('designationId', v)}>
+                          <Select
+                            disabled={!watchedDeptId || departmentOptions.length === 0}
+                            value={form.watch('designationId') || ''}
+                            onValueChange={(v) => form.setValue('designationId', v, { shouldValidate: true })}
+                          >
                             <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select designation" />
+                              <SelectValue
+                                placeholder={
+                                  !watchedDeptId
+                                    ? 'Please select a department first'
+                                    : designationOptions.length === 0
+                                    ? 'No designations configured for this department'
+                                    : 'Select designation'
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              {designationOptions
-                                ?.filter(
-                                  (d: any) =>
-                                    !form.watch('departmentId') ||
-                                    !d.departmentId ||
-                                    d.departmentId === form.watch('departmentId') ||
-                                    d.id === form.watch('designationId')
-                                )
-                                ?.map((d: any) => (
+                              {!watchedDeptId ? (
+                                <SelectItem value="__select_dept_first__" disabled className="text-xs text-muted-foreground italic">
+                                  Please select a department first
+                                </SelectItem>
+                              ) : designationOptions.length === 0 ? (
+                                <SelectItem value="__empty_desig__" disabled className="text-xs text-muted-foreground italic">
+                                  No designations configured for this department
+                                </SelectItem>
+                              ) : (
+                                designationOptions.map((d: any) => (
                                   <SelectItem key={d.id} value={d.id} className="text-xs">
                                     {d.title}
                                   </SelectItem>
-                                ))}
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                           {form.formState.errors.designationId && <p className="text-[10px] text-destructive">{form.formState.errors.designationId.message}</p>}
@@ -1296,13 +1485,19 @@ export function EmployeeMasterTab() {
                           <Label>Reporting Manager</Label>
                           <Select value={form.watch('reportingManagerId') || ''} onValueChange={(v) => form.setValue('reportingManagerId', v)}>
                             <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select manager" />
+                              <SelectValue
+                                placeholder={
+                                  reportingManagerOptions.length === 0
+                                    ? 'No active employees found for this company'
+                                    : 'Select manager'
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="" className="text-xs">None (Self / MD)</SelectItem>
-                              {employeesData?.items?.map((m: any) => (
+                              {reportingManagerOptions.map((m: any) => (
                                 <SelectItem key={m.id} value={m.id} className="text-xs">
-                                  {m.firstName} {m.lastName} ({m.designation?.title ?? 'Personnel'})
+                                  {m.firstName} {m.lastName} ({m.designation?.title ?? m.employeeCode ?? 'Personnel'})
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1310,11 +1505,11 @@ export function EmployeeMasterTab() {
                         </div>
                         <div className="space-y-1.5">
                           <Label>Job Grade (Auto)</Label>
-                          <Input className="h-9 text-xs bg-muted font-mono" readOnly placeholder="e.g. E2" {...form.register('grade')} />
+                          <Input className="h-9 text-xs bg-muted font-mono" readOnly placeholder="Auto derived from Designation" {...form.register('grade')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Job Level (Auto)</Label>
-                          <Input className="h-9 text-xs bg-muted font-mono" readOnly placeholder="e.g. L1" {...form.register('level')} />
+                          <Input className="h-9 text-xs bg-muted font-mono" readOnly placeholder="Auto derived from Designation" {...form.register('level')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t pt-2 mt-2">
@@ -1333,7 +1528,7 @@ export function EmployeeMasterTab() {
                         </div>
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Shift Assignment *</Label>
-                          <Select value={form.watch('shift')} onValueChange={(v) => form.setValue('shift', v)}>
+                          <Select value={form.watch('shift') || 'General Day Shift (G)'} onValueChange={(v) => form.setValue('shift', v)}>
                             <SelectTrigger className="h-9 text-xs">
                               <SelectValue placeholder="Select shift" />
                             </SelectTrigger>
@@ -1346,12 +1541,18 @@ export function EmployeeMasterTab() {
                                 ))
                               ) : (
                                 <>
-                                  <SelectItem value="General Day Shift (G)" className="text-xs">General Shift (09:00 - 18:00)</SelectItem>
+                                  <SelectItem value="General Day Shift (G)" className="text-xs">General Day Shift (09:00 - 18:00)</SelectItem>
                                   <SelectItem value="Morning Shift (A)" className="text-xs">Morning Shift (06:00 - 14:00)</SelectItem>
+                                  <SelectItem value="Evening Shift (B)" className="text-xs">Evening Shift (14:00 - 22:00)</SelectItem>
+                                  <SelectItem value="Night Shift (C)" className="text-xs">Night Shift (22:00 - 06:00)</SelectItem>
+                                  <SelectItem value="Flexible Shift" className="text-xs">Flexible / Core Hours Shift</SelectItem>
                                 </>
                               )}
                             </SelectContent>
                           </Select>
+                          {form.formState.errors.shift && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.shift.message}</p>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

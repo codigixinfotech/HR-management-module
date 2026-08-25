@@ -23,10 +23,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { useMultiStepForm, type StepConfig } from '@/hooks/useMultiStepForm';
+import { MultiStepFormFooter, MultiStepTabsHeader } from '@/components/ui/multi-step-form';
 
 // ── 1. BRANCH SCHEMA ──
 const branchSchema = z.object({
@@ -35,12 +37,12 @@ const branchSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   businessUnit: z.string().optional(),
   branchType: z.string().min(1, 'Branch Type is required'),
-  addressLine1: z.string().optional(),
+  addressLine1: z.string().min(1, 'Address Line 1 is required'),
   addressLine2: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  country: z.string().optional(),
-  pincode: z.string().optional(),
+  city: z.string().min(1, 'City is required'),
+  state: z.string().min(1, 'State is required'),
+  country: z.string().min(1, 'Country is required'),
+  pincode: z.string().min(1, 'PIN Code is required'),
   manager: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().optional(),
@@ -52,6 +54,51 @@ const branchSchema = z.object({
 });
 
 type BranchFormValues = z.infer<typeof branchSchema>;
+
+const branchSteps: StepConfig<BranchFormValues>[] = [
+  {
+    id: 'org',
+    label: 'Organization',
+    fields: ['companyId', 'code', 'name', 'branchType', 'businessUnit'],
+  },
+  {
+    id: 'address',
+    label: 'Address',
+    fields: ['addressLine1', 'addressLine2', 'country', 'state', 'city', 'pincode'],
+  },
+  {
+    id: 'contact',
+    label: 'Contact',
+    fields: ['manager', 'phone', 'email'],
+  },
+  {
+    id: 'ops',
+    label: 'Operations',
+    fields: ['timezone', 'workingCalendar', 'shiftGroup', 'maxCapacity', 'isActive'],
+  },
+];
+
+const DEFAULT_BRANCH_VALUES: BranchFormValues = {
+  companyId: '',
+  code: '',
+  name: '',
+  businessUnit: '',
+  branchType: 'Branch Office',
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  state: '',
+  country: '',
+  pincode: '',
+  manager: '',
+  phone: '',
+  email: '',
+  timezone: '',
+  workingCalendar: 'Standard 5-Day',
+  shiftGroup: 'General Shift',
+  maxCapacity: 100,
+  isActive: true,
+};
 
 // ── SHIFT MASTER — Single source of truth for shift timings ──
 const SHIFT_MASTER: Record<string, { label: string; workingHours: string; note?: string }> = {
@@ -85,6 +132,43 @@ const locationSchema = z.object({
 
 type LocationFormValues = z.infer<typeof locationSchema>;
 
+const locationSteps: StepConfig<LocationFormValues>[] = [
+  {
+    id: 'info',
+    label: 'General Info',
+    fields: ['branchId', 'code', 'name'],
+  },
+  {
+    id: 'building',
+    label: 'Building Details',
+    fields: ['buildingName', 'floor', 'wing', 'roomCabin', 'address', 'city', 'state', 'country', 'pincode'],
+  },
+  {
+    id: 'ops',
+    label: 'Operations',
+    fields: ['workingHours', 'shift', 'gps', 'isActive'],
+  },
+];
+
+const DEFAULT_LOCATION_VALUES: LocationFormValues = {
+  branchId: '',
+  code: '',
+  name: '',
+  buildingName: '',
+  floor: '',
+  wing: '',
+  roomCabin: '',
+  address: '',
+  city: '',
+  state: '',
+  country: '',
+  pincode: '',
+  gps: '',
+  workingHours: '',
+  shift: '',
+  isActive: true,
+};
+
 export function BranchesTab({
   companyId,
   companies,
@@ -104,11 +188,8 @@ export function BranchesTab({
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
   
-  const [shouldAddLocationAfterSave, setShouldAddLocationAfterSave] = useState(false);
-  const [shouldAddAnotherLocation, setShouldAddAnotherLocation] = useState(false);
   const [activeBranchForLocation, setActiveBranchForLocation] = useState<Branch | null>(null);
   const [addressOverridden, setAddressOverridden] = useState(false);
-
 
   const { data: branches, isLoading } = useQuery({
     queryKey: ['branches', companyId],
@@ -121,52 +202,45 @@ export function BranchesTab({
     queryFn: () => employeesApi.list({ pageSize: 500, companyId }),
   });
   const allEmployees = employeeData?.items ?? [];
+
   const form = useForm<BranchFormValues>({
     resolver: zodResolver(branchSchema) as any,
     defaultValues: {
+      ...DEFAULT_BRANCH_VALUES,
       companyId: companyId ?? companies[0]?.id ?? '',
-      code: '',
-      name: '',
-      businessUnit: '',
-      branchType: 'Branch Office',
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      state: '',
-      country: 'India',
-      pincode: '',
-      manager: '',
-      phone: '',
-      email: '',
-      timezone: 'Asia/Kolkata',
-      workingCalendar: 'Standard 5-Day',
-      shiftGroup: 'General Shift',
-      maxCapacity: 100,
-      isActive: true,
     },
+  });
+
+  const branchMultiStep = useMultiStepForm<BranchFormValues>({
+    steps: branchSteps,
+    form,
   });
 
   const locationForm = useForm<LocationFormValues>({
     resolver: zodResolver(locationSchema) as any,
-    defaultValues: {
-      branchId: '',
-      code: '',
-      name: '',
-      buildingName: '',
-      floor: '',
-      wing: '',
-      roomCabin: '',
-      address: '',
-      city: '',
-      state: '',
-      country: 'India',
-      pincode: '',
-      gps: '',
-      workingHours: '09:00 AM - 06:00 PM',
-      shift: '',
-      isActive: true,
-    },
+    defaultValues: DEFAULT_LOCATION_VALUES,
   });
+
+  const locationMultiStep = useMultiStepForm<LocationFormValues>({
+    steps: locationSteps,
+    form: locationForm,
+  });
+
+  const closeBranchModal = () => {
+    setOpen(false);
+    setEditing(null);
+    branchMultiStep.resetMultiStepForm({
+      ...DEFAULT_BRANCH_VALUES,
+      companyId: companyId ?? companies[0]?.id ?? '',
+    });
+  };
+
+  const closeLocationModal = () => {
+    setLocationOpen(false);
+    setActiveBranchForLocation(null);
+    setAddressOverridden(false);
+    locationMultiStep.resetMultiStepForm(DEFAULT_LOCATION_VALUES);
+  };
 
   useEffect(() => {
     if (triggerOpenWithCompanyId) {
@@ -174,33 +248,17 @@ export function BranchesTab({
       const nextNum = Math.floor(Math.random() * 90 + 10);
       const autoCode = `BR-${nextNum}`;
       
-      form.reset({
+      branchMultiStep.resetMultiStepForm({
+        ...DEFAULT_BRANCH_VALUES,
         companyId: triggerOpenWithCompanyId,
         code: autoCode,
-        name: '',
-        businessUnit: '',
-        branchType: 'Branch Office',
-        addressLine1: '',
-        addressLine2: '',
-        city: '',
-        state: '',
-        country: 'India',
-        pincode: '',
-        manager: '',
-        phone: '',
-        email: '',
-        timezone: 'Asia/Kolkata',
-        workingCalendar: 'Standard 5-Day',
-        shiftGroup: 'General Shift',
-        maxCapacity: 100,
-        isActive: true,
       });
       setOpen(true);
       if (onTriggerHandled) {
         onTriggerHandled();
       }
     }
-  }, [triggerOpenWithCompanyId, onTriggerHandled, form]);
+  }, [triggerOpenWithCompanyId, onTriggerHandled]);
 
   const upsertMutation = useMutation({
     mutationFn: async (values: BranchFormValues) => {
@@ -211,18 +269,30 @@ export function BranchesTab({
 
       return editing ? branchesApi.update(editing.id, payload) : branchesApi.create(payload);
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, _variables) => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
       toast.success(editing ? 'Branch updated' : 'Branch created');
-      setOpen(false);
-      
-      if (shouldAddLocationAfterSave && data?.id) {
+      closeBranchModal();
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
+  });
+
+  const upsertAndAddLocationMutation = useMutation({
+    mutationFn: async (values: BranchFormValues) => {
+      const payload = Object.fromEntries(
+        Object.entries(values).map(([k, v]) => [k, v === '' ? null : v])
+      ) as any;
+      if (payload.maxCapacity) payload.maxCapacity = Number(payload.maxCapacity);
+
+      return editing ? branchesApi.update(editing.id, payload) : branchesApi.create(payload);
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
+      toast.success('Branch created successfully');
+      closeBranchModal();
+      if (data?.id) {
         triggerAddLocation(data);
       }
-      
-      setEditing(null);
-      form.reset();
-      setShouldAddLocationAfterSave(false);
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
   });
@@ -236,6 +306,19 @@ export function BranchesTab({
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
   });
 
+  const generateUniqueLocationCode = (branch?: Branch | null) => {
+    if (!branch) return `LOC-${Date.now().toString().slice(-4)}`;
+    const branchCode = branch.code || 'BR';
+    const existingCodes = new Set((branch.locations ?? []).map((loc: any) => loc.code));
+    let count = (branch.locations?.length ?? 0) + 1;
+    let code = `${branchCode}-LOC-${String(count).padStart(2, '0')}`;
+    while (existingCodes.has(code)) {
+      count++;
+      code = `${branchCode}-LOC-${String(count).padStart(2, '0')}`;
+    }
+    return code;
+  };
+
   const createLocationMutation = useMutation({
     mutationFn: async (values: LocationFormValues) => {
       const payload = Object.fromEntries(
@@ -246,42 +329,54 @@ export function BranchesTab({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
       toast.success('Location added successfully');
+      closeLocationModal();
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
+  });
+
+  const createAndAddAnotherLocationMutation = useMutation({
+    mutationFn: async (values: LocationFormValues) => {
+      const payload = Object.fromEntries(
+        Object.entries(values).map(([k, v]) => [k, v === '' ? null : v])
+      ) as any;
+      return locationsApi.create(values.branchId, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
+      toast.success('Location added successfully');
       
-      if (shouldAddAnotherLocation) {
-        const nextNum = Math.floor(Math.random() * 90 + 10);
-        const branchCode = activeBranchForLocation?.code ?? 'BR';
-        locationForm.reset({
-          branchId: locationForm.getValues('branchId'),
-          code: `${branchCode}-LOC-${nextNum}`,
-          name: '',
-          buildingName: '',
-          floor: '',
-          wing: '',
-          roomCabin: '',
-          address: activeBranchForLocation?.addressLine1 ?? '',
-          city: activeBranchForLocation?.city ?? '',
-          state: activeBranchForLocation?.state ?? '',
-          country: activeBranchForLocation?.country ?? '',
-          pincode: activeBranchForLocation?.pincode ?? '',
-          gps: '',
-          workingHours: '09:00 AM - 06:00 PM',
-          shift: '',
-          isActive: true,
-        });
-      } else {
-        setLocationOpen(false);
-      }
-      setShouldAddAnotherLocation(false);
+      const currentCode = locationForm.getValues('code');
+      const updatedLocs = [...(activeBranchForLocation?.locations ?? []), { code: currentCode }];
+      const updatedBranch = activeBranchForLocation ? { ...activeBranchForLocation, locations: updatedLocs } : null;
+      setActiveBranchForLocation(updatedBranch as any);
+
+      locationMultiStep.resetMultiStepForm({
+        branchId: locationForm.getValues('branchId'),
+        code: generateUniqueLocationCode(updatedBranch as any),
+        name: '',
+        buildingName: '',
+        floor: '',
+        wing: '',
+        roomCabin: '',
+        address: activeBranchForLocation?.addressLine1 ?? '',
+        city: activeBranchForLocation?.city ?? '',
+        state: activeBranchForLocation?.state ?? '',
+        country: activeBranchForLocation?.country ?? '',
+        pincode: activeBranchForLocation?.pincode ?? '',
+        gps: '',
+        workingHours: '09:00 AM - 06:00 PM',
+        shift: '',
+        isActive: true,
+      });
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
   });
 
   const triggerAddLocation = (branch: Branch) => {
     setActiveBranchForLocation(branch);
-    const nextNum = Math.floor(Math.random() * 90 + 10);
-    locationForm.reset({
+    locationMultiStep.resetMultiStepForm({
       branchId: branch.id,
-      code: `${branch.code}-LOC-${nextNum}`,
+      code: generateUniqueLocationCode(branch),
       name: '',
       buildingName: '',
       floor: '',
@@ -305,33 +400,17 @@ export function BranchesTab({
     const nextNum = Math.floor(Math.random() * 90 + 10);
     const autoCode = `BR-${nextNum}`;
 
-    form.reset({
+    branchMultiStep.resetMultiStepForm({
+      ...DEFAULT_BRANCH_VALUES,
       companyId: companyId ?? companies[0]?.id ?? '',
       code: autoCode,
-      name: '',
-      businessUnit: '',
-      branchType: 'Branch Office',
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      state: '',
-      country: 'India',
-      pincode: '',
-      manager: '',
-      phone: '',
-      email: '',
-      timezone: 'Asia/Kolkata',
-      workingCalendar: 'Standard 5-Day',
-      shiftGroup: 'General Shift',
-      maxCapacity: 100,
-      isActive: true,
     });
     setOpen(true);
   };
 
   const openEdit = (branch: Branch) => {
     setEditing(branch);
-    form.reset({
+    branchMultiStep.resetMultiStepForm({
       companyId: branch.companyId,
       code: branch.code,
       name: branch.name,
@@ -366,6 +445,22 @@ export function BranchesTab({
         (b.city && b.city.toLowerCase().includes(q))
     );
   }, [branches, searchQuery]);
+
+  const handleBranchSubmit = form.handleSubmit((values) => {
+    upsertMutation.mutate(values);
+  });
+
+  const handleSaveAndAddLocation = form.handleSubmit((values) => {
+    upsertAndAddLocationMutation.mutate(values);
+  });
+
+  const handleLocationSubmit = locationForm.handleSubmit((values) => {
+    createLocationMutation.mutate(values);
+  });
+
+  const handleSaveAndAddAnotherLocation = locationForm.handleSubmit((values) => {
+    createAndAddAnotherLocationMutation.mutate(values);
+  });
 
   return (
     <Card className="shadow-xs border-border/80">
@@ -412,7 +507,7 @@ export function BranchesTab({
             </div>
 
             {/* Add Branch Dialog */}
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={open} onOpenChange={(v) => { if (!v) closeBranchModal(); }}>
               <DialogTrigger asChild>
                 <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate} disabled={companies.length === 0}>
                   <Plus className="h-3.5 w-3.5" /> Add Branch Location
@@ -422,19 +517,22 @@ export function BranchesTab({
                 <DialogHeader>
                   <DialogTitle>{editing ? 'Edit Branch Facility' : 'Create New Branch Facility'}</DialogTitle>
                 </DialogHeader>
-                <form className="space-y-4 text-xs" onSubmit={form.handleSubmit((values) => upsertMutation.mutate(values))}>
-                  <Tabs defaultValue="org" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="org">Organization</TabsTrigger>
-                      <TabsTrigger value="address">Address</TabsTrigger>
-                      <TabsTrigger value="contact">Contact</TabsTrigger>
-                      <TabsTrigger value="ops">Operations</TabsTrigger>
-                    </TabsList>
+                <form className="space-y-4 text-xs" onSubmit={handleBranchSubmit}>
+                  <Tabs value={branchMultiStep.activeStepId} className="w-full">
+                    <MultiStepTabsHeader
+                      steps={branchSteps}
+                      currentStep={branchMultiStep.currentStep}
+                      onSelectStep={(idx) => branchMultiStep.goToStep(idx)}
+                    />
 
+                    {/* STEP 1: ORGANIZATION */}
                     <TabsContent value="org" className="space-y-4 mt-3">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Company Entity *</Label>
-                        <Select value={form.watch('companyId')} onValueChange={(v) => form.setValue('companyId', v)}>
+                        <Select
+                          value={form.watch('companyId')}
+                          onValueChange={(v) => form.setValue('companyId', v, { shouldValidate: true })}
+                        >
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Select company" />
                           </SelectTrigger>
@@ -446,21 +544,33 @@ export function BranchesTab({
                             ))}
                           </SelectContent>
                         </Select>
+                        {form.formState.errors.companyId && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.companyId.message}</p>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Code (Auto Generate)</Label>
+                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Code (Auto Generate) *</Label>
                           <Input placeholder="e.g. BR-PUN" {...form.register('code')} className="h-9 text-xs font-mono" />
+                          {form.formState.errors.code && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.code.message}</p>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Name *</Label>
                           <Input placeholder="e.g. Pune Development Center" {...form.register('name')} className="h-9 text-xs" />
+                          {form.formState.errors.name && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.name.message}</p>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Type *</Label>
-                          <Select value={form.watch('branchType')} onValueChange={(v) => form.setValue('branchType', v)}>
+                          <Select
+                            value={form.watch('branchType')}
+                            onValueChange={(v) => form.setValue('branchType', v, { shouldValidate: true })}
+                          >
                             <SelectTrigger className="h-9 text-xs">
                               <SelectValue />
                             </SelectTrigger>
@@ -472,6 +582,9 @@ export function BranchesTab({
                               <SelectItem value="Client Office">Client Office</SelectItem>
                             </SelectContent>
                           </Select>
+                          {form.formState.errors.branchType && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.branchType.message}</p>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Business Unit (Optional)</Label>
@@ -480,11 +593,15 @@ export function BranchesTab({
                       </div>
                     </TabsContent>
 
+                    {/* STEP 2: ADDRESS */}
                     <TabsContent value="address" className="space-y-4 mt-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Address Line 1 *</Label>
                           <Input placeholder="e.g. Plot 42, Hinjewadi Phase 3" {...form.register('addressLine1')} className="h-9 text-xs" />
+                          {form.formState.errors.addressLine1 && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.addressLine1.message}</p>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Address Line 2</Label>
@@ -495,24 +612,37 @@ export function BranchesTab({
                         <div className="space-y-1.5 col-span-2">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Country *</Label>
                           <Input placeholder="e.g. India" {...form.register('country')} className="h-9 text-xs" />
+                          {form.formState.errors.country && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.country.message}</p>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">State *</Label>
                           <Input placeholder="e.g. Maharashtra" {...form.register('state')} className="h-9 text-xs" />
+                          {form.formState.errors.state && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.state.message}</p>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">City *</Label>
                           <Input placeholder="e.g. Pune" {...form.register('city')} className="h-9 text-xs" />
+                          {form.formState.errors.city && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.city.message}</p>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PIN Code *</Label>
                           <Input placeholder="e.g. 411057" {...form.register('pincode')} className="h-9 text-xs font-mono" />
+                          {form.formState.errors.pincode && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.pincode.message}</p>
+                          )}
                         </div>
                       </div>
                     </TabsContent>
 
+                    {/* STEP 3: CONTACT */}
                     <TabsContent value="contact" className="space-y-4 mt-3">
                       <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1.5">
@@ -549,6 +679,7 @@ export function BranchesTab({
                       </div>
                     </TabsContent>
 
+                    {/* STEP 4: OPERATIONS */}
                     <TabsContent value="ops" className="space-y-4 mt-3">
                       <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1.5">
@@ -588,46 +719,39 @@ export function BranchesTab({
                     </TabsContent>
                   </Tabs>
 
-                  <DialogFooter className="flex items-center gap-2 border-t pt-3 mt-3">
-                    <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => setOpen(false)}>
-                      Cancel
-                    </Button>
-                    {!editing && (
-                      <Button
-                        type="submit"
-                        size="sm"
-                        variant="secondary"
-                        className="text-xs"
-                        disabled={upsertMutation.isPending}
-                        onClick={() => setShouldAddLocationAfterSave(true)}
-                      >
-                        Save & Add Location
-                      </Button>
-                    )}
-                    <Button type="submit" size="sm" className="text-xs font-semibold" disabled={upsertMutation.isPending} onClick={() => setShouldAddLocationAfterSave(false)}>
-                      {editing ? 'Save Changes' : 'Create Branch'}
-                    </Button>
-                  </DialogFooter>
+                  <MultiStepFormFooter
+                    currentStep={branchMultiStep.currentStep}
+                    totalSteps={branchMultiStep.totalSteps}
+                    isFirstStep={branchMultiStep.isFirstStep}
+                    isLastStep={branchMultiStep.isLastStep}
+                    isEditing={!!editing}
+                    isSubmitting={upsertMutation.isPending || upsertAndAddLocationMutation.isPending}
+                    createLabel="Create Branch"
+                    saveLabel="Save Changes"
+                    showSaveAndContinue={!editing}
+                    saveAndContinueLabel="Save & Add Location"
+                    onCancel={closeBranchModal}
+                    onBack={branchMultiStep.goToPreviousStep}
+                    onNext={branchMultiStep.goToNextStep}
+                    onSaveAndContinue={handleSaveAndAddLocation}
+                  />
                 </form>
               </DialogContent>
             </Dialog>
 
             {/* ── 3. SEPARATE LOCATION CREATION DIALOG ── */}
-            <Dialog open={locationOpen} onOpenChange={(v) => { setLocationOpen(v); if (!v) setAddressOverridden(false); }}>
+            <Dialog open={locationOpen} onOpenChange={(v) => { if (!v) closeLocationModal(); }}>
               <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto text-xs">
                 <DialogHeader>
                   <DialogTitle>Add Physical Location inside Branch</DialogTitle>
                 </DialogHeader>
-                <form
-                  className="space-y-4"
-                  onSubmit={locationForm.handleSubmit((values) => createLocationMutation.mutate(values))}
-                >
-                  <Tabs defaultValue="info" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="info">General Info</TabsTrigger>
-                      <TabsTrigger value="building">Building Details</TabsTrigger>
-                      <TabsTrigger value="ops">Operations</TabsTrigger>
-                    </TabsList>
+                <form className="space-y-4" onSubmit={handleLocationSubmit}>
+                  <Tabs value={locationMultiStep.activeStepId} className="w-full">
+                    <MultiStepTabsHeader
+                      steps={locationSteps}
+                      currentStep={locationMultiStep.currentStep}
+                      onSelectStep={(idx) => locationMultiStep.goToStep(idx)}
+                    />
 
                     {/* ── TAB 1: GENERAL INFO ── */}
                     <TabsContent value="info" className="space-y-4 mt-3">
@@ -666,11 +790,12 @@ export function BranchesTab({
                         <Select
                           value={locationForm.watch('branchId')}
                           onValueChange={(val) => {
-                            locationForm.setValue('branchId', val);
+                            locationForm.setValue('branchId', val, { shouldValidate: true });
                             const selected = branches?.find(b => b.id === val) ?? null;
                             setActiveBranchForLocation(selected);
                             setAddressOverridden(false);
                             if (selected) {
+                              locationForm.setValue('code', generateUniqueLocationCode(selected));
                               locationForm.setValue('address', selected.addressLine1 ?? '');
                               locationForm.setValue('city', selected.city ?? '');
                               locationForm.setValue('state', selected.state ?? '');
@@ -690,15 +815,24 @@ export function BranchesTab({
                             ))}
                           </SelectContent>
                         </Select>
+                        {locationForm.formState.errors.branchId && (
+                          <p className="text-[10px] text-destructive">{locationForm.formState.errors.branchId.message}</p>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Code (Auto Generate)</Label>
+                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Code (Auto Generate) *</Label>
                           <Input placeholder="e.g. BR-58-LOC-01" {...locationForm.register('code')} className="h-9 text-xs font-mono" />
+                          {locationForm.formState.errors.code && (
+                            <p className="text-[10px] text-destructive">{locationForm.formState.errors.code.message}</p>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Name *</Label>
                           <Input placeholder="e.g. Hyderabad Development Center" {...locationForm.register('name')} className="h-9 text-xs" />
+                          {locationForm.formState.errors.name && (
+                            <p className="text-[10px] text-destructive">{locationForm.formState.errors.name.message}</p>
+                          )}
                         </div>
                       </div>
                     </TabsContent>
@@ -761,7 +895,6 @@ export function BranchesTab({
                         </div>
 
                         {!addressOverridden ? (
-                          /* Read-only inherited address view */
                           <div className="rounded-md bg-muted/30 border border-border px-3 py-2.5 text-[11px] text-muted-foreground">
                             {activeBranchForLocation ? (
                               <span>
@@ -773,7 +906,6 @@ export function BranchesTab({
                             )}
                           </div>
                         ) : (
-                          /* Editable override fields */
                           <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1.5 col-span-2">
@@ -802,7 +934,6 @@ export function BranchesTab({
 
                     {/* ── TAB 3: OPERATIONS ── */}
                     <TabsContent value="ops" className="space-y-4 mt-3">
-                      {/* Shift Group first — drives Working Hours */}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Shift Group *</Label>
@@ -810,7 +941,6 @@ export function BranchesTab({
                             value={locationForm.watch('shift') ?? ''}
                             onValueChange={(v) => {
                               locationForm.setValue('shift', v);
-                              // Auto-fill Working Hours from Shift Master
                               const master = SHIFT_MASTER[v];
                               if (master) locationForm.setValue('workingHours', master.workingHours);
                             }}
@@ -828,7 +958,6 @@ export function BranchesTab({
                           </Select>
                         </div>
 
-                        {/* Working Hours — auto-populated, read-only */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
                             <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Working Hours</Label>
@@ -876,30 +1005,22 @@ export function BranchesTab({
                     </TabsContent>
                   </Tabs>
 
-                  <DialogFooter className="flex items-center gap-2 border-t pt-3 mt-3">
-                    <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => { setLocationOpen(false); setAddressOverridden(false); }}>
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      variant="secondary"
-                      className="text-xs"
-                      disabled={createLocationMutation.isPending}
-                      onClick={() => setShouldAddAnotherLocation(true)}
-                    >
-                      Save & Add Another
-                    </Button>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="text-xs font-semibold"
-                      disabled={createLocationMutation.isPending}
-                      onClick={() => setShouldAddAnotherLocation(false)}
-                    >
-                      Save Location
-                    </Button>
-                  </DialogFooter>
+                  <MultiStepFormFooter
+                    currentStep={locationMultiStep.currentStep}
+                    totalSteps={locationMultiStep.totalSteps}
+                    isFirstStep={locationMultiStep.isFirstStep}
+                    isLastStep={locationMultiStep.isLastStep}
+                    isEditing={false}
+                    isSubmitting={createLocationMutation.isPending || createAndAddAnotherLocationMutation.isPending}
+                    createLabel="Save Location"
+                    saveLabel="Save Changes"
+                    showSaveAndContinue={true}
+                    saveAndContinueLabel="Save & Add Another"
+                    onCancel={closeLocationModal}
+                    onBack={locationMultiStep.goToPreviousStep}
+                    onNext={locationMultiStep.goToNextStep}
+                    onSaveAndContinue={handleSaveAndAddAnotherLocation}
+                  />
                 </form>
               </DialogContent>
             </Dialog>

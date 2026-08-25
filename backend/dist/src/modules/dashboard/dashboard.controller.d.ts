@@ -33,7 +33,7 @@ export declare class DashboardController {
         };
         upcomingEvents: {
             id: string;
-            type: "birthday" | "anniversary" | "onboarding" | "holiday";
+            type: "holiday" | "birthday" | "anniversary" | "onboarding";
             title: string;
             date: string;
             daysAway: number;

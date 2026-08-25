@@ -308,6 +308,8 @@ model Company {
   hrPolicies  HrPolicy[]
   manpowerPlans ManpowerPlan[]
   manpowerRequisitions ManpowerRequisition[]
+  travelBookings       TravelBooking[]
+  expenseClaims        ExpenseClaim[]
 
   @@map("companies")
 }
@@ -341,6 +343,7 @@ model Branch {
   employees   Employee[]
   locations   Location[]
   costCenters CostCenter[]
+  travelBookings TravelBooking[]
 
   @@unique([companyId, code])
   @@map("branches")
@@ -406,6 +409,7 @@ model Department {
   payGrades        PayGrade[]
   manpowerPlans    ManpowerPlan[]
   manpowerRequisitions ManpowerRequisition[]
+  travelBookings       TravelBooking[]
 
   @@unique([companyId, code])
   @@index([branchId])
@@ -437,6 +441,7 @@ model Designation {
   employees            Employee[]
   jobOpenings          JobOpening[]
   manpowerPlans        ManpowerPlan[]
+  travelBookings       TravelBooking[]
 
   @@unique([companyId, code])
   @@index([departmentId])
@@ -668,6 +673,8 @@ model Employee {
   attendanceRecords     AttendanceRecord[]
   leaveBalances         LeaveBalance[]
   leaveRequests         LeaveRequest[]     @relation("LeaveRequestEmployee")
+  travelBookings        TravelBooking[]
+  expenseClaims         ExpenseClaim[]
   leaveRequestsApproved LeaveRequest[]     @relation("LeaveRequestApprover")
 
   salaryComponents     EmployeeSalaryComponent[]
@@ -1831,5 +1838,106 @@ model CandidateInterviewEvaluation {
   @@index([candidateId])
   @@index([interviewerId])
   @@map("candidate_interview_evaluations")
+}
+
+// ---------------------------------------------------------------------------
+// Module: Travel & Expense Management
+// ---------------------------------------------------------------------------
+
+model TravelBooking {
+  id                   String   @id @default(cuid())
+  bookingCode          String   @unique
+  companyId            String
+  employeeId           String
+  departmentId         String?
+  designationId        String?
+  branchId             String?
+  costCenterId         String?
+  gradeId              String?
+  reportingManagerId   String?
+
+  purpose              String
+  travelType           String   @default("Domestic") // Domestic, International, Local
+  fromLocation         String
+  toLocation           String
+  startDate            DateTime
+  endDate              DateTime
+  travelMode           String   @default("Flight") // Flight, Train, Bus, Car, Taxi
+
+  accommodationRequired Boolean @default(false)
+  hotelDetails          String?
+
+  estimatedTravelCost     Decimal @default(0) @db.Decimal(12, 2)
+  estimatedHotelCost      Decimal @default(0) @db.Decimal(12, 2)
+  estimatedFoodCost       Decimal @default(0) @db.Decimal(12, 2)
+  estimatedLocalTransport Decimal @default(0) @db.Decimal(12, 2)
+  otherCost               Decimal @default(0) @db.Decimal(12, 2)
+  totalEstimatedCost      Decimal @default(0) @db.Decimal(12, 2)
+
+  advanceRequired      Boolean  @default(false)
+  advanceAmount        Decimal? @default(0) @db.Decimal(12, 2)
+  advanceRemarks       String?
+  remarks              String?
+  attachments          Json?
+
+  status               String   @default("DRAFT") // DRAFT, SUBMITTED, MANAGER_APPROVED, HR_APPROVED, FINANCE_APPROVED, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
+  rejectionReason      String?
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee           Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  department         Department?            @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation        Designation?           @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  branch             Branch?                @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  approvalHistory    TravelApprovalHistory[]
+  expenseClaims      ExpenseClaim[]
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("travel_bookings")
+}
+
+model TravelApprovalHistory {
+  id              String   @id @default(cuid())
+  travelBookingId String
+  userId          String?
+  userName        String
+  action          String   // SUBMITTED, MANAGER_APPROVED, HR_APPROVED, FINANCE_APPROVED, REJECTED, CANCELLED, COMPLETED
+  remarks         String?
+  createdAt       DateTime @default(now())
+
+  travelBooking TravelBooking @relation(fields: [travelBookingId], references: [id], onDelete: Cascade)
+
+  @@index([travelBookingId])
+  @@map("travel_approval_histories")
+}
+
+model ExpenseClaim {
+  id              String   @id @default(cuid())
+  claimCode       String   @unique
+  travelBookingId String?
+  companyId       String
+  employeeId      String
+  title           String
+  category        String   @default("Flight & Hotel")
+  amount          Decimal  @default(0) @db.Decimal(12, 2)
+  date            DateTime @default(now())
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED, REIMBURSED
+  receiptUrl      String?
+  remarks         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  travelBooking TravelBooking? @relation(fields: [travelBookingId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([travelBookingId])
+  @@map("expense_claims")
 }
 

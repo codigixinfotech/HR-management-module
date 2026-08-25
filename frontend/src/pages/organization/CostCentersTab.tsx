@@ -194,11 +194,39 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     return `${formatK(min)}–${formatK(max)}`;
   };
 
+  // Fetch all cost centers across companies for global code uniqueness
+  const { data: allCostCentersForCodes = [] } = useQuery({
+    queryKey: ['cost-centers-all-codes'],
+    queryFn: () => costCentersApi.list(),
+  });
+
+  const generateUniqueCcCode = () => {
+    const existingCodes = new Set(allCostCentersForCodes.map((cc) => cc.code));
+    let count = allCostCentersForCodes.length + 101;
+    let code = `CC-${count}`;
+    while (existingCodes.has(code)) {
+      count++;
+      code = `CC-${count}`;
+    }
+    return code;
+  };
+
+  const generateUniqueGradeCode = () => {
+    const existingCodes = new Set(payGrades.map((g) => g.gradeCode));
+    let count = payGrades.length + 1;
+    let code = `GR-${String(count).padStart(2, '0')}`;
+    while (existingCodes.has(code)) {
+      count++;
+      code = `GR-${String(count).padStart(2, '0')}`;
+    }
+    return code;
+  };
+
   // Cost Center Actions
   const openAddCc = () => {
     setEditingCc(null);
     setCcCompanyId(companyIdForLists);
-    setCcCode('');
+    setCcCode(generateUniqueCcCode());
     setCcName('');
     setCcType('Department');
     setCcDeptId(departments?.[0]?.id ?? '');
@@ -252,7 +280,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
 
     if (!editingCc?.id) {
       payloadData.companyId = ccCompanyId || companyIdForLists;
-      payloadData.code = ccCode || `CC-${String(costCenters.length + 101).padStart(3, '0')}`;
+      payloadData.code = ccCode || generateUniqueCcCode();
     }
 
     ccUpsertMutation.mutate({
@@ -272,7 +300,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setEditingGrade(null);
     setGradeCompanyId(companyIdForLists);
     setGradeBusinessUnit(companies?.[0]?.businessUnit ?? '');
-    setGradeCode('');
+    setGradeCode(generateUniqueGradeCode());
     setGradeName('');
     setGradeLevel('L1');
     setGradeCategory('Professional');
