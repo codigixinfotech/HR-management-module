@@ -4,6 +4,8 @@ import { Toaster } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import LoginPage from '@/pages/LoginPage';
+import CareersPage from '@/pages/recruitment/CareersPage';
+import CareersJobDetailPage from '@/pages/recruitment/CareersJobDetailPage';
 import DashboardPage from '@/pages/DashboardPage';
 import OrganizationPage from '@/pages/organization/OrganizationPage';
 import EmployeeListPage from '@/pages/employees/EmployeeListPage';
@@ -42,6 +44,9 @@ export default function App() {
         <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/careers" element={<CareersPage />} />
+          <Route path="/careers/*" element={<CareersPage />} />
+          <Route path="/careers/job/:id" element={<CareersJobDetailPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>

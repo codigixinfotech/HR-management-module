@@ -101,7 +101,7 @@ export function RequisitionsTab() {
     mutationFn: (id: string) => jobOpeningsApi.publish(id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['job-openings'] });
-      toast.success(`Job Opening "${data.title}" Published to Careers & Job Portal!`);
+      toast.success('Job published successfully. It is now visible on the Career Page.');
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to publish job opening'),
   });
@@ -191,9 +191,7 @@ export function RequisitionsTab() {
 
   // Handle Publish Opening
   const handlePublishJobOpening = (opening: JobOpening) => {
-    if (confirm(`Publish Job Opening "${opening.title}" (${opening.numPositions} Positions) to the Job Portal? Candidates will be able to apply.`)) {
-      publishOpeningMutation.mutate(opening.id);
-    }
+    publishOpeningMutation.mutate(opening.id);
   };
 
   const filteredOpenings = useMemo(() => {
@@ -631,18 +629,29 @@ export function RequisitionsTab() {
                           {!isPublished ? (
                             <Button
                               size="sm"
-                              className="h-7 text-[10.5px] px-2.5 bg-blue-600 hover:bg-blue-700 text-white gap-1.5 font-semibold"
+                              className="h-7 text-[10.5px] px-2.5 bg-blue-600 hover:bg-blue-700 text-white gap-1.5 font-semibold shadow-xs"
                               onClick={() => handlePublishJobOpening(opening)}
                               disabled={publishOpeningMutation.isPending}
                             >
                               <Globe className="h-3 w-3" /> Publish Job Opening
                             </Button>
                           ) : (
-                            <Link to={`/recruitment/candidates?jobId=${opening.id}`}>
-                              <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-semibold gap-1">
-                                View Candidates <ArrowUpRight className="h-3 w-3" />
-                              </Button>
-                            </Link>
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href="/careers"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Button variant="outline" size="sm" className="h-7 text-xs text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-50 font-semibold gap-1">
+                                  <Globe className="h-3 w-3" /> View Career Page
+                                </Button>
+                              </a>
+                              <Link to={`/recruitment/candidates?jobOpeningId=${opening.id}`}>
+                                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-semibold gap-1">
+                                  View Candidates <ArrowUpRight className="h-3 w-3" />
+                                </Button>
+                              </Link>
+                            </div>
                           )}
                         </div>
                       </TableCell>

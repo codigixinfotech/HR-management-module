@@ -33,6 +33,12 @@ let JobOpeningsController = class JobOpeningsController {
     list(companyId, status) {
         return this.jobOpeningsService.list(companyId, status);
     }
+    listPublicJobs(companyId) {
+        return this.jobOpeningsService.listPublicJobs(companyId);
+    }
+    findPublicJob(id) {
+        return this.jobOpeningsService.findPublicJob(id);
+    }
     uploadResume(file) {
         if (!file) {
             throw new common_1.BadRequestException('Resume document file is required');
@@ -83,6 +89,22 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], JobOpeningsController.prototype, "list", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('public/list'),
+    __param(0, (0, common_1.Query)('companyId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], JobOpeningsController.prototype, "listPublicJobs", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('public/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], JobOpeningsController.prototype, "findPublicJob", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('upload-resume'),

@@ -41,7 +41,7 @@ import type { JobOpening, Candidate, CandidateStage } from '@/api/types';
 export function CareersPortalTab() {
   const queryClient = useQueryClient();
 
-  const [portalUrl, setPortalUrl] = useState('https://careers.stockpulse.com/jobs');
+  const [portalUrl, setPortalUrl] = useState('http://localhost:5174/careers');
   const [brandColor, setBrandColor] = useState('#2563EB');
   const [welcomeText, setWelcomeText] = useState('Join StockPulse — Build the Future of Enterprise HCM');
 

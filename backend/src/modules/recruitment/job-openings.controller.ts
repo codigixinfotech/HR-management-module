@@ -42,6 +42,18 @@ export class JobOpeningsController {
   }
 
   @Public()
+  @Get('public/list')
+  listPublicJobs(@Query('companyId') companyId?: string) {
+    return this.jobOpeningsService.listPublicJobs(companyId);
+  }
+
+  @Public()
+  @Get('public/:id')
+  findPublicJob(@Param('id') id: string) {
+    return this.jobOpeningsService.findPublicJob(id);
+  }
+
+  @Public()
   @Post('upload-resume')
   @UseInterceptors(
     FileInterceptor('file', {

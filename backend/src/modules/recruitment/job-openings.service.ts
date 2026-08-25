@@ -121,4 +121,37 @@ export class JobOpeningsService {
     await this.prisma.jobOpening.delete({ where: { id } });
     return { success: true };
   }
+
+  listPublicJobs(companyId?: string) {
+    return this.prisma.jobOpening.findMany({
+      where: {
+        status: 'PUBLISHED',
+        isActive: true,
+        ...(companyId ? { companyId } : {}),
+      },
+      include: {
+        department: { select: { id: true, name: true } },
+        designation: { select: { id: true, title: true } },
+        company: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: { publishedAt: 'desc' },
+    });
+  }
+
+  async findPublicJob(id: string) {
+    const job = await this.prisma.jobOpening.findFirst({
+      where: {
+        id,
+        status: 'PUBLISHED',
+        isActive: true,
+      },
+      include: {
+        department: { select: { id: true, name: true } },
+        designation: { select: { id: true, title: true } },
+        company: { select: { id: true, name: true, code: true } },
+      },
+    });
+    if (!job) throw new NotFoundException('Public job opening not found or expired');
+    return job;
+  }
 }

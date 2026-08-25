@@ -4,6 +4,10 @@ import type { Candidate, CandidateStage, JobOpening, ManpowerPlan, ManpowerRequi
 export const jobOpeningsApi = {
   list: async (companyId?: string, status?: string) =>
     (await apiClient.get<JobOpening[]>('/recruitment/job-openings', { params: { companyId, status } })).data,
+  listPublic: async (companyId?: string) =>
+    (await apiClient.get<JobOpening[]>('/recruitment/job-openings/public/list', { params: { companyId } })).data,
+  findPublic: async (id: string) =>
+    (await apiClient.get<JobOpening>(`/recruitment/job-openings/public/${id}`)).data,
   get: async (id: string) => (await apiClient.get<JobOpening>(`/recruitment/job-openings/${id}`)).data,
   create: async (payload: Partial<JobOpening>) =>
     (await apiClient.post<JobOpening>('/recruitment/job-openings', payload)).data,
