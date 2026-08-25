@@ -18,8 +18,10 @@ let DepartmentsService = class DepartmentsService {
         this.prisma = prisma;
     }
     list(companyId) {
+        if (!companyId)
+            return [];
         return this.prisma.department.findMany({
-            where: companyId ? { companyId } : undefined,
+            where: { companyId },
             include: { parentDepartment: { select: { id: true, name: true } } },
             orderBy: { name: 'asc' },
         });

@@ -21,8 +21,11 @@ export class DesignationsController {
 
   @Get()
   @Permissions('organization.designations.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.designationsService.list(companyId);
+  list(
+    @Query('companyId') companyId?: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    return this.designationsService.list(companyId, departmentId);
   }
 
   @Get(':id')

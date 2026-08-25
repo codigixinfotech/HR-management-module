@@ -13,9 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { useMultiStepForm, type StepConfig } from '@/hooks/useMultiStepForm';
+import { MultiStepFormFooter, MultiStepTabsHeader } from '@/components/ui/multi-step-form';
 
 const companySchema = z.object({
   code: z.string().min(1, 'Code is required'),
@@ -26,9 +28,9 @@ const companySchema = z.object({
   parentCompanyId: z.string().optional(),
   
   // Registration Details
-  cin: z.string().optional(),
-  gst: z.string().optional(),
-  pan: z.string().optional(),
+  cin: z.string().min(1, 'CIN / Registration Number is required'),
+  gst: z.string().min(1, 'GST Number is required'),
+  pan: z.string().min(1, 'PAN / Tax ID is required'),
   tan: z.string().optional(),
   msme: z.string().optional(),
   
@@ -42,8 +44,8 @@ const companySchema = z.object({
   pincode: z.string().optional(),
   
   // Contact Information
-  email: z.string().optional(),
-  phone: z.string().optional(),
+  email: z.string().min(1, 'Official Email is required').email('Invalid email address'),
+  phone: z.string().min(1, 'Phone Number is required'),
   website: z.string().optional(),
   
   // Organization
@@ -54,6 +56,56 @@ const companySchema = z.object({
 
 type CompanyFormValues = z.infer<typeof companySchema>;
 
+const companySteps: StepConfig<CompanyFormValues>[] = [
+  {
+    id: 'basic',
+    label: 'Basic Info',
+    fields: ['code', 'name', 'legalName', 'shortName', 'entityType', 'parentCompanyId'],
+  },
+  {
+    id: 'registration',
+    label: 'Registration',
+    fields: ['cin', 'gst', 'pan', 'tan', 'msme'],
+  },
+  {
+    id: 'location',
+    label: 'Location',
+    fields: ['country', 'state', 'city', 'timezone', 'currency', 'registeredAddress', 'pincode'],
+  },
+  {
+    id: 'contact',
+    label: 'Contact & Org',
+    fields: ['email', 'phone', 'website', 'businessUnit', 'defaultBranchId', 'isActive'],
+  },
+];
+
+const DEFAULT_COMPANY_VALUES: CompanyFormValues = {
+  code: '',
+  name: '',
+  legalName: '',
+  shortName: '',
+  entityType: 'Private Limited',
+  parentCompanyId: '',
+  cin: '',
+  gst: '',
+  pan: '',
+  tan: '',
+  msme: '',
+  country: '',
+  state: '',
+  city: '',
+  timezone: '',
+  currency: '',
+  registeredAddress: '',
+  pincode: '',
+  email: '',
+  phone: '',
+  website: '',
+  businessUnit: '',
+  defaultBranchId: '',
+  isActive: true,
+};
+
 interface CompaniesTabProps {
   onCompanyCreated?: (companyId: string) => void;
 }
@@ -62,60 +114,54 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
-  const [shouldAddBranchAfterSave, setShouldAddBranchAfterSave] = useState(false);
 
   const { data: companies, isLoading } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
+
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema) as any,
-    defaultValues: {
-      code: '',
-      name: '',
-      legalName: '',
-      shortName: '',
-      entityType: 'Private Limited',
-      parentCompanyId: '',
-      cin: '',
-      gst: '',
-      pan: '',
-      tan: '',
-      msme: '',
-      country: 'India',
-      state: 'Telangana',
-      city: 'Hyderabad',
-      timezone: 'Asia/Kolkata',
-      currency: 'INR',
-      registeredAddress: '',
-      pincode: '',
-      email: '',
-      phone: '',
-      website: '',
-      businessUnit: '',
-      defaultBranchId: '',
-      isActive: true,
-    },
+    defaultValues: DEFAULT_COMPANY_VALUES,
   });
+
+  const {
+    currentStep,
+    activeStepId,
+    isFirstStep,
+    isLastStep,
+    totalSteps,
+    goToNextStep,
+    goToPreviousStep,
+    goToStep,
+    resetMultiStepForm,
+  } = useMultiStepForm<CompanyFormValues>({
+    steps: companySteps,
+    form,
+  });
+
+  const closeModal = () => {
+    setOpen(false);
+    setEditing(null);
+    resetMultiStepForm(DEFAULT_COMPANY_VALUES);
+  };
 
   const upsertMutation = useMutation({
     mutationFn: async (values: CompanyFormValues) => {
-      // Map empty strings to undefined or null so DB saves them cleanly
       const payload = Object.fromEntries(
         Object.entries(values).map(([k, v]) => [k, v === '' ? null : v])
       ) as any;
 
       return editing ? companiesApi.update(editing.id, payload) : companiesApi.create(payload);
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, _variables) => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       toast.success(editing ? 'Corporate Entity updated' : 'Corporate Entity created');
-      setOpen(false);
       
-      if (shouldAddBranchAfterSave && onCompanyCreated && data?.id) {
-        onCompanyCreated(data.id);
+      const createdCompanyId = data?.id;
+      const isEditMode = !!editing;
+      closeModal();
+      
+      if (!isEditMode && createdCompanyId && onCompanyCreated) {
+        onCompanyCreated(createdCompanyId);
       }
-      
-      setEditing(null);
-      form.reset();
-      setShouldAddBranchAfterSave(false);
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
   });
@@ -137,38 +183,16 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
     const nextNum = (companies?.length ?? 0) + 1;
     const autoCode = `COMP-${String(nextNum).padStart(2, '0')}`;
 
-    form.reset({
+    resetMultiStepForm({
+      ...DEFAULT_COMPANY_VALUES,
       code: autoCode,
-      name: '',
-      legalName: '',
-      shortName: '',
-      entityType: 'Private Limited',
-      parentCompanyId: '',
-      cin: '',
-      gst: '',
-      pan: '',
-      tan: '',
-      msme: '',
-      country: 'India',
-      state: 'Telangana',
-      city: 'Hyderabad',
-      timezone: 'Asia/Kolkata',
-      currency: 'INR',
-      registeredAddress: '',
-      pincode: '',
-      email: '',
-      phone: '',
-      website: '',
-      businessUnit: '',
-      defaultBranchId: '',
-      isActive: true,
     });
     setOpen(true);
   };
 
   const openEdit = (company: Company) => {
     setEditing(company);
-    form.reset({
+    resetMultiStepForm({
       code: company.code,
       name: company.name,
       legalName: company.legalName ?? '',
@@ -197,6 +221,14 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
     setOpen(true);
   };
 
+  const handleFinalSubmit = form.handleSubmit((values) => {
+    upsertMutation.mutate(values);
+  });
+
+  const handleSaveAndContinue = form.handleSubmit((values) => {
+    upsertMutation.mutate(values);
+  });
+
   return (
     <Card className="shadow-xs border-border/80">
       <CardHeader className="pb-3 border-b border-border/60">
@@ -210,7 +242,12 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
             </CardDescription>
           </div>
 
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              if (!v) closeModal();
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate}>
                 <Plus className="h-3.5 w-3.5" /> Add Entity
@@ -220,42 +257,72 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
               <DialogHeader>
                 <DialogTitle>{editing ? 'Edit Corporate Entity' : 'Add Corporate Entity'}</DialogTitle>
               </DialogHeader>
-              <form className="space-y-4 text-xs" onSubmit={form.handleSubmit((values) => upsertMutation.mutate(values))}>
-                <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="basic" className="text-xs">Basic Info</TabsTrigger>
-                    <TabsTrigger value="registration" className="text-xs">Registration</TabsTrigger>
-                    <TabsTrigger value="location" className="text-xs">Location</TabsTrigger>
-                    <TabsTrigger value="contact" className="text-xs">Contact & Org</TabsTrigger>
-                  </TabsList>
 
+              <form className="space-y-4 text-xs" onSubmit={handleFinalSubmit}>
+                <Tabs value={activeStepId} className="w-full">
+                  <MultiStepTabsHeader
+                    steps={companySteps}
+                    currentStep={currentStep}
+                    onSelectStep={(targetIdx) => goToStep(targetIdx)}
+                  />
+
+                  {/* STEP 1: BASIC INFO */}
                   <TabsContent value="basic" className="space-y-4 mt-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Entity Code (Auto Generate)</Label>
-                        <Input placeholder="e.g. COD001" {...form.register('code')} className="h-9 text-xs font-mono" />
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">
+                          Entity Code (Auto Generate) *
+                        </Label>
+                        <Input
+                          placeholder="e.g. COMP-01"
+                          {...form.register('code')}
+                          className="h-9 text-xs font-mono"
+                        />
+                        {form.formState.errors.code && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.code.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Company Name *</Label>
-                        <Input placeholder="e.g. Codigix Technologies Pvt Ltd" {...form.register('name')} className="h-9 text-xs" />
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">
+                          Company Name *
+                        </Label>
+                        <Input
+                          placeholder="e.g. Codigix Technologies Pvt Ltd"
+                          {...form.register('name')}
+                          className="h-9 text-xs"
+                        />
+                        {form.formState.errors.name && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.name.message}</p>
+                        )}
                       </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Registered Legal Name *</Label>
-                        <Input placeholder="e.g. Codigix Technologies Private Limited" {...form.register('legalName')} className="h-9 text-xs" />
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">
+                          Registered Legal Name *
+                        </Label>
+                        <Input
+                          placeholder="e.g. Codigix Technologies Private Limited"
+                          {...form.register('legalName')}
+                          className="h-9 text-xs"
+                        />
+                        {form.formState.errors.legalName && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.legalName.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Short Name</Label>
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Short Name (Optional)</Label>
                         <Input placeholder="e.g. Codigix" {...form.register('shortName')} className="h-9 text-xs" />
                       </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Entity Type</Label>
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Entity Type (Optional)</Label>
                         <Select
                           value={form.watch('entityType')}
-                          onValueChange={(val) => form.setValue('entityType', val)}
+                          onValueChange={(val) => form.setValue('entityType', val, { shouldValidate: true })}
                         >
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue />
@@ -271,10 +338,12 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
                         </Select>
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Parent Company (Optional)</Label>
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">
+                          Parent Company (Optional)
+                        </Label>
                         <Select
-                          value={form.watch('parentCompanyId')}
-                          onValueChange={(val) => form.setValue('parentCompanyId', val)}
+                          value={form.watch('parentCompanyId') ?? ''}
+                          onValueChange={(val) => form.setValue('parentCompanyId', val, { shouldValidate: true })}
                         >
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Select Parent Company" />
@@ -292,59 +361,107 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
                     </div>
                   </TabsContent>
 
+                  {/* STEP 2: REGISTRATION */}
                   <TabsContent value="registration" className="space-y-4 mt-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">CIN / Registration Number</Label>
-                        <Input placeholder="e.g. U72200TG2026PTC123456" {...form.register('cin')} className="h-9 text-xs font-mono uppercase" />
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">
+                          CIN / Registration Number *
+                        </Label>
+                        <Input
+                          placeholder="e.g. U72200TG2026PTC123456"
+                          {...form.register('cin')}
+                          className="h-9 text-xs font-mono uppercase"
+                        />
+                        {form.formState.errors.cin && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.cin.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">GST Number</Label>
-                        <Input placeholder="e.g. 36ABCDE1234F1Z5" {...form.register('gst')} className="h-9 text-xs font-mono uppercase" />
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">GST Number *</Label>
+                        <Input
+                          placeholder="e.g. 36ABCDE1234F1Z5"
+                          {...form.register('gst')}
+                          className="h-9 text-xs font-mono uppercase"
+                        />
+                        {form.formState.errors.gst && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.gst.message}</p>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PAN / Tax ID</Label>
-                        <Input placeholder="e.g. ABCDE1234F" {...form.register('pan')} className="h-9 text-xs font-mono uppercase" />
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PAN / Tax ID *</Label>
+                        <Input
+                          placeholder="e.g. ABCDE1234F"
+                          {...form.register('pan')}
+                          className="h-9 text-xs font-mono uppercase"
+                        />
+                        {form.formState.errors.pan && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.pan.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">TAN (Optional)</Label>
-                        <Input placeholder="e.g. MNDA12345B" {...form.register('tan')} className="h-9 text-xs font-mono uppercase" />
+                        <Input
+                          placeholder="e.g. MNDA12345B"
+                          {...form.register('tan')}
+                          className="h-9 text-xs font-mono uppercase"
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">MSME Number (Optional)</Label>
-                        <Input placeholder="e.g. UDYAM-TG-01-12345" {...form.register('msme')} className="h-9 text-xs font-mono uppercase" />
+                        <Input
+                          placeholder="e.g. UDYAM-TG-01-12345"
+                          {...form.register('msme')}
+                          className="h-9 text-xs font-mono uppercase"
+                        />
                       </div>
                     </div>
                   </TabsContent>
 
+                  {/* STEP 3: LOCATION */}
                   <TabsContent value="location" className="space-y-4 mt-3">
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Country *</Label>
                         <Input placeholder="e.g. India" {...form.register('country')} className="h-9 text-xs" />
+                        {form.formState.errors.country && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.country.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">State *</Label>
                         <Input placeholder="e.g. Telangana" {...form.register('state')} className="h-9 text-xs" />
+                        {form.formState.errors.state && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.state.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">City *</Label>
                         <Input placeholder="e.g. Hyderabad" {...form.register('city')} className="h-9 text-xs" />
+                        {form.formState.errors.city && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.city.message}</p>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Time Zone *</Label>
                         <Input placeholder="e.g. Asia/Kolkata" {...form.register('timezone')} className="h-9 text-xs font-mono" />
+                        {form.formState.errors.timezone && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.timezone.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Currency *</Label>
                         <Input placeholder="e.g. INR" {...form.register('currency')} className="h-9 text-xs font-mono uppercase" />
+                        {form.formState.errors.currency && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.currency.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PIN / ZIP Code</Label>
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PIN / ZIP Code (Optional)</Label>
                         <Input placeholder="e.g. 500081" {...form.register('pincode')} className="h-9 text-xs font-mono" />
                       </div>
                     </div>
@@ -355,21 +472,31 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
                         {...form.register('registeredAddress')}
                         className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-2xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       />
+                      {form.formState.errors.registeredAddress && (
+                        <p className="text-[10px] text-destructive">{form.formState.errors.registeredAddress.message}</p>
+                      )}
                     </div>
                   </TabsContent>
 
+                  {/* STEP 4: CONTACT & ORG */}
                   <TabsContent value="contact" className="space-y-4 mt-3">
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Official Email</Label>
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Official Email *</Label>
                         <Input placeholder="e.g. info@codigix.com" {...form.register('email')} className="h-9 text-xs" />
+                        {form.formState.errors.email && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.email.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Phone Number</Label>
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Phone Number *</Label>
                         <Input placeholder="e.g. +91 9876543210" {...form.register('phone')} className="h-9 text-xs" />
+                        {form.formState.errors.phone && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.phone.message}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Website</Label>
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Website (Optional)</Label>
                         <Input placeholder="e.g. https://codigix.com" {...form.register('website')} className="h-9 text-xs" />
                       </div>
                     </div>
@@ -397,26 +524,22 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
                   </TabsContent>
                 </Tabs>
 
-                <DialogFooter className="flex items-center gap-2 border-t pt-3 mt-3">
-                  <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  {!editing && (
-                    <Button
-                      type="submit"
-                      size="sm"
-                      variant="secondary"
-                      className="text-xs"
-                      disabled={upsertMutation.isPending}
-                      onClick={() => setShouldAddBranchAfterSave(true)}
-                    >
-                      Create Entity & Add Branch
-                    </Button>
-                  )}
-                  <Button type="submit" size="sm" className="text-xs font-semibold" disabled={upsertMutation.isPending} onClick={() => setShouldAddBranchAfterSave(false)}>
-                    {editing ? 'Save Changes' : 'Create Entity'}
-                  </Button>
-                </DialogFooter>
+                <MultiStepFormFooter
+                  currentStep={currentStep}
+                  totalSteps={totalSteps}
+                  isFirstStep={isFirstStep}
+                  isLastStep={isLastStep}
+                  isEditing={!!editing}
+                  isSubmitting={upsertMutation.isPending}
+                  createLabel="Create Entity"
+                  saveLabel="Save Changes"
+                  showSaveAndContinue={!editing}
+                  saveAndContinueLabel="Create Entity & Add Branch"
+                  onCancel={closeModal}
+                  onBack={goToPreviousStep}
+                  onNext={goToNextStep}
+                  onSaveAndContinue={handleSaveAndContinue}
+                />
               </form>
             </DialogContent>
           </Dialog>
@@ -468,7 +591,17 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(company)}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(company.id)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:text-destructive"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete corporate entity "${company.name}"?`)) {
+                        deleteMutation.mutate(company.id);
+                      }
+                    }}
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </TableCell>

@@ -13,7 +13,6 @@ const ADMIN_ONLY_ROUTES = [
   '/learning',
   '/workforce',
   '/asset-management',
-  '/travel-expense',
   '/ehs',
   '/ai-intelligence',
   '/iot-devices',

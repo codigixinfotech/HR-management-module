@@ -49,8 +49,7 @@ export declare class EmployeesService implements OnModuleInit {
         onboardingTasks: {
             id: string;
             createdAt: Date;
-            employeeId: string;
-            status: import(".prisma/client").$Enums.ApprovalStatus;
+            title: string;
             description: string | null;
             dueDate: Date | null;
             title: string;
@@ -72,10 +71,9 @@ export declare class EmployeesService implements OnModuleInit {
         kpis: {
             id: string;
             createdAt: Date;
-            category: string;
             updatedAt: Date;
             employeeId: string;
-            managerFeedback: string | null;
+            category: string;
             kpi: string;
             target: string;
             weightage: number;
@@ -85,9 +83,9 @@ export declare class EmployeesService implements OnModuleInit {
         hrNotes: {
             id: string;
             employeeId: string;
+            createdBy: string;
             note: string;
             noteType: string;
-            createdBy: string;
             createdDate: Date;
         }[];
         timelineEvents: {
@@ -105,9 +103,10 @@ export declare class EmployeesService implements OnModuleInit {
                 createdAt: Date;
                 name: string;
                 updatedAt: Date;
+                name: string;
                 code: string;
-                isActive: boolean;
                 type: import(".prisma/client").$Enums.SalaryComponentType;
+                isActive: boolean;
                 isStatutory: boolean;
             };
         } & {
@@ -134,6 +133,8 @@ export declare class EmployeesService implements OnModuleInit {
             warrantyExpiry: Date | null;
             notes: string | null;
         }[];
+        location: string | null;
+        costCenter: string | null;
         id: string;
         companyId: string;
         location: string | null;
@@ -161,7 +162,6 @@ export declare class EmployeesService implements OnModuleInit {
         dateOfExit: Date | null;
         businessUnit: string | null;
         shift: string | null;
-        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -262,6 +262,8 @@ export declare class EmployeesService implements OnModuleInit {
                 uploadedAt: Date;
             }[];
         } & {
+            location: string | null;
+            costCenter: string | null;
             id: string;
             companyId: string;
             location: string | null;
@@ -291,7 +293,6 @@ export declare class EmployeesService implements OnModuleInit {
             grade: string | null;
             level: string | null;
             shift: string | null;
-            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -415,6 +416,8 @@ export declare class EmployeesService implements OnModuleInit {
             uploadedAt: Date;
         }[];
     } & {
+        location: string | null;
+        costCenter: string | null;
         id: string;
         companyId: string;
         location: string | null;
@@ -444,7 +447,6 @@ export declare class EmployeesService implements OnModuleInit {
         grade: string | null;
         level: string | null;
         shift: string | null;
-        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -544,6 +546,8 @@ export declare class EmployeesService implements OnModuleInit {
             uploadedAt: Date;
         }[];
     } & {
+        location: string | null;
+        costCenter: string | null;
         id: string;
         companyId: string;
         location: string | null;
@@ -573,7 +577,6 @@ export declare class EmployeesService implements OnModuleInit {
         grade: string | null;
         level: string | null;
         shift: string | null;
-        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -692,10 +695,9 @@ export declare class EmployeesService implements OnModuleInit {
     }): Promise<{
         id: string;
         createdAt: Date;
-        category: string;
         updatedAt: Date;
         employeeId: string;
-        managerFeedback: string | null;
+        category: string;
         kpi: string;
         target: string;
         weightage: number;
@@ -709,9 +711,9 @@ export declare class EmployeesService implements OnModuleInit {
     }): Promise<{
         id: string;
         employeeId: string;
+        createdBy: string;
         note: string;
         noteType: string;
-        createdBy: string;
         createdDate: Date;
     }>;
     listSkills(): Promise<unknown>;

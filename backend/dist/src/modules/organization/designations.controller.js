@@ -22,8 +22,8 @@ let DesignationsController = class DesignationsController {
     constructor(designationsService) {
         this.designationsService = designationsService;
     }
-    list(companyId) {
-        return this.designationsService.list(companyId);
+    list(companyId, departmentId) {
+        return this.designationsService.list(companyId, departmentId);
     }
     findOne(id) {
         return this.designationsService.findById(id);
@@ -43,8 +43,9 @@ __decorate([
     (0, common_1.Get)(),
     (0, permissions_decorator_1.Permissions)('organization.designations.read'),
     __param(0, (0, common_1.Query)('companyId')),
+    __param(1, (0, common_1.Query)('departmentId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], DesignationsController.prototype, "list", null);
 __decorate([
