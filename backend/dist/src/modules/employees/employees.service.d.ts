@@ -54,6 +54,7 @@ export declare class EmployeesService implements OnModuleInit {
             dueDate: Date | null;
             title: string;
             completedAt: Date | null;
+            employeeId: string;
             ownerType: string;
         }[];
         courseEnrollments: {
