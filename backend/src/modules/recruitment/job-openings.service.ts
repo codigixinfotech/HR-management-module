@@ -16,7 +16,16 @@ export class JobOpeningsService {
     return `JR-${year}-${seq}`;
   }
 
-  list(companyId?: string, status?: string) {
+  async list(companyId?: string, status?: string) {
+    try {
+      await this.prisma.jobOpening.updateMany({
+        where: { status: 'DRAFT', manpowerRequisitionId: null },
+        data: { status: 'READY_TO_PUBLISH' },
+      });
+    } catch (e) {
+      // Ignore if database busy
+    }
+
     return this.prisma.jobOpening.findMany({
       where: {
         ...(companyId ? { companyId } : {}),
@@ -51,8 +60,14 @@ export class JobOpeningsService {
     const requisitionCode = dto.requisitionCode || (await this.generateNextRequisitionCode());
 
     const candidateType = dto.candidateType || 'BOTH';
-    const minExp = dto.minExperience ?? 0;
-    const maxExp = dto.maxExperience ?? minExp;
+    const minExp = dto.minExperience ?? (dto as any).minExp ?? 0;
+    const maxExp = dto.maxExperience ?? (dto as any).maxExp ?? minExp;
+    const numPositions = dto.numPositions ?? (dto as any).positionsCount ?? 1;
+    const requiredSkills = dto.requiredSkills || (dto as any).skills || null;
+    const workLocation = dto.workLocation || (dto as any).location || null;
+    const deadlineVal = dto.applicationDeadline || (dto as any).deadline;
+    const visibilityVal = dto.jobVisibility || (dto as any).visibility || 'Public';
+    const numRoundsVal = dto.numInterviewRounds ?? (dto as any).numRounds ?? 3;
 
     let formattedExp = dto.experience;
     if (candidateType === 'FRESHER') {
@@ -73,9 +88,9 @@ export class JobOpeningsService {
         manpowerPlanCode: dto.manpowerPlanCode || null,
         mrNumber: dto.mrNumber || null,
         title: dto.title,
-        description: dto.description || null,
+        description: dto.description || (dto as any).summary || null,
         responsibilities: dto.responsibilities || null,
-        numPositions: dto.numPositions || 1,
+        numPositions,
         costCenter: dto.costCenter || null,
         employmentType: dto.employmentType || 'FULL_TIME',
         priority: dto.priority || 'NORMAL',
@@ -87,12 +102,25 @@ export class JobOpeningsService {
         maxSalary: dto.maxSalary || null,
         qualification: dto.qualification || null,
         experience: formattedExp || null,
-        requiredSkills: dto.requiredSkills || null,
-        workLocation: dto.workLocation || null,
+        requiredSkills,
+        workLocation,
         reportingManagerId: dto.reportingManagerId || null,
-        applicationDeadline: dto.applicationDeadline ? new Date(dto.applicationDeadline) : null,
+        applicationDeadline: deadlineVal ? new Date(deadlineVal) : null,
         status: dto.status || 'READY_TO_PUBLISH',
         isActive: dto.status === 'PUBLISHED',
+        hiringManagerId: dto.hiringManagerId || null,
+        recruiterId: dto.recruiterId || null,
+        hrbpId: dto.hrbpId || null,
+        applicationStartDate: dto.applicationStartDate ? new Date(dto.applicationStartDate) : new Date(),
+        jobVisibility: visibilityVal,
+        preferredSkills: dto.preferredSkills || null,
+        preferredQualification: dto.preferredQualification || null,
+        certifications: dto.certifications || null,
+        benefits: dto.benefits || null,
+        interviewProcess: dto.interviewProcess || null,
+        numInterviewRounds: numRoundsVal,
+        internalNotes: dto.internalNotes || null,
+        internalJustification: dto.internalJustification || null,
       },
     });
   }

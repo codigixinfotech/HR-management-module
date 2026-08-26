@@ -1,7 +1,20 @@
 export declare class CreateJobOpeningDto {
     companyId: string;
+    branchId?: string;
     departmentId?: string;
     designationId?: string;
+    category?: string;
+    jobFamily?: string;
+    seniorityLevel?: string;
+    summary?: string;
+    skills?: string;
+    minExp?: number;
+    maxExp?: number;
+    location?: string;
+    deadline?: string;
+    visibility?: string;
+    numRounds?: number;
+    positionsCount?: number;
     manpowerRequisitionId?: string;
     requisitionCode?: string;
     manpowerPlanCode?: string;

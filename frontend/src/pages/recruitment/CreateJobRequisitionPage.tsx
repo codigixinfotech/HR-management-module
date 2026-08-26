@@ -584,16 +584,17 @@ export default function CreateJobRequisitionPage() {
   const createJobReqMutation = useMutation({
     mutationFn: (data: any) => jobOpeningsApi.create(data),
     onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
       queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
       queryClient.invalidateQueries({ queryKey: ['job-requisitions'] });
       queryClient.invalidateQueries({ queryKey: ['approved-manpower-requisitions'] });
 
-      const isDraft = variables.status === 'DRAFT';
-      toast.success(
-        isDraft
+      const statusText =
+        variables.status === 'DRAFT'
           ? 'Job Requisition saved as Draft.'
-          : 'Job Requisition submitted successfully for Approval!'
-      );
+          : 'Job Requisition created successfully and set to READY TO PUBLISH!';
+      toast.success(statusText);
       navigate('/recruitment/requisitions');
     },
     onError: (err: any) => {
@@ -601,9 +602,9 @@ export default function CreateJobRequisitionPage() {
     },
   });
 
-  const handleSubmit = (targetStatus: 'DRAFT' | 'PENDING_APPROVAL') => {
-    if (targetStatus === 'PENDING_APPROVAL') {
-      if (!validateStep1() || !validateStep2() || !validateStep3() || !validateStep4() || !validateStep5('PENDING_APPROVAL')) {
+  const handleSubmit = (targetStatus: 'DRAFT' | 'READY_TO_PUBLISH' | 'PENDING_APPROVAL' = 'READY_TO_PUBLISH') => {
+    if (targetStatus !== 'DRAFT') {
+      if (!validateStep1() || !validateStep2() || !validateStep3() || !validateStep4() || !validateStep5(targetStatus)) {
         toast.error('Validation failed. Please review highlighted inline errors across all steps.');
         return;
       }
@@ -705,8 +706,8 @@ export default function CreateJobRequisitionPage() {
               <Briefcase className="h-5 w-5 text-primary" />
               Create Job Requisition
             </h1>
-            <Badge variant="outline" className="text-xs font-semibold bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-              DRAFT
+            <Badge variant="outline" className="text-xs font-semibold bg-blue-500/10 text-blue-600 border-blue-500/30">
+              {isFromMR ? 'APPROVED MR 🔒' : 'READY TO PUBLISH'}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -738,10 +739,10 @@ export default function CreateJobRequisitionPage() {
             type="button"
             size="sm"
             className="text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-xs"
-            onClick={() => handleSubmit('PENDING_APPROVAL')}
+            onClick={() => handleSubmit('READY_TO_PUBLISH')}
             disabled={createJobReqMutation.isPending}
           >
-            <CheckCircle2 className="h-4 w-4" /> Submit for Approval
+            <CheckCircle2 className="h-4 w-4" /> Save & Set Ready to Publish
           </Button>
         </div>
       </div>
@@ -2087,10 +2088,10 @@ export default function CreateJobRequisitionPage() {
                     type="button"
                     size="sm"
                     className="text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-xs"
-                    onClick={() => handleSubmit('PENDING_APPROVAL')}
+                    onClick={() => handleSubmit('READY_TO_PUBLISH')}
                     disabled={createJobReqMutation.isPending}
                   >
-                    <CheckCircle2 className="h-4 w-4" /> Submit for Approval
+                    <CheckCircle2 className="h-4 w-4" /> Save & Set Ready to Publish
                   </Button>
                 </div>
               </div>

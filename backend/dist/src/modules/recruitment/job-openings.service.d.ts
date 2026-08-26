@@ -4,16 +4,17 @@ export declare class JobOpeningsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     generateNextRequisitionCode(): Promise<string>;
-    list(companyId?: string, status?: string): import(".prisma/client").Prisma.PrismaPromise<({
+    list(companyId?: string, status?: string): Promise<({
         department: {
             id: string;
             name: string;
         } | null;
         designation: {
-            title: string;
             id: string;
+            title: string;
         } | null;
         manpowerRequisition: {
+            id: string;
             companyId: string | null;
             departmentId: string | null;
             designationId: string | null;
@@ -30,36 +31,35 @@ export declare class JobOpeningsService {
             reportingManagerId: string | null;
             status: string;
             isActive: boolean;
-            id: string;
             createdAt: Date;
             updatedAt: Date;
             branchId: string | null;
-            role: string;
-            departmentName: string;
-            rejectionReason: string | null;
-            approvedBy: string | null;
-            approvedAt: Date | null;
-            reason: string;
             manpowerPlanId: string | null;
+            departmentName: string;
+            role: string;
             numOpenings: number;
             joiningDate: Date;
             requestorName: string;
             requestDate: Date;
+            reason: string;
             comments: string | null;
+            rejectionReason: string | null;
+            approvedBy: string | null;
+            approvedAt: Date | null;
         } | null;
         candidates: {
+            id: string;
             candidateType: string | null;
             graduationYear: string | null;
             qualification: string | null;
             experience: string | null;
-            id: string;
             createdAt: Date;
             updatedAt: Date;
-            email: string;
-            phone: string | null;
             jobOpeningId: string;
             firstName: string;
             lastName: string;
+            email: string;
+            phone: string | null;
             resumePath: string | null;
             internshipDetails: string | null;
             currentCompany: string | null;
@@ -78,6 +78,7 @@ export declare class JobOpeningsService {
             candidates: number;
         };
     } & {
+        id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
@@ -105,6 +106,7 @@ export declare class JobOpeningsService {
         reportingManagerId: string | null;
         applicationDeadline: Date | null;
         status: string;
+        publishedAt: Date | null;
         isActive: boolean;
         workMode: string | null;
         hiringManagerId: string | null;
@@ -122,8 +124,6 @@ export declare class JobOpeningsService {
         hasAssessment: boolean | null;
         internalNotes: string | null;
         internalJustification: string | null;
-        id: string;
-        publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
     })[]>;
@@ -133,10 +133,11 @@ export declare class JobOpeningsService {
             name: string;
         } | null;
         designation: {
-            title: string;
             id: string;
+            title: string;
         } | null;
         manpowerRequisition: {
+            id: string;
             companyId: string | null;
             departmentId: string | null;
             designationId: string | null;
@@ -153,36 +154,35 @@ export declare class JobOpeningsService {
             reportingManagerId: string | null;
             status: string;
             isActive: boolean;
-            id: string;
             createdAt: Date;
             updatedAt: Date;
             branchId: string | null;
-            role: string;
-            departmentName: string;
-            rejectionReason: string | null;
-            approvedBy: string | null;
-            approvedAt: Date | null;
-            reason: string;
             manpowerPlanId: string | null;
+            departmentName: string;
+            role: string;
             numOpenings: number;
             joiningDate: Date;
             requestorName: string;
             requestDate: Date;
+            reason: string;
             comments: string | null;
+            rejectionReason: string | null;
+            approvedBy: string | null;
+            approvedAt: Date | null;
         } | null;
         candidates: {
+            id: string;
             candidateType: string | null;
             graduationYear: string | null;
             qualification: string | null;
             experience: string | null;
-            id: string;
             createdAt: Date;
             updatedAt: Date;
-            email: string;
-            phone: string | null;
             jobOpeningId: string;
             firstName: string;
             lastName: string;
+            email: string;
+            phone: string | null;
             resumePath: string | null;
             internshipDetails: string | null;
             currentCompany: string | null;
@@ -198,6 +198,7 @@ export declare class JobOpeningsService {
             notes: string | null;
         }[];
     } & {
+        id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
@@ -225,6 +226,7 @@ export declare class JobOpeningsService {
         reportingManagerId: string | null;
         applicationDeadline: Date | null;
         status: string;
+        publishedAt: Date | null;
         isActive: boolean;
         workMode: string | null;
         hiringManagerId: string | null;
@@ -242,12 +244,11 @@ export declare class JobOpeningsService {
         hasAssessment: boolean | null;
         internalNotes: string | null;
         internalJustification: string | null;
-        id: string;
-        publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
     create(dto: CreateJobOpeningDto): Promise<{
+        id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
@@ -275,6 +276,7 @@ export declare class JobOpeningsService {
         reportingManagerId: string | null;
         applicationDeadline: Date | null;
         status: string;
+        publishedAt: Date | null;
         isActive: boolean;
         workMode: string | null;
         hiringManagerId: string | null;
@@ -292,12 +294,11 @@ export declare class JobOpeningsService {
         hasAssessment: boolean | null;
         internalNotes: string | null;
         internalJustification: string | null;
-        id: string;
-        publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
     publishOpening(id: string): Promise<{
+        id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
@@ -325,6 +326,7 @@ export declare class JobOpeningsService {
         reportingManagerId: string | null;
         applicationDeadline: Date | null;
         status: string;
+        publishedAt: Date | null;
         isActive: boolean;
         workMode: string | null;
         hiringManagerId: string | null;
@@ -342,12 +344,11 @@ export declare class JobOpeningsService {
         hasAssessment: boolean | null;
         internalNotes: string | null;
         internalJustification: string | null;
-        id: string;
-        publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
     update(id: string, dto: UpdateJobOpeningDto): Promise<{
+        id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
@@ -375,6 +376,7 @@ export declare class JobOpeningsService {
         reportingManagerId: string | null;
         applicationDeadline: Date | null;
         status: string;
+        publishedAt: Date | null;
         isActive: boolean;
         workMode: string | null;
         hiringManagerId: string | null;
@@ -392,8 +394,6 @@ export declare class JobOpeningsService {
         hasAssessment: boolean | null;
         internalNotes: string | null;
         internalJustification: string | null;
-        id: string;
-        publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -411,10 +411,11 @@ export declare class JobOpeningsService {
             name: string;
         } | null;
         designation: {
-            title: string;
             id: string;
+            title: string;
         } | null;
     } & {
+        id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
@@ -442,6 +443,7 @@ export declare class JobOpeningsService {
         reportingManagerId: string | null;
         applicationDeadline: Date | null;
         status: string;
+        publishedAt: Date | null;
         isActive: boolean;
         workMode: string | null;
         hiringManagerId: string | null;
@@ -459,8 +461,6 @@ export declare class JobOpeningsService {
         hasAssessment: boolean | null;
         internalNotes: string | null;
         internalJustification: string | null;
-        id: string;
-        publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
     })[]>;
@@ -475,10 +475,11 @@ export declare class JobOpeningsService {
             name: string;
         } | null;
         designation: {
-            title: string;
             id: string;
+            title: string;
         } | null;
     } & {
+        id: string;
         companyId: string;
         departmentId: string | null;
         designationId: string | null;
@@ -506,6 +507,7 @@ export declare class JobOpeningsService {
         reportingManagerId: string | null;
         applicationDeadline: Date | null;
         status: string;
+        publishedAt: Date | null;
         isActive: boolean;
         workMode: string | null;
         hiringManagerId: string | null;
@@ -523,8 +525,6 @@ export declare class JobOpeningsService {
         hasAssessment: boolean | null;
         internalNotes: string | null;
         internalJustification: string | null;
-        id: string;
-        publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
     }>;

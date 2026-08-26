@@ -391,10 +391,16 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
     mutationFn: (id: string) => jobOpeningsApi.publish(id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['job-openings'] });
-      toast.success('Job published successfully. It is now visible on the Career Page.');
+      queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
+      toast.success('Job published successfully! It is now live on the Career Portal.');
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to publish job opening'),
   });
+
+  const handlePublishJobOpening = (opening: any) => {
+    publishOpeningMutation.mutate(opening.id);
+  };
 
   // Handle Approve MR with Clean Confirmation Prompt
   const handleApproveMr = (mr: ManpowerRequisition) => {
@@ -563,7 +569,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
   }, [isStandaloneOpen]);
 
   // Handle Submit Job Requisition
-  const handleSubmitJobReq = (targetStatus: 'DRAFT' | 'PENDING_APPROVAL') => {
+  const handleSubmitJobReq = (targetStatus: 'DRAFT' | 'READY_TO_PUBLISH' = 'READY_TO_PUBLISH') => {
     if (!validateStep1()) {
       setCreateReqTab('mr_ref');
       toast.error('Please fix errors in Step 1 (Organization Setup).');
@@ -2153,10 +2159,10 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                   type="button"
                   size="sm"
                   className="text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-xs"
-                  onClick={() => handleSubmitJobReq('PENDING_APPROVAL')}
+                  onClick={() => handleSubmitJobReq('READY_TO_PUBLISH')}
                   disabled={createJobReqMutation.isPending}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Submit for Approval
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Save & Set Ready to Publish
                 </Button>
               </div>
             </DialogFooter>
@@ -2224,8 +2230,8 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
               <TableBody>
                 {filteredOpenings.map((opening) => {
                   const isPublished = opening.status === 'PUBLISHED' || opening.isActive;
-                  const isReadyToPublish = opening.status === 'READY_TO_PUBLISH';
-                  const isDraft = opening.status === 'DRAFT';
+                  const isStandalone = !opening.manpowerRequisitionId;
+                  const isReadyToPublish = !isPublished && (isStandalone || opening.status === 'READY_TO_PUBLISH');
                   const reqCode = opening.requisitionCode || `JR-2026-0${opening.id.substring(0, 2)}`;
 
                   return (

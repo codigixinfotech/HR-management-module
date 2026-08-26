@@ -7,11 +7,63 @@ export class CreateJobOpeningDto {
 
   @IsOptional()
   @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
   departmentId?: string;
 
   @IsOptional()
   @IsString()
   designationId?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  jobFamily?: string;
+
+  @IsOptional()
+  @IsString()
+  seniorityLevel?: string;
+
+  @IsOptional()
+  @IsString()
+  summary?: string;
+
+  @IsOptional()
+  @IsString()
+  skills?: string;
+
+  @IsOptional()
+  @IsNumber()
+  minExp?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxExp?: number;
+
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @IsOptional()
+  @IsDateString()
+  deadline?: string;
+
+  @IsOptional()
+  @IsString()
+  visibility?: string;
+
+  @IsOptional()
+  @IsNumber()
+  numRounds?: number;
+
+  @IsOptional()
+  @IsNumber()
+  positionsCount?: number;
 
   @IsOptional()
   @IsString()
