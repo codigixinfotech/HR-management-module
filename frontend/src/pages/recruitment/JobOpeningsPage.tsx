@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Plus,
   Users,
@@ -24,9 +24,17 @@ import { RecruitmentReportsTab } from './RecruitmentReportsTab';
 
 export default function JobOpeningsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'requisitions';
+
+  // Show "Post Job Opening" ONLY on /recruitment/planning and /recruitment/requisitions
+  const isPostJobAllowed =
+    location.pathname.endsWith('/planning') ||
+    location.pathname.endsWith('/requisitions') ||
+    activeTab === 'planning' ||
+    activeTab === 'requisitions';
 
   const { data: openings } = useQuery({ queryKey: ['job-openings'], queryFn: () => jobOpeningsApi.list() });
 
@@ -39,13 +47,15 @@ export default function JobOpeningsPage() {
         badge="Q3 Hiring Campaign"
         badgeVariant="info"
         actions={
-          <Button
-            size="sm"
-            className="gap-1.5 text-xs font-semibold"
-            onClick={() => navigate('/recruitment/requisitions/new')}
-          >
-            <Plus className="h-3.5 w-3.5" /> Post Job Opening
-          </Button>
+          isPostJobAllowed ? (
+            <Button
+              size="sm"
+              className="gap-1.5 text-xs font-semibold"
+              onClick={() => navigate('/recruitment/requisitions/new')}
+            >
+              <Plus className="h-3.5 w-3.5" /> Post Job Opening
+            </Button>
+          ) : undefined
         }
       />
 
