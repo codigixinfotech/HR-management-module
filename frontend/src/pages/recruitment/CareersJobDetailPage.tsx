@@ -18,6 +18,7 @@ import {
   GraduationCap,
   Sparkles,
 } from 'lucide-react';
+import { formatSalaryRangeInLakhs } from '@/lib/utils';
 import { jobOpeningsApi } from '@/api/recruitment';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -320,6 +321,10 @@ export default function CareersJobDetailPage() {
                 <div className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">Total Openings</span>
                   <span className="font-semibold">{job.numPositions} Positions</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-border/40">
+                  <span className="text-muted-foreground">Offered CTC Budget</span>
+                  <span className="font-mono font-bold text-primary">{formatSalaryRangeInLakhs(job.minSalary, job.maxSalary)}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">Work Location</span>

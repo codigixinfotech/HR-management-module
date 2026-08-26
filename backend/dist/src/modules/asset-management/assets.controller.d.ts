@@ -6,34 +6,35 @@ export declare class AssetsController {
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         company: {
             id: string;
-            name: string;
             code: string;
+            name: string;
         };
-        branch: {
-            id: string;
-            name: string;
-            code: string;
-        } | null;
         department: {
             id: string;
-            name: string;
             code: string;
+            name: string;
+        } | null;
+        branch: {
+            id: string;
+            code: string;
+            name: string;
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
-        branchId: string | null;
         departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         name: string;
+        notes: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -50,7 +51,6 @@ export declare class AssetsController {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -58,35 +58,35 @@ export declare class AssetsController {
     findOne(id: string): Promise<{
         company: {
             id: string;
-            name: string;
             code: string;
+            name: string;
         };
-        branch: {
-            id: string;
-            name: string;
-            code: string;
-        } | null;
         department: {
             id: string;
-            name: string;
             code: string;
+            name: string;
+        } | null;
+        branch: {
+            id: string;
+            code: string;
+            name: string;
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
         allocations: ({
             employee: {
                 id: string;
-                employeeCode: string;
                 firstName: string;
                 lastName: string;
+                employeeCode: string;
             };
         } & {
-            location: string | null;
             id: string;
+            location: string | null;
             remarks: string | null;
             employeeId: string;
             assetId: string;
@@ -101,12 +101,12 @@ export declare class AssetsController {
             accessoriesReturned: string | null;
         })[];
         maintenanceLogs: {
+            priority: string | null;
             id: string;
             createdAt: Date;
-            priority: string | null;
+            notes: string | null;
             startDate: Date;
             vendor: string | null;
-            notes: string | null;
             endDate: Date | null;
             assetId: string;
             workOrderNumber: string | null;
@@ -120,14 +120,15 @@ export declare class AssetsController {
             qcStatus: string | null;
         }[];
     } & {
-        id: string;
         companyId: string;
-        branchId: string | null;
         departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         name: string;
+        notes: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -144,7 +145,6 @@ export declare class AssetsController {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -152,34 +152,35 @@ export declare class AssetsController {
     create(dto: CreateAssetDto): Promise<{
         company: {
             id: string;
-            name: string;
             code: string;
+            name: string;
         };
-        branch: {
-            id: string;
-            name: string;
-            code: string;
-        } | null;
         department: {
             id: string;
-            name: string;
             code: string;
+            name: string;
+        } | null;
+        branch: {
+            id: string;
+            code: string;
+            name: string;
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
-        branchId: string | null;
         departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         name: string;
+        notes: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -196,7 +197,6 @@ export declare class AssetsController {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -204,34 +204,35 @@ export declare class AssetsController {
     update(id: string, dto: UpdateAssetDto): Promise<{
         company: {
             id: string;
-            name: string;
             code: string;
+            name: string;
         };
-        branch: {
-            id: string;
-            name: string;
-            code: string;
-        } | null;
         department: {
             id: string;
-            name: string;
             code: string;
+            name: string;
+        } | null;
+        branch: {
+            id: string;
+            code: string;
+            name: string;
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
-        branchId: string | null;
         departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         name: string;
+        notes: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -248,7 +249,6 @@ export declare class AssetsController {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -259,34 +259,35 @@ export declare class AssetsController {
     allocate(id: string, dto: AllocateAssetDto): Promise<{
         company: {
             id: string;
-            name: string;
             code: string;
+            name: string;
         };
-        branch: {
-            id: string;
-            name: string;
-            code: string;
-        } | null;
         department: {
             id: string;
-            name: string;
             code: string;
+            name: string;
+        } | null;
+        branch: {
+            id: string;
+            code: string;
+            name: string;
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
-        branchId: string | null;
         departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         name: string;
+        notes: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -303,7 +304,6 @@ export declare class AssetsController {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -311,34 +311,35 @@ export declare class AssetsController {
     returnAsset(id: string, dto?: ReturnAssetDto): Promise<{
         company: {
             id: string;
-            name: string;
             code: string;
+            name: string;
         };
-        branch: {
-            id: string;
-            name: string;
-            code: string;
-        } | null;
         department: {
             id: string;
-            name: string;
             code: string;
+            name: string;
+        } | null;
+        branch: {
+            id: string;
+            code: string;
+            name: string;
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
-        branchId: string | null;
         departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         name: string;
+        notes: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -355,7 +356,6 @@ export declare class AssetsController {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;

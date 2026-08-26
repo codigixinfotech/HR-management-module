@@ -12,6 +12,10 @@ export class CreateManpowerRequisitionDto {
 
   @IsOptional()
   @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
   manpowerPlanId?: string;
 
   @IsOptional()

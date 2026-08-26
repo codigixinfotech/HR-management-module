@@ -10,13 +10,13 @@ export declare class IncidentsController {
             lastName: string;
         } | null;
     } & {
-        location: string;
-        id: string;
         companyId: string;
+        description: string | null;
         status: import(".prisma/client").$Enums.IncidentStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        location: string;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
@@ -30,13 +30,13 @@ export declare class IncidentsController {
             lastName: string;
         } | null;
     } & {
-        location: string;
-        id: string;
         companyId: string;
+        description: string | null;
         status: import(".prisma/client").$Enums.IncidentStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        location: string;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
@@ -50,13 +50,13 @@ export declare class IncidentsController {
             lastName: string;
         } | null;
     } & {
-        location: string;
-        id: string;
         companyId: string;
+        description: string | null;
         status: import(".prisma/client").$Enums.IncidentStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        location: string;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;
@@ -70,13 +70,13 @@ export declare class IncidentsController {
             lastName: string;
         } | null;
     } & {
-        location: string;
-        id: string;
         companyId: string;
+        description: string | null;
         status: import(".prisma/client").$Enums.IncidentStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
+        location: string;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
         occurredAt: Date;

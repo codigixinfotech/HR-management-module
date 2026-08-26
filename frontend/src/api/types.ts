@@ -359,9 +359,28 @@ export interface JobOpening {
   workLocation?: string | null;
   reportingManagerId?: string | null;
   applicationDeadline?: string | null;
-  status: 'DRAFT' | 'READY_TO_PUBLISH' | 'PUBLISHED' | 'CLOSED';
+  status: 'DRAFT' | 'PENDING_REVIEW' | 'READY_TO_PUBLISH' | 'PUBLISHED' | 'PAUSED' | 'CLOSED' | 'CANCELLED' | string;
   publishedAt?: string | null;
   isActive: boolean;
+
+  // Enterprise Extensions
+  workMode?: string | null;
+  hiringManagerId?: string | null;
+  recruiterId?: string | null;
+  hrbpId?: string | null;
+  applicationStartDate?: string | null;
+  jobVisibility?: string | null;
+  preferredSkills?: string | null;
+  preferredQualification?: string | null;
+  certifications?: string | null;
+  languages?: string | null;
+  benefits?: string | null;
+  interviewProcess?: string | null;
+  numInterviewRounds?: number | null;
+  hasAssessment?: boolean | null;
+  internalNotes?: string | null;
+  internalJustification?: string | null;
+
   department?: { id: string; name: string } | null;
   designation?: { id: string; title: string } | null;
   manpowerRequisition?: ManpowerRequisition | null;

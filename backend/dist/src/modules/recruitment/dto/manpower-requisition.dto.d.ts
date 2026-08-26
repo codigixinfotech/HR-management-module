@@ -1,6 +1,7 @@
 export declare class CreateManpowerRequisitionDto {
     mrNumber?: string;
     companyId?: string;
+    branchId?: string;
     manpowerPlanId?: string;
     departmentId?: string;
     departmentName: string;

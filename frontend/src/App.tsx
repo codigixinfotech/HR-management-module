@@ -12,6 +12,7 @@ import EmployeeListPage from '@/pages/employees/EmployeeListPage';
 import EmployeeDetailPage from '@/pages/employees/EmployeeDetailPage';
 import JobOpeningsPage from '@/pages/recruitment/JobOpeningsPage';
 import JobOpeningDetailPage from '@/pages/recruitment/JobOpeningDetailPage';
+import CreateJobRequisitionPage from '@/pages/recruitment/CreateJobRequisitionPage';
 import TasksPage from '@/pages/tasks/TasksPage';
 import WorkforcePage from '@/pages/workforce/WorkforcePage';
 import AttendanceLeavePage from '@/pages/attendance-leave/AttendanceLeavePage';
@@ -71,6 +72,8 @@ export default function App() {
 
               {/* Recruitment Routes */}
               <Route path="/recruitment" element={<JobOpeningsPage />} />
+              <Route path="/recruitment/requisitions/new" element={<CreateJobRequisitionPage />} />
+              <Route path="/recruitment/requisitions/create-from-mr/:mrId" element={<CreateJobRequisitionPage />} />
               <Route path="/recruitment/:tab" element={<JobOpeningsPage />} />
               <Route path="/recruitment/detail/:id" element={<JobOpeningDetailPage />} />
 

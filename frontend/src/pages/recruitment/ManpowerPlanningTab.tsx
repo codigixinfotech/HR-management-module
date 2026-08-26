@@ -20,6 +20,7 @@ import {
   Building2,
   UserCheck,
   FileText,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 
+import { formatSalaryInLakhs } from '@/lib/utils';
 import { manpowerPlansApi, manpowerRequisitionsApi } from '@/api/recruitment';
 import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/api/organization';
 import { costCentersApi, type CostCenter } from '@/api/cost-grades';
@@ -77,8 +79,9 @@ export function ManpowerPlanningTab() {
   const [mrJoiningDate, setMrJoiningDate] = useState('');
   const [mrEmploymentType, setMrEmploymentType] = useState<'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN'>('FULL_TIME');
   const [mrPriority, setMrPriority] = useState<'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'>('NORMAL');
-  const [mrMinSalary, setMrMinSalary] = useState<number>(800000);
-  const [mrMaxSalary, setMrMaxSalary] = useState<number>(1200000);
+  const [mrExperienceLevel, setMrExperienceLevel] = useState<'Fresher' | 'Experienced'>('Experienced');
+  const [mrMinSalaryLakh, setMrMinSalaryLakh] = useState<number>(8);
+  const [mrMaxSalaryLakh, setMrMaxSalaryLakh] = useState<number>(12);
   const [mrQualification, setMrQualification] = useState('B.Tech / M.Tech / MBA / Graduate');
   const [mrExperience, setMrExperience] = useState('3 - 5 Years');
   const [mrRequiredSkills, setMrRequiredSkills] = useState('Technical leadership, domain expertise, team coordination');
@@ -100,23 +103,23 @@ export function ManpowerPlanningTab() {
   });
 
   const { data: rawBranches = [], isLoading: isBranchesLoading } = useQuery({
-    queryKey: ['branches', selectedCompanyId],
-    queryFn: () => branchesApi.list(selectedCompanyId || undefined),
+    queryKey: ['all-master-branches'],
+    queryFn: () => branchesApi.list(),
   });
 
   const { data: rawDepartments = [], isLoading: isDepartmentsLoading } = useQuery({
-    queryKey: ['departments', selectedCompanyId, selectedBranchId],
-    queryFn: () => departmentsApi.list(selectedCompanyId || undefined, selectedBranchId || undefined),
+    queryKey: ['all-master-departments'],
+    queryFn: () => departmentsApi.list(),
   });
 
   const { data: rawCostCenters = [], isLoading: isCostCentersLoading } = useQuery({
-    queryKey: ['cost-centers', selectedCompanyId, selectedBranchId, selectedDeptId],
-    queryFn: () => costCentersApi.list(selectedCompanyId || undefined, selectedBranchId || undefined, selectedDeptId || undefined),
+    queryKey: ['all-master-cost-centers'],
+    queryFn: () => costCentersApi.list(),
   });
 
   const { data: rawDesignations = [], isLoading: isDesignationsLoading } = useQuery({
-    queryKey: ['designations', selectedCompanyId, selectedDeptId],
-    queryFn: () => designationsApi.list(selectedCompanyId || undefined, selectedDeptId || undefined),
+    queryKey: ['all-master-designations'],
+    queryFn: () => designationsApi.list(),
   });
 
   const { data: employeesData } = useQuery({
@@ -219,6 +222,81 @@ export function ManpowerPlanningTab() {
   const currentDesignation = useMemo(() => {
     return designations.find((d) => d.id === selectedDesignationId);
   }, [designations, selectedDesignationId]);
+
+  // Active plan company object for MR Modal
+  const planCompany = useMemo(() => {
+    if (!raisingPlan) return null;
+    if (raisingPlan.company) return raisingPlan.company;
+    return companies.find((c) => c.id === raisingPlan.companyId);
+  }, [raisingPlan, companies]);
+
+  // Active plan branch object for MR Modal
+  const planBranch = useMemo(() => {
+    if (!raisingPlan) return null;
+    if (raisingPlan.branch) return raisingPlan.branch;
+    return rawBranches.find((b) => b.id === raisingPlan.branchId);
+  }, [raisingPlan, rawBranches]);
+
+  // MR Branches/Locations filtered strictly by selected Company + Branch of the Forecast Plan
+  const mrBranches = useMemo(() => {
+    if (!raisingPlan || !rawBranches) return [];
+    return rawBranches.filter((b: Branch) => {
+      const matchesCompany = !raisingPlan.companyId || b.companyId === raisingPlan.companyId;
+      const matchesBranch = !raisingPlan.branchId || b.id === raisingPlan.branchId;
+      return matchesCompany && matchesBranch;
+    });
+  }, [raisingPlan, rawBranches]);
+
+  // MR Reporting Managers filtered strictly by Company + Branch (+ Department) of the Forecast Plan
+  const mrReportingManagers = useMemo(() => {
+    if (!raisingPlan || !activeEmployees.length) return [];
+
+    const planCompId = raisingPlan.companyId;
+    const planCompName = planCompany?.name ? planCompany.name.trim().toLowerCase() : '';
+
+    const planBranchId = raisingPlan.branchId || planBranch?.id;
+    const planBranchName = planBranch?.name ? planBranch.name.trim().toLowerCase() : '';
+
+    const planDeptId = raisingPlan.departmentId;
+    const planDeptName = raisingPlan.departmentName ? raisingPlan.departmentName.trim().toLowerCase() : '';
+
+    // 1. Branch level employees matching Company & Branch
+    const branchEmployees = activeEmployees.filter((emp: any) => {
+      let matchesCompany = true;
+      if (planCompId) {
+        matchesCompany = emp.companyId === planCompId || emp.company?.id === planCompId;
+      } else if (planCompName) {
+        const empCompName = emp.company?.name ? emp.company.name.trim().toLowerCase() : '';
+        matchesCompany = !empCompName || empCompName === planCompName;
+      }
+
+      let matchesBranch = true;
+      if (planBranchId) {
+        matchesBranch = emp.branchId === planBranchId || emp.branch?.id === planBranchId;
+      } else if (planBranchName) {
+        const empBranchName = emp.branch?.name ? emp.branch.name.trim().toLowerCase() : '';
+        matchesBranch = !empBranchName || empBranchName.includes(planBranchName) || planBranchName.includes(empBranchName);
+      }
+
+      return matchesCompany && matchesBranch;
+    });
+
+    if (branchEmployees.length === 0) {
+      // Fallback to Company level employees if branch ID is not assigned on employee records
+      return activeEmployees.filter((emp: any) => {
+        return !planCompId || emp.companyId === planCompId || emp.company?.id === planCompId;
+      });
+    }
+
+    // 2. Department level employees matching Department
+    const deptEmployees = branchEmployees.filter((emp: any) => {
+      if (planDeptId && (emp.departmentId === planDeptId || emp.department?.id === planDeptId)) return true;
+      const empDeptName = emp.department?.name ? emp.department.name.trim().toLowerCase() : (emp.departmentName ? emp.departmentName.trim().toLowerCase() : '');
+      return planDeptName && empDeptName && (empDeptName.includes(planDeptName) || planDeptName.includes(empDeptName));
+    });
+
+    return deptEmployees.length > 0 ? deptEmployees : branchEmployees;
+  }, [raisingPlan, activeEmployees, planCompany, planBranch]);
 
   // Handle Cascading Company Change
   const handleCompanyChange = (newCompanyId: string) => {
@@ -331,7 +409,7 @@ export function ManpowerPlanningTab() {
     setIsOpen(true);
   };
 
-  // Open Raise MR Modal (Populate all MR defaults)
+  // Open Raise MR Modal (Populate all MR defaults with strict isolation)
   const openRaiseMrModal = async (plan: ManpowerPlan) => {
     setRaisingPlan(plan);
     try {
@@ -341,8 +419,40 @@ export function ManpowerPlanningTab() {
       setMrNumber('MR-2026-001');
     }
 
-    const defaultLoc = branches[0]?.name ? `${branches[0].name} (${branches[0].city || 'Pune'})` : 'Head Office (Pune)';
-    const defaultMgr = activeEmployees[0]?.id || '';
+    // Determine Work Location strictly from Forecast Plan's Branch & Company
+    const targetBranch = rawBranches.find((b: Branch) => b.id === plan.branchId) ||
+                         rawBranches.find((b: Branch) => b.companyId === plan.companyId);
+
+    const defaultLoc = targetBranch
+      ? `${targetBranch.name} (${targetBranch.city || 'Nashik'})`
+      : 'NASHIK DEVELOPMENT (Nashik)';
+
+    // Determine Reporting Manager strictly from Forecast Plan's Company, Branch & Department
+    const planCompId = plan.companyId;
+    const targetBranchId = plan.branchId || targetBranch?.id;
+
+    const branchMgrs = activeEmployees.filter((emp: any) => {
+      const matchesCompany = !planCompId || emp.companyId === planCompId || emp.company?.id === planCompId;
+      const matchesBranch = !targetBranchId || emp.branchId === targetBranchId || emp.branch?.id === targetBranchId;
+      return matchesCompany && matchesBranch;
+    });
+
+    const deptMgrs = branchMgrs.filter((emp: any) => {
+      if (plan.departmentId && (emp.departmentId === plan.departmentId || emp.department?.id === plan.departmentId)) return true;
+      const empDeptName = emp.department?.name ? emp.department.name.trim().toLowerCase() : (emp.departmentName ? emp.departmentName.trim().toLowerCase() : '');
+      const planDeptName = plan.departmentName ? plan.departmentName.trim().toLowerCase() : '';
+      return planDeptName && empDeptName && (empDeptName.includes(planDeptName) || planDeptName.includes(empDeptName));
+    });
+
+    const companyMgrs = activeEmployees.filter((emp: any) => !planCompId || emp.companyId === planCompId || emp.company?.id === planCompId);
+
+    const defaultMgr = deptMgrs[0]?.id || branchMgrs[0]?.id || companyMgrs[0]?.id || activeEmployees[0]?.id || '';
+
+    // Look up Designation master object for salary budget, qualification, and skills
+    const desigObj = rawDesignations.find((d: Designation) => d.id === plan.designationId || d.title.toLowerCase() === plan.role.toLowerCase());
+
+    const minSalaryLakh = desigObj?.minSalary ? Math.round(desigObj.minSalary / 100000) : 0;
+    const maxSalaryLakh = desigObj?.maxSalary ? Math.round(desigObj.maxSalary / 100000) : 0;
 
     // Date default: 30 days from today
     const futureDate = new Date();
@@ -351,14 +461,15 @@ export function ManpowerPlanningTab() {
 
     setMrEmploymentType('FULL_TIME');
     setMrPriority('NORMAL');
-    setMrMinSalary(800000);
-    setMrMaxSalary(1200000);
-    setMrQualification('B.Tech / M.Tech / MBA / Graduate');
-    setMrExperience('3 - 5 Years');
-    setMrRequiredSkills('Technical leadership, domain expertise, team coordination');
+    setMrExperienceLevel('Experienced');
+    setMrExperience('');
+    setMrMinSalaryLakh(minSalaryLakh);
+    setMrMaxSalaryLakh(maxSalaryLakh);
+    setMrQualification('');
+    setMrRequiredSkills('');
     setMrWorkLocation(defaultLoc);
     setMrReportingManagerId(defaultMgr);
-    setMrReason(plan.reason || `Approved manpower forecast hiring for ${plan.role} in ${plan.departmentName}.`);
+    setMrReason('');
     setMrComments('');
     setMrRequestorName('HR Admin');
     setIsMrOpen(true);
@@ -490,10 +601,30 @@ export function ManpowerPlanningTab() {
 
     if (!raisingPlan) return;
 
+    // Work Location mismatch validation
+    if (mrWorkLocation && raisingPlan.branchId) {
+      const targetBranch = rawBranches.find((b) => b.id === raisingPlan.branchId);
+      if (targetBranch) {
+        const branchNamePart = targetBranch.name.toLowerCase();
+        const locLower = mrWorkLocation.toLowerCase();
+        if (locLower.includes('bengaluru') && !branchNamePart.includes('bengaluru')) {
+          toast.error('Selected Work Location does not match the Forecast Plan branch.');
+          return;
+        }
+      }
+    }
+
     if (!mrJoiningDate) {
       toast.error('Required Joining Date is required');
       return;
     }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (mrJoiningDate < todayStr) {
+      toast.error('Required Joining Date cannot be in the past.');
+      return;
+    }
+
     if (!mrEmploymentType) {
       toast.error('Employment Type is required');
       return;
@@ -502,12 +633,24 @@ export function ManpowerPlanningTab() {
       toast.error('Priority is required');
       return;
     }
+    if (mrMinSalaryLakh <= 0) {
+      toast.error('Minimum Annual CTC must be a positive number');
+      return;
+    }
+    if (mrMaxSalaryLakh <= 0) {
+      toast.error('Maximum Annual CTC must be a positive number');
+      return;
+    }
+    if (mrMinSalaryLakh > mrMaxSalaryLakh) {
+      toast.error('Minimum CTC cannot be greater than Maximum CTC.');
+      return;
+    }
     if (!mrQualification.trim()) {
       toast.error('Qualification is required');
       return;
     }
-    if (!mrExperience.trim()) {
-      toast.error('Experience is required');
+    if (mrExperienceLevel === 'Experienced' && !mrExperience.trim()) {
+      toast.error('Please specify required experience range');
       return;
     }
     if (!mrWorkLocation.trim()) {
@@ -523,6 +666,13 @@ export function ManpowerPlanningTab() {
       return;
     }
 
+    const minSalaryRupees = mrMinSalaryLakh >= 1000 ? mrMinSalaryLakh : Math.round(mrMinSalaryLakh * 100000);
+    const maxSalaryRupees = mrMaxSalaryLakh >= 1000 ? mrMaxSalaryLakh : Math.round(mrMaxSalaryLakh * 100000);
+
+    const formattedExperience = mrExperienceLevel === 'Fresher'
+      ? 'Fresher (0 - 1 Years)'
+      : (mrExperience.toLowerCase().includes('year') ? mrExperience : `${mrExperience} Years`);
+
     const payload: Partial<ManpowerRequisition> = {
       mrNumber,
       manpowerPlanId: raisingPlan.id,
@@ -537,10 +687,10 @@ export function ManpowerPlanningTab() {
       joiningDate: mrJoiningDate,
       employmentType: mrEmploymentType,
       priority: mrPriority,
-      minSalary: Number(mrMinSalary) || undefined,
-      maxSalary: Number(mrMaxSalary) || undefined,
+      minSalary: minSalaryRupees,
+      maxSalary: maxSalaryRupees,
       qualification: mrQualification,
-      experience: mrExperience,
+      experience: formattedExperience,
       requiredSkills: mrRequiredSkills,
       workLocation: mrWorkLocation,
       reportingManagerId: mrReportingManagerId,
@@ -1111,10 +1261,15 @@ export function ManpowerPlanningTab() {
             <form className="space-y-5 text-xs pt-2" onSubmit={handleSubmitMr}>
               {/* Section 1: Manpower Requisition Details (Read-Only Auto-Filled Card) */}
               <div className="bg-primary/5 p-3.5 rounded-xl border border-primary/20 space-y-2.5">
-                <h4 className="font-semibold text-xs text-primary flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5" /> 1. Manpower Requisition Details (Auto-Filled)
+                <h4 className="font-semibold text-xs text-primary flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5" /> 1. Manpower Requisition Details (Auto-Filled & Locked)
+                  </span>
+                  <Badge variant="outline" className="bg-background text-[10px] text-emerald-600 border-emerald-500/30 gap-1 font-semibold">
+                    <ShieldCheck className="h-3 w-3" /> Single Source of Truth
+                  </Badge>
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <Label className="text-[10px] text-muted-foreground font-medium">MR Number (Auto)</Label>
                     <p className="font-mono font-bold text-xs text-primary mt-0.5">{mrNumber}</p>
@@ -1124,15 +1279,29 @@ export function ManpowerPlanningTab() {
                     <p className="font-mono font-bold text-xs text-foreground mt-0.5">{raisingPlan.code || 'MP-06'}</p>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground font-medium">Department</Label>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Company (Locked)</Label>
+                    <p className="font-semibold text-xs text-foreground mt-0.5 truncate flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
+                      {planCompany?.name || 'CODIGIX_A'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Branch (Locked)</Label>
+                    <p className="font-semibold text-xs text-foreground mt-0.5 truncate flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
+                      {planBranch?.name ? `${planBranch.name} (${planBranch.city || 'Nashik'})` : 'NASHIK DEVELOPMENT'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Department (Locked)</Label>
                     <p className="font-semibold text-xs text-foreground mt-0.5">{raisingPlan.departmentName}</p>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground font-medium">Cost Center</Label>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Cost Center (Locked)</Label>
                     <p className="font-mono font-semibold text-xs text-foreground mt-0.5">{raisingPlan.costCenter}</p>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground font-medium">Designation / Role</Label>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Designation / Role (Locked)</Label>
                     <p className="font-semibold text-xs text-foreground mt-0.5">{raisingPlan.role}</p>
                   </div>
                   <div>
@@ -1152,8 +1321,37 @@ export function ManpowerPlanningTab() {
                   <UserCheck className="h-3.5 w-3.5 text-primary" /> 2. Hiring Requirements
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="space-y-1 sm:col-span-1">
+                    <Label className="font-semibold text-xs flex items-center justify-between">
+                      <span>Experience Type *</span>
+                    </Label>
+                    <Select
+                      value={mrExperienceLevel}
+                      onValueChange={(val: 'Fresher' | 'Experienced') => {
+                        setMrExperienceLevel(val);
+                        if (val === 'Fresher') {
+                          setMrExperience('0 - 1 Years');
+                        } else {
+                          setMrExperience('');
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-primary/5 font-semibold border-primary/30">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Fresher" className="text-xs font-medium">
+                          Fresher
+                        </SelectItem>
+                        <SelectItem value="Experienced" className="text-xs font-medium">
+                          Experienced
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-1">
                     <Label className="font-semibold">Required Joining Date *</Label>
                     <Input
                       type="date"
@@ -1163,7 +1361,7 @@ export function ManpowerPlanningTab() {
                     />
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-1">
                     <Label className="font-semibold">Employment Type *</Label>
                     <Select value={mrEmploymentType} onValueChange={(val: any) => setMrEmploymentType(val)}>
                       <SelectTrigger className="h-8 text-xs">
@@ -1178,7 +1376,7 @@ export function ManpowerPlanningTab() {
                     </Select>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-1">
                     <Label className="font-semibold">Priority *</Label>
                     <Select value={mrPriority} onValueChange={(val: any) => setMrPriority(val)}>
                       <SelectTrigger className="h-8 text-xs">
@@ -1194,26 +1392,46 @@ export function ManpowerPlanningTab() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-3 rounded-xl border border-border">
                   <div className="space-y-1">
-                    <Label className="font-semibold">Salary / CTC Budget Min (₹)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Minimum Annual CTC (₹ Lakh) *</Label>
+                      <span className="text-[10.5px] font-mono text-primary font-bold">
+                        {formatSalaryInLakhs(mrMinSalaryLakh >= 1000 ? mrMinSalaryLakh : mrMinSalaryLakh * 100000)}
+                      </span>
+                    </div>
                     <Input
                       type="number"
-                      value={mrMinSalary}
-                      onChange={(e) => setMrMinSalary(Number(e.target.value))}
+                      step="0.1"
+                      min={0}
+                      value={mrMinSalaryLakh || ''}
+                      onChange={(e) => setMrMinSalaryLakh(parseFloat(e.target.value) || 0)}
                       className="h-8 text-xs font-mono bg-background"
-                      placeholder="e.g. 800000"
+                      placeholder="e.g. 8"
                     />
+                    <p className="text-[9.5px] text-muted-foreground">
+                      Stored: ₹{(mrMinSalaryLakh >= 1000 ? mrMinSalaryLakh : Math.round(mrMinSalaryLakh * 100000)).toLocaleString('en-IN')} / year
+                    </p>
                   </div>
                   <div className="space-y-1">
-                    <Label className="font-semibold">Salary / CTC Budget Max (₹)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Maximum Annual CTC (₹ Lakh) *</Label>
+                      <span className="text-[10.5px] font-mono text-primary font-bold">
+                        {formatSalaryInLakhs(mrMaxSalaryLakh >= 1000 ? mrMaxSalaryLakh : mrMaxSalaryLakh * 100000)}
+                      </span>
+                    </div>
                     <Input
                       type="number"
-                      value={mrMaxSalary}
-                      onChange={(e) => setMrMaxSalary(Number(e.target.value))}
+                      step="0.1"
+                      min={0}
+                      value={mrMaxSalaryLakh || ''}
+                      onChange={(e) => setMrMaxSalaryLakh(parseFloat(e.target.value) || 0)}
                       className="h-8 text-xs font-mono bg-background"
-                      placeholder="e.g. 1200000"
+                      placeholder="e.g. 12"
                     />
+                    <p className="text-[9.5px] text-muted-foreground">
+                      Stored: ₹{(mrMaxSalaryLakh >= 1000 ? mrMaxSalaryLakh : Math.round(mrMaxSalaryLakh * 100000)).toLocaleString('en-IN')} / year
+                    </p>
                   </div>
                 </div>
 
@@ -1225,18 +1443,40 @@ export function ManpowerPlanningTab() {
                       value={mrQualification}
                       onChange={(e) => setMrQualification(e.target.value)}
                       className="h-8 text-xs bg-background"
-                      placeholder="e.g. B.Tech / M.Tech / MBA"
+                      placeholder="e.g. B.Tech / M.Tech / MBA / Graduate / Diploma"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="font-semibold">Required Experience *</Label>
-                    <Input
-                      type="text"
-                      value={mrExperience}
-                      onChange={(e) => setMrExperience(e.target.value)}
-                      className="h-8 text-xs bg-background"
-                      placeholder="e.g. 3 - 5 Years"
-                    />
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold">Required Experience *</Label>
+                      {mrExperienceLevel === 'Fresher' && (
+                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                          <ShieldCheck className="h-3 w-3" /> Auto-locked for Freshers
+                        </span>
+                      )}
+                    </div>
+
+                    {mrExperienceLevel === 'Fresher' ? (
+                      <Input
+                        type="text"
+                        readOnly
+                        value="0 - 1 Years"
+                        className="h-8 text-xs bg-muted/60 font-semibold cursor-not-allowed text-foreground"
+                      />
+                    ) : (
+                      <Select value={mrExperience} onValueChange={setMrExperience}>
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Select experience range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1 - 3 Years" className="text-xs">1 - 3 Years</SelectItem>
+                          <SelectItem value="3 - 5 Years" className="text-xs">3 - 5 Years</SelectItem>
+                          <SelectItem value="5 - 8 Years" className="text-xs">5 - 8 Years</SelectItem>
+                          <SelectItem value="8 - 12 Years" className="text-xs">8 - 12 Years</SelectItem>
+                          <SelectItem value="12+ Years" className="text-xs">12+ Years</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
@@ -1247,47 +1487,63 @@ export function ManpowerPlanningTab() {
                     value={mrRequiredSkills}
                     onChange={(e) => setMrRequiredSkills(e.target.value)}
                     className="h-8 text-xs bg-background"
-                    placeholder="e.g. React, Node.js, Cloud Architecture"
+                    placeholder={mrExperienceLevel === 'Fresher' ? "e.g. Problem solving, Basic Programming, Quick Learner" : "e.g. React, Node.js, Cloud Architecture"}
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="font-semibold">Work Location *</Label>
+                    <Label className="font-semibold flex items-center justify-between text-xs">
+                      <span>Work Location *</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">(Branch Filtered)</span>
+                    </Label>
                     <Select value={mrWorkLocation} onValueChange={setMrWorkLocation}>
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-8 text-xs bg-background">
                         <SelectValue placeholder="Select work location" />
                       </SelectTrigger>
                       <SelectContent>
-                        {branches.length > 0 ? (
-                          branches.map((b: Branch) => (
-                            <SelectItem key={b.id} value={`${b.name} (${b.city || 'Location'})`} className="text-xs">
-                              {b.name} ({b.city || 'Location'})
+                        {mrBranches.length > 0 ? (
+                          mrBranches.map((b: Branch) => (
+                            <SelectItem key={b.id} value={`${b.name} (${b.city || 'Nashik'})`} className="text-xs font-medium">
+                              {b.name} ({b.city || 'Nashik'})
                             </SelectItem>
                           ))
                         ) : (
-                          <>
-                            <SelectItem value="Head Office (Pune)" className="text-xs">Head Office (Pune)</SelectItem>
-                            <SelectItem value="Tech Campus (Bengaluru)" className="text-xs">Tech Campus (Bengaluru)</SelectItem>
-                            <SelectItem value="Regional Office (Mumbai)" className="text-xs">Regional Office (Mumbai)</SelectItem>
-                          </>
+                          <SelectItem
+                            value={planBranch?.name ? `${planBranch.name} (${planBranch.city || 'Nashik'})` : 'NASHIK DEVELOPMENT (Nashik)'}
+                            className="text-xs font-medium"
+                          >
+                            {planBranch?.name ? `${planBranch.name} (${planBranch.city || 'Nashik'})` : 'NASHIK DEVELOPMENT (Nashik)'}
+                          </SelectItem>
                         )}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="font-semibold">Reporting Manager *</Label>
+                    <Label className="font-semibold flex items-center justify-between text-xs">
+                      <span>Reporting Manager *</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">(Dept Filtered)</span>
+                    </Label>
                     <Select value={mrReportingManagerId} onValueChange={setMrReportingManagerId}>
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-8 text-xs bg-background">
                         <SelectValue placeholder="Select reporting manager" />
                       </SelectTrigger>
-                      <SelectContent className="max-h-48 overflow-y-auto">
-                        {activeEmployees.map((emp: any) => (
-                          <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                            {emp.firstName} {emp.lastName} ({emp.designation?.title || emp.employeeCode})
-                          </SelectItem>
-                        ))}
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {mrReportingManagers.length === 0 ? (
+                          <div className="p-2 text-xs text-muted-foreground text-center">
+                            No active employees found for the selected company, branch and department.
+                          </div>
+                        ) : (
+                          mrReportingManagers.map((emp: any) => {
+                            const empDesignation = emp.designationTitle || emp.designation?.title || emp.role || 'Lead / Manager';
+                            return (
+                              <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                                {emp.firstName} {emp.lastName} ({empDesignation})
+                              </SelectItem>
+                            );
+                          })
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1307,6 +1563,7 @@ export function ManpowerPlanningTab() {
                     onChange={(e) => setMrReason(e.target.value)}
                     className="text-xs min-h-[60px]"
                     rows={2}
+                    placeholder="Provide a detailed hiring reason / justification for this requisition..."
                   />
                 </div>
 

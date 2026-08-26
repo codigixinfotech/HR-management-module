@@ -846,9 +846,28 @@ model JobOpening {
   workLocation          String?
   reportingManagerId    String?
   applicationDeadline   DateTime?
-  status                String   @default("DRAFT") // DRAFT, READY_TO_PUBLISH, PUBLISHED, CLOSED
+  status                String   @default("DRAFT") // DRAFT, PENDING_REVIEW, READY_TO_PUBLISH, PUBLISHED, CLOSED, CANCELLED
   publishedAt           DateTime?
   isActive              Boolean  @default(true)
+
+  // Enterprise Recruitment Extensions
+  workMode               String?  @default("On-site")
+  hiringManagerId        String?
+  recruiterId            String?
+  hrbpId                 String?
+  applicationStartDate   DateTime? @default(now())
+  jobVisibility          String?  @default("Public")
+  preferredSkills        String?
+  preferredQualification String?
+  certifications         String?
+  languages              String?
+  benefits               String?  @db.Text
+  interviewProcess       String?  @db.Text
+  numInterviewRounds     Int?     @default(3)
+  hasAssessment          Boolean? @default(false)
+  internalNotes          String?  @db.Text
+  internalJustification  String?  @db.Text
+
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

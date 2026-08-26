@@ -79,6 +79,7 @@ let ManpowerRequisitionsService = class ManpowerRequisitionsService {
                 mrNumber,
                 manpowerPlanId: dto.manpowerPlanId || null,
                 companyId: dto.companyId || null,
+                branchId: dto.branchId || null,
                 departmentId: dto.departmentId || null,
                 departmentName: dto.departmentName,
                 costCenter: dto.costCenter,

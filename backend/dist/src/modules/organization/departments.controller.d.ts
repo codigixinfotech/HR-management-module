@@ -3,28 +3,28 @@ import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
 export declare class DepartmentsController {
     private readonly departmentsService;
     constructor(departmentsService: DepartmentsService);
-    list(companyId?: string, branchId?: string): never[] | import(".prisma/client").Prisma.PrismaPromise<({
+    list(companyId?: string, branchId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         parentDepartment: {
             id: string;
             name: string;
         } | null;
     } & {
-        costCenter: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
         code: string;
+        name: string;
         type: string;
         parentDepartmentId: string | null;
         manager: string | null;
+        costCenter: string | null;
         headcountCapacity: number;
         annualBudget: number | null;
         effectiveFrom: Date;
+        description: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     })[]>;
     findOne(id: string): Promise<{
         parentDepartment: {
@@ -32,76 +32,76 @@ export declare class DepartmentsController {
             name: string;
         } | null;
         childDepartments: {
-            costCenter: string | null;
             id: string;
             companyId: string;
             branchId: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-            name: string;
-            description: string | null;
             code: string;
+            name: string;
             type: string;
             parentDepartmentId: string | null;
             manager: string | null;
+            costCenter: string | null;
             headcountCapacity: number;
             annualBudget: number | null;
             effectiveFrom: Date;
+            description: string | null;
             isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         }[];
     } & {
-        costCenter: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
         code: string;
+        name: string;
         type: string;
         parentDepartmentId: string | null;
         manager: string | null;
+        costCenter: string | null;
         headcountCapacity: number;
         annualBudget: number | null;
         effectiveFrom: Date;
+        description: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     create(dto: CreateDepartmentDto): Promise<{
-        costCenter: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
         code: string;
+        name: string;
         type: string;
         parentDepartmentId: string | null;
         manager: string | null;
+        costCenter: string | null;
         headcountCapacity: number;
         annualBudget: number | null;
         effectiveFrom: Date;
+        description: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     update(id: string, dto: UpdateDepartmentDto): Promise<{
-        costCenter: string | null;
         id: string;
         companyId: string;
         branchId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
         code: string;
+        name: string;
         type: string;
         parentDepartmentId: string | null;
         manager: string | null;
+        costCenter: string | null;
         headcountCapacity: number;
         annualBudget: number | null;
         effectiveFrom: Date;
+        description: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     remove(id: string): Promise<{
         success: boolean;

@@ -5,37 +5,37 @@ export declare class AssetMaintenanceService {
     constructor(prisma: PrismaService);
     list(assetId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         asset: {
+            id: string;
             company: {
                 id: string;
                 name: string;
             };
-            branch: {
-                id: string;
-                name: string;
-            } | null;
             department: {
                 id: string;
                 name: string;
             } | null;
-            id: string;
             name: string;
+            branch: {
+                id: string;
+                name: string;
+            } | null;
             category: string;
             assetTag: string;
             serialNumber: string | null;
             currentEmployee: {
                 id: string;
-                employeeCode: string;
                 firstName: string;
                 lastName: string;
+                employeeCode: string;
             } | null;
         };
     } & {
+        priority: string | null;
         id: string;
         createdAt: Date;
-        priority: string | null;
+        notes: string | null;
         startDate: Date;
         vendor: string | null;
-        notes: string | null;
         endDate: Date | null;
         assetId: string;
         workOrderNumber: string | null;
@@ -49,12 +49,12 @@ export declare class AssetMaintenanceService {
         qcStatus: string | null;
     })[]>;
     create(dto: CreateAssetMaintenanceDto): Promise<{
+        priority: string | null;
         id: string;
         createdAt: Date;
-        priority: string | null;
+        notes: string | null;
         startDate: Date;
         vendor: string | null;
-        notes: string | null;
         endDate: Date | null;
         assetId: string;
         workOrderNumber: string | null;
@@ -68,12 +68,12 @@ export declare class AssetMaintenanceService {
         qcStatus: string | null;
     }>;
     complete(id: string, dto?: CompleteAssetMaintenanceDto): Promise<{
+        priority: string | null;
         id: string;
         createdAt: Date;
-        priority: string | null;
+        notes: string | null;
         startDate: Date;
         vendor: string | null;
-        notes: string | null;
         endDate: Date | null;
         assetId: string;
         workOrderNumber: string | null;

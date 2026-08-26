@@ -13,21 +13,21 @@ export declare class ExitsController {
     }>;
     findAll(search?: string, status?: string, companyId?: string): Promise<({
         employee: {
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            id: string;
             department: {
                 id: string;
                 name: string;
             } | null;
             designation: {
-                id: string;
                 title: string;
+                id: string;
             } | null;
-            id: string;
-            employeeCode: string;
+            phone: string | null;
             firstName: string;
             lastName: string;
+            employeeCode: string;
             workEmail: string | null;
-            phone: string | null;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             reportingManager: {
                 id: string;
                 firstName: string;
@@ -61,11 +61,11 @@ export declare class ExitsController {
             exitId: string;
         }[];
         clearanceItems: {
-            department: string;
-            id: string;
             status: string;
+            id: string;
             createdAt: Date;
             updatedAt: Date;
+            department: string;
             remarks: string | null;
             itemKey: string;
             itemLabel: string;
@@ -74,8 +74,8 @@ export declare class ExitsController {
             exitId: string;
         }[];
         fnfSettlement: {
-            id: string;
             status: string;
+            id: string;
             createdAt: Date;
             updatedAt: Date;
             remarks: string | null;
@@ -95,9 +95,9 @@ export declare class ExitsController {
             exitId: string;
         } | null;
     } & {
-        id: string;
         companyId: string | null;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         remarks: string | null;
@@ -119,17 +119,17 @@ export declare class ExitsController {
     })[]>;
     findOne(id: string): Promise<{
         employee: {
-            branch: {
-                id: string;
-                name: string;
-            } | null;
             department: {
                 id: string;
                 name: string;
             } | null;
             designation: {
-                id: string;
                 title: string;
+                id: string;
+            } | null;
+            branch: {
+                id: string;
+                name: string;
             } | null;
             reportingManager: {
                 id: string;
@@ -137,21 +137,22 @@ export declare class ExitsController {
                 lastName: string;
             } | null;
             positionHistory: {
-                id: string;
-                branchId: string | null;
                 departmentId: string | null;
                 designationId: string | null;
                 reportingManagerId: string | null;
                 status: string;
-                grade: string | null;
-                level: string | null;
+                id: string;
                 createdAt: Date;
                 updatedAt: Date;
+                branchId: string | null;
+                grade: string | null;
+                level: string | null;
                 departmentName: string | null;
                 remarks: string | null;
                 employeeId: string;
                 approvedBy: string | null;
                 effectiveDate: Date;
+                reason: string | null;
                 transferId: string | null;
                 movementType: string;
                 designationTitle: string | null;
@@ -162,40 +163,45 @@ export declare class ExitsController {
                 prevGrade: string | null;
                 prevBranchName: string | null;
                 approvedDate: Date | null;
-                reason: string | null;
             }[];
         } & {
-            location: string | null;
-            costCenter: string | null;
-            id: string;
-            employeeCode: string;
             companyId: string;
-            branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
-            userId: string | null;
+            costCenter: string | null;
+            employmentType: import(".prisma/client").$Enums.EmploymentType;
             reportingManagerId: string | null;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            workMode: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            branchId: string | null;
+            grade: string | null;
+            country: string | null;
+            state: string | null;
+            city: string | null;
+            pincode: string | null;
+            phone: string | null;
+            businessUnit: string | null;
             firstName: string;
-            middleName: string | null;
             lastName: string;
+            location: string | null;
+            employeeCode: string;
+            userId: string | null;
+            middleName: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
-            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
-            employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
-            businessUnit: string | null;
-            grade: string | null;
             level: string | null;
             shift: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
-            workMode: string | null;
             probationPeriod: string | null;
             confirmationDate: Date | null;
             emergencyContactRelationship: string | null;
@@ -252,16 +258,10 @@ export declare class ExitsController {
             salaryEffectiveFrom: Date | null;
             addressLine1: string | null;
             addressLine2: string | null;
-            city: string | null;
-            state: string | null;
-            country: string | null;
-            pincode: string | null;
             faceTemplate: string | null;
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         };
         exitInterview: {
             id: string;
@@ -290,11 +290,11 @@ export declare class ExitsController {
             exitId: string;
         }[];
         clearanceItems: {
-            department: string;
-            id: string;
             status: string;
+            id: string;
             createdAt: Date;
             updatedAt: Date;
+            department: string;
             remarks: string | null;
             itemKey: string;
             itemLabel: string;
@@ -303,8 +303,8 @@ export declare class ExitsController {
             exitId: string;
         }[];
         fnfSettlement: {
-            id: string;
             status: string;
+            id: string;
             createdAt: Date;
             updatedAt: Date;
             remarks: string | null;
@@ -324,9 +324,9 @@ export declare class ExitsController {
             exitId: string;
         } | null;
     } & {
-        id: string;
         companyId: string | null;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         remarks: string | null;
@@ -358,11 +358,11 @@ export declare class ExitsController {
             exitId: string;
         }[];
         clearanceItems: {
-            department: string;
-            id: string;
             status: string;
+            id: string;
             createdAt: Date;
             updatedAt: Date;
+            department: string;
             remarks: string | null;
             itemKey: string;
             itemLabel: string;
@@ -371,8 +371,8 @@ export declare class ExitsController {
             exitId: string;
         }[];
         fnfSettlement: {
-            id: string;
             status: string;
+            id: string;
             createdAt: Date;
             updatedAt: Date;
             remarks: string | null;
@@ -392,9 +392,9 @@ export declare class ExitsController {
             exitId: string;
         } | null;
     } & {
-        id: string;
         companyId: string | null;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         remarks: string | null;
@@ -415,9 +415,9 @@ export declare class ExitsController {
         updatedById: string | null;
     }>;
     updateStatus(id: string, dto: UpdateExitStatusDto): Promise<{
-        id: string;
         companyId: string | null;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         remarks: string | null;
@@ -438,9 +438,9 @@ export declare class ExitsController {
         updatedById: string | null;
     }>;
     adjustLwd(id: string, dto: AdjustLwdDto): Promise<{
-        id: string;
         companyId: string | null;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         remarks: string | null;
@@ -461,11 +461,11 @@ export declare class ExitsController {
         updatedById: string | null;
     }>;
     updateClearanceItem(itemId: string, dto: UpdateClearanceItemDto): Promise<{
-        department: string;
-        id: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        department: string;
         remarks: string | null;
         itemKey: string;
         itemLabel: string;
@@ -490,8 +490,8 @@ export declare class ExitsController {
         hrRemarks: string | null;
     }>;
     saveFnfSettlement(id: string, dto: SaveFnfSettlementDto): Promise<{
-        id: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         remarks: string | null;
@@ -511,9 +511,9 @@ export declare class ExitsController {
         exitId: string;
     }>;
     completeExit(id: string, performedBy?: string): Promise<{
-        id: string;
         companyId: string | null;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         remarks: string | null;

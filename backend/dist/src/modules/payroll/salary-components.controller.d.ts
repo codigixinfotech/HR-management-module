@@ -4,47 +4,47 @@ export declare class SalaryComponentsController {
     private readonly salaryComponentsService;
     constructor(salaryComponentsService: SalaryComponentsService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
-        id: string;
         companyId: string;
+        isActive: boolean;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        name: string;
         type: import(".prisma/client").$Enums.SalaryComponentType;
-        isActive: boolean;
         isStatutory: boolean;
     }[]>;
     findOne(id: string): Promise<{
-        id: string;
         companyId: string;
+        isActive: boolean;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        name: string;
         type: import(".prisma/client").$Enums.SalaryComponentType;
-        isActive: boolean;
         isStatutory: boolean;
     }>;
     create(dto: CreateSalaryComponentDto): Promise<{
-        id: string;
         companyId: string;
+        isActive: boolean;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        name: string;
         type: import(".prisma/client").$Enums.SalaryComponentType;
-        isActive: boolean;
         isStatutory: boolean;
     }>;
     update(id: string, dto: UpdateSalaryComponentDto): Promise<{
-        id: string;
         companyId: string;
+        isActive: boolean;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         code: string;
+        name: string;
         type: import(".prisma/client").$Enums.SalaryComponentType;
-        isActive: boolean;
         isStatutory: boolean;
     }>;
     remove(id: string): Promise<{

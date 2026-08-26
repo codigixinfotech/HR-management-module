@@ -112,6 +112,70 @@ export class CreateJobOpeningDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  workMode?: string;
+
+  @IsOptional()
+  @IsString()
+  hiringManagerId?: string;
+
+  @IsOptional()
+  @IsString()
+  recruiterId?: string;
+
+  @IsOptional()
+  @IsString()
+  hrbpId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  applicationStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  jobVisibility?: string;
+
+  @IsOptional()
+  @IsString()
+  preferredSkills?: string;
+
+  @IsOptional()
+  @IsString()
+  preferredQualification?: string;
+
+  @IsOptional()
+  @IsString()
+  certifications?: string;
+
+  @IsOptional()
+  @IsString()
+  languages?: string;
+
+  @IsOptional()
+  @IsString()
+  benefits?: string;
+
+  @IsOptional()
+  @IsString()
+  interviewProcess?: string;
+
+  @IsOptional()
+  @IsInt()
+  numInterviewRounds?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  hasAssessment?: boolean;
+
+  @IsOptional()
+  @IsString()
+  internalNotes?: string;
+
+  @IsOptional()
+  @IsString()
+  internalJustification?: string;
 }
 
 export class UpdateJobOpeningDto extends PartialType(CreateJobOpeningDto) {}

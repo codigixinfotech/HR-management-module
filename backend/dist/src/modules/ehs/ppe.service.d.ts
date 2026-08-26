@@ -4,8 +4,8 @@ export declare class PpeService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
-        id: string;
         companyId: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -13,8 +13,8 @@ export declare class PpeService {
         stockQuantity: number;
     }[]>;
     findById(id: string): Promise<{
-        id: string;
         companyId: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -22,8 +22,8 @@ export declare class PpeService {
         stockQuantity: number;
     }>;
     create(dto: CreatePpeItemDto): import(".prisma/client").Prisma.Prisma__PpeItemClient<{
-        id: string;
         companyId: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -31,8 +31,8 @@ export declare class PpeService {
         stockQuantity: number;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdatePpeItemDto): Promise<{
-        id: string;
         companyId: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;

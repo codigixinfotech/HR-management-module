@@ -6,8 +6,8 @@ export declare class LeaveBalancesController {
     list(employeeId?: string, year?: string): import(".prisma/client").Prisma.PrismaPromise<({
         leaveType: {
             id: string;
-            name: string;
             code: string;
+            name: string;
             isPaid: boolean;
         };
     } & {

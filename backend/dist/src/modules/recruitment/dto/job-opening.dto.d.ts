@@ -27,6 +27,22 @@ export declare class CreateJobOpeningDto {
     applicationDeadline?: string;
     status?: string;
     isActive?: boolean;
+    workMode?: string;
+    hiringManagerId?: string;
+    recruiterId?: string;
+    hrbpId?: string;
+    applicationStartDate?: string;
+    jobVisibility?: string;
+    preferredSkills?: string;
+    preferredQualification?: string;
+    certifications?: string;
+    languages?: string;
+    benefits?: string;
+    interviewProcess?: string;
+    numInterviewRounds?: number;
+    hasAssessment?: boolean;
+    internalNotes?: string;
+    internalJustification?: string;
 }
 declare const UpdateJobOpeningDto_base: import("@nestjs/mapped-types").MappedType<Partial<CreateJobOpeningDto>>;
 export declare class UpdateJobOpeningDto extends UpdateJobOpeningDto_base {

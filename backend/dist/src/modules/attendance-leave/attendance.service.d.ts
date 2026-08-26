@@ -10,14 +10,14 @@ export declare class AttendanceService {
     list(employeeId?: string, companyId?: string, from?: string, to?: string, user?: CurrentUserPayload): Promise<{
         status: string;
         employee: {
+            id: string;
             department: {
                 id: string;
                 name: string;
             } | null;
-            id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
             faceTemplate: string | null;
             facePhoto: string | null;
         };
@@ -27,14 +27,14 @@ export declare class AttendanceService {
             startTime: string;
             endTime: string;
         } | null;
-        id: string;
         companyId: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        source: string;
         remarks: string | null;
         employeeId: string;
         date: Date;
-        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
@@ -58,14 +58,14 @@ export declare class AttendanceService {
     findById(id: string, user?: CurrentUserPayload): Promise<{
         status: string;
         employee: {
+            id: string;
             department: {
                 id: string;
                 name: string;
             } | null;
-            id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
             faceTemplate: string | null;
             facePhoto: string | null;
         };
@@ -75,14 +75,14 @@ export declare class AttendanceService {
             startTime: string;
             endTime: string;
         } | null;
-        id: string;
         companyId: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        source: string;
         remarks: string | null;
         employeeId: string;
         date: Date;
-        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
@@ -106,14 +106,14 @@ export declare class AttendanceService {
     mark(dto: MarkAttendanceDto): Promise<{
         status: any;
         employee: {
+            id: string;
             department: {
                 id: string;
                 name: string;
             } | null;
-            id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
             faceTemplate: string | null;
             facePhoto: string | null;
         };
@@ -123,14 +123,14 @@ export declare class AttendanceService {
             startTime: string;
             endTime: string;
         } | null;
-        id: string;
         companyId: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        source: string;
         remarks: string | null;
         employeeId: string;
         date: Date;
-        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
@@ -153,14 +153,14 @@ export declare class AttendanceService {
     }>;
     update(id: string, dto: UpdateAttendanceDto): Promise<{
         employee: {
+            id: string;
             department: {
                 id: string;
                 name: string;
             } | null;
-            id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
             faceTemplate: string | null;
             facePhoto: string | null;
         };
@@ -171,15 +171,15 @@ export declare class AttendanceService {
             endTime: string;
         } | null;
     } & {
-        id: string;
         companyId: string;
         status: import(".prisma/client").$Enums.AttendanceStatus;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
+        source: string;
         remarks: string | null;
         employeeId: string;
         date: Date;
-        source: string;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;

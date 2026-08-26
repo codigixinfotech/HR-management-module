@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   ChevronRight,
 } from 'lucide-react';
+import { formatSalaryRangeInLakhs } from '@/lib/utils';
 import { jobOpeningsApi } from '@/api/recruitment';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -239,6 +240,12 @@ export default function CareersPage() {
                             : job.candidateType === 'BOTH'
                             ? 'Experience: Freshers & Experienced'
                             : `Experience: ${job.experience || 'Freshers & Experienced'}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between bg-primary/5 border border-primary/20 p-2 rounded-md col-span-2">
+                        <span className="text-[11px] font-medium text-muted-foreground">Offered CTC Range:</span>
+                        <span className="font-mono font-bold text-xs text-primary">
+                          {formatSalaryRangeInLakhs(job.minSalary, job.maxSalary)}
                         </span>
                       </div>
                     </div>

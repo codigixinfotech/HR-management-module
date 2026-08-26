@@ -5,28 +5,28 @@ export declare class TasksController {
     constructor(tasksService: TasksService);
     listTasks(assignedToId?: string, assignedToName?: string, status?: string, priority?: string, departmentName?: string, search?: string): Promise<({
         assignedTo: {
+            id: string;
             department: {
                 id: string;
                 name: string;
             } | null;
             designation: {
-                id: string;
                 title: string;
+                id: string;
             } | null;
-            id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         assignedBy: {
-            designation: {
-                id: string;
-                title: string;
-            } | null;
             id: string;
-            employeeCode: string;
+            designation: {
+                title: string;
+                id: string;
+            } | null;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         activities: {
             id: string;
@@ -40,18 +40,18 @@ export declare class TasksController {
             taskId: string;
         }[];
     } & {
-        id: string;
         departmentId: string | null;
+        title: string;
+        description: string | null;
+        priority: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         taskCode: string;
-        title: string;
-        description: string | null;
         taskType: string;
         departmentName: string | null;
         projectName: string | null;
-        priority: string;
         assignedToId: string;
         assignedById: string;
         startDate: Date | null;
@@ -81,36 +81,36 @@ export declare class TasksController {
     }>;
     listRequests(requestedById?: string): Promise<({
         requestedBy: {
+            id: string;
             department: {
-                costCenter: string | null;
-                id: string;
                 companyId: string;
-                branchId: string | null;
+                description: string | null;
+                costCenter: string | null;
+                isActive: boolean;
+                id: string;
                 createdAt: Date;
                 updatedAt: Date;
-                name: string;
-                description: string | null;
+                branchId: string | null;
                 code: string;
+                name: string;
                 type: string;
                 parentDepartmentId: string | null;
                 manager: string | null;
                 headcountCapacity: number;
                 annualBudget: number | null;
                 effectiveFrom: Date;
-                isActive: boolean;
             } | null;
-            id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
     } & {
-        id: string;
-        status: string;
-        createdAt: Date;
-        updatedAt: Date;
         description: string | null;
         priority: string;
+        status: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
         requestCode: string;
         requestedById: string;
         requestTitle: string;
@@ -121,12 +121,12 @@ export declare class TasksController {
         reviewedAt: Date | null;
     })[]>;
     createRequest(dto: CreateTaskRequestDto): Promise<{
-        id: string;
-        status: string;
-        createdAt: Date;
-        updatedAt: Date;
         description: string | null;
         priority: string;
+        status: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
         requestCode: string;
         requestedById: string;
         requestTitle: string;
@@ -137,12 +137,12 @@ export declare class TasksController {
         reviewedAt: Date | null;
     }>;
     reviewRequest(id: string, dto: ReviewTaskRequestDto): Promise<{
-        id: string;
-        status: string;
-        createdAt: Date;
-        updatedAt: Date;
         description: string | null;
         priority: string;
+        status: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
         requestCode: string;
         requestedById: string;
         requestTitle: string;
@@ -154,28 +154,28 @@ export declare class TasksController {
     }>;
     findOne(id: string): Promise<{
         assignedTo: {
+            id: string;
             department: {
                 id: string;
                 name: string;
             } | null;
             designation: {
-                id: string;
                 title: string;
+                id: string;
             } | null;
-            id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         assignedBy: {
-            designation: {
-                id: string;
-                title: string;
-            } | null;
             id: string;
-            employeeCode: string;
+            designation: {
+                title: string;
+                id: string;
+            } | null;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         activities: {
             id: string;
@@ -189,18 +189,18 @@ export declare class TasksController {
             taskId: string;
         }[];
     } & {
-        id: string;
         departmentId: string | null;
+        title: string;
+        description: string | null;
+        priority: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         taskCode: string;
-        title: string;
-        description: string | null;
         taskType: string;
         departmentName: string | null;
         projectName: string | null;
-        priority: string;
         assignedToId: string;
         assignedById: string;
         startDate: Date | null;
@@ -230,18 +230,18 @@ export declare class TasksController {
             lastName: string;
         };
     } & {
-        id: string;
         departmentId: string | null;
+        title: string;
+        description: string | null;
+        priority: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         taskCode: string;
-        title: string;
-        description: string | null;
         taskType: string;
         departmentName: string | null;
         projectName: string | null;
-        priority: string;
         assignedToId: string;
         assignedById: string;
         startDate: Date | null;
@@ -261,37 +261,43 @@ export declare class TasksController {
     }>;
     startTask(id: string, startedBy?: string): Promise<{
         assignedTo: {
-            location: string | null;
-            costCenter: string | null;
-            id: string;
-            employeeCode: string;
             companyId: string;
-            branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
-            userId: string | null;
+            costCenter: string | null;
+            employmentType: import(".prisma/client").$Enums.EmploymentType;
             reportingManagerId: string | null;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            workMode: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            branchId: string | null;
+            grade: string | null;
+            country: string | null;
+            state: string | null;
+            city: string | null;
+            pincode: string | null;
+            phone: string | null;
+            businessUnit: string | null;
             firstName: string;
-            middleName: string | null;
             lastName: string;
+            location: string | null;
+            employeeCode: string;
+            userId: string | null;
+            middleName: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
-            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
-            employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
-            businessUnit: string | null;
-            grade: string | null;
             level: string | null;
             shift: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
-            workMode: string | null;
             probationPeriod: string | null;
             confirmationDate: Date | null;
             emergencyContactRelationship: string | null;
@@ -348,49 +354,49 @@ export declare class TasksController {
             salaryEffectiveFrom: Date | null;
             addressLine1: string | null;
             addressLine2: string | null;
-            city: string | null;
-            state: string | null;
-            country: string | null;
-            pincode: string | null;
             faceTemplate: string | null;
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         };
         assignedBy: {
-            location: string | null;
-            costCenter: string | null;
-            id: string;
-            employeeCode: string;
             companyId: string;
-            branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
-            userId: string | null;
+            costCenter: string | null;
+            employmentType: import(".prisma/client").$Enums.EmploymentType;
             reportingManagerId: string | null;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            workMode: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            branchId: string | null;
+            grade: string | null;
+            country: string | null;
+            state: string | null;
+            city: string | null;
+            pincode: string | null;
+            phone: string | null;
+            businessUnit: string | null;
             firstName: string;
-            middleName: string | null;
             lastName: string;
+            location: string | null;
+            employeeCode: string;
+            userId: string | null;
+            middleName: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
-            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
-            employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
-            businessUnit: string | null;
-            grade: string | null;
             level: string | null;
             shift: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
-            workMode: string | null;
             probationPeriod: string | null;
             confirmationDate: Date | null;
             emergencyContactRelationship: string | null;
@@ -447,30 +453,24 @@ export declare class TasksController {
             salaryEffectiveFrom: Date | null;
             addressLine1: string | null;
             addressLine2: string | null;
-            city: string | null;
-            state: string | null;
-            country: string | null;
-            pincode: string | null;
             faceTemplate: string | null;
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         };
     } & {
-        id: string;
         departmentId: string | null;
+        title: string;
+        description: string | null;
+        priority: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         taskCode: string;
-        title: string;
-        description: string | null;
         taskType: string;
         departmentName: string | null;
         projectName: string | null;
-        priority: string;
         assignedToId: string;
         assignedById: string;
         startDate: Date | null;
@@ -489,18 +489,18 @@ export declare class TasksController {
         closedAt: Date | null;
     }>;
     updateProgress(id: string, dto: UpdateTaskProgressDto): Promise<{
-        id: string;
         departmentId: string | null;
+        title: string;
+        description: string | null;
+        priority: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         taskCode: string;
-        title: string;
-        description: string | null;
         taskType: string;
         departmentName: string | null;
         projectName: string | null;
-        priority: string;
         assignedToId: string;
         assignedById: string;
         startDate: Date | null;
@@ -519,18 +519,18 @@ export declare class TasksController {
         closedAt: Date | null;
     }>;
     completeTask(id: string, dto: CompleteTaskDto): Promise<{
-        id: string;
         departmentId: string | null;
+        title: string;
+        description: string | null;
+        priority: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         taskCode: string;
-        title: string;
-        description: string | null;
         taskType: string;
         departmentName: string | null;
         projectName: string | null;
-        priority: string;
         assignedToId: string;
         assignedById: string;
         startDate: Date | null;
@@ -549,18 +549,18 @@ export declare class TasksController {
         closedAt: Date | null;
     }>;
     reviewTask(id: string, dto: ReviewTaskDto): Promise<{
-        id: string;
         departmentId: string | null;
+        title: string;
+        description: string | null;
+        priority: string;
         status: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         taskCode: string;
-        title: string;
-        description: string | null;
         taskType: string;
         departmentName: string | null;
         projectName: string | null;
-        priority: string;
         assignedToId: string;
         assignedById: string;
         startDate: Date | null;
