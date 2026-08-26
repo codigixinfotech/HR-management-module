@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -21,6 +21,8 @@ import {
   UserCheck,
   FileText,
   ShieldCheck,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,6 +69,9 @@ export function ManpowerPlanningTab() {
   const [selectedDeptId, setSelectedDeptId] = useState<string>('');
   const [selectedCostCenterCode, setSelectedCostCenterCode] = useState<string>('');
   const [selectedDesignationId, setSelectedDesignationId] = useState<string>('');
+  const [roleInput, setRoleInput] = useState<string>('');
+  const [isDesignationDropdownOpen, setIsDesignationDropdownOpen] = useState<boolean>(false);
+  const designationComboboxRef = useRef<HTMLDivElement>(null);
   const [formBudgeted, setFormBudgeted] = useState<number>(5);
   const [formActive, setFormActive] = useState<number>(0);
   const [formQuarter, setFormQuarter] = useState<string>('Q3 2026');
@@ -218,10 +223,40 @@ export function ManpowerPlanningTab() {
     return Array.from(map.values());
   }, [rawDesignations, selectedCompanyId, selectedDeptId]);
 
-  // Active selected designation object
+  // Active selected designation object (or matched from typed title)
   const currentDesignation = useMemo(() => {
-    return designations.find((d) => d.id === selectedDesignationId);
-  }, [designations, selectedDesignationId]);
+    if (selectedDesignationId) {
+      const match = designations.find((d) => d.id === selectedDesignationId);
+      if (match) return match;
+    }
+    if (roleInput.trim()) {
+      return designations.find((d) => d.title.trim().toLowerCase() === roleInput.trim().toLowerCase());
+    }
+    return undefined;
+  }, [designations, selectedDesignationId, roleInput]);
+
+  // Filter master designations dynamically based on roleInput
+  const filteredDesignations = useMemo(() => {
+    if (!designations) return [];
+    if (!roleInput.trim()) return designations;
+    const q = roleInput.trim().toLowerCase();
+    return designations.filter(
+      (des) =>
+        des.title.toLowerCase().includes(q) ||
+        (des.code && des.code.toLowerCase().includes(q))
+    );
+  }, [designations, roleInput]);
+
+  // Click outside listener for Designation Combobox Dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (designationComboboxRef.current && !designationComboboxRef.current.contains(event.target as Node)) {
+        setIsDesignationDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Active plan company object for MR Modal
   const planCompany = useMemo(() => {
@@ -305,6 +340,8 @@ export function ManpowerPlanningTab() {
     setSelectedDeptId('');
     setSelectedCostCenterCode('');
     setSelectedDesignationId('');
+    setRoleInput('');
+    setIsDesignationDropdownOpen(false);
     setFormActive(0);
   };
 
@@ -314,6 +351,8 @@ export function ManpowerPlanningTab() {
     setSelectedDeptId('');
     setSelectedCostCenterCode('');
     setSelectedDesignationId('');
+    setRoleInput('');
+    setIsDesignationDropdownOpen(false);
     setFormActive(0);
   };
 
@@ -322,6 +361,8 @@ export function ManpowerPlanningTab() {
     setSelectedDeptId(newDeptId);
     setSelectedCostCenterCode('');
     setSelectedDesignationId('');
+    setRoleInput('');
+    setIsDesignationDropdownOpen(false);
     setFormActive(0);
   };
 
@@ -330,20 +371,23 @@ export function ManpowerPlanningTab() {
     setSelectedCostCenterCode(newCcCode);
   };
 
-  // Handle Designation Change
-  const handleDesignationChange = (newDesigId: string) => {
-    setSelectedDesignationId(newDesigId);
+  // Handle Designation Selection from Combobox
+  const handleDesignationSelect = (des: Designation) => {
+    setSelectedDesignationId(des.id);
+    setRoleInput(des.title);
+    setIsDesignationDropdownOpen(false);
   };
 
   // Dynamic Active Staff Count from Employee Management
   useEffect(() => {
-    if (!activeEmployees || !selectedCompanyId || !selectedBranchId || !selectedDeptId || !selectedDesignationId) {
+    const searchRole = roleInput.trim().toLowerCase();
+    if (!activeEmployees || !selectedCompanyId || !selectedBranchId || !selectedDeptId || (!selectedDesignationId && !searchRole)) {
       setFormActive(0);
       return;
     }
 
     const targetDeptName = currentDept?.name?.toLowerCase().trim() || '';
-    const targetRoleTitle = currentDesignation?.title?.toLowerCase().trim() || '';
+    const targetRoleTitle = currentDesignation?.title?.toLowerCase().trim() || searchRole;
 
     const count = activeEmployees.filter((emp: any) => {
       if (selectedCompanyId && emp.companyId && emp.companyId !== selectedCompanyId) return false;
@@ -360,14 +404,14 @@ export function ManpowerPlanningTab() {
       const prevTitle = (emp.prevJobTitle || '').toLowerCase().trim();
 
       const matchesRole =
-        empDesigId === selectedDesignationId ||
+        (selectedDesignationId && empDesigId === selectedDesignationId) ||
         (targetRoleTitle && (empDesigTitle.includes(targetRoleTitle) || targetRoleTitle.includes(empDesigTitle) || prevTitle.includes(targetRoleTitle)));
 
       return matchesRole;
     }).length;
 
     setFormActive(count);
-  }, [activeEmployees, selectedCompanyId, selectedBranchId, selectedDeptId, selectedDesignationId, currentDept, currentDesignation]);
+  }, [activeEmployees, selectedCompanyId, selectedBranchId, selectedDeptId, selectedDesignationId, roleInput, currentDept, currentDesignation]);
 
   // Planned Hires calculation
   const plannedHiresCount = useMemo(() => {
@@ -386,6 +430,8 @@ export function ManpowerPlanningTab() {
 
     setSelectedDeptId('');
     setSelectedDesignationId('');
+    setRoleInput('');
+    setIsDesignationDropdownOpen(false);
     setSelectedCostCenterCode('');
     setFormBudgeted(5);
     setFormQuarter('Q3 2026');
@@ -401,6 +447,8 @@ export function ManpowerPlanningTab() {
     setSelectedBranchId(plan.branchId || '');
     setSelectedDeptId(plan.departmentId || '');
     setSelectedDesignationId(plan.designationId || '');
+    setRoleInput(plan.role || '');
+    setIsDesignationDropdownOpen(false);
     setSelectedCostCenterCode(plan.costCenter);
 
     setFormBudgeted(plan.budgeted);
@@ -548,12 +596,8 @@ export function ManpowerPlanningTab() {
       }
       return;
     }
-    if (!selectedDesignationId || !currentDesignation) {
-      if (designations.length === 0) {
-        toast.error('No designations found for the selected department.');
-      } else {
-        toast.error('Please select a designation/role.');
-      }
+    if (!roleInput.trim()) {
+      toast.error('Please enter or select a target job designation/role.');
       return;
     }
     if (formBudgeted <= 0) {
@@ -575,14 +619,16 @@ export function ManpowerPlanningTab() {
       return;
     }
 
+    const matchedDesig = currentDesignation || designations.find((d) => d.title.trim().toLowerCase() === roleInput.trim().toLowerCase());
+
     const payload: Partial<ManpowerPlan> = {
       companyId: selectedCompanyId,
       branchId: selectedBranchId,
       departmentId: currentDept.id,
       departmentName: currentDept.name,
       costCenter: selectedCostCenterCode,
-      designationId: currentDesignation.id,
-      role: currentDesignation.title,
+      designationId: selectedDesignationId || matchedDesig?.id || undefined,
+      role: roleInput.trim(),
       budgeted: formBudgeted,
       quarter: formQuarter,
       reason: formReason,
@@ -996,41 +1042,159 @@ export function ManpowerPlanningTab() {
                       </div>
                     </div>
 
-                    {/* 3. Target Job Designation / Role Dropdown */}
-                    <div className="space-y-1.5">
-                      <Label className="font-semibold">Target Job Designation / Role *</Label>
-                      <Select
-                        value={selectedDesignationId}
-                        onValueChange={handleDesignationChange}
-                        disabled={!selectedDeptId}
-                      >
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue
-                            placeholder={
-                              !selectedDeptId
-                                ? 'Please select a department.'
-                                : isDesignationsLoading
-                                ? 'Loading designations...'
-                                : designations.length === 0
-                                ? 'No designations found for the selected department.'
-                                : 'Select Designation / Role'
+                    {/* 3. Target Job Designation / Role - Searchable + Editable Single Combobox */}
+                    <div className="space-y-1.5 relative" ref={designationComboboxRef}>
+                      <Label className="font-semibold flex items-center justify-between">
+                        <span>Target Job Designation / Role *</span>
+                        {roleInput.trim() && (
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            {selectedDesignationId && designations.some((d) => d.id === selectedDesignationId) ? (
+                              <span className="text-emerald-600 font-medium flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 inline" /> Master Role Selected
+                              </span>
+                            ) : (
+                              <span className="text-blue-600 font-medium flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 inline" /> Custom Manual Role
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </Label>
+
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+                          <Search className="w-3.5 h-3.5" />
+                        </div>
+
+                        <Input
+                          type="text"
+                          placeholder={
+                            !selectedDeptId
+                              ? 'Please select a department first...'
+                              : isDesignationsLoading
+                              ? 'Loading designations...'
+                              : 'Search or enter job role...'
+                          }
+                          value={roleInput}
+                          disabled={!selectedDeptId}
+                          onFocus={() => {
+                            if (selectedDeptId) setIsDesignationDropdownOpen(true);
+                          }}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setRoleInput(val);
+                            setIsDesignationDropdownOpen(true);
+
+                            // Check if matching master designation exists
+                            const exactMatch = designations.find(
+                              (d) => d.title.trim().toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (exactMatch) {
+                              setSelectedDesignationId(exactMatch.id);
+                            } else {
+                              setSelectedDesignationId('');
                             }
-                          />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60 overflow-y-auto">
-                          {designations.length === 0 ? (
-                            <div className="p-2 text-xs text-muted-foreground text-center">
-                              No designations found for the selected department.
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setIsDesignationDropdownOpen(false);
+                            }
+                          }}
+                          className="pl-8 pr-16 h-9 text-xs focus-visible:ring-1 bg-background"
+                        />
+
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          {roleInput.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setRoleInput('');
+                                setSelectedDesignationId('');
+                              }}
+                              title="Clear text"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={!selectedDeptId}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              if (selectedDeptId) {
+                                setIsDesignationDropdownOpen((prev) => !prev);
+                              }
+                            }}
+                            title="Toggle dropdown"
+                          >
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isDesignationDropdownOpen ? 'rotate-180' : ''}`} />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Dropdown Menu */}
+                      {isDesignationDropdownOpen && selectedDeptId && (
+                        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-60 overflow-y-auto animate-in fade-in-50 zoom-in-95">
+                          {/* Existing filtered master designations */}
+                          {filteredDesignations.length > 0 ? (
+                            <div className="p-1">
+                              <div className="px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-muted-foreground bg-muted/30 rounded mb-1">
+                                Master Job Roles ({filteredDesignations.length})
+                              </div>
+                              {filteredDesignations.map((des: Designation) => {
+                                const isSelected = selectedDesignationId === des.id || roleInput.trim().toLowerCase() === des.title.trim().toLowerCase();
+                                return (
+                                  <div
+                                    key={des.id}
+                                    onClick={() => handleDesignationSelect(des)}
+                                    className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
+                                      isSelected
+                                        ? 'bg-primary/10 text-primary font-medium'
+                                        : 'hover:bg-accent hover:text-accent-foreground'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
+                                      <span>{des.title}</span>
+                                      {des.code && <span className="text-[10px] text-muted-foreground">({des.code})</span>}
+                                    </div>
+                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                  </div>
+                                );
+                              })}
                             </div>
                           ) : (
-                            designations.map((des: Designation) => (
-                              <SelectItem key={des.id} value={des.id} className="text-xs">
-                                {des.title} {des.code ? `(${des.code})` : ''}
-                              </SelectItem>
-                            ))
+                            <div className="p-3 text-xs text-muted-foreground text-center">
+                              No matching master job roles found.
+                            </div>
                           )}
-                        </SelectContent>
-                      </Select>
+
+                          {/* Manual entry selection option */}
+                          {roleInput.trim().length > 0 && (
+                            <div className="border-t border-border p-1 bg-muted/20">
+                              <div
+                                onClick={() => setIsDesignationDropdownOpen(false)}
+                                className="px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between bg-primary/5 hover:bg-primary/10 text-primary font-medium border border-primary/20 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                  <Plus className="w-3.5 h-3.5 text-primary shrink-0" />
+                                  <span className="truncate">
+                                    Use entered role: <strong className="font-semibold text-foreground">"{roleInput.trim()}"</strong>
+                                  </span>
+                                </div>
+                                <Badge variant="outline" className="text-[10px] bg-background text-primary shrink-0 ml-2">
+                                  Select
+                                </Badge>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* 4. Budgeted & Active & Planned Hires Calculation */}

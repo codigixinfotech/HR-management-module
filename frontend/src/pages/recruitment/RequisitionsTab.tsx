@@ -417,7 +417,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
     }
   };
 
-  // Open Create Job Requisition Dialog for Approved MR
+  // Open Create Job Requisition Page for Approved MR
   const openCreateJobReqModal = (mr: ManpowerRequisition) => {
     // Check if JR already raised for this approved MR
     const existingJr = openings.find(
@@ -429,137 +429,12 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
       return;
     }
 
-    setSelectedMr(mr);
-    setReqMode('FROM_MR');
-    setCreateReqTab('mr_ref');
-    setFieldErrors({});
-
-    setJobTitle(mr.role);
-    setJobSummary(
-      mr.reason
-        ? `Recruitment requisition for ${mr.role} in ${mr.departmentName}. Justification: ${mr.reason}`
-        : `Hiring for ${mr.role} in ${mr.departmentName}.`
-    );
-    setJobDescription(
-      `We are seeking a high-performing ${mr.role} to join our ${mr.departmentName} team. The candidate will drive key projects, collaborate across functions, and contribute to business operations.`
-    );
-    setJobResponsibilities(
-      `• Lead key operational and technical deliverables for ${mr.departmentName}.\n• Collaborate with cross-functional teams to ensure high standards.\n• Conduct evaluations, mentor junior team members, and maintain compliance.`
-    );
-    setJobQualification(mr.qualification || '');
-    setPreferredQualification('');
-    setJobSkills(mr.requiredSkills || '');
-    setPreferredSkills('');
-    setCertifications('');
-    setLanguages('English, Hindi');
-    setBenefits('Health Insurance, Performance Bonus, Paid Time Off, Professional Development');
-
-    const isFresher = mr.experience?.toLowerCase().includes('fresher');
-    if (isFresher) {
-      setCandidateType('FRESHER');
-      setMinExp(0);
-      setMaxExp(1);
-    } else {
-      setCandidateType('EXPERIENCED');
-      setMinExp(1);
-      setMaxExp(5);
-    }
-    setGraduationYear('');
-    setJobExperience(mr.experience || '');
-    setWorkMode('On-site');
-    setJobLocation(mr.workLocation || '');
-    setJobEmploymentType(mr.employmentType || 'FULL_TIME');
-
-    // Default Hiring Team
-    const defaultMgr = mr.reportingManagerId || activeEmployees[0]?.id || '';
-    setHiringManagerId(defaultMgr);
-    setRecruiterId(activeEmployees[0]?.id || '');
-    setHrbpId('');
-
-    // Compensation
-    const minLakh = mr.minSalary ? (mr.minSalary >= 1000 ? mr.minSalary / 100000 : mr.minSalary) : 0;
-    const maxLakh = mr.maxSalary ? (mr.maxSalary >= 1000 ? mr.maxSalary / 100000 : mr.maxSalary) : 0;
-    setJobMinSalaryLakh(minLakh);
-    setJobMaxSalaryLakh(maxLakh);
-
-    // Dates
-    const todayStr = new Date().toISOString().split('T')[0];
-    const deadline = new Date();
-    deadline.setDate(deadline.getDate() + 30);
-    setApplicationStartDate(todayStr);
-    setJobDeadline(deadline.toISOString().split('T')[0]);
-    setJobVisibility('Public');
-
-    // Interview & Internal
-    setInterviewProcess(
-      'Application Screening → HR Screening → Technical Assessment → Technical Interview → Managerial Round → HR Offer'
-    );
-    setNumInterviewRounds(3);
-    setHasAssessment(false);
-    setInternalNotes('');
-    setInternalJustification(mr.reason || '');
-
-    setIsReqOpen(true);
+    navigate(`/recruitment/requisitions/create-from-mr/${mr.id}`);
   };
 
-  // Open Standalone Job Requisition Dialog (Direct Post Job Opening)
+  // Open Standalone Job Requisition Page (Direct Post Job Opening)
   const openStandaloneJobReqModal = () => {
-    setSelectedMr(null);
-    setReqMode('STANDALONE');
-    setCreateReqTab('mr_ref');
-    setFieldErrors({});
-
-    setStandaloneCompanyId('');
-    setStandaloneBranchId('');
-    setStandaloneDepartmentId('');
-    setStandaloneCostCenter('');
-    setStandaloneDesignationId('');
-    setStandaloneNumPositions(1);
-
-    setJobTitle('');
-    setJobSummary('');
-    setJobDescription('');
-    setJobResponsibilities('');
-    setJobQualification('');
-    setPreferredQualification('');
-    setJobSkills('');
-    setPreferredSkills('');
-    setCertifications('');
-    setLanguages('English, Hindi');
-    setBenefits('Health Insurance, Performance Bonus, Paid Time Off, Flexible Work Hours');
-
-    setCandidateType('BOTH');
-    setMinExp(1);
-    setMaxExp(5);
-    setGraduationYear('');
-    setJobExperience('1 - 5 Years');
-    setWorkMode('On-site');
-    setJobLocation('');
-    setJobEmploymentType('FULL_TIME');
-
-    setHiringManagerId('');
-    setRecruiterId('');
-    setHrbpId('');
-
-    setJobMinSalaryLakh(6);
-    setJobMaxSalaryLakh(12);
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    const deadline = new Date();
-    deadline.setDate(deadline.getDate() + 30);
-    setApplicationStartDate(todayStr);
-    setJobDeadline(deadline.toISOString().split('T')[0]);
-    setJobVisibility('Public');
-
-    setInterviewProcess(
-      'Application Screening → HR Screening → Technical Assessment → Technical Interview → Managerial Round → HR Offer'
-    );
-    setNumInterviewRounds(3);
-    setHasAssessment(false);
-    setInternalNotes('');
-    setInternalJustification('');
-
-    setIsReqOpen(true);
+    navigate('/recruitment/requisitions/new');
   };
 
   useEffect(() => {
@@ -2237,8 +2112,8 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                   return (
                     <TableRow key={opening.id} className="hover:bg-muted/40 transition-colors">
                       <TableCell className="font-mono text-xs font-bold text-primary">{reqCode}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground font-medium">
-                        {opening.mrNumber || 'N/A'}
+                      <TableCell className="font-mono text-xs text-primary font-bold">
+                        {opening.mrNumber || (opening.manpowerRequisitionId ? requisitions.find((r) => r.id === opening.manpowerRequisitionId)?.mrNumber : null) || 'N/A'}
                       </TableCell>
                       <TableCell className="font-semibold text-xs text-foreground">{opening.title}</TableCell>
                       <TableCell className="text-xs text-muted-foreground font-semibold">

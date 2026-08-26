@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -14,6 +14,10 @@ import {
   CheckCircle2,
   ChevronRight,
   Briefcase,
+  Search,
+  ChevronDown,
+  X,
+  Plus,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -161,17 +165,23 @@ export default function CreateJobRequisitionPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // ── Master Data Queries ──
+  const { data: singleMr } = useQuery({
+    queryKey: ['manpower-requisition', targetMrId],
+    queryFn: () => (targetMrId ? manpowerRequisitionsApi.get(targetMrId) : null),
+    enabled: Boolean(targetMrId),
+  });
+
   const { data: approvedMrsResponse } = useQuery({
     queryKey: ['approved-manpower-requisitions'],
     queryFn: async () => {
-      const res = await manpowerRequisitionsApi.getAll();
-      const list = Array.isArray(res) ? res : res?.data || [];
+      const res = await manpowerRequisitionsApi.list();
+      const list = Array.isArray(res) ? res : (res as any)?.data || [];
       return list.filter((m: any) => m.status === 'APPROVED');
     },
   });
 
   const approvedMrs = approvedMrsResponse || [];
-  const selectedMr = isFromMR ? approvedMrs.find((m: any) => m.id === targetMrId) : null;
+  const selectedMr = singleMr || (isFromMR ? approvedMrs.find((m: any) => m.id === targetMrId) : null);
 
   // ── Form State (Standalone Organization Setup) ──
   const [standaloneCompanyId, setStandaloneCompanyId] = useState('');
@@ -179,7 +189,21 @@ export default function CreateJobRequisitionPage() {
   const [standaloneDepartmentId, setStandaloneDepartmentId] = useState('');
   const [standaloneCostCenter, setStandaloneCostCenter] = useState('');
   const [standaloneDesignationId, setStandaloneDesignationId] = useState('');
+  const [standaloneRoleInput, setStandaloneRoleInput] = useState('');
+  const [isStandaloneDesignationDropdownOpen, setIsStandaloneDesignationDropdownOpen] = useState(false);
+  const standaloneDesignationComboboxRef = useRef<HTMLDivElement>(null);
   const [standaloneNumPositions, setStandaloneNumPositions] = useState(1);
+
+  // Click-outside listener for standalone designation combobox
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (standaloneDesignationComboboxRef.current && !standaloneDesignationComboboxRef.current.contains(event.target as Node)) {
+        setIsStandaloneDesignationDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const activeCompId = isFromMR ? selectedMr?.companyId : standaloneCompanyId;
   const activeBranchId = isFromMR ? selectedMr?.branchId : standaloneBranchId;
@@ -245,6 +269,18 @@ export default function CreateJobRequisitionPage() {
     if (!activeDeptId) return [];
     return designations;
   }, [designations, activeDeptId]);
+
+  // Dynamic search filter for standalone designation combobox
+  const filteredDesignationsForCombobox = useMemo(() => {
+    if (!filteredDesignations) return [];
+    if (!standaloneRoleInput.trim()) return filteredDesignations;
+    const q = standaloneRoleInput.trim().toLowerCase();
+    return filteredDesignations.filter(
+      (des: any) =>
+        des.title.toLowerCase().includes(q) ||
+        (des.code && des.code.toLowerCase().includes(q))
+    );
+  }, [filteredDesignations, standaloneRoleInput]);
 
   // ── Scoped Team Employees Filtering (Employee Master) ──
   const filteredTeamEmployees = useMemo(() => {
@@ -336,6 +372,8 @@ export default function CreateJobRequisitionPage() {
     setStandaloneDepartmentId('');
     setStandaloneCostCenter('');
     setStandaloneDesignationId('');
+    setStandaloneRoleInput('');
+    setIsStandaloneDesignationDropdownOpen(false);
     setHiringManagerId('');
     setRecruiterId('');
     setHrbpId('');
@@ -347,6 +385,8 @@ export default function CreateJobRequisitionPage() {
     setStandaloneDepartmentId('');
     setStandaloneCostCenter('');
     setStandaloneDesignationId('');
+    setStandaloneRoleInput('');
+    setIsStandaloneDesignationDropdownOpen(false);
     setHiringManagerId('');
     setRecruiterId('');
     setHrbpId('');
@@ -356,6 +396,8 @@ export default function CreateJobRequisitionPage() {
   const handleDepartmentChange = (dId: string) => {
     setStandaloneDepartmentId(dId);
     setStandaloneDesignationId('');
+    setStandaloneRoleInput('');
+    setIsStandaloneDesignationDropdownOpen(false);
     const targetDept = departments.find((d: any) => d.id === dId);
     const matchingCc = costCenters.find((cc: any) => cc.departmentId === dId || cc.branchId === standaloneBranchId);
 
@@ -458,29 +500,46 @@ export default function CreateJobRequisitionPage() {
   React.useEffect(() => {
     if (isFromMR && selectedMr) {
       setJobTitle(selectedMr.role || '');
-      setJobQualification(selectedMr.qualification || '');
-      if (selectedMr.requiredSkills) {
-        const parsed = selectedMr.requiredSkills
-          .split(/[,;\n]/)
-          .map((s: string) => s.trim())
-          .filter(Boolean);
-        setRequiredSkillsList(parsed);
+      setJobQualification(selectedMr.qualification || 'B.Tech / Graduate');
+
+      const rawSkills = selectedMr.requiredSkills || '';
+      let parsed = rawSkills
+        .split(/[,;\n]/)
+        .map((s: string) => s.trim())
+        .filter((s: string) => Boolean(s) && s.toLowerCase() !== 'as per role specification');
+
+      if (parsed.length === 0) {
+        const roleLower = (selectedMr.role || '').toLowerCase();
+        const deptLower = (selectedMr.departmentName || '').toLowerCase();
+
+        if (roleLower.includes('software') || roleLower.includes('developer') || roleLower.includes('engineer')) {
+          parsed = ['Software Engineering', 'Problem Solving', 'System Design', 'Team Collaboration'];
+        } else if (roleLower.includes('support') || roleLower.includes('executive') || deptLower.includes('support')) {
+          parsed = ['Customer Support', 'Communication', 'Troubleshooting', 'CRM & Incident Resolution'];
+        } else if (roleLower.includes('manager') || roleLower.includes('lead')) {
+          parsed = ['Team Management', 'Strategic Planning', 'Resource Allocation', 'Leadership'];
+        } else {
+          parsed = ['Domain Expertise', 'Communication', 'Problem Solving', 'Teamwork'];
+        }
       }
+      setRequiredSkillsList(parsed);
+
       setJobLocation(selectedMr.workLocation || '');
-      if (selectedMr.managerId) {
-        setHiringManagerId(selectedMr.managerId);
+      const mgrId = selectedMr.reportingManagerId || selectedMr.managerId;
+      if (mgrId) {
+        setHiringManagerId(mgrId);
       }
     } else if (!isFromMR && standaloneDesignationId) {
       const selectedDes = designations.find((d: any) => d.id === standaloneDesignationId);
       if (selectedDes) {
         if (!jobTitle) setJobTitle(selectedDes.title);
         if (!jobQualification && selectedDes.qualification) setJobQualification(selectedDes.qualification);
-        if (requiredSkillsList.length === 0 && selectedDes.skills) {
+        if (selectedDes.skills) {
           const parsed = selectedDes.skills
             .split(/[,;\n]/)
             .map((s: string) => s.trim())
             .filter(Boolean);
-          setRequiredSkillsList(parsed);
+          if (parsed.length > 0) setRequiredSkillsList(parsed);
         }
       }
     }
@@ -494,7 +553,7 @@ export default function CreateJobRequisitionPage() {
       if (!standaloneBranchId) errors.standaloneBranchId = 'Please select a Branch Location.';
       if (!standaloneDepartmentId) errors.standaloneDepartmentId = 'Please select a Department.';
       if (!standaloneCostCenter.trim()) errors.standaloneCostCenter = 'Cost Center is required.';
-      if (!standaloneDesignationId) errors.standaloneDesignationId = 'Please select a Designation / Job Role.';
+      if (!standaloneDesignationId && !standaloneRoleInput.trim()) errors.standaloneDesignationId = 'Please enter or select a Designation / Job Role.';
       if (!standaloneNumPositions || standaloneNumPositions < 1) errors.standaloneNumPositions = 'Openings must be at least 1.';
     }
     setFieldErrors((prev) => ({ ...prev, ...errors }));
@@ -660,6 +719,7 @@ export default function CreateJobRequisitionPage() {
 
     if (isFromMR && selectedMr) {
       payload.manpowerRequisitionId = selectedMr.id;
+      payload.mrNumber = selectedMr.mrNumber;
       payload.companyId = selectedMr.companyId;
       payload.branchId = selectedMr.branchId;
       payload.departmentId = selectedMr.departmentId;
@@ -667,10 +727,11 @@ export default function CreateJobRequisitionPage() {
       payload.costCenter = selectedMr.costCenter;
       payload.numPositions = selectedMr.numOpenings;
     } else {
+      const matchedDesig = designations.find((d: any) => d.title.trim().toLowerCase() === standaloneRoleInput.trim().toLowerCase());
       payload.companyId = standaloneCompanyId;
       payload.branchId = standaloneBranchId;
       payload.departmentId = standaloneDepartmentId;
-      payload.designationId = standaloneDesignationId;
+      payload.designationId = standaloneDesignationId || matchedDesig?.id || undefined;
       payload.costCenter = standaloneCostCenter;
       payload.numPositions = Number(standaloneNumPositions);
     }
@@ -779,7 +840,7 @@ export default function CreateJobRequisitionPage() {
             <span className="font-semibold truncate block">
               {isFromMR
                 ? selectedMr?.role
-                : (designations.find((des: any) => des.id === standaloneDesignationId)?.title || 'Not Selected')}
+                : (standaloneRoleInput.trim() || (designations.find((des: any) => des.id === standaloneDesignationId)?.title || 'Not Selected'))}
             </span>
           </div>
           <div>
@@ -1091,28 +1152,181 @@ export default function CreateJobRequisitionPage() {
                       )}
                     </div>
 
-                    {/* 5. Designation */}
-                    <div className="space-y-1.5">
-                      <Label className="font-semibold text-xs">Designation / Job Role *</Label>
-                      <Select
-                        value={standaloneDesignationId}
-                        onValueChange={(v) => {
-                          setStandaloneDesignationId(v);
-                          setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '' }));
-                        }}
-                        disabled={!standaloneDepartmentId}
-                      >
-                        <SelectTrigger className="h-9 text-xs bg-background font-semibold">
-                          <SelectValue placeholder={standaloneDepartmentId ? 'Select Designation' : 'Select Department first'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {filteredDesignations.map((des: any) => (
-                            <SelectItem key={des.id} value={des.id} className="text-xs">
-                              {des.title} ({des.code})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {/* 5. Designation / Job Role - Single Searchable + Editable Combobox */}
+                    <div className="space-y-1.5 relative" ref={standaloneDesignationComboboxRef}>
+                      <Label className="font-semibold text-xs flex items-center justify-between">
+                        <span>Designation / Job Role *</span>
+                        {standaloneRoleInput.trim() && (
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            {standaloneDesignationId && designations.some((d: any) => d.id === standaloneDesignationId) ? (
+                              <span className="text-emerald-600 font-medium flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 inline" /> Master Role Selected
+                              </span>
+                            ) : (
+                              <span className="text-blue-600 font-medium flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 inline" /> Custom Manual Role
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </Label>
+
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+                          <Search className="w-3.5 h-3.5" />
+                        </div>
+
+                        <Input
+                          type="text"
+                          placeholder={
+                            !standaloneDepartmentId
+                              ? 'Select Department first...'
+                              : designations.length === 0
+                              ? 'No master designations found (type custom role)...'
+                              : 'Search or enter job role...'
+                          }
+                          value={standaloneRoleInput}
+                          disabled={!standaloneDepartmentId}
+                          onFocus={() => {
+                            if (standaloneDepartmentId) setIsStandaloneDesignationDropdownOpen(true);
+                          }}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setStandaloneRoleInput(val);
+                            setIsStandaloneDesignationDropdownOpen(true);
+                            setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '' }));
+
+                            // Auto-set jobTitle if empty or equal to previous title
+                            if (!jobTitle || designations.some((d: any) => d.title === jobTitle)) {
+                              setJobTitle(val);
+                            }
+
+                            // Check exact match in master designations
+                            const exactMatch = designations.find(
+                              (d: any) => d.title.trim().toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (exactMatch) {
+                              setStandaloneDesignationId(exactMatch.id);
+                            } else {
+                              setStandaloneDesignationId('');
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setIsStandaloneDesignationDropdownOpen(false);
+                            }
+                          }}
+                          className="pl-8 pr-16 h-9 text-xs focus-visible:ring-1 bg-background font-semibold"
+                        />
+
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          {standaloneRoleInput.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setStandaloneRoleInput('');
+                                setStandaloneDesignationId('');
+                              }}
+                              title="Clear text"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={!standaloneDepartmentId}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              if (standaloneDepartmentId) {
+                                setIsStandaloneDesignationDropdownOpen((prev) => !prev);
+                              }
+                            }}
+                            title="Toggle dropdown"
+                          >
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isStandaloneDesignationDropdownOpen ? 'rotate-180' : ''}`} />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Dropdown Menu */}
+                      {isStandaloneDesignationDropdownOpen && standaloneDepartmentId && (
+                        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-60 overflow-y-auto animate-in fade-in-50 zoom-in-95">
+                          {/* Master Designations */}
+                          {filteredDesignationsForCombobox.length > 0 ? (
+                            <div className="p-1">
+                              <div className="px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-muted-foreground bg-muted/30 rounded mb-1">
+                                Master Job Roles ({filteredDesignationsForCombobox.length})
+                              </div>
+                              {filteredDesignationsForCombobox.map((des: any) => {
+                                const isSelected = standaloneDesignationId === des.id || standaloneRoleInput.trim().toLowerCase() === des.title.trim().toLowerCase();
+                                return (
+                                  <div
+                                    key={des.id}
+                                    onClick={() => {
+                                      setStandaloneDesignationId(des.id);
+                                      setStandaloneRoleInput(des.title);
+                                      if (!jobTitle || designations.some((d: any) => d.title === jobTitle)) {
+                                        setJobTitle(des.title);
+                                      }
+                                      if (!jobQualification && des.qualification) {
+                                        setJobQualification(des.qualification);
+                                      }
+                                      if (des.skills) {
+                                        const parsed = des.skills.split(/[,;\n]/).map((s: string) => s.trim()).filter(Boolean);
+                                        if (parsed.length > 0) setRequiredSkillsList(parsed);
+                                      }
+                                      setIsStandaloneDesignationDropdownOpen(false);
+                                      setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '' }));
+                                    }}
+                                    className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
+                                      isSelected
+                                        ? 'bg-primary/10 text-primary font-medium'
+                                        : 'hover:bg-accent hover:text-accent-foreground'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
+                                      <span>{des.title}</span>
+                                      {des.code && <span className="text-[10px] text-muted-foreground">({des.code})</span>}
+                                    </div>
+                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="p-3 text-xs text-muted-foreground text-center">
+                              No matching master job roles found.
+                            </div>
+                          )}
+
+                          {/* Custom role entry option */}
+                          {standaloneRoleInput.trim().length > 0 && (
+                            <div className="border-t border-border p-1 bg-muted/20">
+                              <div
+                                onClick={() => setIsStandaloneDesignationDropdownOpen(false)}
+                                className="px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between bg-primary/5 hover:bg-primary/10 text-primary font-medium border border-primary/20 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                  <Plus className="w-3.5 h-3.5 text-primary shrink-0" />
+                                  <span className="truncate">
+                                    Use entered role: <strong className="font-semibold text-foreground">"{standaloneRoleInput.trim()}"</strong>
+                                  </span>
+                                </div>
+                                <Badge variant="outline" className="text-[10px] bg-background text-primary shrink-0 ml-2">
+                                  Select
+                                </Badge>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {fieldErrors.standaloneDesignationId && (
                         <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneDesignationId}</p>
                       )}
@@ -1358,15 +1572,15 @@ export default function CreateJobRequisitionPage() {
                         setRequiredSkillsList(tags);
                         if (tags.length > 0) setFieldErrors((prev) => ({ ...prev, requiredSkills: '' }));
                       }}
-                      disabled={isFromMR}
+                      disabled={false}
                       error={fieldErrors.requiredSkills}
-                      placeholder="Type a skill (e.g. React, TypeScript, Node.js, SQL) and press Enter"
-                      popularSuggestions={['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'JavaScript', 'Python', 'AWS', 'Docker', 'GraphQL', 'REST API', 'Git', 'Java']}
+                      placeholder="Type a skill (e.g. React, Customer Support, Communication) and press Enter"
+                      popularSuggestions={['Customer Support', 'Communication', 'Troubleshooting', 'React', 'TypeScript', 'Node.js', 'Problem Solving', 'Git']}
                       onBlur={() => markTouched('requiredSkills')}
                     />
                     {isFromMR && (
                       <p className="text-[10px] text-muted-foreground font-medium">
-                        🔒 Controlled by approved MR data.
+                        ℹ️ Pre-populated from approved MR. You can add or refine skills for this job posting.
                       </p>
                     )}
                     {fieldErrors.requiredSkills && (
