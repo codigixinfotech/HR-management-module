@@ -186,6 +186,9 @@ export default function CreateJobRequisitionPage() {
   // ── Form State (Standalone Organization Setup) ──
   const [standaloneCompanyId, setStandaloneCompanyId] = useState('');
   const [standaloneBranchId, setStandaloneBranchId] = useState('');
+  const [standaloneBranchIds, setStandaloneBranchIds] = useState<string[]>([]);
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const branchComboboxRef = useRef<HTMLDivElement>(null);
   const [standaloneDepartmentId, setStandaloneDepartmentId] = useState('');
   const [standaloneCostCenter, setStandaloneCostCenter] = useState('');
   const [standaloneDesignationId, setStandaloneDesignationId] = useState('');
@@ -194,19 +197,36 @@ export default function CreateJobRequisitionPage() {
   const standaloneDesignationComboboxRef = useRef<HTMLDivElement>(null);
   const [standaloneNumPositions, setStandaloneNumPositions] = useState(1);
 
-  // Click-outside listener for standalone designation combobox
+  // Click-outside listener for comboboxes
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (standaloneDesignationComboboxRef.current && !standaloneDesignationComboboxRef.current.contains(event.target as Node)) {
         setIsStandaloneDesignationDropdownOpen(false);
+      }
+      if (branchComboboxRef.current && !branchComboboxRef.current.contains(event.target as Node)) {
+        setIsBranchDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const toggleBranchSelection = (bId: string) => {
+    setStandaloneBranchIds((prev) => {
+      const exists = prev.includes(bId);
+      const updated = exists ? prev.filter((id) => id !== bId) : [...prev, bId];
+      setStandaloneBranchId(updated[0] || '');
+      setStandaloneDepartmentId('');
+      setStandaloneCostCenter('');
+      setStandaloneDesignationId('');
+      setStandaloneRoleInput('');
+      setFieldErrors((prevErr) => ({ ...prevErr, standaloneBranchId: '' }));
+      return updated;
+    });
+  };
+
   const activeCompId = isFromMR ? selectedMr?.companyId : standaloneCompanyId;
-  const activeBranchId = isFromMR ? selectedMr?.branchId : standaloneBranchId;
+  const activeBranchId = isFromMR ? selectedMr?.branchId : (standaloneBranchIds[0] || standaloneBranchId);
   const activeDeptId = isFromMR ? selectedMr?.departmentId : standaloneDepartmentId;
 
   const { data: companies = [] } = useQuery({
@@ -257,18 +277,26 @@ export default function CreateJobRequisitionPage() {
   // ── Cascading Dropdowns Filters ──
   const filteredBranches = useMemo(() => {
     if (!activeCompId) return [];
-    return branches;
+    return branches.filter((b: any) => !b.companyId || b.companyId === activeCompId);
   }, [branches, activeCompId]);
 
   const filteredDepartments = useMemo(() => {
     if (!activeCompId) return [];
-    return departments;
-  }, [departments, activeCompId]);
+    return departments.filter((d: any) => {
+      const matchComp = !d.companyId || d.companyId === activeCompId;
+      const matchBranch = standaloneBranchIds.length === 0 || !d.branchId || standaloneBranchIds.includes(d.branchId);
+      return matchComp && matchBranch;
+    });
+  }, [departments, activeCompId, standaloneBranchIds]);
 
   const filteredDesignations = useMemo(() => {
     if (!activeDeptId) return [];
-    return designations;
-  }, [designations, activeDeptId]);
+    return designations.filter((des: any) => {
+      const matchComp = !activeCompId || !des.companyId || des.companyId === activeCompId;
+      const matchDept = !des.departmentId || des.departmentId === activeDeptId;
+      return matchComp && matchDept;
+    });
+  }, [designations, activeCompId, activeDeptId]);
 
   // Dynamic search filter for standalone designation combobox
   const filteredDesignationsForCombobox = useMemo(() => {
@@ -369,6 +397,8 @@ export default function CreateJobRequisitionPage() {
   const handleCompanyChange = (cId: string) => {
     setStandaloneCompanyId(cId);
     setStandaloneBranchId('');
+    setStandaloneBranchIds([]);
+    setIsBranchDropdownOpen(false);
     setStandaloneDepartmentId('');
     setStandaloneCostCenter('');
     setStandaloneDesignationId('');
@@ -377,11 +407,12 @@ export default function CreateJobRequisitionPage() {
     setHiringManagerId('');
     setRecruiterId('');
     setHrbpId('');
-    setFieldErrors((prev) => ({ ...prev, standaloneCompanyId: '', hiringManagerId: '', recruiterId: '' }));
+    setFieldErrors((prev) => ({ ...prev, standaloneCompanyId: '', standaloneBranchId: '', hiringManagerId: '', recruiterId: '' }));
   };
 
   const handleBranchChange = (bId: string) => {
     setStandaloneBranchId(bId);
+    setStandaloneBranchIds(bId ? [bId] : []);
     setStandaloneDepartmentId('');
     setStandaloneCostCenter('');
     setStandaloneDesignationId('');
@@ -496,6 +527,84 @@ export default function CreateJobRequisitionPage() {
     }
   }, [filteredTeamEmployees, hiringManagerId, recruiterId, hrbpId]);
 
+  // Professional Job Description & Template Auto-Generator
+  const generateJobContent = (targetTitle?: string, targetDept?: string) => {
+    const roleName = targetTitle || jobTitle || selectedMr?.role || standaloneRoleInput || 'Job Role';
+    const deptName = targetDept || selectedMr?.departmentName || (departments.find((d: any) => d.id === standaloneDepartmentId)?.name) || 'Operations';
+
+    const roleLower = roleName.toLowerCase();
+    const deptLower = deptName.toLowerCase();
+
+    let summaryText = '';
+    let descriptionText = '';
+    let responsibilitiesText = '';
+
+    if (roleLower.includes('software') || roleLower.includes('developer') || roleLower.includes('engineer') || roleLower.includes('programmer') || deptLower.includes('tech') || deptLower.includes('it')) {
+      summaryText = `We are seeking a talented and detail-oriented ${roleName} to join our ${deptName} team. The candidate will collaborate with cross-functional engineering teams to design, build, and maintain high-performing software applications.`;
+
+      descriptionText = `As a ${roleName} at our company, you will play a critical role in developing modern software solutions, implementing scalable architecture, and delivering high-quality user experiences. You will work closely with product managers, QA engineers, and senior tech leads to drive product innovation and solve complex technical challenges.
+
+Key Focus Areas:
+- Writing maintainable, well-tested, and performant code across technical stacks.
+- Participating in agile development workflows, code reviews, and technical design discussions.
+- Continuous learning and adoption of modern engineering standards, clean code principles, and DevOps practices.`;
+
+      responsibilitiesText = `• Develop, test, and deploy clean, secure, and scalable code for core applications.
+• Collaborate with design, product, and QA teams to deliver feature releases on schedule.
+• Troubleshoot production bugs, conduct root-cause analysis, and optimize application performance.
+• Participate in technical design sessions, pull request reviews, and sprint planning.
+• Document technical specifications, API schemas, and component workflows.`;
+    } else if (roleLower.includes('support') || roleLower.includes('executive') || roleLower.includes('customer') || deptLower.includes('support')) {
+      summaryText = `We are looking for a customer-obsessed ${roleName} to join our ${deptName} division. You will serve as a primary liaison for customer inquiries, resolving technical and operational requests efficiently.`;
+
+      descriptionText = `As a ${roleName}, you will deliver world-class service and technical support to our enterprise clients. You will manage incoming support tickets, diagnose operational issues, and collaborate with product and engineering teams to ensure customer satisfaction and high SLA compliance.
+
+Key Focus Areas:
+- Providing rapid, empathetic, and effective resolution to customer inquiries and incidents.
+- Maintaining clear documentation, escalation matrices, and support knowledge bases.
+- Monitoring ticket queues, identifying recurring feedback, and driving process improvements.`;
+
+      responsibilitiesText = `• Respond to customer inquiries via phone, email, and live chat within target SLA timelines.
+• Troubleshoot technical queries, reproduce reported bugs, and escalate unresolved issues.
+• Maintain accurate ticket records, root-cause tags, and customer interaction logs.
+• Partner with product and engineering teams to communicate client feedback and feature requests.
+• Conduct client onboarding sessions and publish self-help knowledge base guides.`;
+    } else if (roleLower.includes('manager') || roleLower.includes('lead') || roleLower.includes('head')) {
+      summaryText = `We are hiring an experienced and strategic ${roleName} to lead operations and team deliverables in ${deptName}. You will drive strategic roadmap execution and team growth.`;
+
+      descriptionText = `As a ${roleName}, you will be responsible for leading a high-performing team, aligning departmental goals with organizational strategy, and overseeing operational excellence. You will mentor team members, optimize workflows, and manage key stakeholder relationships.
+
+Key Focus Areas:
+- Leadership, talent development, performance management, and team mentoring.
+- Strategic resource planning, project execution, and budget tracking.
+- Driving cross-departmental collaboration and continuous process optimization.`;
+
+      responsibilitiesText = `• Lead, mentor, and evaluate team performance to achieve quarterly business goals.
+• Develop operational frameworks, project timelines, and performance KPIs.
+• Manage resource allocation, headcount budgets, and cross-functional dependencies.
+• Communicate project updates, risk assessments, and executive metrics to leadership.
+• Foster a collaborative, growth-oriented, and accountable team culture.`;
+    } else {
+      summaryText = `We are seeking a qualified ${roleName} to join our ${deptName} team. The ideal candidate will be responsible for driving operational excellence and contributing to business outcomes.`;
+
+      descriptionText = `In this role as ${roleName}, you will work within the ${deptName} department to support day-to-day operations, execute strategic initiatives, and maintain high standards of quality and productivity.
+
+Key Focus Areas:
+- Executing core departmental workflows and maintaining operational compliance.
+- Collaborating with cross-functional stakeholders to achieve team objectives.
+- Continuously identifying opportunities for workflow improvement and efficiency.`;
+
+      responsibilitiesText = `• Execute core operational deliverables and daily departmental tasks efficiently.
+• Maintain compliance with company policies, documentation standards, and reporting guidelines.
+• Collaborate with team members to resolve operational bottlenecks and drive project milestones.
+• Prepare periodic progress reports, metrics dashboards, and stakeholder updates.`;
+    }
+
+    setJobSummary(summaryText);
+    setJobDescription(descriptionText);
+    setJobResponsibilities(responsibilitiesText);
+  };
+
   // Auto-fill when MR or Designation changes
   React.useEffect(() => {
     if (isFromMR && selectedMr) {
@@ -529,6 +638,10 @@ export default function CreateJobRequisitionPage() {
       if (mgrId) {
         setHiringManagerId(mgrId);
       }
+
+      if (!jobSummary || !jobDescription || !jobResponsibilities) {
+        generateJobContent(selectedMr.role, selectedMr.departmentName);
+      }
     } else if (!isFromMR && standaloneDesignationId) {
       const selectedDes = designations.find((d: any) => d.id === standaloneDesignationId);
       if (selectedDes) {
@@ -541,16 +654,23 @@ export default function CreateJobRequisitionPage() {
             .filter(Boolean);
           if (parsed.length > 0) setRequiredSkillsList(parsed);
         }
+        if (!jobSummary || !jobDescription || !jobResponsibilities) {
+          generateJobContent(selectedDes.title);
+        }
+      }
+    } else if (!isFromMR && standaloneRoleInput.trim()) {
+      if (!jobSummary || !jobDescription || !jobResponsibilities) {
+        generateJobContent(standaloneRoleInput);
       }
     }
-  }, [isFromMR, selectedMr, standaloneDesignationId, designations]);
+  }, [isFromMR, selectedMr, standaloneDesignationId, standaloneRoleInput, designations]);
 
   // ── Step Validation Functions ──
   const validateStep1 = (): boolean => {
     const errors: Record<string, string> = {};
     if (!isFromMR) {
       if (!standaloneCompanyId) errors.standaloneCompanyId = 'Please select a Company Entity.';
-      if (!standaloneBranchId) errors.standaloneBranchId = 'Please select a Branch Location.';
+      if (!standaloneBranchId && standaloneBranchIds.length === 0) errors.standaloneBranchId = 'Please select at least one Branch Location.';
       if (!standaloneDepartmentId) errors.standaloneDepartmentId = 'Please select a Department.';
       if (!standaloneCostCenter.trim()) errors.standaloneCostCenter = 'Cost Center is required.';
       if (!standaloneDesignationId && !standaloneRoleInput.trim()) errors.standaloneDesignationId = 'Please enter or select a Designation / Job Role.';
@@ -728,8 +848,12 @@ export default function CreateJobRequisitionPage() {
       payload.numPositions = selectedMr.numOpenings;
     } else {
       const matchedDesig = designations.find((d: any) => d.title.trim().toLowerCase() === standaloneRoleInput.trim().toLowerCase());
+      const selectedBranchObjs = branches.filter((b: any) => standaloneBranchIds.includes(b.id) || b.id === standaloneBranchId);
+      const branchNamesStr = selectedBranchObjs.map((b: any) => b.name).join(', ');
+
       payload.companyId = standaloneCompanyId;
-      payload.branchId = standaloneBranchId;
+      payload.branchId = standaloneBranchIds[0] || standaloneBranchId || undefined;
+      payload.workLocation = branchNamesStr || jobLocation || undefined;
       payload.departmentId = standaloneDepartmentId;
       payload.designationId = standaloneDesignationId || matchedDesig?.id || undefined;
       payload.costCenter = standaloneCostCenter;
@@ -824,7 +948,9 @@ export default function CreateJobRequisitionPage() {
             <span className="font-semibold truncate block">
               {isFromMR
                 ? (planBranch?.name || 'Selected Branch')
-                : (branches.find((b: any) => b.id === standaloneBranchId)?.name || 'Not Selected')}
+                : (standaloneBranchIds.length > 0
+                    ? branches.filter((b: any) => standaloneBranchIds.includes(b.id)).map((b: any) => b.name).join(', ')
+                    : (branches.find((b: any) => b.id === standaloneBranchId)?.name || 'Not Selected'))}
             </span>
           </div>
           <div>
@@ -1063,25 +1189,105 @@ export default function CreateJobRequisitionPage() {
                       )}
                     </div>
 
-                    {/* 2. Branch */}
-                    <div className="space-y-1.5">
-                      <Label className="font-semibold text-xs">Branch Location *</Label>
-                      <Select
-                        value={standaloneBranchId}
-                        onValueChange={handleBranchChange}
-                        disabled={!standaloneCompanyId}
+                    {/* 2. Branch Location - Multi-Select Support */}
+                    <div className="space-y-1.5 relative" ref={branchComboboxRef}>
+                      <Label className="font-semibold text-xs flex items-center justify-between">
+                        <span>Branch Location *</span>
+                        {standaloneBranchIds.length > 0 && (
+                          <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary font-bold">
+                            {standaloneBranchIds.length} Branch{standaloneBranchIds.length > 1 ? 'es' : ''} Selected
+                          </Badge>
+                        )}
+                      </Label>
+
+                      <div
+                        onClick={() => {
+                          if (standaloneCompanyId) setIsBranchDropdownOpen((prev) => !prev);
+                        }}
+                        className={`min-h-[36px] px-3 py-1.5 rounded-md border text-xs bg-background cursor-pointer flex items-center justify-between transition-colors ${
+                          !standaloneCompanyId ? 'opacity-50 cursor-not-allowed bg-muted/40' : 'hover:border-primary/50'
+                        }`}
                       >
-                        <SelectTrigger className="h-9 text-xs bg-background">
-                          <SelectValue placeholder={standaloneCompanyId ? 'Select Branch' : 'Select Company first'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {filteredBranches.map((b: any) => (
-                            <SelectItem key={b.id} value={b.id} className="text-xs">
-                              {b.name} ({b.city || 'Nashik'})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <div className="flex flex-wrap gap-1 items-center max-w-[90%]">
+                          {standaloneBranchIds.length === 0 ? (
+                            <span className="text-muted-foreground">
+                              {standaloneCompanyId ? 'Select Branch Location(s)...' : 'Select Company first'}
+                            </span>
+                          ) : (
+                            filteredBranches
+                              .filter((b: any) => standaloneBranchIds.includes(b.id))
+                              .map((b: any) => (
+                                <Badge
+                                  key={b.id}
+                                  variant="secondary"
+                                  className="text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 gap-1 py-0.5 px-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleBranchSelection(b.id);
+                                  }}
+                                >
+                                  {b.name}
+                                  <X className="w-3 h-3 hover:text-rose-600" />
+                                </Badge>
+                              ))
+                          )}
+                        </div>
+                        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
+                      </div>
+
+                      {/* Multi-Select Dropdown Menu */}
+                      {isBranchDropdownOpen && standaloneCompanyId && (
+                        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-56 overflow-y-auto animate-in fade-in-50">
+                          <div className="p-1 space-y-0.5">
+                            <div
+                              onClick={() => {
+                                if (standaloneBranchIds.length === filteredBranches.length) {
+                                  setStandaloneBranchIds([]);
+                                  setStandaloneBranchId('');
+                                } else {
+                                  const allIds = filteredBranches.map((b: any) => b.id);
+                                  setStandaloneBranchIds(allIds);
+                                  setStandaloneBranchId(allIds[0] || '');
+                                }
+                                setStandaloneDepartmentId('');
+                                setStandaloneCostCenter('');
+                                setStandaloneDesignationId('');
+                                setStandaloneRoleInput('');
+                              }}
+                              className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 rounded cursor-pointer flex items-center justify-between border-b mb-1"
+                            >
+                              <span>Select All Branches ({filteredBranches.length})</span>
+                              {standaloneBranchIds.length === filteredBranches.length && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                            </div>
+
+                            {filteredBranches.map((b: any) => {
+                              const isChecked = standaloneBranchIds.includes(b.id);
+                              return (
+                                <div
+                                  key={b.id}
+                                  onClick={() => toggleBranchSelection(b.id)}
+                                  className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
+                                    isChecked ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-accent'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {}}
+                                      className="rounded text-primary focus:ring-primary h-3.5 w-3.5"
+                                    />
+                                    <span>{b.name}</span>
+                                    {b.city && <span className="text-[10px] text-muted-foreground">({b.city})</span>}
+                                  </div>
+                                  {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       {fieldErrors.standaloneBranchId && (
                         <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneBranchId}</p>
                       )}
@@ -1193,13 +1399,9 @@ export default function CreateJobRequisitionPage() {
                           onChange={(e) => {
                             const val = e.target.value;
                             setStandaloneRoleInput(val);
+                            setJobTitle(val);
                             setIsStandaloneDesignationDropdownOpen(true);
-                            setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '' }));
-
-                            // Auto-set jobTitle if empty or equal to previous title
-                            if (!jobTitle || designations.some((d: any) => d.title === jobTitle)) {
-                              setJobTitle(val);
-                            }
+                            setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '', jobTitle: '' }));
 
                             // Check exact match in master designations
                             const exactMatch = designations.find(
@@ -1229,6 +1431,7 @@ export default function CreateJobRequisitionPage() {
                               onClick={() => {
                                 setStandaloneRoleInput('');
                                 setStandaloneDesignationId('');
+                                setJobTitle('');
                               }}
                               title="Clear text"
                             >
@@ -1270,9 +1473,7 @@ export default function CreateJobRequisitionPage() {
                                     onClick={() => {
                                       setStandaloneDesignationId(des.id);
                                       setStandaloneRoleInput(des.title);
-                                      if (!jobTitle || designations.some((d: any) => d.title === jobTitle)) {
-                                        setJobTitle(des.title);
-                                      }
+                                      setJobTitle(des.title);
                                       if (!jobQualification && des.qualification) {
                                         setJobQualification(des.qualification);
                                       }
@@ -1281,7 +1482,7 @@ export default function CreateJobRequisitionPage() {
                                         if (parsed.length > 0) setRequiredSkillsList(parsed);
                                       }
                                       setIsStandaloneDesignationDropdownOpen(false);
-                                      setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '' }));
+                                      setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '', jobTitle: '' }));
                                     }}
                                     className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
                                       isSelected
@@ -1309,7 +1510,10 @@ export default function CreateJobRequisitionPage() {
                           {standaloneRoleInput.trim().length > 0 && (
                             <div className="border-t border-border p-1 bg-muted/20">
                               <div
-                                onClick={() => setIsStandaloneDesignationDropdownOpen(false)}
+                                onClick={() => {
+                                  setJobTitle(standaloneRoleInput.trim());
+                                  setIsStandaloneDesignationDropdownOpen(false);
+                                }}
                                 className="px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between bg-primary/5 hover:bg-primary/10 text-primary font-medium border border-primary/20 transition-colors"
                               >
                                 <div className="flex items-center gap-2 overflow-hidden">
@@ -1396,9 +1600,20 @@ export default function CreateJobRequisitionPage() {
 
               {/* SECTION 1: JOB OVERVIEW */}
               <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
-                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
-                  <Briefcase className="h-4 w-4 text-primary" /> Section 1: Job Overview
-                </h4>
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h4 className="font-semibold text-xs text-foreground flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-primary" /> Section 1: Job Overview
+                  </h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateJobContent()}
+                    className="text-[11px] font-semibold text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 gap-1.5 h-7"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Auto-Generate Professional Description
+                  </Button>
+                </div>
 
                 <div className="space-y-4">
                   {/* Job Posting Title */}
@@ -1439,15 +1654,15 @@ export default function CreateJobRequisitionPage() {
                       <Label className="font-semibold text-xs">Job Summary *</Label>
                       <span className="text-[10px] text-muted-foreground font-mono">{jobSummary.length}/500</span>
                     </div>
-                    <Input
-                      type="text"
+                    <Textarea
                       value={jobSummary}
                       onChange={(e) => {
                         setJobSummary(e.target.value);
                         setFieldErrors((prev) => ({ ...prev, jobSummary: '' }));
                       }}
                       onBlur={() => markTouched('jobSummary')}
-                      className="h-9 text-xs bg-background"
+                      className="text-xs bg-background min-h-[60px] leading-relaxed"
+                      rows={2}
                       placeholder="Short 1-2 sentence overview for career portal card..."
                     />
                     {fieldErrors.jobSummary && (
@@ -1459,9 +1674,20 @@ export default function CreateJobRequisitionPage() {
 
               {/* SECTION 2: DESCRIPTION & RESPONSIBILITIES */}
               <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
-                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
-                  <FileText className="h-4 w-4 text-primary" /> Section 2: Description & Responsibilities
-                </h4>
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h4 className="font-semibold text-xs text-foreground flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" /> Section 2: Description & Responsibilities
+                  </h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateJobContent()}
+                    className="text-[11px] font-semibold text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 gap-1.5 h-7"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Re-Generate Template
+                  </Button>
+                </div>
 
                 <div className="space-y-4">
                   {/* Detailed Job Description */}
@@ -1477,8 +1703,8 @@ export default function CreateJobRequisitionPage() {
                         setFieldErrors((prev) => ({ ...prev, jobDescription: '' }));
                       }}
                       onBlur={() => markTouched('jobDescription')}
-                      className="text-xs min-h-[110px]"
-                      rows={5}
+                      className="text-xs min-h-[140px] leading-relaxed"
+                      rows={6}
                       placeholder="Provide full job description including team overview, project scope, domain expectations, technical challenges, and growth opportunities..."
                     />
                     {fieldErrors.jobDescription && (
@@ -1499,8 +1725,8 @@ export default function CreateJobRequisitionPage() {
                         setFieldErrors((prev) => ({ ...prev, jobResponsibilities: '' }));
                       }}
                       onBlur={() => markTouched('jobResponsibilities')}
-                      className="text-xs min-h-[110px] font-sans"
-                      rows={5}
+                      className="text-xs min-h-[140px] font-sans leading-relaxed"
+                      rows={6}
                       placeholder="Enter bullet-point key responsibilities...&#10;• Develop and maintain web applications&#10;• Write clean and maintainable code&#10;• Collaborate with cross-functional engineering teams"
                     />
                     {fieldErrors.jobResponsibilities && (
