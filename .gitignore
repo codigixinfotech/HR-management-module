@@ -3,10 +3,9 @@
 .env.*
 !.env.example
 
-# Frontend build output
+# Build outputs
+dist/
 frontend/dist/
-
-# Backend build output
 backend/dist/
 
 # Dependencies

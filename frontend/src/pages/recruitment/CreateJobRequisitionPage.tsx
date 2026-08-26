@@ -36,6 +36,113 @@ import { employeesApi } from '@/api/employees';
 import { costCentersApi, type CostCenter } from '@/api/cost-grades';
 import { formatSalaryInLakhs } from '@/lib/utils';
 
+interface TagInputProps {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: string;
+  popularSuggestions?: string[];
+  onBlur?: () => void;
+}
+
+function TagInput({
+  tags,
+  onChange,
+  placeholder = 'Type a skill and press Enter or comma',
+  disabled = false,
+  error,
+  popularSuggestions = [],
+  onBlur,
+}: TagInputProps) {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(inputValue);
+    } else if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
+      onChange(tags.slice(0, -1));
+    }
+  };
+
+  const addTag = (val: string) => {
+    const trimmed = val.trim().replace(/,/g, '');
+    if (trimmed && !tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
+      onChange([...tags, trimmed]);
+      setInputValue('');
+    }
+  };
+
+  const removeTag = (index: number) => {
+    onChange(tags.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div
+        className={`min-h-[42px] p-1.5 rounded-lg border bg-background flex flex-wrap items-center gap-1.5 transition-all ${
+          error
+            ? 'border-rose-500 ring-1 ring-rose-500/20'
+            : 'border-input focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary'
+        } ${disabled ? 'bg-muted/60 cursor-not-allowed' : ''}`}
+      >
+        {tags.map((tag, idx) => (
+          <Badge
+            key={idx}
+            variant="secondary"
+            className="bg-primary/10 text-primary border border-primary/20 text-xs px-2.5 py-1 flex items-center gap-1.5 font-medium rounded-md"
+          >
+            {tag}
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => removeTag(idx)}
+                className="hover:bg-primary/20 rounded-full p-0.5 text-primary/70 hover:text-primary transition-colors text-[10px]"
+              >
+                ✕
+              </button>
+            )}
+          </Badge>
+        ))}
+        {!disabled && (
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => {
+              if (inputValue.trim()) addTag(inputValue);
+              if (onBlur) onBlur();
+            }}
+            placeholder={tags.length === 0 ? placeholder : 'Add more...'}
+            className="flex-1 min-w-[120px] bg-transparent text-xs outline-none px-2 py-1 text-foreground placeholder:text-muted-foreground"
+          />
+        )}
+      </div>
+
+      {!disabled && popularSuggestions.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+          <span className="text-[10px] font-semibold text-muted-foreground">Quick Add:</span>
+          {popularSuggestions
+            .filter((s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase()))
+            .slice(0, 6)
+            .map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => addTag(s)}
+                className="text-[10px] bg-muted hover:bg-primary/10 hover:text-primary border border-border/60 text-muted-foreground px-2 py-0.5 rounded-full transition-colors font-medium"
+              >
+                + {s}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CreateJobRequisitionPage() {
   const navigate = useNavigate();
   const { mrId } = useParams<{ mrId?: string }>();
@@ -210,8 +317,16 @@ export default function CreateJobRequisitionPage() {
   const [jobResponsibilities, setJobResponsibilities] = useState('');
   const [jobQualification, setJobQualification] = useState('');
   const [preferredQualification, setPreferredQualification] = useState('');
-  const [jobSkills, setJobSkills] = useState('');
-  const [preferredSkills, setPreferredSkills] = useState('');
+
+  // Skills as tag lists
+  const [requiredSkillsList, setRequiredSkillsList] = useState<string[]>([]);
+  const [preferredSkillsList, setPreferredSkillsList] = useState<string[]>([]);
+
+  // Job Classification
+  const [jobCategory, setJobCategory] = useState('Software Development');
+  const [jobFamily, setJobFamily] = useState('Engineering → Software Development');
+  const [seniorityLevel, setSeniorityLevel] = useState('Junior');
+
   const [certifications, setCertifications] = useState('');
   const [benefits, setBenefits] = useState('');
 
@@ -242,12 +357,24 @@ export default function CreateJobRequisitionPage() {
   const [internalJustification, setInternalJustification] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
 
+  // Field Blur Tracking
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  const markTouched = (fieldName: string) => {
+    setTouchedFields((prev) => ({ ...prev, [fieldName]: true }));
+  };
+
   // Auto-fill when MR or Designation changes
   React.useEffect(() => {
     if (isFromMR && selectedMr) {
       setJobTitle(selectedMr.role || '');
-      setJobQualification(selectedMr.qualification || 'Graduate / Technical Degree');
-      setJobSkills(selectedMr.requiredSkills || '');
+      setJobQualification(selectedMr.qualification || '');
+      if (selectedMr.requiredSkills) {
+        const parsed = selectedMr.requiredSkills
+          .split(/[,;\n]/)
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+        setRequiredSkillsList(parsed);
+      }
       setJobLocation(selectedMr.workLocation || '');
       if (selectedMr.managerId) {
         setHiringManagerId(selectedMr.managerId);
@@ -256,8 +383,14 @@ export default function CreateJobRequisitionPage() {
       const selectedDes = designations.find((d: any) => d.id === standaloneDesignationId);
       if (selectedDes) {
         if (!jobTitle) setJobTitle(selectedDes.title);
-        if (!jobQualification) setJobQualification(selectedDes.qualification || 'Graduate Degree');
-        if (!jobSkills) setJobSkills(selectedDes.skills || '');
+        if (!jobQualification && selectedDes.qualification) setJobQualification(selectedDes.qualification);
+        if (requiredSkillsList.length === 0 && selectedDes.skills) {
+          const parsed = selectedDes.skills
+            .split(/[,;\n]/)
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+          setRequiredSkillsList(parsed);
+        }
       }
     }
   }, [isFromMR, selectedMr, standaloneDesignationId, designations]);
@@ -279,12 +412,14 @@ export default function CreateJobRequisitionPage() {
 
   const validateStep2 = (): boolean => {
     const errors: Record<string, string> = {};
-    if (!jobTitle.trim() || jobTitle.length < 3) errors.jobTitle = 'Job Title must be at least 3 characters.';
+    if (!jobTitle.trim() || jobTitle.length < 3) errors.jobTitle = 'Job Posting Title must contain at least 3 characters.';
     if (!jobSummary.trim() || jobSummary.length < 20) errors.jobSummary = 'Job Summary must be at least 20 characters.';
     if (!jobDescription.trim() || jobDescription.length < 50) errors.jobDescription = 'Detailed Job Description must be at least 50 characters.';
     if (!jobResponsibilities.trim() || jobResponsibilities.length < 20) errors.jobResponsibilities = 'Key Responsibilities must be at least 20 characters.';
     if (!jobQualification.trim()) errors.jobQualification = 'Required Qualification is required.';
-    if (!jobSkills.trim()) errors.jobSkills = 'Required Skills are required.';
+    if (requiredSkillsList.length === 0) errors.requiredSkills = 'At least one Required Skill must be selected.';
+    if (!jobCategory.trim()) errors.jobCategory = 'Job Category is required.';
+    if (!seniorityLevel.trim()) errors.seniorityLevel = 'Seniority Level is required.';
 
     setFieldErrors((prev) => ({ ...prev, ...errors }));
     return Object.keys(errors).length === 0;
@@ -390,8 +525,11 @@ export default function CreateJobRequisitionPage() {
       responsibilities: jobResponsibilities.trim() || undefined,
       qualification: isFromMR ? (selectedMr?.qualification || jobQualification) : jobQualification,
       preferredQualification: preferredQualification.trim() || undefined,
-      skills: isFromMR ? (selectedMr?.requiredSkills || jobSkills) : jobSkills,
-      preferredSkills: preferredSkills.trim() || undefined,
+      skills: isFromMR ? (selectedMr?.requiredSkills || requiredSkillsList.join(', ')) : requiredSkillsList.join(', '),
+      preferredSkills: preferredSkillsList.join(', ') || undefined,
+      category: jobCategory,
+      jobFamily: jobFamily || undefined,
+      seniorityLevel: seniorityLevel,
       certifications: certifications.trim() || undefined,
       benefits: benefits.trim() || undefined,
 
@@ -453,7 +591,7 @@ export default function CreateJobRequisitionPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── Top Header Bar & Navigation ── */}
+      {/* ── Top Navigation Header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -466,15 +604,20 @@ export default function CreateJobRequisitionPage() {
             <ChevronRight className="h-3 w-3" />
             <span>Recruitment</span>
             <ChevronRight className="h-3 w-3" />
-            <span className="font-semibold text-foreground">
-              {isFromMR ? 'Create Requisition from MR' : 'New Standalone Direct Requisition'}
-            </span>
+            <span>Job Requisitions</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className="font-semibold text-foreground">Create Job Requisition</span>
           </div>
 
-          <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Briefcase className="h-5 w-5 text-primary" />
-            {isFromMR ? `Job Requisition (MR: ${selectedMr?.mrNumber || 'Approved'})` : 'Create Job Requisition'}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-primary" />
+              Create Job Requisition
+            </h1>
+            <Badge variant="outline" className="text-xs font-semibold bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+              DRAFT
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             Enterprise recruitment workflow: Complete organization, specification, team assignment, and budget setup.
           </p>
@@ -916,146 +1059,421 @@ export default function CreateJobRequisitionPage() {
             )
           )}
 
-          {/* STEP 2: JOB POSTING SPECIFICATIONS */}
+          {/* STEP 2: JOB POSTING DETAILS */}
           {activeStepTab === 'posting' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="font-semibold text-xs">Job Posting Title *</Label>
-                    <span className="text-[10px] text-muted-foreground font-mono">{jobTitle.length}/150</span>
+            <div className="space-y-6">
+              {/* Stepper Progress Banner */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary text-sm">Step 2 of 5</span>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="font-semibold text-foreground">Job Posting Details</span>
+                    <Badge variant="secondary" className="text-[10px] font-semibold bg-primary/10 text-primary">
+                      40% Complete
+                    </Badge>
                   </div>
-                  <Input
-                    type="text"
-                    value={jobTitle}
-                    onChange={(e) => {
-                      setJobTitle(e.target.value);
-                      setFieldErrors((prev) => ({ ...prev, jobTitle: '' }));
-                    }}
-                    className="h-9 text-xs bg-background font-semibold text-foreground"
-                    placeholder="e.g. Software Engineer / Senior Full Stack Developer"
-                  />
-                  {fieldErrors.jobTitle && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobTitle}</p>}
+                  <p className="text-[11px] text-muted-foreground">
+                    Define job overview, detailed description, key responsibilities, qualifications, tag-based skills, and job classifications.
+                  </p>
                 </div>
-
-                <div className="space-y-1.5 sm:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="font-semibold text-xs">Job Summary *</Label>
-                    <span className="text-[10px] text-muted-foreground font-mono">{jobSummary.length}/500</span>
+                <div className="w-full sm:w-48 space-y-1">
+                  <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
+                    <span>Progress</span>
+                    <span>40%</span>
                   </div>
-                  <Input
-                    type="text"
-                    value={jobSummary}
-                    onChange={(e) => {
-                      setJobSummary(e.target.value);
-                      setFieldErrors((prev) => ({ ...prev, jobSummary: '' }));
-                    }}
-                    className="h-9 text-xs bg-background"
-                    placeholder="Short 1-2 sentence overview for career portal card..."
-                  />
-                  {fieldErrors.jobSummary && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobSummary}</p>}
-                </div>
-
-                <div className="space-y-1.5 sm:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="font-semibold text-xs">Detailed Job Description *</Label>
-                    <span className="text-[10px] text-muted-foreground font-mono">Min 50 chars</span>
+                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: '40%' }} />
                   </div>
-                  <Textarea
-                    value={jobDescription}
-                    onChange={(e) => {
-                      setJobDescription(e.target.value);
-                      setFieldErrors((prev) => ({ ...prev, jobDescription: '' }));
-                    }}
-                    className="text-xs min-h-[100px]"
-                    rows={4}
-                    placeholder="Provide full job description including team overview, projects, domain expectations, and growth opportunities..."
-                  />
-                  {fieldErrors.jobDescription && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobDescription}</p>}
-                </div>
-
-                <div className="space-y-1.5 sm:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="font-semibold text-xs">Key Responsibilities & Duties *</Label>
-                    <span className="text-[10px] text-muted-foreground font-mono">Min 20 chars</span>
-                  </div>
-                  <Textarea
-                    value={jobResponsibilities}
-                    onChange={(e) => {
-                      setJobResponsibilities(e.target.value);
-                      setFieldErrors((prev) => ({ ...prev, jobResponsibilities: '' }));
-                    }}
-                    className="text-xs min-h-[100px]"
-                    rows={4}
-                    placeholder="• Architect, build and maintain scalable features&#10;• Collaborate with cross-functional teams to deliver quality results&#10;• Conduct code reviews and mentor junior team members"
-                  />
-                  {fieldErrors.jobResponsibilities && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobResponsibilities}</p>}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-xs">
-                    Required Qualification * {isFromMR ? '(Locked from MR)' : ''}
-                  </Label>
-                  <Input
-                    type="text"
-                    readOnly={isFromMR}
-                    value={isFromMR ? (selectedMr?.qualification || jobQualification || 'As per Designation Specification') : jobQualification}
-                    onChange={(e) => {
-                      setJobQualification(e.target.value);
-                      setFieldErrors((prev) => ({ ...prev, jobQualification: '' }));
-                    }}
-                    className={`h-9 text-xs ${isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'}`}
-                    placeholder="e.g. B.Tech / M.Tech / MCA / Graduate"
-                  />
-                  {fieldErrors.jobQualification && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobQualification}</p>}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-xs">Preferred Qualification</Label>
-                  <Input
-                    type="text"
-                    value={preferredQualification}
-                    onChange={(e) => setPreferredQualification(e.target.value)}
-                    className="h-9 text-xs bg-background"
-                    placeholder="e.g. M.Tech / AWS Certified / Honors Graduate"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-xs">
-                    Required Skills * {isFromMR ? '(Locked from MR)' : ''}
-                  </Label>
-                  <Input
-                    type="text"
-                    readOnly={isFromMR}
-                    value={isFromMR ? (selectedMr?.requiredSkills || jobSkills || 'As per Role Specification') : jobSkills}
-                    onChange={(e) => {
-                      setJobSkills(e.target.value);
-                      setFieldErrors((prev) => ({ ...prev, jobSkills: '' }));
-                    }}
-                    className={`h-9 text-xs ${isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'}`}
-                    placeholder="e.g. React, Node.js, TypeScript, PostgreSQL"
-                  />
-                  {fieldErrors.jobSkills && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobSkills}</p>}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-xs">Preferred Skills</Label>
-                  <Input
-                    type="text"
-                    value={preferredSkills}
-                    onChange={(e) => setPreferredSkills(e.target.value)}
-                    className="h-9 text-xs bg-background"
-                    placeholder="e.g. Docker, Kubernetes, GraphQL, System Design"
-                  />
                 </div>
               </div>
 
-              <div className="flex justify-between pt-4 border-t">
-                <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => setActiveStepTab('mr_ref')}>
-                  &larr; Previous
+              {/* SECTION 1: JOB OVERVIEW */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <Briefcase className="h-4 w-4 text-primary" /> Section 1: Job Overview
+                </h4>
+
+                <div className="space-y-4">
+                  {/* Job Posting Title */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">
+                        Job Posting Title * {isFromMR ? '(Locked from MR)' : ''}
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{jobTitle.length}/150</span>
+                    </div>
+                    <Input
+                      type="text"
+                      readOnly={isFromMR}
+                      value={jobTitle}
+                      onChange={(e) => {
+                        setJobTitle(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobTitle: '' }));
+                      }}
+                      onBlur={() => markTouched('jobTitle')}
+                      className={`h-9 text-xs font-semibold ${
+                        isFromMR ? 'bg-muted/60 text-foreground cursor-not-allowed' : 'bg-background'
+                      }`}
+                      placeholder="e.g. Junior Software Engineer"
+                    />
+                    {isFromMR && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        🔒 This value is controlled by the approved Manpower Requisition.
+                      </p>
+                    )}
+                    {fieldErrors.jobTitle && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobTitle}</p>
+                    )}
+                  </div>
+
+                  {/* Job Summary */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Job Summary *</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{jobSummary.length}/500</span>
+                    </div>
+                    <Input
+                      type="text"
+                      value={jobSummary}
+                      onChange={(e) => {
+                        setJobSummary(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobSummary: '' }));
+                      }}
+                      onBlur={() => markTouched('jobSummary')}
+                      className="h-9 text-xs bg-background"
+                      placeholder="Short 1-2 sentence overview for career portal card..."
+                    />
+                    {fieldErrors.jobSummary && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobSummary}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: DESCRIPTION & RESPONSIBILITIES */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <FileText className="h-4 w-4 text-primary" /> Section 2: Description & Responsibilities
+                </h4>
+
+                <div className="space-y-4">
+                  {/* Detailed Job Description */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Detailed Job Description *</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{jobDescription.length}/5000 (Min 50 chars)</span>
+                    </div>
+                    <Textarea
+                      value={jobDescription}
+                      onChange={(e) => {
+                        setJobDescription(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobDescription: '' }));
+                      }}
+                      onBlur={() => markTouched('jobDescription')}
+                      className="text-xs min-h-[110px]"
+                      rows={5}
+                      placeholder="Provide full job description including team overview, project scope, domain expectations, technical challenges, and growth opportunities..."
+                    />
+                    {fieldErrors.jobDescription && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobDescription}</p>
+                    )}
+                  </div>
+
+                  {/* Key Responsibilities & Duties */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Key Responsibilities & Duties *</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{jobResponsibilities.length}/2000 (Min 20 chars)</span>
+                    </div>
+                    <Textarea
+                      value={jobResponsibilities}
+                      onChange={(e) => {
+                        setJobResponsibilities(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobResponsibilities: '' }));
+                      }}
+                      onBlur={() => markTouched('jobResponsibilities')}
+                      className="text-xs min-h-[110px] font-sans"
+                      rows={5}
+                      placeholder="Enter bullet-point key responsibilities...&#10;• Develop and maintain web applications&#10;• Write clean and maintainable code&#10;• Collaborate with cross-functional engineering teams"
+                    />
+                    {fieldErrors.jobResponsibilities && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobResponsibilities}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: QUALIFICATIONS & SKILLS */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary" /> Section 3: Qualifications & Skills
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Required Qualification */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">
+                      Required Qualification * {isFromMR ? '(Locked from MR)' : ''}
+                    </Label>
+                    <Input
+                      type="text"
+                      readOnly={isFromMR}
+                      value={isFromMR ? (selectedMr?.qualification || jobQualification || 'As per Specification') : jobQualification}
+                      onChange={(e) => {
+                        setJobQualification(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobQualification: '' }));
+                      }}
+                      onBlur={() => markTouched('jobQualification')}
+                      className={`h-9 text-xs ${
+                        isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'
+                      }`}
+                      placeholder="e.g. B.Tech / B.E. / MCA / M.Sc. Computer Science"
+                    />
+                    {isFromMR && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        🔒 Controlled by approved MR data.
+                      </p>
+                    )}
+                    {fieldErrors.jobQualification && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobQualification}</p>
+                    )}
+                  </div>
+
+                  {/* Preferred Qualification */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Preferred Qualification</Label>
+                    <Input
+                      type="text"
+                      value={preferredQualification}
+                      onChange={(e) => setPreferredQualification(e.target.value)}
+                      className="h-9 text-xs bg-background"
+                      placeholder="e.g. M.Tech / AWS Certification / Cloud Certification"
+                    />
+                  </div>
+
+                  {/* Required Skills (Tag Input) */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="font-semibold text-xs flex items-center justify-between">
+                      <span>Required Skills * {isFromMR ? '(Locked from MR)' : ''}</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        {requiredSkillsList.length} skills selected
+                      </span>
+                    </Label>
+                    <TagInput
+                      tags={requiredSkillsList}
+                      onChange={(tags) => {
+                        setRequiredSkillsList(tags);
+                        if (tags.length > 0) setFieldErrors((prev) => ({ ...prev, requiredSkills: '' }));
+                      }}
+                      disabled={isFromMR}
+                      error={fieldErrors.requiredSkills}
+                      placeholder="Type a skill (e.g. React, TypeScript, Node.js, SQL) and press Enter"
+                      popularSuggestions={['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'JavaScript', 'Python', 'AWS', 'Docker', 'GraphQL', 'REST API', 'Git', 'Java']}
+                      onBlur={() => markTouched('requiredSkills')}
+                    />
+                    {isFromMR && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        🔒 Controlled by approved MR data.
+                      </p>
+                    )}
+                    {fieldErrors.requiredSkills && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.requiredSkills}</p>
+                    )}
+                  </div>
+
+                  {/* Preferred Skills (Tag Input) */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="font-semibold text-xs flex items-center justify-between">
+                      <span>Preferred Skills</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        {preferredSkillsList.length} skills selected
+                      </span>
+                    </Label>
+                    <TagInput
+                      tags={preferredSkillsList}
+                      onChange={(tags) => setPreferredSkillsList(tags)}
+                      placeholder="Type a preferred skill (e.g. Docker, Kubernetes, AWS, System Design) and press Enter"
+                      popularSuggestions={['Docker', 'Kubernetes', 'AWS', 'GraphQL', 'Redis', 'Microservices', 'CI/CD', 'Next.js', 'TailwindCSS']}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 4: JOB CLASSIFICATION */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <Building2 className="h-4 w-4 text-primary" /> Section 4: Job Classification
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Job Category */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Job Category *</Label>
+                    <Select
+                      value={jobCategory}
+                      onValueChange={(v) => {
+                        setJobCategory(v);
+                        setFieldErrors((prev) => ({ ...prev, jobCategory: '' }));
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue placeholder="Select Job Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Software Development" className="text-xs">Software Development</SelectItem>
+                        <SelectItem value="Engineering" className="text-xs">Engineering</SelectItem>
+                        <SelectItem value="Finance" className="text-xs">Finance & Accounting</SelectItem>
+                        <SelectItem value="Human Resources" className="text-xs">Human Resources (HR)</SelectItem>
+                        <SelectItem value="Sales & Business Development" className="text-xs">Sales & Business Development</SelectItem>
+                        <SelectItem value="Marketing" className="text-xs">Marketing & Communications</SelectItem>
+                        <SelectItem value="Operations & Logistics" className="text-xs">Operations & Logistics</SelectItem>
+                        <SelectItem value="Product Management" className="text-xs">Product Management</SelectItem>
+                        <SelectItem value="Design & UX" className="text-xs">Design & User Experience</SelectItem>
+                        <SelectItem value="Quality Assurance" className="text-xs">Quality Assurance & Testing</SelectItem>
+                        <SelectItem value="Legal & Compliance" className="text-xs">Legal & Compliance</SelectItem>
+                        <SelectItem value="Customer Success" className="text-xs">Customer Success & Support</SelectItem>
+                        <SelectItem value="Executive Leadership" className="text-xs">Executive Leadership</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.jobCategory && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobCategory}</p>
+                    )}
+                  </div>
+
+                  {/* Job Family */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Job Family</Label>
+                    <Input
+                      type="text"
+                      value={jobFamily}
+                      onChange={(e) => setJobFamily(e.target.value)}
+                      className="h-9 text-xs bg-background"
+                      placeholder="e.g. Engineering → Software Development"
+                    />
+                  </div>
+
+                  {/* Seniority Level */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Seniority Level *</Label>
+                    <Select
+                      value={seniorityLevel}
+                      onValueChange={(v) => {
+                        setSeniorityLevel(v);
+                        setFieldErrors((prev) => ({ ...prev, seniorityLevel: '' }));
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue placeholder="Select Seniority Level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Intern" className="text-xs">Intern</SelectItem>
+                        <SelectItem value="Entry Level" className="text-xs">Entry Level</SelectItem>
+                        <SelectItem value="Junior" className="text-xs">Junior</SelectItem>
+                        <SelectItem value="Mid-Level" className="text-xs">Mid-Level</SelectItem>
+                        <SelectItem value="Senior" className="text-xs">Senior</SelectItem>
+                        <SelectItem value="Lead" className="text-xs">Lead</SelectItem>
+                        <SelectItem value="Manager" className="text-xs">Manager</SelectItem>
+                        <SelectItem value="Director" className="text-xs">Director</SelectItem>
+                        <SelectItem value="Executive" className="text-xs">Executive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.seniorityLevel && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.seniorityLevel}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: EMPLOYMENT DETAILS */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <Briefcase className="h-4 w-4 text-primary" /> Section 5: Employment Details
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Employment Type */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Employment Type *</Label>
+                    <Select
+                      value={jobEmploymentType}
+                      onValueChange={(v: any) => setJobEmploymentType(v)}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue placeholder="Select Employment Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FULL_TIME" className="text-xs">Full Time</SelectItem>
+                        <SelectItem value="PART_TIME" className="text-xs">Part Time</SelectItem>
+                        <SelectItem value="CONTRACT" className="text-xs">Contract</SelectItem>
+                        <SelectItem value="TEMPORARY" className="text-xs">Temporary</SelectItem>
+                        <SelectItem value="INTERN" className="text-xs">Internship</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Work Mode */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Work Mode *</Label>
+                    <Select
+                      value={workMode}
+                      onValueChange={(v) => setWorkMode(v)}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue placeholder="Select Work Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="On-site" className="text-xs">On-site</SelectItem>
+                        <SelectItem value="Hybrid" className="text-xs">Hybrid</SelectItem>
+                        <SelectItem value="Remote" className="text-xs">Remote</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Work Location */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">
+                      Work Location * {isFromMR ? '(Locked from MR)' : ''}
+                    </Label>
+                    <Input
+                      type="text"
+                      readOnly={isFromMR}
+                      value={isFromMR ? (selectedMr?.workLocation || 'Main Office') : jobLocation}
+                      onChange={(e) => {
+                        setJobLocation(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobLocation: '' }));
+                      }}
+                      className={`h-9 text-xs ${
+                        isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'
+                      }`}
+                      placeholder="e.g. NASHIK DEVELOPMENT (Nashik)"
+                    />
+                    {isFromMR && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        🔒 Controlled by approved MR data.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP NAVIGATION FOOTER */}
+              <div className="flex items-center justify-between pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs gap-1.5"
+                  onClick={() => setActiveStepTab('mr_ref')}
+                >
+                  &larr; Previous Step
                 </Button>
-                <Button type="button" size="sm" className="text-xs font-semibold gap-1.5" onClick={() => handleNextStep('requirements')}>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+                  onClick={() => handleNextStep('requirements')}
+                >
                   Next: Candidate & Team &rarr;
                 </Button>
               </div>
