@@ -818,17 +818,39 @@ export default function CreateJobRequisitionPage() {
                     {/* 4. Cost Center */}
                     <div className="space-y-1.5">
                       <Label className="font-semibold text-xs">Cost Center *</Label>
-                      <Input
-                        type="text"
-                        value={standaloneCostCenter}
-                        onChange={(e) => {
-                          setStandaloneCostCenter(e.target.value);
-                          setFieldErrors((prev) => ({ ...prev, standaloneCostCenter: '' }));
-                        }}
-                        disabled={!standaloneDepartmentId}
-                        placeholder={standaloneDepartmentId ? 'e.g. CCP234 - Software Development' : 'Select Department first'}
-                        className="h-9 text-xs bg-background font-mono"
-                      />
+                      {costCenters.length > 0 ? (
+                        <Select
+                          value={standaloneCostCenter}
+                          onValueChange={(v) => {
+                            setStandaloneCostCenter(v);
+                            setFieldErrors((prev) => ({ ...prev, standaloneCostCenter: '' }));
+                          }}
+                          disabled={!standaloneDepartmentId}
+                        >
+                          <SelectTrigger className="h-9 text-xs bg-background font-mono font-semibold">
+                            <SelectValue placeholder={standaloneDepartmentId ? 'Select Cost Center' : 'Select Department first'} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-56 overflow-y-auto">
+                            {costCenters.map((cc: any) => (
+                              <SelectItem key={cc.id} value={`${cc.code} - ${cc.name}`} className="text-xs font-mono">
+                                {cc.code} - {cc.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          type="text"
+                          value={standaloneCostCenter}
+                          onChange={(e) => {
+                            setStandaloneCostCenter(e.target.value);
+                            setFieldErrors((prev) => ({ ...prev, standaloneCostCenter: '' }));
+                          }}
+                          disabled={!standaloneDepartmentId}
+                          placeholder={standaloneDepartmentId ? 'e.g. CC-101 - IT Operations' : 'Select Department first'}
+                          className="h-9 text-xs bg-background font-mono font-semibold"
+                        />
+                      )}
                       {fieldErrors.standaloneCostCenter && (
                         <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneCostCenter}</p>
                       )}
