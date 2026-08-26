@@ -9,6 +9,7 @@ export declare class ManpowerRequisitionsService {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
@@ -24,12 +25,12 @@ export declare class ManpowerRequisitionsService {
         maxSalary: number | null;
         approvedBy: string | null;
         approvedAt: Date | null;
+        reason: string;
         mrNumber: string;
         qualification: string;
         experience: string;
         requiredSkills: string | null;
         workLocation: string;
-        reason: string;
         manpowerPlanId: string | null;
         numOpenings: number;
         joiningDate: Date;
@@ -61,6 +62,7 @@ export declare class ManpowerRequisitionsService {
             costCenter: string;
             id: string;
             companyId: string | null;
+            branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
             status: string;
@@ -69,11 +71,11 @@ export declare class ManpowerRequisitionsService {
             departmentName: string;
             code: string | null;
             isActive: boolean;
+            reason: string;
             budgeted: number;
             active: number;
             plannedHires: number;
             quarter: string;
-            reason: string;
             mrRaisedHires: number;
         } | null;
     } & {
@@ -81,6 +83,7 @@ export declare class ManpowerRequisitionsService {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
@@ -96,12 +99,12 @@ export declare class ManpowerRequisitionsService {
         maxSalary: number | null;
         approvedBy: string | null;
         approvedAt: Date | null;
+        reason: string;
         mrNumber: string;
         qualification: string;
         experience: string;
         requiredSkills: string | null;
         workLocation: string;
-        reason: string;
         manpowerPlanId: string | null;
         numOpenings: number;
         joiningDate: Date;
@@ -114,6 +117,7 @@ export declare class ManpowerRequisitionsService {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
@@ -129,12 +133,12 @@ export declare class ManpowerRequisitionsService {
         maxSalary: number | null;
         approvedBy: string | null;
         approvedAt: Date | null;
+        reason: string;
         mrNumber: string;
         qualification: string;
         experience: string;
         requiredSkills: string | null;
         workLocation: string;
-        reason: string;
         manpowerPlanId: string | null;
         numOpenings: number;
         joiningDate: Date;
@@ -147,6 +151,7 @@ export declare class ManpowerRequisitionsService {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
@@ -162,12 +167,12 @@ export declare class ManpowerRequisitionsService {
         maxSalary: number | null;
         approvedBy: string | null;
         approvedAt: Date | null;
+        reason: string;
         mrNumber: string;
         qualification: string;
         experience: string;
         requiredSkills: string | null;
         workLocation: string;
-        reason: string;
         manpowerPlanId: string | null;
         numOpenings: number;
         joiningDate: Date;
@@ -180,6 +185,7 @@ export declare class ManpowerRequisitionsService {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
@@ -195,12 +201,12 @@ export declare class ManpowerRequisitionsService {
         maxSalary: number | null;
         approvedBy: string | null;
         approvedAt: Date | null;
+        reason: string;
         mrNumber: string;
         qualification: string;
         experience: string;
         requiredSkills: string | null;
         workLocation: string;
-        reason: string;
         manpowerPlanId: string | null;
         numOpenings: number;
         joiningDate: Date;

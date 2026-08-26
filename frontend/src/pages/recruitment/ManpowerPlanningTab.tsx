@@ -32,10 +32,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 
 import { manpowerPlansApi, manpowerRequisitionsApi } from '@/api/recruitment';
-import { departmentsApi, designationsApi, branchesApi } from '@/api/organization';
+import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/api/organization';
 import { costCentersApi, type CostCenter } from '@/api/cost-grades';
 import { employeesApi } from '@/api/employees';
-import type { ManpowerPlan, Department, Designation, Branch, ManpowerRequisition } from '@/api/types';
+import type { ManpowerPlan, Department, Designation, Branch, Company, ManpowerRequisition } from '@/api/types';
 
 const HIRING_QUARTERS = [
   'Q1 2026',
@@ -60,6 +60,8 @@ export function ManpowerPlanningTab() {
   const [editingPlan, setEditingPlan] = useState<ManpowerPlan | null>(null);
 
   // Selected Forecast Form Fields
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [selectedDeptId, setSelectedDeptId] = useState<string>('');
   const [selectedCostCenterCode, setSelectedCostCenterCode] = useState<string>('');
   const [selectedDesignationId, setSelectedDesignationId] = useState<string>('');
@@ -92,24 +94,29 @@ export function ManpowerPlanningTab() {
     queryFn: () => manpowerPlansApi.list(),
   });
 
-  const { data: rawDepartments = [] } = useQuery({
-    queryKey: ['departments'],
-    queryFn: () => departmentsApi.list(),
+  const { data: companies = [], isLoading: isCompaniesLoading } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => companiesApi.list(),
   });
 
-  const { data: costCenters = [] } = useQuery({
-    queryKey: ['cost-centers'],
-    queryFn: () => costCentersApi.list(),
+  const { data: rawBranches = [], isLoading: isBranchesLoading } = useQuery({
+    queryKey: ['branches', selectedCompanyId],
+    queryFn: () => branchesApi.list(selectedCompanyId || undefined),
   });
 
-  const { data: rawDesignations = [] } = useQuery({
-    queryKey: ['designations'],
-    queryFn: () => designationsApi.list(),
+  const { data: rawDepartments = [], isLoading: isDepartmentsLoading } = useQuery({
+    queryKey: ['departments', selectedCompanyId, selectedBranchId],
+    queryFn: () => departmentsApi.list(selectedCompanyId || undefined, selectedBranchId || undefined),
   });
 
-  const { data: branches = [] } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchesApi.list(),
+  const { data: rawCostCenters = [], isLoading: isCostCentersLoading } = useQuery({
+    queryKey: ['cost-centers', selectedCompanyId, selectedBranchId, selectedDeptId],
+    queryFn: () => costCentersApi.list(selectedCompanyId || undefined, selectedBranchId || undefined, selectedDeptId || undefined),
+  });
+
+  const { data: rawDesignations = [], isLoading: isDesignationsLoading } = useQuery({
+    queryKey: ['designations', selectedCompanyId, selectedDeptId],
+    queryFn: () => designationsApi.list(selectedCompanyId || undefined, selectedDeptId || undefined),
   });
 
   const { data: employeesData } = useQuery({
@@ -122,97 +129,137 @@ export function ManpowerPlanningTab() {
     return employeesData.items.filter((emp: any) => emp.status === 'ACTIVE');
   }, [employeesData]);
 
-  // Clean & Deduplicate Master Departments List
+  // Clean & Deduplicate Master Branches List for Selected Company
+  const branches = useMemo(() => {
+    if (!rawBranches) return [];
+    if (!selectedCompanyId) return rawBranches;
+    return rawBranches.filter((b) => b.companyId === selectedCompanyId);
+  }, [rawBranches, selectedCompanyId]);
+
+  // Clean & Deduplicate Master Departments List for Selected Company + Branch
   const departments = useMemo(() => {
     if (!rawDepartments) return [];
     const map = new Map<string, Department>();
     rawDepartments.forEach((d) => {
+      if (selectedCompanyId && d.companyId !== selectedCompanyId) return;
+      if (selectedBranchId && d.branchId && d.branchId !== selectedBranchId) return;
+
       const cleanName = d.name ? d.name.trim() : '';
-      const key = cleanName.toLowerCase();
+      const key = `${d.id}_${cleanName.toLowerCase()}`;
       if (cleanName && !map.has(key)) {
         map.set(key, { ...d, name: cleanName });
       }
     });
     return Array.from(map.values());
-  }, [rawDepartments]);
+  }, [rawDepartments, selectedCompanyId, selectedBranchId]);
 
-  // Clean & Deduplicate Master Cost Centers List
-  const uniqueCostCenters = useMemo(() => {
-    if (!costCenters) return [];
-    const map = new Map<string, CostCenter>();
-    costCenters.forEach((cc) => {
-      const codeKey = cc.code ? cc.code.trim().toUpperCase() : '';
-      if (codeKey && !map.has(codeKey)) {
-        map.set(codeKey, cc);
-      }
-    });
-    return Array.from(map.values());
-  }, [costCenters]);
+  // Active selected company object
+  const currentCompany = useMemo(() => {
+    return companies.find((c) => c.id === selectedCompanyId);
+  }, [companies, selectedCompanyId]);
 
-  // Clean & Deduplicate Master Designations List
-  const designations = useMemo(() => {
-    if (!rawDesignations) return [];
-    const map = new Map<string, Designation>();
-    rawDesignations.forEach((des) => {
-      const cleanTitle = des.title ? des.title.trim() : '';
-      const key = cleanTitle.toLowerCase();
-      if (cleanTitle && !map.has(key)) {
-        map.set(key, { ...des, title: cleanTitle });
-      }
-    });
-    return Array.from(map.values());
-  }, [rawDesignations]);
+  // Active selected branch object
+  const currentBranch = useMemo(() => {
+    return branches.find((b) => b.id === selectedBranchId);
+  }, [branches, selectedBranchId]);
 
   // Active selected department object
   const currentDept = useMemo(() => {
     return departments.find((d) => d.id === selectedDeptId);
   }, [departments, selectedDeptId]);
 
+  // Clean & Deduplicate Master Cost Centers List for Selected Company + Branch + Department
+  const costCenters = useMemo(() => {
+    if (!rawCostCenters) return [];
+    const map = new Map<string, CostCenter>();
+    rawCostCenters.forEach((cc) => {
+      if (selectedCompanyId && cc.companyId && cc.companyId !== selectedCompanyId) return;
+      if (selectedBranchId && cc.branchId && cc.branchId !== selectedBranchId) return;
+
+      if (selectedDeptId) {
+        const matchesDeptId = cc.departmentId === selectedDeptId;
+        const targetDeptName = currentDept?.name ? currentDept.name.trim().toLowerCase() : '';
+        const ccDeptName = cc.department?.name ? cc.department.name.trim().toLowerCase() : '';
+        const ccName = cc.name ? cc.name.trim().toLowerCase() : '';
+
+        const matchesDeptName = targetDeptName && ccDeptName && (ccDeptName.includes(targetDeptName) || targetDeptName.includes(ccDeptName));
+        const matchesCcName = targetDeptName && ccName && (ccName.includes(targetDeptName) || targetDeptName.includes(ccName));
+
+        if (!matchesDeptId && !matchesDeptName && !matchesCcName) {
+          return;
+        }
+      }
+
+      const codeKey = cc.code ? cc.code.trim().toUpperCase() : '';
+      if (codeKey && !map.has(codeKey)) {
+        map.set(codeKey, cc);
+      }
+    });
+    return Array.from(map.values());
+  }, [rawCostCenters, selectedCompanyId, selectedBranchId, selectedDeptId, currentDept]);
+
+  // Clean & Deduplicate Master Designations List for Selected Department
+  const designations = useMemo(() => {
+    if (!rawDesignations) return [];
+    const map = new Map<string, Designation>();
+    rawDesignations.forEach((des) => {
+      if (selectedCompanyId && des.companyId !== selectedCompanyId) return;
+      if (selectedDeptId && des.departmentId && des.departmentId !== selectedDeptId) return;
+
+      const cleanTitle = des.title ? des.title.trim() : '';
+      const key = `${des.id}_${cleanTitle.toLowerCase()}`;
+      if (cleanTitle && !map.has(key)) {
+        map.set(key, { ...des, title: cleanTitle });
+      }
+    });
+    return Array.from(map.values());
+  }, [rawDesignations, selectedCompanyId, selectedDeptId]);
+
   // Active selected designation object
   const currentDesignation = useMemo(() => {
     return designations.find((d) => d.id === selectedDesignationId);
   }, [designations, selectedDesignationId]);
 
+  // Handle Cascading Company Change
+  const handleCompanyChange = (newCompanyId: string) => {
+    setSelectedCompanyId(newCompanyId);
+    setSelectedBranchId('');
+    setSelectedDeptId('');
+    setSelectedCostCenterCode('');
+    setSelectedDesignationId('');
+    setFormActive(0);
+  };
+
+  // Handle Cascading Branch Change
+  const handleBranchChange = (newBranchId: string) => {
+    setSelectedBranchId(newBranchId);
+    setSelectedDeptId('');
+    setSelectedCostCenterCode('');
+    setSelectedDesignationId('');
+    setFormActive(0);
+  };
+
   // Handle Cascading Department Change
   const handleDepartmentChange = (newDeptId: string) => {
     setSelectedDeptId(newDeptId);
+    setSelectedCostCenterCode('');
+    setSelectedDesignationId('');
+    setFormActive(0);
+  };
 
-    const newDeptObj = departments.find((d) => d.id === newDeptId);
-    if (!newDeptObj) return;
+  // Handle Cost Center Change
+  const handleCostCenterChange = (newCcCode: string) => {
+    setSelectedCostCenterCode(newCcCode);
+  };
 
-    // Find cost center matching new department name or ID
-    const matchedCC = uniqueCostCenters.find((cc) => {
-      if (cc.departmentId === newDeptId) return true;
-      if (cc.department?.name && cc.department.name.toLowerCase() === newDeptObj.name.toLowerCase()) return true;
-      if (cc.name && cc.name.toLowerCase() === newDeptObj.name.toLowerCase()) return true;
-      return false;
-    });
-
-    if (matchedCC) {
-      setSelectedCostCenterCode(matchedCC.code);
-    }
-
-    // Find designation matching new department
-    const matchingDeptIds = rawDepartments
-      .filter((d) => d.name && d.name.trim().toLowerCase() === newDeptObj.name.toLowerCase())
-      .map((d) => d.id);
-
-    const matchedDesig = rawDesignations.find((des) => {
-      if (des.departmentId && matchingDeptIds.includes(des.departmentId)) return true;
-      return false;
-    });
-
-    if (matchedDesig) {
-      const uniqueDesig = designations.find((d) => d.title.toLowerCase() === matchedDesig.title.toLowerCase());
-      if (uniqueDesig) {
-        setSelectedDesignationId(uniqueDesig.id);
-      }
-    }
+  // Handle Designation Change
+  const handleDesignationChange = (newDesigId: string) => {
+    setSelectedDesignationId(newDesigId);
   };
 
   // Dynamic Active Staff Count from Employee Management
   useEffect(() => {
-    if (!activeEmployees || !selectedDeptId) {
+    if (!activeEmployees || !selectedCompanyId || !selectedBranchId || !selectedDeptId || !selectedDesignationId) {
       setFormActive(0);
       return;
     }
@@ -221,12 +268,14 @@ export function ManpowerPlanningTab() {
     const targetRoleTitle = currentDesignation?.title?.toLowerCase().trim() || '';
 
     const count = activeEmployees.filter((emp: any) => {
+      if (selectedCompanyId && emp.companyId && emp.companyId !== selectedCompanyId) return false;
+      if (selectedBranchId && emp.branchId && emp.branchId !== selectedBranchId) return false;
+
       const empDeptId = emp.departmentId;
       const empDeptName = (emp.department?.name || '').toLowerCase().trim();
       const matchesDept = empDeptId === selectedDeptId || (targetDeptName && empDeptName.includes(targetDeptName));
 
       if (!matchesDept) return false;
-      if (!selectedDesignationId && !targetRoleTitle) return true;
 
       const empDesigId = emp.designationId;
       const empDesigTitle = (emp.designation?.title || '').toLowerCase().trim();
@@ -240,7 +289,7 @@ export function ManpowerPlanningTab() {
     }).length;
 
     setFormActive(count);
-  }, [activeEmployees, selectedDeptId, selectedDesignationId, currentDept, currentDesignation]);
+  }, [activeEmployees, selectedCompanyId, selectedBranchId, selectedDeptId, selectedDesignationId, currentDept, currentDesignation]);
 
   // Planned Hires calculation
   const plannedHiresCount = useMemo(() => {
@@ -250,19 +299,16 @@ export function ManpowerPlanningTab() {
   // Open Modal for Add Forecast Plan
   const openAddModal = () => {
     setEditingPlan(null);
-    const initialDept = departments[0];
-    const initialDeptId = initialDept?.id || '';
+    const initialCompanyId = companies[0]?.id || '';
+    setSelectedCompanyId(initialCompanyId);
 
-    setSelectedDeptId(initialDeptId);
+    const companyBranches = rawBranches.filter((b) => !initialCompanyId || b.companyId === initialCompanyId);
+    const initialBranchId = companyBranches[0]?.id || '';
+    setSelectedBranchId(initialBranchId);
 
-    const initialCCList = uniqueCostCenters.filter((cc) => cc.departmentId === initialDeptId || (initialDept && cc.department?.name?.toLowerCase() === initialDept.name.toLowerCase()));
-    const initialCC = initialCCList.length > 0 ? initialCCList[0] : uniqueCostCenters[0];
-    setSelectedCostCenterCode(initialCC?.code || '');
-
-    const initialDesigList = designations.filter((d) => d.departmentId === initialDeptId || !d.departmentId);
-    const initialDesig = initialDesigList.length > 0 ? initialDesigList[0] : designations[0];
-    setSelectedDesignationId(initialDesig?.id || '');
-
+    setSelectedDeptId('');
+    setSelectedDesignationId('');
+    setSelectedCostCenterCode('');
     setFormBudgeted(5);
     setFormQuarter('Q3 2026');
     setFormReason('');
@@ -273,13 +319,11 @@ export function ManpowerPlanningTab() {
   const openEditModal = (plan: ManpowerPlan) => {
     setEditingPlan(plan);
 
-    const matchedDept = departments.find((d) => d.id === plan.departmentId || d.name.toLowerCase() === plan.departmentName.toLowerCase());
-    setSelectedDeptId(matchedDept?.id || departments[0]?.id || '');
-
+    setSelectedCompanyId(plan.companyId || companies[0]?.id || '');
+    setSelectedBranchId(plan.branchId || '');
+    setSelectedDeptId(plan.departmentId || '');
+    setSelectedDesignationId(plan.designationId || '');
     setSelectedCostCenterCode(plan.costCenter);
-
-    const matchedDesig = designations.find((d) => d.id === plan.designationId || d.title.toLowerCase() === plan.role.toLowerCase());
-    setSelectedDesignationId(matchedDesig?.id || designations[0]?.id || '');
 
     setFormBudgeted(plan.budgeted);
     setFormQuarter(plan.quarter);
@@ -369,32 +413,60 @@ export function ManpowerPlanningTab() {
   const handleSavePlan = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!selectedCompanyId) {
+      toast.error('Please select a company.');
+      return;
+    }
+    if (!selectedBranchId) {
+      toast.error('Please select a branch.');
+      return;
+    }
     if (!selectedDeptId || !currentDept) {
-      toast.error('Please select a valid Department');
+      if (departments.length === 0) {
+        toast.error('No departments found for the selected company and branch.');
+      } else {
+        toast.error('Please select a department.');
+      }
       return;
     }
     if (!selectedCostCenterCode) {
-      toast.error('Please select a valid Cost Center');
+      if (costCenters.length === 0) {
+        toast.error('No cost centers found for the selected company, branch and department.');
+      } else {
+        toast.error('Please select a cost center.');
+      }
       return;
     }
     if (!selectedDesignationId || !currentDesignation) {
-      toast.error('Please select a valid Target Job Designation / Role');
+      if (designations.length === 0) {
+        toast.error('No designations found for the selected department.');
+      } else {
+        toast.error('Please select a designation/role.');
+      }
       return;
     }
     if (formBudgeted <= 0) {
-      toast.error('Budgeted Headcount must be greater than 0');
+      toast.error('Budgeted headcount must be greater than 0.');
       return;
     }
     if (!formQuarter) {
-      toast.error('Target Hiring Quarter is required');
+      toast.error('Please select a hiring quarter.');
       return;
     }
     if (!formReason.trim()) {
-      toast.error('Hiring Reason / Justification is required');
+      toast.error('Please provide a hiring reason/justification.');
+      return;
+    }
+
+    const isCcValid = costCenters.some((cc) => cc.code === selectedCostCenterCode);
+    if (!isCcValid) {
+      toast.error('Selected Cost Center does not belong to the selected company, branch and department.');
       return;
     }
 
     const payload: Partial<ManpowerPlan> = {
+      companyId: selectedCompanyId,
+      branchId: selectedBranchId,
       departmentId: currentDept.id,
       departmentName: currentDept.name,
       costCenter: selectedCostCenterCode,
@@ -454,6 +526,8 @@ export function ManpowerPlanningTab() {
     const payload: Partial<ManpowerRequisition> = {
       mrNumber,
       manpowerPlanId: raisingPlan.id,
+      companyId: raisingPlan.companyId || null,
+      branchId: raisingPlan.branchId || null,
       departmentId: raisingPlan.departmentId || null,
       departmentName: raisingPlan.departmentName,
       costCenter: raisingPlan.costCenter,
@@ -632,60 +706,184 @@ export function ManpowerPlanningTab() {
                   </DialogHeader>
 
                   <form className="space-y-4 text-xs pt-1" onSubmit={handleSavePlan}>
+                    {/* 1. Company & Branch Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Company Dropdown */}
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold">Company *</Label>
+                        <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Company" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {companies.map((c) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs">
+                                {c.name} ({c.code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Branch Dropdown */}
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold">Branch *</Label>
+                        <Select
+                          value={selectedBranchId}
+                          onValueChange={handleBranchChange}
+                          disabled={!selectedCompanyId}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue
+                              placeholder={
+                                !selectedCompanyId
+                                  ? 'Please select a company.'
+                                  : isBranchesLoading
+                                  ? 'Loading branches...'
+                                  : branches.length === 0
+                                  ? 'No branches found'
+                                  : 'Select Branch'
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {branches.length === 0 ? (
+                              <div className="p-2 text-xs text-muted-foreground text-center">
+                                No branches found for the selected company.
+                              </div>
+                            ) : (
+                              branches.map((b) => (
+                                <SelectItem key={b.id} value={b.id} className="text-xs">
+                                  {b.name} ({b.code})
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* 2. Department & Cost Center Row */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* Department Dropdown */}
                       <div className="space-y-1.5">
                         <Label className="font-semibold">Department *</Label>
-                        <Select value={selectedDeptId} onValueChange={handleDepartmentChange}>
+                        <Select
+                          value={selectedDeptId}
+                          onValueChange={handleDepartmentChange}
+                          disabled={!selectedBranchId}
+                        >
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Department" />
+                            <SelectValue
+                              placeholder={
+                                !selectedCompanyId
+                                  ? 'Please select a company.'
+                                  : !selectedBranchId
+                                  ? 'Please select a branch.'
+                                  : isDepartmentsLoading
+                                  ? 'Loading departments...'
+                                  : departments.length === 0
+                                  ? 'No departments found for the selected company and branch.'
+                                  : 'Select Department'
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            {departments.map((d) => (
-                              <SelectItem key={d.id} value={d.id} className="text-xs">
-                                {d.name}
-                              </SelectItem>
-                            ))}
+                            {departments.length === 0 ? (
+                              <div className="p-2 text-xs text-muted-foreground text-center">
+                                No departments found for the selected company and branch.
+                              </div>
+                            ) : (
+                              departments.map((d) => (
+                                <SelectItem key={d.id} value={d.id} className="text-xs">
+                                  {d.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {/* Cost Center Dropdown */}
+                      {/* Cost Center Dropdown - Filtered by Company + Branch + Department */}
                       <div className="space-y-1.5">
                         <Label className="font-semibold">Cost Center *</Label>
-                        <Select value={selectedCostCenterCode} onValueChange={setSelectedCostCenterCode}>
+                        <Select
+                          value={selectedCostCenterCode}
+                          onValueChange={handleCostCenterChange}
+                          disabled={!selectedDeptId}
+                        >
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Cost Center" />
+                            <SelectValue
+                              placeholder={
+                                !selectedCompanyId
+                                  ? 'Please select a company.'
+                                  : !selectedBranchId
+                                  ? 'Please select a branch.'
+                                  : !selectedDeptId
+                                  ? 'Please select a department.'
+                                  : isCostCentersLoading
+                                  ? 'Loading cost centers...'
+                                  : costCenters.length === 0
+                                  ? 'No cost centers found for the selected company, branch and department.'
+                                  : 'Select Cost Center'
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent className="max-h-60 overflow-y-auto">
-                            {uniqueCostCenters.map((cc: CostCenter) => (
-                              <SelectItem key={cc.id} value={cc.code} className="text-xs">
-                                {cc.code} - {cc.name}
-                              </SelectItem>
-                            ))}
+                            {costCenters.length === 0 ? (
+                              <div className="p-2 text-xs text-muted-foreground text-center">
+                                No cost centers found for the selected company, branch and department.
+                              </div>
+                            ) : (
+                              costCenters.map((cc: CostCenter) => (
+                                <SelectItem key={cc.id} value={cc.code} className="text-xs">
+                                  {cc.code} - {cc.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
-                    {/* Target Job Role / Designation Dropdown */}
+                    {/* 3. Target Job Designation / Role Dropdown */}
                     <div className="space-y-1.5">
                       <Label className="font-semibold">Target Job Designation / Role *</Label>
-                      <Select value={selectedDesignationId} onValueChange={setSelectedDesignationId}>
+                      <Select
+                        value={selectedDesignationId}
+                        onValueChange={handleDesignationChange}
+                        disabled={!selectedDeptId}
+                      >
                         <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select Designation / Role" />
+                          <SelectValue
+                            placeholder={
+                              !selectedDeptId
+                                ? 'Please select a department.'
+                                : isDesignationsLoading
+                                ? 'Loading designations...'
+                                : designations.length === 0
+                                ? 'No designations found for the selected department.'
+                                : 'Select Designation / Role'
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent className="max-h-60 overflow-y-auto">
-                          {designations.map((des: Designation) => (
-                            <SelectItem key={des.id} value={des.id} className="text-xs">
-                              {des.title} {des.code ? `(${des.code})` : ''}
-                            </SelectItem>
-                          ))}
+                          {designations.length === 0 ? (
+                            <div className="p-2 text-xs text-muted-foreground text-center">
+                              No designations found for the selected department.
+                            </div>
+                          ) : (
+                            designations.map((des: Designation) => (
+                              <SelectItem key={des.id} value={des.id} className="text-xs">
+                                {des.title} {des.code ? `(${des.code})` : ''}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* Budgeted & Active & Planned Hires Calculation */}
+                    {/* 4. Budgeted & Active & Planned Hires Calculation */}
                     <div className="grid grid-cols-3 gap-3 bg-muted/30 p-3 rounded-xl border border-border">
                       <div className="space-y-1">
                         <Label className="font-semibold text-[11px]">Budgeted Headcount *</Label>

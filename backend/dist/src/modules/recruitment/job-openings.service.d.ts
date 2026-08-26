@@ -18,6 +18,7 @@ export declare class JobOpeningsService {
             costCenter: string;
             id: string;
             companyId: string | null;
+            branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
             reportingManagerId: string | null;
@@ -33,12 +34,12 @@ export declare class JobOpeningsService {
             maxSalary: number | null;
             approvedBy: string | null;
             approvedAt: Date | null;
+            reason: string;
             mrNumber: string;
             qualification: string;
             experience: string;
             requiredSkills: string | null;
             workLocation: string;
-            reason: string;
             manpowerPlanId: string | null;
             numOpenings: number;
             joiningDate: Date;
@@ -63,6 +64,7 @@ export declare class JobOpeningsService {
             qualification: string | null;
             experience: string | null;
             jobOpeningId: string;
+            resumePath: string | null;
             internshipDetails: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
@@ -73,7 +75,6 @@ export declare class JobOpeningsService {
             coverLetter: string | null;
             source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
-            resumePath: string | null;
             aiMatchScore: number | null;
         }[];
     } & {
@@ -124,6 +125,7 @@ export declare class JobOpeningsService {
             costCenter: string;
             id: string;
             companyId: string | null;
+            branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
             reportingManagerId: string | null;
@@ -139,12 +141,12 @@ export declare class JobOpeningsService {
             maxSalary: number | null;
             approvedBy: string | null;
             approvedAt: Date | null;
+            reason: string;
             mrNumber: string;
             qualification: string;
             experience: string;
             requiredSkills: string | null;
             workLocation: string;
-            reason: string;
             manpowerPlanId: string | null;
             numOpenings: number;
             joiningDate: Date;
@@ -166,6 +168,7 @@ export declare class JobOpeningsService {
             qualification: string | null;
             experience: string | null;
             jobOpeningId: string;
+            resumePath: string | null;
             internshipDetails: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
@@ -176,7 +179,6 @@ export declare class JobOpeningsService {
             coverLetter: string | null;
             source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
-            resumePath: string | null;
             aiMatchScore: number | null;
         }[];
     } & {

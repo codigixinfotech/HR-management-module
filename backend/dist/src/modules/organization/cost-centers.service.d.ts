@@ -3,7 +3,7 @@ import { CreateCostCenterDto, UpdateCostCenterDto } from './dto/cost-center.dto'
 export declare class CostCentersService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    list(companyId?: string): Promise<({
+    list(companyId?: string, branchId?: string, departmentId?: string): Promise<({
         branch: {
             id: string;
             name: string;
@@ -15,20 +15,20 @@ export declare class CostCentersService {
     } & {
         id: string;
         companyId: string;
+        code: string;
+        name: string;
+        type: string;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
-        code: string;
-        type: string;
-        headcountCapacity: number;
-        effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
+        headcountCapacity: number;
+        effectiveFrom: Date;
+        description: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     })[]>;
     findOne(id: string): Promise<{
         branch: {
@@ -42,73 +42,73 @@ export declare class CostCentersService {
     } & {
         id: string;
         companyId: string;
+        code: string;
+        name: string;
+        type: string;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
-        code: string;
-        type: string;
-        headcountCapacity: number;
-        effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
+        headcountCapacity: number;
+        effectiveFrom: Date;
+        description: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     create(dto: CreateCostCenterDto): Promise<{
         id: string;
         companyId: string;
+        code: string;
+        name: string;
+        type: string;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
-        code: string;
-        type: string;
-        headcountCapacity: number;
-        effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
+        headcountCapacity: number;
+        effectiveFrom: Date;
+        description: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     update(id: string, dto: UpdateCostCenterDto): Promise<{
         id: string;
         companyId: string;
+        code: string;
+        name: string;
+        type: string;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
-        code: string;
-        type: string;
-        headcountCapacity: number;
-        effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
+        headcountCapacity: number;
+        effectiveFrom: Date;
+        description: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     remove(id: string): Promise<{
         id: string;
         companyId: string;
+        code: string;
+        name: string;
+        type: string;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
-        description: string | null;
-        code: string;
-        type: string;
-        headcountCapacity: number;
-        effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
+        headcountCapacity: number;
+        effectiveFrom: Date;
+        description: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
 }

@@ -23,6 +23,7 @@ export declare class CandidatesController {
             currentCtc: number | null;
             expectedCtc: number | null;
             noticePeriod: string | null;
+            candidateId: string;
             relevantExperienceYears: number | null;
             relevantExperienceSummary: string | null;
             highestQualification: string | null;
@@ -35,9 +36,8 @@ export declare class CandidatesController {
             screeningRemarks: string | null;
             screeningDecision: string;
             screenedBy: string;
-            lastUpdatedBy: string;
-            candidateId: string;
             screenedAt: Date;
+            lastUpdatedBy: string;
             lastUpdatedDate: Date;
         }[];
     } & {
@@ -54,6 +54,7 @@ export declare class CandidatesController {
         qualification: string | null;
         experience: string | null;
         jobOpeningId: string;
+        resumePath: string | null;
         internshipDetails: string | null;
         currentCompany: string | null;
         currentLocation: string | null;
@@ -64,7 +65,6 @@ export declare class CandidatesController {
         coverLetter: string | null;
         source: string | null;
         stage: import(".prisma/client").$Enums.CandidateStage;
-        resumePath: string | null;
         aiMatchScore: number | null;
     }>;
     getScreening(id: string): Promise<{
@@ -76,6 +76,7 @@ export declare class CandidatesController {
         currentCtc: number | null;
         expectedCtc: number | null;
         noticePeriod: string | null;
+        candidateId: string;
         relevantExperienceYears: number | null;
         relevantExperienceSummary: string | null;
         highestQualification: string | null;
@@ -88,9 +89,8 @@ export declare class CandidatesController {
         screeningRemarks: string | null;
         screeningDecision: string;
         screenedBy: string;
-        lastUpdatedBy: string;
-        candidateId: string;
         screenedAt: Date;
+        lastUpdatedBy: string;
         lastUpdatedDate: Date;
     } | null>;
     saveScreening(id: string, dto: SaveCandidateScreeningDto): Promise<{
@@ -139,6 +139,7 @@ export declare class CandidatesController {
                 currentCtc: number | null;
                 expectedCtc: number | null;
                 noticePeriod: string | null;
+                candidateId: string;
                 relevantExperienceYears: number | null;
                 relevantExperienceSummary: string | null;
                 highestQualification: string | null;
@@ -151,9 +152,8 @@ export declare class CandidatesController {
                 screeningRemarks: string | null;
                 screeningDecision: string;
                 screenedBy: string;
-                lastUpdatedBy: string;
-                candidateId: string;
                 screenedAt: Date;
+                lastUpdatedBy: string;
                 lastUpdatedDate: Date;
             }[];
         } & {
@@ -170,6 +170,7 @@ export declare class CandidatesController {
             qualification: string | null;
             experience: string | null;
             jobOpeningId: string;
+            resumePath: string | null;
             internshipDetails: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
@@ -180,7 +181,6 @@ export declare class CandidatesController {
             coverLetter: string | null;
             source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
-            resumePath: string | null;
             aiMatchScore: number | null;
         };
         screening: {
@@ -192,6 +192,7 @@ export declare class CandidatesController {
             currentCtc: number | null;
             expectedCtc: number | null;
             noticePeriod: string | null;
+            candidateId: string;
             relevantExperienceYears: number | null;
             relevantExperienceSummary: string | null;
             highestQualification: string | null;
@@ -204,9 +205,8 @@ export declare class CandidatesController {
             screeningRemarks: string | null;
             screeningDecision: string;
             screenedBy: string;
-            lastUpdatedBy: string;
-            candidateId: string;
             screenedAt: Date;
+            lastUpdatedBy: string;
             lastUpdatedDate: Date;
         };
     }>;
@@ -224,6 +224,7 @@ export declare class CandidatesController {
         qualification: string | null;
         experience: string | null;
         jobOpeningId: string;
+        resumePath: string | null;
         internshipDetails: string | null;
         currentCompany: string | null;
         currentLocation: string | null;
@@ -234,7 +235,6 @@ export declare class CandidatesController {
         coverLetter: string | null;
         source: string | null;
         stage: import(".prisma/client").$Enums.CandidateStage;
-        resumePath: string | null;
         aiMatchScore: number | null;
     }>;
     remove(id: string): Promise<{

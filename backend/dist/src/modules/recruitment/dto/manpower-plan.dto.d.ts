@@ -1,5 +1,6 @@
 export declare class CreateManpowerPlanDto {
     companyId?: string;
+    branchId?: string;
     departmentId?: string;
     designationId?: string;
     departmentName: string;

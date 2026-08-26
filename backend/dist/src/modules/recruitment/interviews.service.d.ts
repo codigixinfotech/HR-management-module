@@ -53,6 +53,7 @@ export declare class InterviewsService {
             qualification: string | null;
             experience: string | null;
             jobOpeningId: string;
+            resumePath: string | null;
             internshipDetails: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
@@ -63,7 +64,6 @@ export declare class InterviewsService {
             coverLetter: string | null;
             source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
-            resumePath: string | null;
             aiMatchScore: number | null;
         };
         panelMembers: ({
@@ -150,8 +150,8 @@ export declare class InterviewsService {
             email: string;
             qualification: string | null;
             experience: string | null;
-            stage: import(".prisma/client").$Enums.CandidateStage;
             resumePath: string | null;
+            stage: import(".prisma/client").$Enums.CandidateStage;
         };
         panelMembers: ({
             interviewer: {
@@ -268,9 +268,9 @@ export declare class InterviewsService {
             notes: string | null;
             qualification: string | null;
             experience: string | null;
+            resumePath: string | null;
             skills: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
-            resumePath: string | null;
         };
         panelMembers: ({
             interviewer: {
@@ -361,6 +361,7 @@ export declare class InterviewsService {
             qualification: string | null;
             experience: string | null;
             jobOpeningId: string;
+            resumePath: string | null;
             internshipDetails: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
@@ -371,7 +372,6 @@ export declare class InterviewsService {
             coverLetter: string | null;
             source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
-            resumePath: string | null;
             aiMatchScore: number | null;
         };
         panelMembers: ({
@@ -538,6 +538,7 @@ export declare class InterviewsService {
             qualification: string | null;
             experience: string | null;
             jobOpeningId: string;
+            resumePath: string | null;
             internshipDetails: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
@@ -548,7 +549,6 @@ export declare class InterviewsService {
             coverLetter: string | null;
             source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
-            resumePath: string | null;
             aiMatchScore: number | null;
         };
         panelMembers: {

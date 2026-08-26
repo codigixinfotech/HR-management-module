@@ -3,7 +3,7 @@ import { CreateManpowerPlanDto, UpdateManpowerPlanDto } from './dto/manpower-pla
 export declare class ManpowerPlansController {
     private readonly manpowerPlansService;
     constructor(manpowerPlansService: ManpowerPlansService);
-    list(companyId?: string): Promise<{
+    list(companyId?: string, branchId?: string): Promise<{
         code: string;
         active: number;
         plannedHires: number;
@@ -12,18 +12,19 @@ export declare class ManpowerPlansController {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         createdAt: Date;
         updatedAt: Date;
         departmentName: string;
         isActive: boolean;
+        reason: string;
         budgeted: number;
         quarter: string;
-        reason: string;
         mrRaisedHires: number;
     }[]>;
-    countActive(departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string): Promise<number>;
+    countActive(departmentName?: string, role?: string, companyId?: string, branchId?: string, departmentId?: string, designationId?: string): Promise<number>;
     findOne(id: string): Promise<{
         active: number;
         plannedHires: number;
@@ -32,6 +33,7 @@ export declare class ManpowerPlansController {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         createdAt: Date;
@@ -39,9 +41,9 @@ export declare class ManpowerPlansController {
         departmentName: string;
         code: string | null;
         isActive: boolean;
+        reason: string;
         budgeted: number;
         quarter: string;
-        reason: string;
         mrRaisedHires: number;
     }>;
     create(dto: CreateManpowerPlanDto): Promise<{
@@ -49,6 +51,7 @@ export declare class ManpowerPlansController {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         status: string;
@@ -57,11 +60,11 @@ export declare class ManpowerPlansController {
         departmentName: string;
         code: string | null;
         isActive: boolean;
+        reason: string;
         budgeted: number;
         active: number;
         plannedHires: number;
         quarter: string;
-        reason: string;
         mrRaisedHires: number;
     }>;
     update(id: string, dto: UpdateManpowerPlanDto): Promise<{
@@ -69,6 +72,7 @@ export declare class ManpowerPlansController {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         status: string;
@@ -77,11 +81,11 @@ export declare class ManpowerPlansController {
         departmentName: string;
         code: string | null;
         isActive: boolean;
+        reason: string;
         budgeted: number;
         active: number;
         plannedHires: number;
         quarter: string;
-        reason: string;
         mrRaisedHires: number;
     }>;
     remove(id: string): Promise<{

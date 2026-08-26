@@ -1029,6 +1029,7 @@ export interface ManpowerPlan {
   id: string;
   code?: string | null;
   companyId?: string | null;
+  branchId?: string | null;
   departmentId?: string | null;
   designationId?: string | null;
   departmentName: string;
@@ -1050,6 +1051,7 @@ export interface ManpowerRequisition {
   mrNumber: string;
   manpowerPlanId?: string | null;
   companyId?: string | null;
+  branchId?: string | null;
   departmentId?: string | null;
   departmentName: string;
   costCenter: string;

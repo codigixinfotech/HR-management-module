@@ -345,6 +345,8 @@ model Branch {
   costCenters CostCenter[]
   travelBookings TravelBooking[]
   assets Asset[]
+  manpowerPlans ManpowerPlan[]
+  manpowerRequisitions ManpowerRequisition[]
 
   @@unique([companyId, code])
   @@map("branches")
@@ -936,6 +938,7 @@ model ManpowerPlan {
   id             String   @id @default(cuid())
   code           String?
   companyId      String?
+  branchId       String?
   departmentId   String?
   designationId  String?
   departmentName String
@@ -953,11 +956,13 @@ model ManpowerPlan {
   updatedAt      DateTime @updatedAt
 
   company      Company?              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
   department   Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   designation  Designation?          @relation(fields: [designationId], references: [id], onDelete: SetNull)
   requisitions ManpowerRequisition[]
 
   @@index([companyId])
+  @@index([branchId])
   @@index([departmentId])
   @@index([designationId])
   @@map("manpower_plans")
@@ -968,6 +973,7 @@ model ManpowerRequisition {
   mrNumber           String   @unique
   manpowerPlanId     String?
   companyId          String?
+  branchId           String?
   departmentId       String?
   departmentName     String
   costCenter         String
@@ -997,11 +1003,13 @@ model ManpowerRequisition {
   updatedAt          DateTime @updatedAt
 
   company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
   department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   manpowerPlan ManpowerPlan? @relation(fields: [manpowerPlanId], references: [id], onDelete: SetNull)
   jobOpening   JobOpening?
 
   @@index([companyId])
+  @@index([branchId])
   @@index([manpowerPlanId])
   @@map("manpower_requisitions")
 }

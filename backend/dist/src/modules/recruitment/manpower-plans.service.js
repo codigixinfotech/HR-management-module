@@ -36,12 +36,15 @@ let ManpowerPlansService = class ManpowerPlansService {
             console.error('Failed to seed initial manpower plans:', e);
         }
     }
-    async countActiveStaff(departmentName, role, companyId, departmentId, designationId) {
+    async countActiveStaff(departmentName, role, companyId, departmentId, designationId, branchId) {
         const where = {
             status: 'ACTIVE',
         };
         if (companyId) {
             where.companyId = companyId;
+        }
+        if (branchId) {
+            where.branchId = branchId;
         }
         if (designationId) {
             where.designationId = designationId;
@@ -78,16 +81,17 @@ let ManpowerPlansService = class ManpowerPlansService {
         });
         return matched.length;
     }
-    async list(companyId) {
+    async list(companyId, branchId) {
         const plans = await this.prisma.manpowerPlan.findMany({
             where: {
                 isActive: true,
                 ...(companyId ? { companyId } : {}),
+                ...(branchId ? { branchId } : {}),
             },
             orderBy: { createdAt: 'asc' },
         });
         return Promise.all(plans.map(async (p, idx) => {
-            const activeCount = await this.countActiveStaff(p.departmentName, p.role, p.companyId || undefined, p.departmentId || undefined, p.designationId || undefined);
+            const activeCount = await this.countActiveStaff(p.departmentName, p.role, p.companyId || undefined, p.departmentId || undefined, p.designationId || undefined, p.branchId || undefined);
             const rawPlannedHires = Math.max(0, p.budgeted - activeCount);
             const availableOpenings = Math.max(0, rawPlannedHires - (p.mrRaisedHires || 0));
             let status = p.status;
@@ -111,7 +115,7 @@ let ManpowerPlansService = class ManpowerPlansService {
         const plan = await this.prisma.manpowerPlan.findUnique({ where: { id } });
         if (!plan || !plan.isActive)
             throw new common_1.NotFoundException('Manpower forecast plan not found');
-        const activeCount = await this.countActiveStaff(plan.departmentName, plan.role, plan.companyId || undefined, plan.departmentId || undefined, plan.designationId || undefined);
+        const activeCount = await this.countActiveStaff(plan.departmentName, plan.role, plan.companyId || undefined, plan.departmentId || undefined, plan.designationId || undefined, plan.branchId || undefined);
         const rawPlannedHires = Math.max(0, plan.budgeted - activeCount);
         const availableOpenings = Math.max(0, rawPlannedHires - (plan.mrRaisedHires || 0));
         let status = plan.status;
@@ -131,13 +135,14 @@ let ManpowerPlansService = class ManpowerPlansService {
     async create(dto) {
         const count = await this.prisma.manpowerPlan.count();
         const code = dto.code || `MP-0${count + 1}`;
-        const activeCount = await this.countActiveStaff(dto.departmentName, dto.role, dto.companyId, dto.departmentId, dto.designationId);
+        const activeCount = await this.countActiveStaff(dto.departmentName, dto.role, dto.companyId, dto.departmentId, dto.designationId, dto.branchId);
         const plannedHires = Math.max(0, dto.budgeted - activeCount);
         const status = activeCount >= dto.budgeted || plannedHires === 0 ? 'CAP-REACHED' : 'UNDER-STAFFED';
         return this.prisma.manpowerPlan.create({
             data: {
                 code,
                 companyId: dto.companyId || null,
+                branchId: dto.branchId || null,
                 departmentId: dto.departmentId || null,
                 designationId: dto.designationId || null,
                 departmentName: dto.departmentName,
@@ -157,8 +162,9 @@ let ManpowerPlansService = class ManpowerPlansService {
         const departmentName = dto.departmentName ?? existing.departmentName;
         const role = dto.role ?? existing.role;
         const companyId = dto.companyId ?? existing.companyId ?? undefined;
+        const branchId = dto.branchId ?? existing.branchId ?? undefined;
         const budgeted = dto.budgeted ?? existing.budgeted;
-        const activeCount = await this.countActiveStaff(departmentName, role, companyId);
+        const activeCount = await this.countActiveStaff(departmentName, role, companyId, undefined, undefined, branchId);
         const plannedHires = Math.max(0, budgeted - activeCount);
         const status = activeCount >= budgeted || plannedHires === 0 ? 'CAP-REACHED' : 'UNDER-STAFFED';
         return this.prisma.manpowerPlan.update({

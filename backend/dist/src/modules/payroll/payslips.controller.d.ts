@@ -14,8 +14,8 @@ export declare class PayslipsController {
             name: string;
             type: import(".prisma/client").$Enums.SalaryComponentType;
             salaryComponentId: string | null;
-            amount: number;
             payslipId: string;
+            amount: number;
         }[];
     } & {
         id: string;
@@ -41,8 +41,8 @@ export declare class PayslipsController {
             name: string;
             type: import(".prisma/client").$Enums.SalaryComponentType;
             salaryComponentId: string | null;
-            amount: number;
             payslipId: string;
+            amount: number;
         }[];
     } & {
         id: string;

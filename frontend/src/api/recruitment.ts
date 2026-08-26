@@ -53,11 +53,11 @@ export const assessmentsApi = {
 };
 
 export const manpowerPlansApi = {
-  list: async (companyId?: string) =>
-    (await apiClient.get<ManpowerPlan[]>('/recruitment/manpower-plans', { params: { companyId } })).data,
+  list: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<ManpowerPlan[]>('/recruitment/manpower-plans', { params: { companyId, branchId } })).data,
   get: async (id: string) => (await apiClient.get<ManpowerPlan>(`/recruitment/manpower-plans/${id}`)).data,
-  countActive: async (departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string) =>
-    (await apiClient.get<number>('/recruitment/manpower-plans/count-active', { params: { departmentName, role, companyId, departmentId, designationId } })).data,
+  countActive: async (departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string, branchId?: string) =>
+    (await apiClient.get<number>('/recruitment/manpower-plans/count-active', { params: { departmentName, role, companyId, departmentId, designationId, branchId } })).data,
   create: async (payload: Partial<ManpowerPlan>) =>
     (await apiClient.post<ManpowerPlan>('/recruitment/manpower-plans', payload)).data,
   update: async (id: string, payload: Partial<ManpowerPlan>) =>

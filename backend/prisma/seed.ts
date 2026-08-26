@@ -85,6 +85,84 @@ async function main() {
     });
   }
 
+  // 2b. Second Company for Multi-Company Isolation Testing
+  let company2 = await prisma.company.findFirst({ where: { code: 'GLOBAL' } });
+  if (!company2) {
+    company2 = await prisma.company.create({
+      data: {
+        code: 'GLOBAL',
+        name: 'Global Tech Solutions Pvt Ltd',
+        legalName: 'Global Tech Solutions Private Limited',
+        country: 'India',
+        currency: 'INR',
+        timezone: 'Asia/Kolkata',
+      },
+    });
+  }
+  let branch2 = await prisma.branch.findFirst({ where: { companyId: company2.id, code: 'MUM' } });
+  if (!branch2) {
+    branch2 = await prisma.branch.create({
+      data: {
+        companyId: company2.id,
+        code: 'MUM',
+        name: 'Mumbai Regional Office',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        country: 'India',
+      },
+    });
+  }
+  let dept2 = await prisma.department.findFirst({ where: { companyId: company2.id, code: 'CLOUD' } });
+  if (!dept2) {
+    dept2 = await prisma.department.create({
+      data: {
+        companyId: company2.id,
+        branchId: branch2.id,
+        code: 'CLOUD',
+        name: 'Cloud Infrastructure & DevOps',
+      },
+    });
+  }
+  await prisma.costCenter.upsert({
+    where: { code: 'CC-201' },
+    update: { companyId: company2.id, branchId: branch2.id, departmentId: dept2.id },
+    create: {
+      companyId: company2.id,
+      branchId: branch2.id,
+      departmentId: dept2.id,
+      code: 'CC-201',
+      name: 'Cloud Operations Cost Center',
+      type: 'Department',
+    },
+  });
+  let desig2 = await prisma.designation.findFirst({ where: { companyId: company2.id, code: 'CLOUD-LEAD' } });
+  if (!desig2) {
+    desig2 = await prisma.designation.create({
+      data: {
+        companyId: company2.id,
+        departmentId: dept2.id,
+        code: 'CLOUD-LEAD',
+        title: 'Cloud Infrastructure Lead',
+      },
+    });
+  }
+  await prisma.employee.upsert({
+    where: { companyId_employeeCode: { companyId: company2.id, employeeCode: 'GTS-001' } },
+    update: {},
+    create: {
+      companyId: company2.id,
+      branchId: branch2.id,
+      departmentId: dept2.id,
+      designationId: desig2.id,
+      employeeCode: 'GTS-001',
+      firstName: 'Rajesh',
+      lastName: 'Kumar',
+      workEmail: 'rajesh.kumar@globaltech.local',
+      dateOfJoining: new Date(),
+      status: 'ACTIVE',
+    },
+  });
+
   // 3. SUPER_ADMIN system role with full access, plus an HR_ADMIN example role.
   // Note: MySQL treats NULL as distinct in composite unique indexes, so a
   // companyId=null role can't be safely upserted via the compound key - use
@@ -334,20 +412,47 @@ async function main() {
   const today = new Date();
 
   const additionalDepartmentDefs = [
-    { code: 'ENG', name: 'Engineering & Technology' },
-    { code: 'OPS', name: 'Operations & Logistics' },
-    { code: 'SALES', name: 'Sales & Marketing' },
-    { code: 'FIN', name: 'Finance & Accounting' },
-    { code: 'PROD', name: 'Product & Design' },
+    { code: 'ENG', name: 'Engineering & Technology', ccCode: '52266', ccName: 'Engineering & Tech' },
+    { code: 'OPS', name: 'Operations & Logistics', ccCode: '52267', ccName: 'Operations & Logistics' },
+    { code: 'SALES', name: 'Sales & Marketing', ccCode: '52268', ccName: 'Sales & Marketing' },
+    { code: 'FIN', name: 'Finance & Accounting', ccCode: '52269', ccName: 'Finance & Accounting' },
+    { code: 'PROD', name: 'Product & Design', ccCode: '52270', ccName: 'Product & Design' },
   ];
   const departmentsByCode: Record<string, { id: string }> = { HR: department };
   for (const def of additionalDepartmentDefs) {
-    departmentsByCode[def.code] = await prisma.department.upsert({
+    const deptObj = await prisma.department.upsert({
       where: { companyId_code: { companyId: company.id, code: def.code } },
       update: {},
       create: { companyId: company.id, branchId: branch.id, code: def.code, name: def.name },
     });
+    departmentsByCode[def.code] = deptObj;
+    await prisma.costCenter.upsert({
+      where: { code: def.ccCode },
+      update: { companyId: company.id, branchId: branch.id, departmentId: deptObj.id },
+      create: {
+        companyId: company.id,
+        branchId: branch.id,
+        departmentId: deptObj.id,
+        code: def.ccCode,
+        name: def.ccName,
+        type: 'Department',
+      },
+    });
   }
+
+  // Seed HR cost center
+  await prisma.costCenter.upsert({
+    where: { code: '52265' },
+    update: { companyId: company.id, branchId: branch.id, departmentId: department.id },
+    create: {
+      companyId: company.id,
+      branchId: branch.id,
+      departmentId: department.id,
+      code: '52265',
+      name: 'Human Resources',
+      type: 'Department',
+    },
+  });
 
   const designationDefs = [
     { code: 'ENG-SDE', title: 'Software Engineer', deptCode: 'ENG' },

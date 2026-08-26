@@ -7,8 +7,12 @@ export class CostCentersController {
   constructor(private readonly service: CostCentersService) {}
 
   @Get()
-  list(@Query('companyId') companyId?: string) {
-    return this.service.list(companyId);
+  list(
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    return this.service.list(companyId, branchId, departmentId);
   }
 
   @Get(':id')

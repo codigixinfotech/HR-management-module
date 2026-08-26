@@ -18,8 +18,11 @@ export class ManpowerPlansController {
 
   @Get()
   @Permissions('recruitment.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.manpowerPlansService.list(companyId);
+  list(
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    return this.manpowerPlansService.list(companyId, branchId);
   }
 
   @Get('count-active')
@@ -28,10 +31,11 @@ export class ManpowerPlansController {
     @Query('departmentName') departmentName?: string,
     @Query('role') role?: string,
     @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
     @Query('departmentId') departmentId?: string,
     @Query('designationId') designationId?: string,
   ) {
-    return this.manpowerPlansService.countActiveStaff(departmentName, role, companyId, departmentId, designationId);
+    return this.manpowerPlansService.countActiveStaff(departmentName, role, companyId, departmentId, designationId, branchId);
   }
 
   @Get(':id')

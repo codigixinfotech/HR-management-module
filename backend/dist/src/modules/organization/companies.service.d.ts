@@ -16,7 +16,6 @@ export declare class CompaniesService {
         name: string;
         code: string;
         isActive: boolean;
-        email: string | null;
         legalName: string | null;
         shortName: string | null;
         entityType: string | null;
@@ -29,6 +28,7 @@ export declare class CompaniesService {
         timezone: string | null;
         currency: string;
         registeredAddress: string | null;
+        email: string | null;
         website: string | null;
         defaultBranchId: string | null;
     }[]>;
@@ -45,7 +45,6 @@ export declare class CompaniesService {
         name: string;
         code: string;
         isActive: boolean;
-        email: string | null;
         legalName: string | null;
         shortName: string | null;
         entityType: string | null;
@@ -58,6 +57,7 @@ export declare class CompaniesService {
         timezone: string | null;
         currency: string;
         registeredAddress: string | null;
+        email: string | null;
         website: string | null;
         defaultBranchId: string | null;
     }>;
@@ -74,7 +74,6 @@ export declare class CompaniesService {
         name: string;
         code: string;
         isActive: boolean;
-        email: string | null;
         legalName: string | null;
         shortName: string | null;
         entityType: string | null;
@@ -87,6 +86,7 @@ export declare class CompaniesService {
         timezone: string | null;
         currency: string;
         registeredAddress: string | null;
+        email: string | null;
         website: string | null;
         defaultBranchId: string | null;
     }>;
@@ -103,7 +103,6 @@ export declare class CompaniesService {
         name: string;
         code: string;
         isActive: boolean;
-        email: string | null;
         legalName: string | null;
         shortName: string | null;
         entityType: string | null;
@@ -116,6 +115,7 @@ export declare class CompaniesService {
         timezone: string | null;
         currency: string;
         registeredAddress: string | null;
+        email: string | null;
         website: string | null;
         defaultBranchId: string | null;
     }>;

@@ -5,8 +5,8 @@ export declare class ManpowerPlansService implements OnModuleInit {
     private readonly prisma;
     constructor(prisma: PrismaService);
     onModuleInit(): Promise<void>;
-    countActiveStaff(departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string): Promise<number>;
-    list(companyId?: string): Promise<{
+    countActiveStaff(departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string, branchId?: string): Promise<number>;
+    list(companyId?: string, branchId?: string): Promise<{
         code: string;
         active: number;
         plannedHires: number;
@@ -15,15 +15,16 @@ export declare class ManpowerPlansService implements OnModuleInit {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         createdAt: Date;
         updatedAt: Date;
         departmentName: string;
         isActive: boolean;
+        reason: string;
         budgeted: number;
         quarter: string;
-        reason: string;
         mrRaisedHires: number;
     }[]>;
     findOne(id: string): Promise<{
@@ -34,6 +35,7 @@ export declare class ManpowerPlansService implements OnModuleInit {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         createdAt: Date;
@@ -41,9 +43,9 @@ export declare class ManpowerPlansService implements OnModuleInit {
         departmentName: string;
         code: string | null;
         isActive: boolean;
+        reason: string;
         budgeted: number;
         quarter: string;
-        reason: string;
         mrRaisedHires: number;
     }>;
     create(dto: CreateManpowerPlanDto): Promise<{
@@ -51,6 +53,7 @@ export declare class ManpowerPlansService implements OnModuleInit {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         status: string;
@@ -59,11 +62,11 @@ export declare class ManpowerPlansService implements OnModuleInit {
         departmentName: string;
         code: string | null;
         isActive: boolean;
+        reason: string;
         budgeted: number;
         active: number;
         plannedHires: number;
         quarter: string;
-        reason: string;
         mrRaisedHires: number;
     }>;
     update(id: string, dto: UpdateManpowerPlanDto): Promise<{
@@ -71,6 +74,7 @@ export declare class ManpowerPlansService implements OnModuleInit {
         costCenter: string;
         id: string;
         companyId: string | null;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         status: string;
@@ -79,11 +83,11 @@ export declare class ManpowerPlansService implements OnModuleInit {
         departmentName: string;
         code: string | null;
         isActive: boolean;
+        reason: string;
         budgeted: number;
         active: number;
         plannedHires: number;
         quarter: string;
-        reason: string;
         mrRaisedHires: number;
     }>;
     remove(id: string): Promise<{

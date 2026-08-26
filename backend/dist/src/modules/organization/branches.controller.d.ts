@@ -142,8 +142,8 @@ export declare class BranchesController {
         code: string;
         manager: string | null;
         isActive: boolean;
-        email: string | null;
         timezone: string | null;
+        email: string | null;
         branchType: string | null;
         workingCalendar: string | null;
         shiftGroup: string | null;
@@ -287,8 +287,8 @@ export declare class BranchesController {
         code: string;
         manager: string | null;
         isActive: boolean;
-        email: string | null;
         timezone: string | null;
+        email: string | null;
         branchType: string | null;
         workingCalendar: string | null;
         shiftGroup: string | null;
@@ -311,8 +311,8 @@ export declare class BranchesController {
         code: string;
         manager: string | null;
         isActive: boolean;
-        email: string | null;
         timezone: string | null;
+        email: string | null;
         branchType: string | null;
         workingCalendar: string | null;
         shiftGroup: string | null;
@@ -335,8 +335,8 @@ export declare class BranchesController {
         code: string;
         manager: string | null;
         isActive: boolean;
-        email: string | null;
         timezone: string | null;
+        email: string | null;
         branchType: string | null;
         workingCalendar: string | null;
         shiftGroup: string | null;

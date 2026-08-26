@@ -152,7 +152,6 @@ export declare class ExitsController {
                 employeeId: string;
                 approvedBy: string | null;
                 effectiveDate: Date;
-                reason: string | null;
                 transferId: string | null;
                 movementType: string;
                 designationTitle: string | null;
@@ -163,6 +162,7 @@ export declare class ExitsController {
                 prevGrade: string | null;
                 prevBranchName: string | null;
                 approvedDate: Date | null;
+                reason: string | null;
             }[];
         } & {
             location: string | null;

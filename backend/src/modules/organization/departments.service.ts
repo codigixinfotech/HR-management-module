@@ -10,10 +10,13 @@ import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
 export class DepartmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(companyId?: string) {
+  list(companyId?: string, branchId?: string) {
     if (!companyId) return [];
     return this.prisma.department.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
+      },
       include: { parentDepartment: { select: { id: true, name: true } } },
       orderBy: { name: 'asc' },
     });

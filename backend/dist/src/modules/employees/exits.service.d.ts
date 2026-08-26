@@ -154,7 +154,6 @@ export declare class ExitsService implements OnModuleInit {
                 employeeId: string;
                 approvedBy: string | null;
                 effectiveDate: Date;
-                reason: string | null;
                 transferId: string | null;
                 movementType: string;
                 designationTitle: string | null;
@@ -165,6 +164,7 @@ export declare class ExitsService implements OnModuleInit {
                 prevGrade: string | null;
                 prevBranchName: string | null;
                 approvedDate: Date | null;
+                reason: string | null;
             }[];
         } & {
             location: string | null;

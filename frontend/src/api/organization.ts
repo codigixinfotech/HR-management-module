@@ -28,8 +28,8 @@ export const locationsApi = {
 };
 
 export const departmentsApi = {
-  list: async (companyId?: string) =>
-    (await apiClient.get<Department[]>('/organization/departments', { params: { companyId } })).data,
+  list: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<Department[]>('/organization/departments', { params: { companyId, branchId } })).data,
   create: async (payload: Partial<Department>) =>
     (await apiClient.post<Department>('/organization/departments', payload)).data,
   update: async (id: string, payload: Partial<Department>) =>

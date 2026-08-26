@@ -17,11 +17,14 @@ let DepartmentsService = class DepartmentsService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    list(companyId) {
+    list(companyId, branchId) {
         if (!companyId)
             return [];
         return this.prisma.department.findMany({
-            where: { companyId },
+            where: {
+                companyId,
+                ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
+            },
             include: { parentDepartment: { select: { id: true, name: true } } },
             orderBy: { name: 'asc' },
         });
