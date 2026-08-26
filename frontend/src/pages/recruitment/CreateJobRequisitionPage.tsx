@@ -246,16 +246,88 @@ export default function CreateJobRequisitionPage() {
     return designations;
   }, [designations, activeDeptId]);
 
+  // ── Scoped Team Employees Filtering (Employee Master) ──
   const filteredTeamEmployees = useMemo(() => {
-    const activeCompId = isFromMR ? selectedMr?.companyId : standaloneCompanyId;
-    const activeDeptId = isFromMR ? selectedMr?.departmentId : standaloneDepartmentId;
+    if (!activeCompId) return [];
 
     return activeEmployees.filter((emp: any) => {
-      if (activeCompId && emp.companyId && emp.companyId !== activeCompId) return false;
-      if (activeDeptId && emp.departmentId && emp.departmentId !== activeDeptId) return false;
+      // 1. Filter strictly by ACTIVE status
+      if (emp.status && emp.status !== 'ACTIVE') return false;
+
+      // 2. Filter strictly by Company ID
+      if (emp.companyId && emp.companyId !== activeCompId) return false;
+
+      // 3. Filter strictly by Branch ID (if selected)
+      if (activeBranchId && emp.branchId && emp.branchId !== activeBranchId) return false;
+
       return true;
     });
-  }, [activeEmployees, isFromMR, selectedMr, standaloneCompanyId, standaloneDepartmentId]);
+  }, [activeEmployees, activeCompId, activeBranchId]);
+
+  // Role-Prioritized Lists for Hiring Team
+  const eligibleHiringManagers = useMemo(() => {
+    if (!filteredTeamEmployees.length) return [];
+    return [...filteredTeamEmployees].sort((a: any, b: any) => {
+      const aIsDept = activeDeptId && a.departmentId === activeDeptId ? 1 : 0;
+      const bIsDept = activeDeptId && b.departmentId === activeDeptId ? 1 : 0;
+      if (aIsDept !== bIsDept) return bIsDept - aIsDept;
+
+      const aTitle = (a.designation?.title || a.designationTitle || a.role || '').toLowerCase();
+      const bTitle = (b.designation?.title || b.designationTitle || b.role || '').toLowerCase();
+      const aIsMgr = aTitle.includes('manager') || aTitle.includes('lead') || aTitle.includes('head') || aTitle.includes('director') || aTitle.includes('chief') || aTitle.includes('vp') ? 1 : 0;
+      const bIsMgr = bTitle.includes('manager') || bTitle.includes('lead') || bTitle.includes('head') || bTitle.includes('director') || bTitle.includes('chief') || bTitle.includes('vp') ? 1 : 0;
+      return bIsMgr - aIsMgr;
+    });
+  }, [filteredTeamEmployees, activeDeptId]);
+
+  const eligibleRecruiters = useMemo(() => {
+    if (!filteredTeamEmployees.length) return [];
+    const hrOrRecruiter = filteredTeamEmployees.filter((emp: any) => {
+      const deptName = (emp.department?.name || emp.departmentName || '').toLowerCase();
+      const desTitle = (emp.designation?.title || emp.designationTitle || emp.role || '').toLowerCase();
+      return (
+        deptName.includes('hr') ||
+        deptName.includes('recruitment') ||
+        deptName.includes('human') ||
+        desTitle.includes('hr') ||
+        desTitle.includes('recruiter') ||
+        desTitle.includes('talent') ||
+        desTitle.includes('people')
+      );
+    });
+    return hrOrRecruiter.length > 0 ? hrOrRecruiter : filteredTeamEmployees;
+  }, [filteredTeamEmployees]);
+
+  const eligibleHrbps = useMemo(() => {
+    if (!filteredTeamEmployees.length) return [];
+    const hrBps = filteredTeamEmployees.filter((emp: any) => {
+      const deptName = (emp.department?.name || emp.departmentName || '').toLowerCase();
+      const desTitle = (emp.designation?.title || emp.designationTitle || emp.role || '').toLowerCase();
+      return (
+        deptName.includes('hr') ||
+        deptName.includes('human') ||
+        desTitle.includes('hr') ||
+        desTitle.includes('bp') ||
+        desTitle.includes('partner') ||
+        desTitle.includes('people')
+      );
+    });
+    return hrBps.length > 0 ? hrBps : filteredTeamEmployees;
+  }, [filteredTeamEmployees]);
+
+  const formatEmployeeOption = (emp: any) => {
+    const code = emp.employeeCode ? `[${emp.employeeCode}] ` : '';
+    const name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Employee';
+    const designation = emp.designation?.title || emp.designationTitle || emp.role || '';
+    const dept = emp.department?.name || emp.departmentName || '';
+
+    let detail = '';
+    if (designation && dept) detail = ` - ${designation} (${dept})`;
+    else if (designation) detail = ` - ${designation}`;
+    else if (dept) detail = ` (${dept})`;
+
+    return `${code}${name}${detail}`;
+  };
 
   // Handle Organization Cascading Resets
   const handleCompanyChange = (cId: string) => {
@@ -264,7 +336,10 @@ export default function CreateJobRequisitionPage() {
     setStandaloneDepartmentId('');
     setStandaloneCostCenter('');
     setStandaloneDesignationId('');
-    setFieldErrors((prev) => ({ ...prev, standaloneCompanyId: '' }));
+    setHiringManagerId('');
+    setRecruiterId('');
+    setHrbpId('');
+    setFieldErrors((prev) => ({ ...prev, standaloneCompanyId: '', hiringManagerId: '', recruiterId: '' }));
   };
 
   const handleBranchChange = (bId: string) => {
@@ -272,7 +347,10 @@ export default function CreateJobRequisitionPage() {
     setStandaloneDepartmentId('');
     setStandaloneCostCenter('');
     setStandaloneDesignationId('');
-    setFieldErrors((prev) => ({ ...prev, standaloneBranchId: '' }));
+    setHiringManagerId('');
+    setRecruiterId('');
+    setHrbpId('');
+    setFieldErrors((prev) => ({ ...prev, standaloneBranchId: '', hiringManagerId: '', recruiterId: '' }));
   };
 
   const handleDepartmentChange = (dId: string) => {
@@ -362,6 +440,19 @@ export default function CreateJobRequisitionPage() {
   const markTouched = (fieldName: string) => {
     setTouchedFields((prev) => ({ ...prev, [fieldName]: true }));
   };
+
+  // Auto-clear invalid team selections if organization changes
+  React.useEffect(() => {
+    if (hiringManagerId && !filteredTeamEmployees.some((e: any) => e.id === hiringManagerId)) {
+      setHiringManagerId('');
+    }
+    if (recruiterId && !filteredTeamEmployees.some((e: any) => e.id === recruiterId)) {
+      setRecruiterId('');
+    }
+    if (hrbpId && !filteredTeamEmployees.some((e: any) => e.id === hrbpId)) {
+      setHrbpId('');
+    }
+  }, [filteredTeamEmployees, hiringManagerId, recruiterId, hrbpId]);
 
   // Auto-fill when MR or Designation changes
   React.useEffect(() => {
@@ -525,7 +616,7 @@ export default function CreateJobRequisitionPage() {
       responsibilities: jobResponsibilities.trim() || undefined,
       qualification: isFromMR ? (selectedMr?.qualification || jobQualification) : jobQualification,
       preferredQualification: preferredQualification.trim() || undefined,
-      skills: isFromMR ? (selectedMr?.requiredSkills || requiredSkillsList.join(', ')) : requiredSkillsList.join(', '),
+      requiredSkills: isFromMR ? (selectedMr?.requiredSkills || requiredSkillsList.join(', ')) : requiredSkillsList.join(', '),
       preferredSkills: preferredSkillsList.join(', ') || undefined,
       category: jobCategory,
       jobFamily: jobFamily || undefined,
@@ -534,13 +625,13 @@ export default function CreateJobRequisitionPage() {
       benefits: benefits.trim() || undefined,
 
       candidateType,
-      minExp: candidateType === 'FRESHER' ? 0 : Number(minExp),
-      maxExp: candidateType === 'FRESHER' ? 1 : Number(maxExp),
+      minExperience: candidateType === 'FRESHER' ? 0 : Number(minExp),
+      maxExperience: candidateType === 'FRESHER' ? 1 : Number(maxExp),
       graduationYear: candidateType === 'FRESHER' ? graduationYear : undefined,
 
       employmentType: jobEmploymentType,
       workMode,
-      location: isFromMR ? selectedMr?.workLocation : jobLocation,
+      workLocation: isFromMR ? selectedMr?.workLocation : jobLocation,
 
       hiringManagerId: hiringManagerId || undefined,
       recruiterId: recruiterId || undefined,
@@ -554,11 +645,11 @@ export default function CreateJobRequisitionPage() {
         : Math.round(Number(jobMaxSalaryLakh) * 100000),
 
       applicationStartDate: applicationStartDate ? new Date(applicationStartDate).toISOString() : undefined,
-      deadline: jobDeadline ? new Date(jobDeadline).toISOString() : undefined,
-      visibility: jobVisibility,
+      applicationDeadline: jobDeadline ? new Date(jobDeadline).toISOString() : undefined,
+      jobVisibility: jobVisibility,
 
       interviewProcess: interviewProcess.trim() || undefined,
-      numRounds: Number(numInterviewRounds),
+      numInterviewRounds: Number(numInterviewRounds),
       internalJustification: internalJustification.trim() || undefined,
       internalNotes: internalNotes.trim() || undefined,
 
@@ -573,14 +664,14 @@ export default function CreateJobRequisitionPage() {
       payload.departmentId = selectedMr.departmentId;
       payload.designationId = selectedMr.designationId;
       payload.costCenter = selectedMr.costCenter;
-      payload.positionsCount = selectedMr.numOpenings;
+      payload.numPositions = selectedMr.numOpenings;
     } else {
       payload.companyId = standaloneCompanyId;
       payload.branchId = standaloneBranchId;
       payload.departmentId = standaloneDepartmentId;
       payload.designationId = standaloneDesignationId;
       payload.costCenter = standaloneCostCenter;
-      payload.positionsCount = Number(standaloneNumPositions);
+      payload.numPositions = Number(standaloneNumPositions);
     }
 
     createJobReqMutation.mutate(payload);
@@ -1557,70 +1648,151 @@ export default function CreateJobRequisitionPage() {
               </div>
 
               {/* Hiring Team Assignment */}
-              <div className="bg-muted/30 p-4 rounded-xl border border-border space-y-4">
-                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
-                  <Users className="h-4 w-4 text-primary" /> Hiring Team Assignment (Filtered Employee Master)
-                </h4>
+              <div className="bg-card p-4 rounded-xl border border-border space-y-4 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2 gap-2">
+                  <h4 className="font-semibold text-xs text-foreground flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" /> Hiring Team Assignment (Filtered Employee Master)
+                  </h4>
+                  <Badge variant="outline" className="text-[10px] bg-muted/50 font-mono w-fit">
+                    Scoped to Company & Branch
+                  </Badge>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Hiring Manager Dropdown */}
                   <div className="space-y-1.5">
-                    <Label className="font-semibold text-xs">Hiring Manager *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Hiring Manager *</Label>
+                      {activeCompId && activeBranchId && (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {eligibleHiringManagers.length} eligible
+                        </span>
+                      )}
+                    </div>
                     <Select
                       value={hiringManagerId}
                       onValueChange={(v) => {
                         setHiringManagerId(v);
                         setFieldErrors((prev) => ({ ...prev, hiringManagerId: '' }));
                       }}
+                      disabled={!activeCompId || !activeBranchId}
                     >
-                      <SelectTrigger className="h-9 text-xs bg-background font-semibold">
-                        <SelectValue placeholder="Select Hiring Manager" />
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue
+                          placeholder={
+                            !activeCompId || !activeBranchId
+                              ? 'Select Company & Branch first'
+                              : eligibleHiringManagers.length === 0
+                              ? 'No active employees found'
+                              : 'Select Hiring Manager'
+                          }
+                        />
                       </SelectTrigger>
-                      <SelectContent className="max-h-56 overflow-y-auto">
-                        {filteredTeamEmployees.map((emp: any) => (
-                          <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                            {emp.firstName} {emp.lastName} ({emp.designationTitle || emp.role || 'Manager'})
-                          </SelectItem>
-                        ))}
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {eligibleHiringManagers.length === 0 ? (
+                          <div className="p-3 text-xs text-muted-foreground text-center font-medium">
+                            No active employees found for the selected company and branch.
+                          </div>
+                        ) : (
+                          eligibleHiringManagers.map((emp: any) => (
+                            <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                              {formatEmployeeOption(emp)}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
-                    {fieldErrors.hiringManagerId && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.hiringManagerId}</p>}
+                    {fieldErrors.hiringManagerId && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.hiringManagerId}</p>
+                    )}
                   </div>
 
+                  {/* Assigned Recruiter Dropdown */}
                   <div className="space-y-1.5">
-                    <Label className="font-semibold text-xs">Assigned Recruiter *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Assigned Recruiter *</Label>
+                      {activeCompId && activeBranchId && (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {eligibleRecruiters.length} eligible
+                        </span>
+                      )}
+                    </div>
                     <Select
                       value={recruiterId}
                       onValueChange={(v) => {
                         setRecruiterId(v);
                         setFieldErrors((prev) => ({ ...prev, recruiterId: '' }));
                       }}
+                      disabled={!activeCompId || !activeBranchId}
                     >
-                      <SelectTrigger className="h-9 text-xs bg-background font-semibold">
-                        <SelectValue placeholder="Select Recruiter" />
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue
+                          placeholder={
+                            !activeCompId || !activeBranchId
+                              ? 'Select Company & Branch first'
+                              : eligibleRecruiters.length === 0
+                              ? 'No active HR employees found'
+                              : 'Select Assigned Recruiter'
+                          }
+                        />
                       </SelectTrigger>
-                      <SelectContent className="max-h-56 overflow-y-auto">
-                        {filteredTeamEmployees.map((emp: any) => (
-                          <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                            {emp.firstName} {emp.lastName} ({emp.designationTitle || emp.role || 'Recruiter'})
-                          </SelectItem>
-                        ))}
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {eligibleRecruiters.length === 0 ? (
+                          <div className="p-3 text-xs text-muted-foreground text-center font-medium">
+                            No active employees found for the selected company and branch.
+                          </div>
+                        ) : (
+                          eligibleRecruiters.map((emp: any) => (
+                            <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                              {formatEmployeeOption(emp)}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
-                    {fieldErrors.recruiterId && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.recruiterId}</p>}
+                    {fieldErrors.recruiterId && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.recruiterId}</p>
+                    )}
                   </div>
 
+                  {/* HR Business Partner Dropdown */}
                   <div className="space-y-1.5">
-                    <Label className="font-semibold text-xs">HR Business Partner (HRBP)</Label>
-                    <Select value={hrbpId} onValueChange={setHrbpId}>
-                      <SelectTrigger className="h-9 text-xs bg-background">
-                        <SelectValue placeholder="Select HRBP (Optional)" />
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">HR Business Partner (HRBP)</Label>
+                      {activeCompId && activeBranchId && (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          Optional
+                        </span>
+                      )}
+                    </div>
+                    <Select
+                      value={hrbpId}
+                      onValueChange={(v) => setHrbpId(v)}
+                      disabled={!activeCompId || !activeBranchId}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue
+                          placeholder={
+                            !activeCompId || !activeBranchId
+                              ? 'Select Company & Branch first'
+                              : eligibleHrbps.length === 0
+                              ? 'No active HRBP employees found'
+                              : 'Select HRBP (Optional)'
+                          }
+                        />
                       </SelectTrigger>
-                      <SelectContent className="max-h-56 overflow-y-auto">
-                        {filteredTeamEmployees.map((emp: any) => (
-                          <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                            {emp.firstName} {emp.lastName}
-                          </SelectItem>
-                        ))}
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {eligibleHrbps.length === 0 ? (
+                          <div className="p-3 text-xs text-muted-foreground text-center font-medium">
+                            No active employees found for the selected company and branch.
+                          </div>
+                        ) : (
+                          eligibleHrbps.map((emp: any) => (
+                            <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                              {formatEmployeeOption(emp)}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
