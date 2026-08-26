@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function CareersJobDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,15 +35,21 @@ export default function CareersJobDetailPage() {
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // Application Form Fields
+  // Application  // Form fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [currentLocation, setCurrentLocation] = useState('');
+  const [candidateType, setCandidateType] = useState<'FRESHER' | 'EXPERIENCED'>('FRESHER');
   const [qualification, setQualification] = useState('');
+  const [graduationYear, setGraduationYear] = useState('');
+  const [internshipDetails, setInternshipDetails] = useState('');
+  const [skills, setSkills] = useState('');
   const [experience, setExperience] = useState('');
   const [currentCompany, setCurrentCompany] = useState('');
+  const [currentCtc, setCurrentCtc] = useState('');
+  const [expectedCtc, setExpectedCtc] = useState('');
   const [noticePeriod, setNoticePeriod] = useState('');
   const [coverLetter, setCoverLetter] = useState('');
 
@@ -103,17 +110,42 @@ export default function CareersJobDetailPage() {
       return;
     }
 
+    if (candidateType === 'FRESHER') {
+      if (!qualification.trim()) {
+        toast.error('Qualification is required for freshers');
+        return;
+      }
+    } else {
+      if (!experience.trim()) {
+        toast.error('Total Experience is required for experienced candidates');
+        return;
+      }
+      if (job?.minExperience && job.minExperience > 0) {
+        const candidateYears = parseFloat(experience);
+        if (isNaN(candidateYears) || candidateYears < job.minExperience) {
+          toast.error(`Candidate does not meet the minimum experience requirement of ${job.minExperience} Years.`);
+          return;
+        }
+      }
+    }
+
     applyMutation.mutate({
       firstName,
       lastName,
       email,
       phone,
       resumePath: resumeUrl,
-      currentLocation,
+      candidateType,
       qualification: qualification || job?.qualification,
-      experience: experience || job?.experience,
-      currentCompany,
-      noticePeriod,
+      graduationYear: graduationYear || undefined,
+      internshipDetails: candidateType === 'FRESHER' ? internshipDetails : undefined,
+      experience: candidateType === 'FRESHER' ? '0 Years / Fresher' : experience,
+      currentCompany: candidateType === 'EXPERIENCED' ? currentCompany : undefined,
+      currentLocation,
+      skills,
+      currentCtc: candidateType === 'EXPERIENCED' && currentCtc ? parseFloat(currentCtc) : undefined,
+      expectedCtc: candidateType === 'EXPERIENCED' && expectedCtc ? parseFloat(expectedCtc) : undefined,
+      noticePeriod: candidateType === 'EXPERIENCED' ? noticePeriod : undefined,
       coverLetter,
       source: 'CAREERS_PORTAL',
       stage: 'APPLIED',
@@ -396,6 +428,35 @@ export default function CareersJobDetailPage() {
                 </div>
               </div>
 
+              {/* Candidate Type Eligibility Selector */}
+              <div className="space-y-1.5 bg-muted/40 p-3 rounded-xl border border-border">
+                <Label className="text-xs font-semibold flex items-center justify-between">
+                  <span>Applying As *</span>
+                  <Badge variant="outline" className="text-[10px] bg-background">
+                    {job?.candidateType === 'FRESHER'
+                      ? 'Fresher Only Job'
+                      : job?.candidateType === 'EXPERIENCED'
+                      ? `Experienced Only Job (${job.minExperience ?? 0}+ Yrs)`
+                      : 'Freshers & Experienced Eligible'}
+                  </Badge>
+                </Label>
+                {job?.candidateType === 'BOTH' ? (
+                  <Select value={candidateType} onValueChange={(v: any) => setCandidateType(v)}>
+                    <SelectTrigger className="h-9 text-xs bg-background">
+                      <SelectValue placeholder="Select Candidate Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FRESHER" className="text-xs font-medium">Fresher (0 Years)</SelectItem>
+                      <SelectItem value="EXPERIENCED" className="text-xs font-medium">Experienced Professional</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="h-9 px-3 flex items-center bg-background rounded-md border border-input text-xs font-semibold text-primary">
+                    {candidateType === 'FRESHER' ? 'Fresher (0 Years / Entry Level)' : `Experienced Professional (${job?.minExperience ?? 0}+ Years Required)`}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold">Current Location</Label>
@@ -407,36 +468,105 @@ export default function CareersJobDetailPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Total Experience</Label>
+                  <Label className="text-xs font-semibold">Qualification *</Label>
                   <Input
-                    placeholder="e.g. 4 Years"
-                    value={experience}
-                    onChange={(e) => setExperience(e.target.value)}
+                    placeholder="e.g. B.Tech / MCA / Graduate"
+                    value={qualification}
+                    onChange={(e) => setQualification(e.target.value)}
                     className="h-9 text-xs"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Current Company</Label>
-                  <Input
-                    placeholder="e.g. Tech Solutions Inc."
-                    value={currentCompany}
-                    onChange={(e) => setCurrentCompany(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Notice Period</Label>
-                  <Input
-                    placeholder="e.g. 30 Days / Immediate"
-                    value={noticePeriod}
-                    onChange={(e) => setNoticePeriod(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-              </div>
+              {candidateType === 'FRESHER' ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Graduation / Passing Year</Label>
+                      <Input
+                        placeholder="e.g. 2024 / 2025"
+                        value={graduationYear}
+                        onChange={(e) => setGraduationYear(e.target.value)}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Required / Key Skills *</Label>
+                      <Input
+                        placeholder="e.g. Java, React, SQL"
+                        value={skills}
+                        onChange={(e) => setSkills(e.target.value)}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Internship Experience / Academic Projects</Label>
+                    <Input
+                      placeholder="e.g. 6 Months Full Stack Intern at ABC Corp / Final Year E-Commerce Project"
+                      value={internshipDetails}
+                      onChange={(e) => setInternshipDetails(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Total Experience (Years) *</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        placeholder="e.g. 3.5"
+                        value={experience}
+                        onChange={(e) => setExperience(e.target.value)}
+                        className="h-9 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Current Company</Label>
+                      <Input
+                        placeholder="e.g. Tech Solutions Inc."
+                        value={currentCompany}
+                        onChange={(e) => setCurrentCompany(e.target.value)}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Current CTC (₹)</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 600000"
+                        value={currentCtc}
+                        onChange={(e) => setCurrentCtc(e.target.value)}
+                        className="h-9 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Expected CTC (₹)</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 900000"
+                        value={expectedCtc}
+                        onChange={(e) => setExpectedCtc(e.target.value)}
+                        className="h-9 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Notice Period</Label>
+                      <Input
+                        placeholder="e.g. 30 Days"
+                        value={noticePeriod}
+                        onChange={(e) => setNoticePeriod(e.target.value)}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Resume File Upload */}
               <div className="space-y-1.5 bg-muted/40 p-3 rounded-lg border border-border/50">

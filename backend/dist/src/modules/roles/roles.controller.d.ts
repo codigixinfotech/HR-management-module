@@ -22,8 +22,8 @@ export declare class RolesController {
         id: string;
         companyId: string | null;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         description: string | null;
         isSystem: boolean;
     })[]>;
@@ -52,8 +52,8 @@ export declare class RolesController {
         id: string;
         companyId: string | null;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         description: string | null;
         isSystem: boolean;
     }>;
@@ -75,8 +75,8 @@ export declare class RolesController {
         id: string;
         companyId: string | null;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         description: string | null;
         isSystem: boolean;
     }>;
@@ -98,8 +98,8 @@ export declare class RolesController {
         id: string;
         companyId: string | null;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         description: string | null;
         isSystem: boolean;
     }>;

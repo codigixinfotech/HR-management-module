@@ -48,7 +48,24 @@ let CandidatesService = class CandidatesService {
             throw new common_1.NotFoundException('Candidate not found');
         return candidate;
     }
-    create(dto) {
+    async create(dto) {
+        const jobOpening = await this.prisma.jobOpening.findUnique({
+            where: { id: dto.jobOpeningId },
+        });
+        if (jobOpening) {
+            if (jobOpening.candidateType === 'EXPERIENCED' && dto.candidateType === 'FRESHER') {
+                throw new common_1.BadRequestException('This job requisition requires experienced candidates only.');
+            }
+            if (jobOpening.candidateType === 'FRESHER' && dto.candidateType === 'EXPERIENCED') {
+                throw new common_1.BadRequestException('This job requisition is configured for Freshers only.');
+            }
+            if (dto.candidateType === 'EXPERIENCED' && jobOpening.minExperience && jobOpening.minExperience > 0) {
+                const candidateYears = parseFloat(dto.experience || '0');
+                if (isNaN(candidateYears) || candidateYears < jobOpening.minExperience) {
+                    throw new common_1.BadRequestException(`Candidate does not meet the minimum experience requirement of ${jobOpening.minExperience} Years. Submitted: ${dto.experience || '0'} Years.`);
+                }
+            }
+        }
         return this.prisma.candidate.create({ data: dto });
     }
     async updateStage(id, stage) {

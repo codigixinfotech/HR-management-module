@@ -28,8 +28,8 @@ let AssetMaintenanceController = class AssetMaintenanceController {
     create(dto) {
         return this.assetMaintenanceService.create(dto);
     }
-    complete(id) {
-        return this.assetMaintenanceService.complete(id);
+    complete(id, dto) {
+        return this.assetMaintenanceService.complete(id, dto);
     }
 };
 exports.AssetMaintenanceController = AssetMaintenanceController;
@@ -53,8 +53,9 @@ __decorate([
     (0, common_1.Post)(':id/complete'),
     (0, permissions_decorator_1.Permissions)('asset_management.write'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, asset_maintenance_dto_1.CompleteAssetMaintenanceDto]),
     __metadata("design:returntype", void 0)
 ], AssetMaintenanceController.prototype, "complete", null);
 exports.AssetMaintenanceController = AssetMaintenanceController = __decorate([

@@ -195,6 +195,7 @@ export function CandidatesTab() {
             rating: c.screenings?.[0]?.overallScreeningScore ? `${c.screenings[0].overallScreeningScore}/5` : '4.0/5',
             score: c.aiMatchScore ? `${c.aiMatchScore}%` : '88%',
             source: c.source || 'Careers Portal',
+            candidateType: c.candidateType || (c.experience?.toLowerCase().includes('fresher') || c.experience === '0 Years' || !c.experience ? 'FRESHER' : 'EXPERIENCED'),
             experience: c.experience || '6 Years',
             qualification: c.qualification || 'Graduate',
             currentLocation: c.currentLocation || 'Pune, India',
@@ -489,6 +490,8 @@ export function CandidatesTab() {
     setScreeningDecision('REJECT');
   };
 
+  const [candidateTypeFilter, setCandidateTypeFilter] = useState<string>('all');
+
   const filteredCandidates = useMemo(() => {
     return allCandidates.filter((c) => {
       const matchesSearch =
@@ -496,15 +499,22 @@ export function CandidatesTab() {
         c.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.reqCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.id.toLowerCase().includes(searchQuery.toLowerCase());
+
       const matchesStage =
         selectedStage === 'all'
           ? true
           : c.stage.toLowerCase() === selectedStage.toLowerCase() ||
             (selectedStage === 'screening' && (c.stage === 'APPLIED' || c.stage === 'SCREENING')) ||
             (selectedStage === 'on_hold' && (c.stage === 'ON_HOLD' || c.stage === 'HOLD'));
-      return matchesSearch && matchesStage;
+
+      const matchesCandidateType =
+        candidateTypeFilter === 'all'
+          ? true
+          : c.candidateType?.toLowerCase() === candidateTypeFilter.toLowerCase();
+
+      return matchesSearch && matchesStage && matchesCandidateType;
     });
-  }, [allCandidates, searchQuery, selectedStage]);
+  }, [allCandidates, searchQuery, selectedStage, candidateTypeFilter]);
 
   // Stage Badge Render Helper
   const getStageBadge = (stage: string) => {
@@ -667,6 +677,18 @@ export function CandidatesTab() {
                 ))}
               </div>
 
+              {/* Candidate Type Filter */}
+              <Select value={candidateTypeFilter} onValueChange={setCandidateTypeFilter}>
+                <SelectTrigger className="h-8 text-xs w-36 bg-background">
+                  <SelectValue placeholder="Candidate Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">All Types</SelectItem>
+                  <SelectItem value="fresher" className="text-xs">Freshers Only</SelectItem>
+                  <SelectItem value="experienced" className="text-xs">Experienced Only</SelectItem>
+                </SelectContent>
+              </Select>
+
               {/* Search Bar */}
               <div className="relative w-40 sm:w-52">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -789,8 +811,20 @@ export function CandidatesTab() {
                       {c.id.substring(0, 8)}
                     </TableCell>
                     <TableCell className="text-xs">
-                      <span className="font-semibold text-foreground block">{c.name}</span>
-                      <span className="text-[10px] text-muted-foreground">{c.email}</span>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="font-semibold text-foreground">{c.name}</span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] px-1.5 py-0 font-semibold ${
+                            c.candidateType === 'FRESHER'
+                              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                              : 'bg-blue-500/10 text-blue-700 border-blue-500/20'
+                          }`}
+                        >
+                          {c.candidateType === 'FRESHER' ? 'Fresher' : 'Experienced'}
+                        </Badge>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground block">{c.email}</span>
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">
                       <div className="flex items-center gap-1.5">

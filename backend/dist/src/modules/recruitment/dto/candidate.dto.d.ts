@@ -5,11 +5,15 @@ export declare class CreateCandidateDto {
     lastName: string;
     email: string;
     phone?: string;
+    candidateType?: string;
     qualification?: string;
+    graduationYear?: string;
+    internshipDetails?: string;
     experience?: string;
     currentCompany?: string;
     currentLocation?: string;
     skills?: string;
+    currentCtc?: number;
     expectedCtc?: number;
     noticePeriod?: string;
     coverLetter?: string;

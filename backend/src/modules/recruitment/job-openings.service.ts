@@ -50,6 +50,19 @@ export class JobOpeningsService {
   async create(dto: CreateJobOpeningDto) {
     const requisitionCode = dto.requisitionCode || (await this.generateNextRequisitionCode());
 
+    const candidateType = dto.candidateType || 'BOTH';
+    const minExp = dto.minExperience ?? 0;
+    const maxExp = dto.maxExperience ?? minExp;
+
+    let formattedExp = dto.experience;
+    if (candidateType === 'FRESHER') {
+      formattedExp = 'Fresher / 0 Years';
+    } else if (candidateType === 'EXPERIENCED') {
+      formattedExp = `${minExp} - ${maxExp} Years`;
+    } else if (candidateType === 'BOTH') {
+      formattedExp = 'Freshers & Experienced';
+    }
+
     return this.prisma.jobOpening.create({
       data: {
         companyId: dto.companyId,
@@ -66,10 +79,14 @@ export class JobOpeningsService {
         costCenter: dto.costCenter || null,
         employmentType: dto.employmentType || 'FULL_TIME',
         priority: dto.priority || 'NORMAL',
+        candidateType,
+        minExperience: minExp,
+        maxExperience: maxExp,
+        graduationYear: dto.graduationYear || null,
         minSalary: dto.minSalary || null,
         maxSalary: dto.maxSalary || null,
         qualification: dto.qualification || null,
-        experience: dto.experience || null,
+        experience: formattedExp || null,
         requiredSkills: dto.requiredSkills || null,
         workLocation: dto.workLocation || null,
         reportingManagerId: dto.reportingManagerId || null,

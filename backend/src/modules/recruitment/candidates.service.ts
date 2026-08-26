@@ -38,7 +38,32 @@ export class CandidatesService {
     return candidate;
   }
 
-  create(dto: CreateCandidateDto) {
+  async create(dto: CreateCandidateDto) {
+    const jobOpening = await this.prisma.jobOpening.findUnique({
+      where: { id: dto.jobOpeningId },
+    });
+
+    if (jobOpening) {
+      // 1. Candidate type eligibility check
+      if (jobOpening.candidateType === 'EXPERIENCED' && dto.candidateType === 'FRESHER') {
+        throw new BadRequestException('This job requisition requires experienced candidates only.');
+      }
+
+      if (jobOpening.candidateType === 'FRESHER' && dto.candidateType === 'EXPERIENCED') {
+        throw new BadRequestException('This job requisition is configured for Freshers only.');
+      }
+
+      // 2. Minimum experience validation for experienced applicants
+      if (dto.candidateType === 'EXPERIENCED' && jobOpening.minExperience && jobOpening.minExperience > 0) {
+        const candidateYears = parseFloat(dto.experience || '0');
+        if (isNaN(candidateYears) || candidateYears < jobOpening.minExperience) {
+          throw new BadRequestException(
+            `Candidate does not meet the minimum experience requirement of ${jobOpening.minExperience} Years. Submitted: ${dto.experience || '0'} Years.`
+          );
+        }
+      }
+    }
+
     return this.prisma.candidate.create({ data: dto });
   }
 

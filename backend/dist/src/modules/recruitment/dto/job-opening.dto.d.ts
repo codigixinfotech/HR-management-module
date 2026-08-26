@@ -13,6 +13,10 @@ export declare class CreateJobOpeningDto {
     costCenter?: string;
     employmentType?: string;
     priority?: string;
+    candidateType?: string;
+    minExperience?: number;
+    maxExperience?: number;
+    graduationYear?: string;
     minSalary?: number;
     maxSalary?: number;
     qualification?: string;

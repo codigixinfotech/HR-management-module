@@ -27,6 +27,10 @@ class CreateJobOpeningDto {
     costCenter;
     employmentType;
     priority;
+    candidateType;
+    minExperience;
+    maxExperience;
+    graduationYear;
     minSalary;
     maxSalary;
     qualification;
@@ -108,6 +112,26 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateJobOpeningDto.prototype, "priority", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "candidateType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateJobOpeningDto.prototype, "minExperience", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateJobOpeningDto.prototype, "maxExperience", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateJobOpeningDto.prototype, "graduationYear", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsNumber)(),

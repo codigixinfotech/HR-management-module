@@ -49,6 +49,10 @@ export function RequisitionsTab() {
   const [jobResponsibilities, setJobResponsibilities] = useState('');
   const [jobSkills, setJobSkills] = useState('');
   const [jobQualification, setJobQualification] = useState('');
+  const [candidateType, setCandidateType] = useState<'FRESHER' | 'EXPERIENCED' | 'BOTH'>('BOTH');
+  const [minExp, setMinExp] = useState<number>(1);
+  const [maxExp, setMaxExp] = useState<number>(5);
+  const [graduationYear, setGraduationYear] = useState('');
   const [jobExperience, setJobExperience] = useState('');
   const [jobMinSalary, setJobMinSalary] = useState<number>(0);
   const [jobMaxSalary, setJobMaxSalary] = useState<number>(0);
@@ -132,9 +136,13 @@ export function RequisitionsTab() {
     setJobResponsibilities(
       `• Lead key operational and technical projects in ${mr.departmentName}.\n• Collaborate with cross-functional teams to deliver high quality results.\n• Mentor junior team members and maintain process compliance.`
     );
-    setJobSkills(mr.requiredSkills || 'Leadership, Domain Expertise, Teamwork');
-    setJobQualification(mr.qualification || 'Graduate / Professional Degree');
-    setJobExperience(mr.experience || '3 - 5 Years');
+    setJobQualification(mr.qualification || 'B.Tech / M.Tech / MBA / Graduate');
+    setCandidateType('BOTH');
+    setMinExp(1);
+    setMaxExp(5);
+    setGraduationYear('');
+    setJobExperience('Freshers & Experienced');
+    setJobSkills(mr.requiredSkills || 'Technical leadership, domain expertise, team coordination');
     setJobMinSalary(mr.minSalary || 800000);
     setJobMaxSalary(mr.maxSalary || 1200000);
     setJobLocation(mr.workLocation || 'Head Office (Pune)');
@@ -159,7 +167,21 @@ export function RequisitionsTab() {
       return;
     }
 
+    if (candidateType === 'EXPERIENCED' && minExp > maxExp) {
+      toast.error('Minimum experience cannot be greater than Maximum experience');
+      return;
+    }
+
     const defaultCompanyId = selectedMr?.companyId || companies[0]?.id || '';
+
+    let formattedExp = jobExperience;
+    if (candidateType === 'FRESHER') {
+      formattedExp = 'Fresher / 0 Years';
+    } else if (candidateType === 'EXPERIENCED') {
+      formattedExp = `${minExp} - ${maxExp} Years`;
+    } else if (candidateType === 'BOTH') {
+      formattedExp = 'Freshers & Experienced';
+    }
 
     const payload: Partial<JobOpening> = {
       companyId: defaultCompanyId,
@@ -175,10 +197,14 @@ export function RequisitionsTab() {
       costCenter: selectedMr?.costCenter || '',
       employmentType: jobEmploymentType as any,
       priority: selectedMr?.priority as any || 'NORMAL',
+      candidateType,
+      minExperience: candidateType === 'FRESHER' ? 0 : minExp,
+      maxExperience: candidateType === 'FRESHER' ? 0 : maxExp,
+      graduationYear: graduationYear || undefined,
       minSalary: Number(jobMinSalary) || undefined,
       maxSalary: Number(jobMaxSalary) || undefined,
       qualification: jobQualification,
-      experience: jobExperience,
+      experience: formattedExp,
       requiredSkills: jobSkills,
       workLocation: jobLocation,
       applicationDeadline: jobDeadline || undefined,
@@ -428,25 +454,96 @@ export function RequisitionsTab() {
                   />
                 </div>
 
+                {/* Candidate Type Selector */}
+                <div className="space-y-1 bg-muted/30 p-3 rounded-xl border border-border">
+                  <Label className="font-semibold text-xs flex items-center justify-between">
+                    <span>Candidate Type / Eligibility *</span>
+                    <Badge variant="outline" className="text-[10px] bg-background">
+                      {candidateType === 'FRESHER' ? 'Fresher / 0 Years' : candidateType === 'EXPERIENCED' ? `${minExp}-${maxExp} Years Exp` : 'Freshers & Experienced'}
+                    </Badge>
+                  </Label>
+                  <Select value={candidateType} onValueChange={(v: any) => setCandidateType(v)}>
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Select Candidate Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FRESHER" className="text-xs font-medium">Freshers Only (0 Years)</SelectItem>
+                      <SelectItem value="EXPERIENCED" className="text-xs font-medium">Experienced Only</SelectItem>
+                      <SelectItem value="BOTH" className="text-xs font-medium">Both (Freshers & Experienced)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="font-semibold">Required Qualification</Label>
+                    <Label className="font-semibold">Required Qualification *</Label>
                     <Input
                       type="text"
                       value={jobQualification}
                       onChange={(e) => setJobQualification(e.target.value)}
+                      placeholder="e.g. B.Tech / M.Tech / MBA / Graduate"
                       className="h-8 text-xs bg-background"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="font-semibold">Experience Required</Label>
-                    <Input
-                      type="text"
-                      value={jobExperience}
-                      onChange={(e) => setJobExperience(e.target.value)}
-                      className="h-8 text-xs bg-background"
-                    />
-                  </div>
+
+                  {candidateType === 'FRESHER' ? (
+                    <div className="space-y-1">
+                      <Label className="font-semibold">Graduation Year / Passing Year</Label>
+                      <Input
+                        type="text"
+                        value={graduationYear}
+                        onChange={(e) => setGraduationYear(e.target.value)}
+                        placeholder="e.g. 2024 / 2025 / 2026"
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+                  ) : candidateType === 'EXPERIENCED' ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="font-semibold text-[11px]">Min Exp (Yrs) *</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={minExp}
+                          onChange={(e) => setMinExp(Number(e.target.value))}
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="font-semibold text-[11px]">Max Exp (Yrs) *</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={maxExp}
+                          onChange={(e) => setMaxExp(Number(e.target.value))}
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="font-semibold text-[11px]">Exp Min (Yrs)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={minExp}
+                          onChange={(e) => setMinExp(Number(e.target.value))}
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="font-semibold text-[11px]">Exp Max (Yrs)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={maxExp}
+                          onChange={(e) => setMaxExp(Number(e.target.value))}
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">

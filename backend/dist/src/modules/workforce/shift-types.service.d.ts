@@ -7,8 +7,8 @@ export declare class ShiftTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         startTime: string;
@@ -20,8 +20,8 @@ export declare class ShiftTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         startTime: string;
@@ -33,8 +33,8 @@ export declare class ShiftTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         startTime: string;
@@ -46,8 +46,8 @@ export declare class ShiftTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         startTime: string;

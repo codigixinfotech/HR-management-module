@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { AssetsService } from './assets.service';
-import { AllocateAssetDto, CreateAssetDto, UpdateAssetDto } from './dto/asset.dto';
+import { AllocateAssetDto, CreateAssetDto, ReturnAssetDto, UpdateAssetDto } from './dto/asset.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('asset-management/assets')
@@ -45,7 +45,7 @@ export class AssetsController {
 
   @Post(':id/return')
   @Permissions('asset_management.write')
-  returnAsset(@Param('id') id: string) {
-    return this.assetsService.returnAsset(id);
+  returnAsset(@Param('id') id: string, @Body() dto?: ReturnAssetDto) {
+    return this.assetsService.returnAsset(id, dto);
   }
 }

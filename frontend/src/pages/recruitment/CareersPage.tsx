@@ -229,9 +229,17 @@ export default function CareersPage() {
                         <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                         <span className="capitalize">{job.employmentType?.replace('_', ' ').toLowerCase() || 'Full Time'}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 bg-muted/30 p-2 rounded-md">
+                      <div className="flex items-center gap-1.5 bg-muted/30 p-2 rounded-md col-span-2">
                         <Users className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span className="truncate">{job.experience || 'Experience Specified'}</span>
+                        <span className="truncate font-semibold text-[11px] text-foreground">
+                          {job.candidateType === 'FRESHER'
+                            ? 'Experience: Fresher / 0 Years'
+                            : job.candidateType === 'EXPERIENCED'
+                            ? `Experience: ${job.minExperience ?? 0}-${job.maxExperience ?? 0} Years`
+                            : job.candidateType === 'BOTH'
+                            ? 'Experience: Freshers & Experienced'
+                            : `Experience: ${job.experience || 'Freshers & Experienced'}`}
+                        </span>
                       </div>
                     </div>
 

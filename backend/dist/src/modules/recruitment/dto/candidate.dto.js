@@ -8,7 +8,6 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SaveCandidateScreeningDto = exports.UpdateCandidateStageDto = exports.CreateCandidateDto = void 0;
 const client_1 = require("@prisma/client");
@@ -19,11 +18,15 @@ class CreateCandidateDto {
     lastName;
     email;
     phone;
+    candidateType;
     qualification;
+    graduationYear;
+    internshipDetails;
     experience;
     currentCompany;
     currentLocation;
     skills;
+    currentCtc;
     expectedCtc;
     noticePeriod;
     coverLetter;
@@ -56,7 +59,22 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
+], CreateCandidateDto.prototype, "candidateType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
 ], CreateCandidateDto.prototype, "qualification", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateCandidateDto.prototype, "graduationYear", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateCandidateDto.prototype, "internshipDetails", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -77,6 +95,11 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateCandidateDto.prototype, "skills", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateCandidateDto.prototype, "currentCtc", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsNumber)(),
@@ -108,7 +131,7 @@ class UpdateCandidateStageDto {
 exports.UpdateCandidateStageDto = UpdateCandidateStageDto;
 __decorate([
     (0, class_validator_1.IsEnum)(client_1.CandidateStage),
-    __metadata("design:type", typeof (_a = typeof client_1.CandidateStage !== "undefined" && client_1.CandidateStage) === "function" ? _a : Object)
+    __metadata("design:type", String)
 ], UpdateCandidateStageDto.prototype, "stage", void 0);
 class SaveCandidateScreeningDto {
     relevantExperienceYears;

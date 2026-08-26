@@ -20,7 +20,19 @@ export class CreateCandidateDto {
 
   @IsOptional()
   @IsString()
+  candidateType?: string; // FRESHER, EXPERIENCED
+
+  @IsOptional()
+  @IsString()
   qualification?: string;
+
+  @IsOptional()
+  @IsString()
+  graduationYear?: string;
+
+  @IsOptional()
+  @IsString()
+  internshipDetails?: string;
 
   @IsOptional()
   @IsString()
@@ -37,6 +49,10 @@ export class CreateCandidateDto {
   @IsOptional()
   @IsString()
   skills?: string;
+
+  @IsOptional()
+  @IsNumber()
+  currentCtc?: number;
 
   @IsOptional()
   @IsNumber()

@@ -58,6 +58,22 @@ export class CreateJobOpeningDto {
   priority?: string;
 
   @IsOptional()
+  @IsString()
+  candidateType?: string; // FRESHER, EXPERIENCED, BOTH
+
+  @IsOptional()
+  @IsNumber()
+  minExperience?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxExperience?: number;
+
+  @IsOptional()
+  @IsString()
+  graduationYear?: string;
+
+  @IsOptional()
   @IsNumber()
   minSalary?: number;
 
