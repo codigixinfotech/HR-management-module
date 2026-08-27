@@ -6,55 +6,55 @@ export declare class PayslipsService {
     list(payrollRunId?: string, employeeId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
         };
         components: {
             id: string;
             name: string;
             type: import(".prisma/client").$Enums.SalaryComponentType;
-            salaryComponentId: string | null;
             amount: number;
             payslipId: string;
+            salaryComponentId: string | null;
         }[];
     } & {
         id: string;
         createdAt: Date;
         employeeId: string;
-        otherDeductions: number;
+        payrollRunId: string;
         grossEarnings: number;
         pf: number;
         esic: number;
         professionalTax: number;
+        otherDeductions: number;
         netPay: number;
-        payrollRunId: string;
     })[]>;
     findById(id: string): Promise<{
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
         };
         components: {
             id: string;
             name: string;
             type: import(".prisma/client").$Enums.SalaryComponentType;
-            salaryComponentId: string | null;
             amount: number;
             payslipId: string;
+            salaryComponentId: string | null;
         }[];
     } & {
         id: string;
         createdAt: Date;
         employeeId: string;
-        otherDeductions: number;
+        payrollRunId: string;
         grossEarnings: number;
         pf: number;
         esic: number;
         professionalTax: number;
+        otherDeductions: number;
         netPay: number;
-        payrollRunId: string;
     }>;
 }

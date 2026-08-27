@@ -7,9 +7,9 @@ export declare class ShiftAssignmentsService {
     list(employeeId?: string, shiftTypeId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
         };
         shiftType: {
             id: string;
@@ -18,22 +18,22 @@ export declare class ShiftAssignmentsService {
             endTime: string;
         };
     } & {
-        companyId: string;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
         employeeId: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         shiftTypeId: string;
         effectiveTo: Date | null;
     })[]>;
     findById(id: string): Promise<{
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
         };
         shiftType: {
             id: string;
@@ -42,22 +42,22 @@ export declare class ShiftAssignmentsService {
             endTime: string;
         };
     } & {
-        companyId: string;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
         employeeId: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         shiftTypeId: string;
         effectiveTo: Date | null;
     }>;
     create(dto: CreateShiftAssignmentDto): import(".prisma/client").Prisma.Prisma__ShiftAssignmentClient<{
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
         };
         shiftType: {
             id: string;
@@ -66,22 +66,22 @@ export declare class ShiftAssignmentsService {
             endTime: string;
         };
     } & {
-        companyId: string;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
         employeeId: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         shiftTypeId: string;
         effectiveTo: Date | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdateShiftAssignmentDto): Promise<{
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
         };
         shiftType: {
             id: string;
@@ -90,13 +90,13 @@ export declare class ShiftAssignmentsService {
             endTime: string;
         };
     } & {
-        companyId: string;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
         employeeId: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         shiftTypeId: string;
         effectiveTo: Date | null;
     }>;

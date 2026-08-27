@@ -8,7 +8,7 @@ export class RedisService extends Redis implements OnModuleDestroy {
   private hasLoggedConnectionError = false;
 
   constructor(config: ConfigService) {
-    super(config.get<string>('REDIS_URL', 'redis://localhost:6379'), {
+    super(config.get<string>('REDIS_URL') || process.env.REDIS_URL || '', {
       lazyConnect: true,
       maxRetriesPerRequest: 2,
     });

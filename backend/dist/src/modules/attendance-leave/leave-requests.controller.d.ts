@@ -7,33 +7,33 @@ export declare class LeaveRequestsController {
         items: ({
             employee: {
                 id: string;
+                employeeCode: string;
                 firstName: string;
                 lastName: string;
-                employeeCode: string;
-            };
-            leaveType: {
-                id: string;
-                code: string;
-                name: string;
-                isPaid: boolean;
             };
             approver: {
                 id: string;
                 firstName: string;
                 lastName: string;
             } | null;
+            leaveType: {
+                id: string;
+                name: string;
+                code: string;
+                isPaid: boolean;
+            };
         } & {
-            companyId: string;
-            status: import(".prisma/client").$Enums.ApprovalStatus;
             id: string;
+            companyId: string;
             createdAt: Date;
             updatedAt: Date;
-            startDate: Date;
             employeeId: string;
-            reason: string | null;
-            leaveTypeId: string;
+            status: import(".prisma/client").$Enums.ApprovalStatus;
+            startDate: Date;
             endDate: Date;
+            leaveTypeId: string;
             totalDays: number;
+            reason: string | null;
             approverId: string | null;
             approverRemarks: string | null;
             decidedAt: Date | null;
@@ -45,33 +45,33 @@ export declare class LeaveRequestsController {
     findOne(id: string): Promise<{
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
-        };
-        leaveType: {
-            id: string;
-            code: string;
-            name: string;
-            isPaid: boolean;
         };
         approver: {
             id: string;
             firstName: string;
             lastName: string;
         } | null;
+        leaveType: {
+            id: string;
+            name: string;
+            code: string;
+            isPaid: boolean;
+        };
     } & {
-        companyId: string;
-        status: import(".prisma/client").$Enums.ApprovalStatus;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        startDate: Date;
         employeeId: string;
-        reason: string | null;
-        leaveTypeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        startDate: Date;
         endDate: Date;
+        leaveTypeId: string;
         totalDays: number;
+        reason: string | null;
         approverId: string | null;
         approverRemarks: string | null;
         decidedAt: Date | null;
@@ -79,33 +79,33 @@ export declare class LeaveRequestsController {
     create(dto: CreateLeaveRequestDto): import(".prisma/client").Prisma.Prisma__LeaveRequestClient<{
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
-        };
-        leaveType: {
-            id: string;
-            code: string;
-            name: string;
-            isPaid: boolean;
         };
         approver: {
             id: string;
             firstName: string;
             lastName: string;
         } | null;
+        leaveType: {
+            id: string;
+            name: string;
+            code: string;
+            isPaid: boolean;
+        };
     } & {
-        companyId: string;
-        status: import(".prisma/client").$Enums.ApprovalStatus;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        startDate: Date;
         employeeId: string;
-        reason: string | null;
-        leaveTypeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        startDate: Date;
         endDate: Date;
+        leaveTypeId: string;
         totalDays: number;
+        reason: string | null;
         approverId: string | null;
         approverRemarks: string | null;
         decidedAt: Date | null;
@@ -113,33 +113,33 @@ export declare class LeaveRequestsController {
     updateStatus(id: string, dto: UpdateLeaveStatusDto): Promise<{
         employee: {
             id: string;
+            employeeCode: string;
             firstName: string;
             lastName: string;
-            employeeCode: string;
-        };
-        leaveType: {
-            id: string;
-            code: string;
-            name: string;
-            isPaid: boolean;
         };
         approver: {
             id: string;
             firstName: string;
             lastName: string;
         } | null;
+        leaveType: {
+            id: string;
+            name: string;
+            code: string;
+            isPaid: boolean;
+        };
     } & {
-        companyId: string;
-        status: import(".prisma/client").$Enums.ApprovalStatus;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        startDate: Date;
         employeeId: string;
-        reason: string | null;
-        leaveTypeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        startDate: Date;
         endDate: Date;
+        leaveTypeId: string;
         totalDays: number;
+        reason: string | null;
         approverId: string | null;
         approverRemarks: string | null;
         decidedAt: Date | null;

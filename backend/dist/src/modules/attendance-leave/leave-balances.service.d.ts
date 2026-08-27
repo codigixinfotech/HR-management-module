@@ -6,8 +6,8 @@ export declare class LeaveBalancesService {
     list(employeeId?: string, year?: number): import(".prisma/client").Prisma.PrismaPromise<({
         leaveType: {
             id: string;
-            code: string;
             name: string;
+            code: string;
             isPaid: boolean;
         };
     } & {

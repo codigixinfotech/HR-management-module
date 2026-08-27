@@ -20,11 +20,11 @@ let PrismaService = PrismaService_1 = class PrismaService extends client_1.Prism
         const rawUrl = config.get('DATABASE_URL') || process.env.DATABASE_URL;
         let dbUrl = rawUrl;
         if (dbUrl && dbUrl.includes('${')) {
-            const host = process.env.DB_HOST || config.get('DB_HOST') || 'localhost';
-            const port = process.env.DB_PORT || config.get('DB_PORT') || '3306';
-            const user = process.env.DB_USER || config.get('DB_USER') || 'root';
-            const password = process.env.DB_PASSWORD || config.get('DB_PASSWORD') || '';
-            const name = process.env.DB_NAME || config.get('DB_NAME') || 'hrm_db';
+            const host = process.env.DB_HOST || config.get('DB_HOST');
+            const port = process.env.DB_PORT || config.get('DB_PORT');
+            const user = process.env.DB_USER || config.get('DB_USER');
+            const password = process.env.DB_PASSWORD || config.get('DB_PASSWORD');
+            const name = process.env.DB_NAME || config.get('DB_NAME');
             dbUrl = `mysql://${user}:${password}@${host}:${port}/${name}`;
         }
         if (dbUrl && !dbUrl.includes('connection_limit')) {

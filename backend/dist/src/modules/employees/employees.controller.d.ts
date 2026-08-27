@@ -14,17 +14,17 @@ export declare class EmployeesController {
                 id: string;
                 name: string;
             };
+            branch: {
+                id: string;
+                name: string;
+            } | null;
             department: {
                 id: string;
                 name: string;
             } | null;
             designation: {
+                id: string;
                 title: string;
-                id: string;
-            } | null;
-            branch: {
-                id: string;
-                name: string;
             } | null;
             reportingManager: {
                 id: string;
@@ -40,43 +40,39 @@ export declare class EmployeesController {
                 uploadedAt: Date;
             }[];
         } & {
-            companyId: string;
-            departmentId: string | null;
-            designationId: string | null;
-            costCenter: string | null;
-            employmentType: import(".prisma/client").$Enums.EmploymentType;
-            reportingManagerId: string | null;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
-            workMode: string | null;
             id: string;
+            companyId: string;
+            location: string | null;
             createdAt: Date;
             updatedAt: Date;
-            branchId: string | null;
-            grade: string | null;
-            country: string | null;
-            state: string | null;
-            city: string | null;
-            pincode: string | null;
-            phone: string | null;
-            businessUnit: string | null;
-            firstName: string;
-            lastName: string;
-            location: string | null;
             employeeCode: string;
+            branchId: string | null;
+            departmentId: string | null;
+            designationId: string | null;
             userId: string | null;
+            reportingManagerId: string | null;
+            firstName: string;
             middleName: string | null;
+            lastName: string;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
+            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
+            employmentType: import(".prisma/client").$Enums.EmploymentType;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
+            businessUnit: string | null;
+            grade: string | null;
             level: string | null;
             shift: string | null;
+            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
+            workMode: string | null;
             probationPeriod: string | null;
             confirmationDate: Date | null;
             emergencyContactRelationship: string | null;
@@ -133,6 +129,10 @@ export declare class EmployeesController {
             salaryEffectiveFrom: Date | null;
             addressLine1: string | null;
             addressLine2: string | null;
+            city: string | null;
+            state: string | null;
+            country: string | null;
+            pincode: string | null;
             faceTemplate: string | null;
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
@@ -160,39 +160,18 @@ export declare class EmployeesController {
             id: string;
             name: string;
         };
+        branch: {
+            id: string;
+            name: string;
+        } | null;
         department: {
             id: string;
             name: string;
         } | null;
         designation: {
+            id: string;
             title: string;
-            id: string;
         } | null;
-        branch: {
-            id: string;
-            name: string;
-        } | null;
-        salaryComponents: ({
-            salaryComponent: {
-                companyId: string;
-                isActive: boolean;
-                id: string;
-                createdAt: Date;
-                updatedAt: Date;
-                code: string;
-                name: string;
-                type: import(".prisma/client").$Enums.SalaryComponentType;
-                isStatutory: boolean;
-            };
-        } & {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            effectiveFrom: Date;
-            employeeId: string;
-            salaryComponentId: string;
-            monthlyAmount: number;
-        })[];
         reportingManager: {
             id: string;
             firstName: string;
@@ -212,47 +191,47 @@ export declare class EmployeesController {
             uploadedAt: Date;
         }[];
         onboardingTasks: {
-            title: string;
-            description: string | null;
-            status: import(".prisma/client").$Enums.ApprovalStatus;
             id: string;
             createdAt: Date;
+            employeeId: string;
+            status: import(".prisma/client").$Enums.ApprovalStatus;
+            description: string | null;
+            title: string;
             dueDate: Date | null;
             completedAt: Date | null;
-            employeeId: string;
             ownerType: string;
         }[];
         courseEnrollments: {
-            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
             employeeId: string;
+            status: string;
+            completionDate: Date | null;
             courseName: string;
             courseType: string;
             enrollmentDate: Date;
-            completionDate: Date | null;
             certification: string | null;
         }[];
         kpis: {
             id: string;
             createdAt: Date;
+            category: string;
             updatedAt: Date;
             employeeId: string;
-            category: string;
+            managerFeedback: string | null;
             kpi: string;
             target: string;
             weightage: number;
             reviewPeriod: string;
             performanceRating: number | null;
-            managerFeedback: string | null;
         }[];
         hrNotes: {
             id: string;
             employeeId: string;
-            createdBy: string;
             note: string;
             noteType: string;
+            createdBy: string;
             createdDate: Date;
         }[];
         timelineEvents: {
@@ -263,22 +242,43 @@ export declare class EmployeesController {
             details: string | null;
             eventType: string;
         }[];
-        currentAssets: {
-            companyId: string;
-            departmentId: string | null;
-            status: import(".prisma/client").$Enums.AssetStatus;
+        salaryComponents: ({
+            salaryComponent: {
+                id: string;
+                companyId: string;
+                createdAt: Date;
+                name: string;
+                updatedAt: Date;
+                code: string;
+                isActive: boolean;
+                type: import(".prisma/client").$Enums.SalaryComponentType;
+                isStatutory: boolean;
+            };
+        } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            branchId: string | null;
+            employeeId: string;
+            effectiveFrom: Date;
+            salaryComponentId: string;
+            monthlyAmount: number;
+        })[];
+        currentAssets: {
+            id: string;
+            companyId: string;
+            createdAt: Date;
             name: string;
-            notes: string | null;
-            remarks: string | null;
             category: string;
+            updatedAt: Date;
+            branchId: string | null;
+            departmentId: string | null;
+            status: import(".prisma/client").$Enums.AssetStatus;
+            remarks: string | null;
+            vendor: string | null;
+            notes: string | null;
             assetTag: string;
             assetType: string | null;
             physicalLocation: string | null;
-            vendor: string | null;
             invoiceNumber: string | null;
             poNumber: string | null;
             serialNumber: string | null;
@@ -293,41 +293,37 @@ export declare class EmployeesController {
             currentEmployeeId: string | null;
             purchaseDate: Date | null;
         }[];
-        companyId: string;
-        departmentId: string | null;
-        designationId: string | null;
-        costCenter: string | null;
-        employmentType: import(".prisma/client").$Enums.EmploymentType;
-        reportingManagerId: string | null;
-        status: import(".prisma/client").$Enums.EmployeeStatus;
-        workMode: string | null;
         id: string;
+        companyId: string;
+        location: string | null;
         createdAt: Date;
         updatedAt: Date;
-        branchId: string | null;
-        country: string | null;
-        state: string | null;
-        city: string | null;
-        pincode: string | null;
-        phone: string | null;
-        businessUnit: string | null;
-        firstName: string;
-        lastName: string;
-        location: string | null;
         employeeCode: string;
+        branchId: string | null;
+        departmentId: string | null;
+        designationId: string | null;
         userId: string | null;
+        reportingManagerId: string | null;
+        firstName: string;
         middleName: string | null;
+        lastName: string;
         gender: import(".prisma/client").$Enums.Gender | null;
         dateOfBirth: Date | null;
         personalEmail: string | null;
         workEmail: string | null;
+        phone: string | null;
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
         dateOfJoining: Date | null;
+        employmentType: import(".prisma/client").$Enums.EmploymentType;
+        status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
+        businessUnit: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
+        workMode: string | null;
         probationPeriod: string | null;
         confirmationDate: Date | null;
         emergencyContactRelationship: string | null;
@@ -384,6 +380,10 @@ export declare class EmployeesController {
         salaryEffectiveFrom: Date | null;
         addressLine1: string | null;
         addressLine2: string | null;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        pincode: string | null;
         faceTemplate: string | null;
         facePhoto: string | null;
         faceRegisteredAt: Date | null;
@@ -411,17 +411,17 @@ export declare class EmployeesController {
             id: string;
             name: string;
         };
+        branch: {
+            id: string;
+            name: string;
+        } | null;
         department: {
             id: string;
             name: string;
         } | null;
         designation: {
+            id: string;
             title: string;
-            id: string;
-        } | null;
-        branch: {
-            id: string;
-            name: string;
         } | null;
         reportingManager: {
             id: string;
@@ -437,43 +437,39 @@ export declare class EmployeesController {
             uploadedAt: Date;
         }[];
     } & {
-        companyId: string;
-        departmentId: string | null;
-        designationId: string | null;
-        costCenter: string | null;
-        employmentType: import(".prisma/client").$Enums.EmploymentType;
-        reportingManagerId: string | null;
-        status: import(".prisma/client").$Enums.EmployeeStatus;
-        workMode: string | null;
         id: string;
+        companyId: string;
+        location: string | null;
         createdAt: Date;
         updatedAt: Date;
-        branchId: string | null;
-        grade: string | null;
-        country: string | null;
-        state: string | null;
-        city: string | null;
-        pincode: string | null;
-        phone: string | null;
-        businessUnit: string | null;
-        firstName: string;
-        lastName: string;
-        location: string | null;
         employeeCode: string;
+        branchId: string | null;
+        departmentId: string | null;
+        designationId: string | null;
         userId: string | null;
+        reportingManagerId: string | null;
+        firstName: string;
         middleName: string | null;
+        lastName: string;
         gender: import(".prisma/client").$Enums.Gender | null;
         dateOfBirth: Date | null;
         personalEmail: string | null;
         workEmail: string | null;
+        phone: string | null;
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
         dateOfJoining: Date | null;
+        employmentType: import(".prisma/client").$Enums.EmploymentType;
+        status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
+        businessUnit: string | null;
+        grade: string | null;
         level: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
+        workMode: string | null;
         probationPeriod: string | null;
         confirmationDate: Date | null;
         emergencyContactRelationship: string | null;
@@ -530,6 +526,10 @@ export declare class EmployeesController {
         salaryEffectiveFrom: Date | null;
         addressLine1: string | null;
         addressLine2: string | null;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        pincode: string | null;
         faceTemplate: string | null;
         facePhoto: string | null;
         faceRegisteredAt: Date | null;
@@ -540,17 +540,17 @@ export declare class EmployeesController {
             id: string;
             name: string;
         };
+        branch: {
+            id: string;
+            name: string;
+        } | null;
         department: {
             id: string;
             name: string;
         } | null;
         designation: {
+            id: string;
             title: string;
-            id: string;
-        } | null;
-        branch: {
-            id: string;
-            name: string;
         } | null;
         reportingManager: {
             id: string;
@@ -566,43 +566,39 @@ export declare class EmployeesController {
             uploadedAt: Date;
         }[];
     } & {
-        companyId: string;
-        departmentId: string | null;
-        designationId: string | null;
-        costCenter: string | null;
-        employmentType: import(".prisma/client").$Enums.EmploymentType;
-        reportingManagerId: string | null;
-        status: import(".prisma/client").$Enums.EmployeeStatus;
-        workMode: string | null;
         id: string;
+        companyId: string;
+        location: string | null;
         createdAt: Date;
         updatedAt: Date;
-        branchId: string | null;
-        grade: string | null;
-        country: string | null;
-        state: string | null;
-        city: string | null;
-        pincode: string | null;
-        phone: string | null;
-        businessUnit: string | null;
-        firstName: string;
-        lastName: string;
-        location: string | null;
         employeeCode: string;
+        branchId: string | null;
+        departmentId: string | null;
+        designationId: string | null;
         userId: string | null;
+        reportingManagerId: string | null;
+        firstName: string;
         middleName: string | null;
+        lastName: string;
         gender: import(".prisma/client").$Enums.Gender | null;
         dateOfBirth: Date | null;
         personalEmail: string | null;
         workEmail: string | null;
+        phone: string | null;
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
         dateOfJoining: Date | null;
+        employmentType: import(".prisma/client").$Enums.EmploymentType;
+        status: import(".prisma/client").$Enums.EmployeeStatus;
         dateOfExit: Date | null;
+        businessUnit: string | null;
+        grade: string | null;
         level: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
+        workMode: string | null;
         probationPeriod: string | null;
         confirmationDate: Date | null;
         emergencyContactRelationship: string | null;
@@ -659,6 +655,10 @@ export declare class EmployeesController {
         salaryEffectiveFrom: Date | null;
         addressLine1: string | null;
         addressLine2: string | null;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        pincode: string | null;
         faceTemplate: string | null;
         facePhoto: string | null;
         faceRegisteredAt: Date | null;
@@ -687,36 +687,36 @@ export declare class EmployeesController {
         success: boolean;
     }>;
     listOnboardingTasks(id: string): Promise<{
-        title: string;
-        description: string | null;
-        status: import(".prisma/client").$Enums.ApprovalStatus;
         id: string;
         createdAt: Date;
+        employeeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        description: string | null;
+        title: string;
         dueDate: Date | null;
         completedAt: Date | null;
-        employeeId: string;
         ownerType: string;
     }[]>;
     createOnboardingTask(id: string, dto: CreateOnboardingTaskDto): Promise<{
-        title: string;
-        description: string | null;
-        status: import(".prisma/client").$Enums.ApprovalStatus;
         id: string;
         createdAt: Date;
+        employeeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        description: string | null;
+        title: string;
         dueDate: Date | null;
         completedAt: Date | null;
-        employeeId: string;
         ownerType: string;
     }>;
     updateOnboardingTaskStatus(taskId: string, status: ApprovalStatus): Promise<{
-        title: string;
-        description: string | null;
-        status: import(".prisma/client").$Enums.ApprovalStatus;
         id: string;
         createdAt: Date;
+        employeeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        description: string | null;
+        title: string;
         dueDate: Date | null;
         completedAt: Date | null;
-        employeeId: string;
         ownerType: string;
     }>;
     enrollInCourse(id: string, dto: {
@@ -725,15 +725,15 @@ export declare class EmployeesController {
         status?: string;
         certification?: string;
     }): Promise<{
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         employeeId: string;
+        status: string;
+        completionDate: Date | null;
         courseName: string;
         courseType: string;
         enrollmentDate: Date;
-        completionDate: Date | null;
         certification: string | null;
     }>;
     addKpi(id: string, dto: {
@@ -747,15 +747,15 @@ export declare class EmployeesController {
     }): Promise<{
         id: string;
         createdAt: Date;
+        category: string;
         updatedAt: Date;
         employeeId: string;
-        category: string;
+        managerFeedback: string | null;
         kpi: string;
         target: string;
         weightage: number;
         reviewPeriod: string;
         performanceRating: number | null;
-        managerFeedback: string | null;
     }>;
     addHrNote(id: string, dto: {
         note: string;
@@ -764,9 +764,9 @@ export declare class EmployeesController {
     }): Promise<{
         id: string;
         employeeId: string;
-        createdBy: string;
         note: string;
         noteType: string;
+        createdBy: string;
         createdDate: Date;
     }>;
 }

@@ -5,35 +5,39 @@ export declare class InterviewsController {
     constructor(interviewsService: InterviewsService);
     create(dto: CreateInterviewDto): Promise<{
         jobOpening: {
+            id: string;
             companyId: string;
+            createdAt: Date;
+            updatedAt: Date;
             departmentId: string | null;
             designationId: string | null;
+            reportingManagerId: string | null;
+            employmentType: string | null;
+            status: string;
+            costCenter: string | null;
+            workMode: string | null;
+            description: string | null;
+            isActive: boolean;
+            title: string;
+            minSalary: number | null;
+            maxSalary: number | null;
+            priority: string | null;
+            candidateType: string | null;
+            qualification: string | null;
+            graduationYear: string | null;
+            experience: string | null;
             manpowerRequisitionId: string | null;
             requisitionCode: string | null;
             manpowerPlanCode: string | null;
             mrNumber: string | null;
-            title: string;
-            description: string | null;
             responsibilities: string | null;
             numPositions: number;
-            costCenter: string | null;
-            employmentType: string | null;
-            priority: string | null;
-            candidateType: string | null;
             minExperience: number | null;
             maxExperience: number | null;
-            graduationYear: string | null;
-            minSalary: number | null;
-            maxSalary: number | null;
-            qualification: string | null;
-            experience: string | null;
             requiredSkills: string | null;
             workLocation: string | null;
-            reportingManagerId: string | null;
             applicationDeadline: Date | null;
-            status: string;
-            isActive: boolean;
-            workMode: string | null;
+            publishedAt: Date | null;
             hiringManagerId: string | null;
             recruiterId: string | null;
             hrbpId: string | null;
@@ -49,26 +53,24 @@ export declare class InterviewsController {
             hasAssessment: boolean | null;
             internalNotes: string | null;
             internalJustification: string | null;
-            id: string;
-            publishedAt: Date | null;
-            createdAt: Date;
-            updatedAt: Date;
         } | null;
         candidate: {
-            candidateType: string | null;
-            graduationYear: string | null;
-            qualification: string | null;
-            experience: string | null;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            email: string;
-            phone: string | null;
-            jobOpeningId: string;
             firstName: string;
             lastName: string;
+            phone: string | null;
+            email: string;
+            notes: string | null;
+            source: string | null;
+            jobOpeningId: string;
             resumePath: string | null;
+            candidateType: string | null;
+            qualification: string | null;
+            graduationYear: string | null;
             internshipDetails: string | null;
+            experience: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
             skills: string | null;
@@ -76,25 +78,23 @@ export declare class InterviewsController {
             expectedCtc: number | null;
             noticePeriod: string | null;
             coverLetter: string | null;
-            source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
             aiMatchScore: number | null;
-            notes: string | null;
         };
         panelMembers: ({
             interviewer: {
                 id: string;
+                employeeCode: string;
+                firstName: string;
+                lastName: string;
                 department: {
                     id: string;
                     name: string;
                 } | null;
                 designation: {
-                    title: string;
                     id: string;
+                    title: string;
                 } | null;
-                firstName: string;
-                lastName: string;
-                employeeCode: string;
             };
         } & {
             id: string;
@@ -127,55 +127,55 @@ export declare class InterviewsController {
             submittedAt: Date;
         }[];
     } & {
-        requisitionCode: string | null;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        jobOpeningId: string | null;
+        status: string;
         notes: string | null;
-        createdById: string | null;
-        candidateId: string;
+        startTime: string;
+        endTime: string | null;
+        jobOpeningId: string | null;
+        requisitionCode: string | null;
         interviewCode: string;
         position: string;
         interviewDate: Date;
-        startTime: string;
-        endTime: string | null;
         interviewFormat: string;
         meetingLink: string | null;
+        createdById: string | null;
         createdByName: string | null;
+        candidateId: string;
     }>;
     list(interviewerId?: string, candidateId?: string, status?: string, filterTab?: string, search?: string): Promise<({
         jobOpening: {
-            requisitionCode: string | null;
-            title: string;
             id: string;
+            title: string;
+            requisitionCode: string | null;
         } | null;
         candidate: {
-            qualification: string | null;
-            experience: string | null;
             id: string;
-            email: string;
-            phone: string | null;
             firstName: string;
             lastName: string;
+            phone: string | null;
+            email: string;
             resumePath: string | null;
+            qualification: string | null;
+            experience: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
         };
         panelMembers: ({
             interviewer: {
                 id: string;
+                employeeCode: string;
+                firstName: string;
+                lastName: string;
                 department: {
                     id: string;
                     name: string;
                 } | null;
                 designation: {
-                    title: string;
                     id: string;
+                    title: string;
                 } | null;
-                firstName: string;
-                lastName: string;
-                employeeCode: string;
             };
         } & {
             id: string;
@@ -191,9 +191,9 @@ export declare class InterviewsController {
         evaluations: ({
             interviewer: {
                 id: string;
+                employeeCode: string;
                 firstName: string;
                 lastName: string;
-                employeeCode: string;
             };
         } & {
             id: string;
@@ -215,23 +215,23 @@ export declare class InterviewsController {
             submittedAt: Date;
         })[];
     } & {
-        requisitionCode: string | null;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        jobOpeningId: string | null;
+        status: string;
         notes: string | null;
-        createdById: string | null;
-        candidateId: string;
+        startTime: string;
+        endTime: string | null;
+        jobOpeningId: string | null;
+        requisitionCode: string | null;
         interviewCode: string;
         position: string;
         interviewDate: Date;
-        startTime: string;
-        endTime: string | null;
         interviewFormat: string;
         meetingLink: string | null;
+        createdById: string | null;
         createdByName: string | null;
+        candidateId: string;
     })[]>;
     getDashboardSummary(): Promise<{
         total: number;
@@ -257,23 +257,23 @@ export declare class InterviewsController {
             submittedAt: Date;
         }[];
     } & {
-        requisitionCode: string | null;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        jobOpeningId: string | null;
+        status: string;
         notes: string | null;
-        createdById: string | null;
-        candidateId: string;
+        startTime: string;
+        endTime: string | null;
+        jobOpeningId: string | null;
+        requisitionCode: string | null;
         interviewCode: string;
         position: string;
         interviewDate: Date;
-        startTime: string;
-        endTime: string | null;
         interviewFormat: string;
         meetingLink: string | null;
+        createdById: string | null;
         createdByName: string | null;
+        candidateId: string;
     })[]>;
     getReminders(interviewerId?: string): Promise<{
         id: string;
@@ -292,35 +292,39 @@ export declare class InterviewsController {
     }[]>;
     findOne(id: string): Promise<{
         jobOpening: {
+            id: string;
             companyId: string;
+            createdAt: Date;
+            updatedAt: Date;
             departmentId: string | null;
             designationId: string | null;
+            reportingManagerId: string | null;
+            employmentType: string | null;
+            status: string;
+            costCenter: string | null;
+            workMode: string | null;
+            description: string | null;
+            isActive: boolean;
+            title: string;
+            minSalary: number | null;
+            maxSalary: number | null;
+            priority: string | null;
+            candidateType: string | null;
+            qualification: string | null;
+            graduationYear: string | null;
+            experience: string | null;
             manpowerRequisitionId: string | null;
             requisitionCode: string | null;
             manpowerPlanCode: string | null;
             mrNumber: string | null;
-            title: string;
-            description: string | null;
             responsibilities: string | null;
             numPositions: number;
-            costCenter: string | null;
-            employmentType: string | null;
-            priority: string | null;
-            candidateType: string | null;
             minExperience: number | null;
             maxExperience: number | null;
-            graduationYear: string | null;
-            minSalary: number | null;
-            maxSalary: number | null;
-            qualification: string | null;
-            experience: string | null;
             requiredSkills: string | null;
             workLocation: string | null;
-            reportingManagerId: string | null;
             applicationDeadline: Date | null;
-            status: string;
-            isActive: boolean;
-            workMode: string | null;
+            publishedAt: Date | null;
             hiringManagerId: string | null;
             recruiterId: string | null;
             hrbpId: string | null;
@@ -336,38 +340,34 @@ export declare class InterviewsController {
             hasAssessment: boolean | null;
             internalNotes: string | null;
             internalJustification: string | null;
-            id: string;
-            publishedAt: Date | null;
-            createdAt: Date;
-            updatedAt: Date;
         } | null;
         candidate: {
-            qualification: string | null;
-            experience: string | null;
             id: string;
-            email: string;
-            phone: string | null;
             firstName: string;
             lastName: string;
+            phone: string | null;
+            email: string;
+            notes: string | null;
             resumePath: string | null;
+            qualification: string | null;
+            experience: string | null;
             skills: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
-            notes: string | null;
         };
         panelMembers: ({
             interviewer: {
                 id: string;
+                employeeCode: string;
+                firstName: string;
+                lastName: string;
                 department: {
                     id: string;
                     name: string;
                 } | null;
                 designation: {
-                    title: string;
                     id: string;
+                    title: string;
                 } | null;
-                firstName: string;
-                lastName: string;
-                employeeCode: string;
             };
         } & {
             id: string;
@@ -383,12 +383,12 @@ export declare class InterviewsController {
         evaluations: ({
             interviewer: {
                 id: string;
+                employeeCode: string;
+                firstName: string;
+                lastName: string;
                 designation: {
                     title: string;
                 } | null;
-                firstName: string;
-                lastName: string;
-                employeeCode: string;
             };
         } & {
             id: string;
@@ -410,40 +410,42 @@ export declare class InterviewsController {
             submittedAt: Date;
         })[];
     } & {
-        requisitionCode: string | null;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        jobOpeningId: string | null;
+        status: string;
         notes: string | null;
-        createdById: string | null;
-        candidateId: string;
+        startTime: string;
+        endTime: string | null;
+        jobOpeningId: string | null;
+        requisitionCode: string | null;
         interviewCode: string;
         position: string;
         interviewDate: Date;
-        startTime: string;
-        endTime: string | null;
         interviewFormat: string;
         meetingLink: string | null;
+        createdById: string | null;
         createdByName: string | null;
+        candidateId: string;
     }>;
     updateSchedule(id: string, dto: UpdateInterviewScheduleDto): Promise<{
         candidate: {
-            candidateType: string | null;
-            graduationYear: string | null;
-            qualification: string | null;
-            experience: string | null;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            email: string;
-            phone: string | null;
-            jobOpeningId: string;
             firstName: string;
             lastName: string;
+            phone: string | null;
+            email: string;
+            notes: string | null;
+            source: string | null;
+            jobOpeningId: string;
             resumePath: string | null;
+            candidateType: string | null;
+            qualification: string | null;
+            graduationYear: string | null;
             internshipDetails: string | null;
+            experience: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
             skills: string | null;
@@ -451,50 +453,44 @@ export declare class InterviewsController {
             expectedCtc: number | null;
             noticePeriod: string | null;
             coverLetter: string | null;
-            source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
             aiMatchScore: number | null;
-            notes: string | null;
         };
         panelMembers: ({
             interviewer: {
-                companyId: string;
-                departmentId: string | null;
-                designationId: string | null;
-                costCenter: string | null;
-                employmentType: import(".prisma/client").$Enums.EmploymentType;
-                reportingManagerId: string | null;
-                status: import(".prisma/client").$Enums.EmployeeStatus;
-                workMode: string | null;
                 id: string;
+                companyId: string;
+                location: string | null;
                 createdAt: Date;
                 updatedAt: Date;
-                branchId: string | null;
-                grade: string | null;
-                country: string | null;
-                state: string | null;
-                city: string | null;
-                pincode: string | null;
-                phone: string | null;
-                businessUnit: string | null;
-                firstName: string;
-                lastName: string;
-                location: string | null;
                 employeeCode: string;
+                branchId: string | null;
+                departmentId: string | null;
+                designationId: string | null;
                 userId: string | null;
+                reportingManagerId: string | null;
+                firstName: string;
                 middleName: string | null;
+                lastName: string;
                 gender: import(".prisma/client").$Enums.Gender | null;
                 dateOfBirth: Date | null;
                 personalEmail: string | null;
                 workEmail: string | null;
+                phone: string | null;
                 emergencyContactName: string | null;
                 emergencyContactPhone: string | null;
                 dateOfJoining: Date | null;
+                employmentType: import(".prisma/client").$Enums.EmploymentType;
+                status: import(".prisma/client").$Enums.EmployeeStatus;
                 dateOfExit: Date | null;
+                businessUnit: string | null;
+                grade: string | null;
                 level: string | null;
                 shift: string | null;
+                costCenter: string | null;
                 employeeCategory: string | null;
                 workPhone: string | null;
+                workMode: string | null;
                 probationPeriod: string | null;
                 confirmationDate: Date | null;
                 emergencyContactRelationship: string | null;
@@ -551,6 +547,10 @@ export declare class InterviewsController {
                 salaryEffectiveFrom: Date | null;
                 addressLine1: string | null;
                 addressLine2: string | null;
+                city: string | null;
+                state: string | null;
+                country: string | null;
+                pincode: string | null;
                 faceTemplate: string | null;
                 facePhoto: string | null;
                 faceRegisteredAt: Date | null;
@@ -587,40 +587,42 @@ export declare class InterviewsController {
             submittedAt: Date;
         }[];
     } & {
-        requisitionCode: string | null;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        jobOpeningId: string | null;
+        status: string;
         notes: string | null;
-        createdById: string | null;
-        candidateId: string;
+        startTime: string;
+        endTime: string | null;
+        jobOpeningId: string | null;
+        requisitionCode: string | null;
         interviewCode: string;
         position: string;
         interviewDate: Date;
-        startTime: string;
-        endTime: string | null;
         interviewFormat: string;
         meetingLink: string | null;
+        createdById: string | null;
         createdByName: string | null;
+        candidateId: string;
     }>;
     updateStatus(id: string, dto: UpdateInterviewStatusDto): Promise<{
         candidate: {
-            candidateType: string | null;
-            graduationYear: string | null;
-            qualification: string | null;
-            experience: string | null;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            email: string;
-            phone: string | null;
-            jobOpeningId: string;
             firstName: string;
             lastName: string;
+            phone: string | null;
+            email: string;
+            notes: string | null;
+            source: string | null;
+            jobOpeningId: string;
             resumePath: string | null;
+            candidateType: string | null;
+            qualification: string | null;
+            graduationYear: string | null;
             internshipDetails: string | null;
+            experience: string | null;
             currentCompany: string | null;
             currentLocation: string | null;
             skills: string | null;
@@ -628,10 +630,8 @@ export declare class InterviewsController {
             expectedCtc: number | null;
             noticePeriod: string | null;
             coverLetter: string | null;
-            source: string | null;
             stage: import(".prisma/client").$Enums.CandidateStage;
             aiMatchScore: number | null;
-            notes: string | null;
         };
         panelMembers: {
             id: string;
@@ -664,23 +664,23 @@ export declare class InterviewsController {
             submittedAt: Date;
         }[];
     } & {
-        requisitionCode: string | null;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        jobOpeningId: string | null;
+        status: string;
         notes: string | null;
-        createdById: string | null;
-        candidateId: string;
+        startTime: string;
+        endTime: string | null;
+        jobOpeningId: string | null;
+        requisitionCode: string | null;
         interviewCode: string;
         position: string;
         interviewDate: Date;
-        startTime: string;
-        endTime: string | null;
         interviewFormat: string;
         meetingLink: string | null;
+        createdById: string | null;
         createdByName: string | null;
+        candidateId: string;
     }>;
     submitEvaluation(id: string, dto: SubmitEvaluationDto): Promise<{
         evaluation: {

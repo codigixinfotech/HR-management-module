@@ -7,8 +7,8 @@ export declare class RolesController {
     list(): import(".prisma/client").Prisma.PrismaPromise<({
         permissions: ({
             permission: {
-                description: string | null;
                 id: string;
+                description: string | null;
                 code: string;
                 action: string;
                 module: string;
@@ -19,17 +19,17 @@ export declare class RolesController {
             permissionId: string;
         })[];
     } & {
-        companyId: string | null;
-        description: string | null;
         id: string;
+        companyId: string | null;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
+        description: string | null;
         isSystem: boolean;
     })[]>;
     listPermissions(): import(".prisma/client").Prisma.PrismaPromise<{
-        description: string | null;
         id: string;
+        description: string | null;
         code: string;
         action: string;
         module: string;
@@ -37,8 +37,8 @@ export declare class RolesController {
     findOne(id: string): Promise<{
         permissions: ({
             permission: {
-                description: string | null;
                 id: string;
+                description: string | null;
                 code: string;
                 action: string;
                 module: string;
@@ -49,19 +49,19 @@ export declare class RolesController {
             permissionId: string;
         })[];
     } & {
-        companyId: string | null;
-        description: string | null;
         id: string;
+        companyId: string | null;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
+        description: string | null;
         isSystem: boolean;
     }>;
     create(dto: CreateRoleDto): Promise<{
         permissions: ({
             permission: {
-                description: string | null;
                 id: string;
+                description: string | null;
                 code: string;
                 action: string;
                 module: string;
@@ -72,19 +72,19 @@ export declare class RolesController {
             permissionId: string;
         })[];
     } & {
-        companyId: string | null;
-        description: string | null;
         id: string;
+        companyId: string | null;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
+        description: string | null;
         isSystem: boolean;
     }>;
     update(id: string, dto: UpdateRoleDto): Promise<{
         permissions: ({
             permission: {
-                description: string | null;
                 id: string;
+                description: string | null;
                 code: string;
                 action: string;
                 module: string;
@@ -95,12 +95,12 @@ export declare class RolesController {
             permissionId: string;
         })[];
     } & {
-        companyId: string | null;
-        description: string | null;
         id: string;
+        companyId: string | null;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
+        updatedAt: Date;
+        description: string | null;
         isSystem: boolean;
     }>;
     remove(id: string): Promise<{

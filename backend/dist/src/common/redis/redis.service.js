@@ -21,7 +21,7 @@ let RedisService = RedisService_1 = class RedisService extends ioredis_1.default
     logger = new common_1.Logger(RedisService_1.name);
     hasLoggedConnectionError = false;
     constructor(config) {
-        super(config.get('REDIS_URL', 'redis://localhost:6379'), {
+        super(config.get('REDIS_URL') || process.env.REDIS_URL || '', {
             lazyConnect: true,
             maxRetriesPerRequest: 2,
         });

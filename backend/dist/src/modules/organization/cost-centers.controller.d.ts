@@ -4,25 +4,25 @@ export declare class CostCentersController {
     private readonly service;
     constructor(service: CostCentersService);
     list(companyId?: string, branchId?: string, departmentId?: string): Promise<({
-        department: {
-            id: string;
-            name: string;
-        } | null;
         branch: {
             id: string;
             name: string;
         } | null;
+        department: {
+            id: string;
+            name: string;
+        } | null;
     } & {
-        companyId: string;
-        departmentId: string | null;
-        description: string | null;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
         branchId: string | null;
+        departmentId: string | null;
+        description: string | null;
         code: string;
-        name: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
@@ -31,25 +31,25 @@ export declare class CostCentersController {
         budget: import("@prisma/client/runtime/library").Decimal;
     })[]>;
     findOne(id: string): Promise<{
-        department: {
-            id: string;
-            name: string;
-        } | null;
         branch: {
             id: string;
             name: string;
         } | null;
+        department: {
+            id: string;
+            name: string;
+        } | null;
     } & {
-        companyId: string;
-        departmentId: string | null;
-        description: string | null;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
         branchId: string | null;
+        departmentId: string | null;
+        description: string | null;
         code: string;
-        name: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
@@ -58,16 +58,16 @@ export declare class CostCentersController {
         budget: import("@prisma/client/runtime/library").Decimal;
     }>;
     create(dto: CreateCostCenterDto): Promise<{
-        companyId: string;
-        departmentId: string | null;
-        description: string | null;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
         branchId: string | null;
+        departmentId: string | null;
+        description: string | null;
         code: string;
-        name: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
@@ -76,16 +76,16 @@ export declare class CostCentersController {
         budget: import("@prisma/client/runtime/library").Decimal;
     }>;
     update(id: string, dto: UpdateCostCenterDto): Promise<{
-        companyId: string;
-        departmentId: string | null;
-        description: string | null;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
         branchId: string | null;
+        departmentId: string | null;
+        description: string | null;
         code: string;
-        name: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
@@ -94,16 +94,16 @@ export declare class CostCentersController {
         budget: import("@prisma/client/runtime/library").Decimal;
     }>;
     remove(id: string): Promise<{
-        companyId: string;
-        departmentId: string | null;
-        description: string | null;
-        isActive: boolean;
         id: string;
+        companyId: string;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
         branchId: string | null;
+        departmentId: string | null;
+        description: string | null;
         code: string;
-        name: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;

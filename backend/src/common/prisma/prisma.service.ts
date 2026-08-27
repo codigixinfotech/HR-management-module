@@ -14,11 +14,11 @@ export class PrismaService
 
     let dbUrl = rawUrl;
     if (dbUrl && dbUrl.includes('${')) {
-      const host = process.env.DB_HOST || config.get<string>('DB_HOST') || 'localhost';
-      const port = process.env.DB_PORT || config.get<string>('DB_PORT') || '3306';
-      const user = process.env.DB_USER || config.get<string>('DB_USER') || 'root';
-      const password = process.env.DB_PASSWORD || config.get<string>('DB_PASSWORD') || '';
-      const name = process.env.DB_NAME || config.get<string>('DB_NAME') || 'hrm_db';
+      const host = process.env.DB_HOST || config.get<string>('DB_HOST');
+      const port = process.env.DB_PORT || config.get<string>('DB_PORT');
+      const user = process.env.DB_USER || config.get<string>('DB_USER');
+      const password = process.env.DB_PASSWORD || config.get<string>('DB_PASSWORD');
+      const name = process.env.DB_NAME || config.get<string>('DB_NAME');
 
       dbUrl = `mysql://${user}:${password}@${host}:${port}/${name}`;
     }

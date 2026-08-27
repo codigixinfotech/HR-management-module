@@ -8,15 +8,15 @@ export declare class AttendanceController {
         status: string;
         employee: {
             id: string;
+            employeeCode: string;
+            firstName: string;
+            lastName: string;
+            faceTemplate: string | null;
+            facePhoto: string | null;
             department: {
                 id: string;
                 name: string;
             } | null;
-            firstName: string;
-            lastName: string;
-            employeeCode: string;
-            faceTemplate: string | null;
-            facePhoto: string | null;
         };
         shiftType: {
             id: string;
@@ -24,18 +24,18 @@ export declare class AttendanceController {
             startTime: string;
             endTime: string;
         } | null;
-        companyId: string;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        source: string;
-        remarks: string | null;
         employeeId: string;
+        remarks: string | null;
         date: Date;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        source: string;
         faceVerificationStatus: string | null;
         faceMatchScore: number | null;
         ipAddress: string | null;
@@ -56,15 +56,15 @@ export declare class AttendanceController {
         status: string;
         employee: {
             id: string;
+            employeeCode: string;
+            firstName: string;
+            lastName: string;
+            faceTemplate: string | null;
+            facePhoto: string | null;
             department: {
                 id: string;
                 name: string;
             } | null;
-            firstName: string;
-            lastName: string;
-            employeeCode: string;
-            faceTemplate: string | null;
-            facePhoto: string | null;
         };
         shiftType: {
             id: string;
@@ -72,18 +72,18 @@ export declare class AttendanceController {
             startTime: string;
             endTime: string;
         } | null;
-        companyId: string;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        source: string;
-        remarks: string | null;
         employeeId: string;
+        remarks: string | null;
         date: Date;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        source: string;
         faceVerificationStatus: string | null;
         faceMatchScore: number | null;
         ipAddress: string | null;
@@ -104,15 +104,15 @@ export declare class AttendanceController {
         status: any;
         employee: {
             id: string;
+            employeeCode: string;
+            firstName: string;
+            lastName: string;
+            faceTemplate: string | null;
+            facePhoto: string | null;
             department: {
                 id: string;
                 name: string;
             } | null;
-            firstName: string;
-            lastName: string;
-            employeeCode: string;
-            faceTemplate: string | null;
-            facePhoto: string | null;
         };
         shiftType: {
             id: string;
@@ -120,18 +120,18 @@ export declare class AttendanceController {
             startTime: string;
             endTime: string;
         } | null;
-        companyId: string;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        source: string;
-        remarks: string | null;
         employeeId: string;
+        remarks: string | null;
         date: Date;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        source: string;
         faceVerificationStatus: string | null;
         faceMatchScore: number | null;
         ipAddress: string | null;
@@ -151,15 +151,15 @@ export declare class AttendanceController {
     update(id: string, dto: UpdateAttendanceDto): Promise<{
         employee: {
             id: string;
+            employeeCode: string;
+            firstName: string;
+            lastName: string;
+            faceTemplate: string | null;
+            facePhoto: string | null;
             department: {
                 id: string;
                 name: string;
             } | null;
-            firstName: string;
-            lastName: string;
-            employeeCode: string;
-            faceTemplate: string | null;
-            facePhoto: string | null;
         };
         shiftType: {
             id: string;
@@ -168,19 +168,19 @@ export declare class AttendanceController {
             endTime: string;
         } | null;
     } & {
-        companyId: string;
-        status: import(".prisma/client").$Enums.AttendanceStatus;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        source: string;
-        remarks: string | null;
         employeeId: string;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
+        remarks: string | null;
         date: Date;
         shiftTypeId: string | null;
         checkIn: Date | null;
         checkOut: Date | null;
         workedMinutes: number | null;
+        source: string;
         faceVerificationStatus: string | null;
         faceMatchScore: number | null;
         ipAddress: string | null;

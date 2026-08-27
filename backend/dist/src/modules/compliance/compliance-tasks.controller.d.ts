@@ -7,9 +7,9 @@ export declare class ComplianceTasksController {
         items: ({
             complianceType: {
                 id: string;
-                code: string;
                 name: string;
                 category: string;
+                code: string;
                 frequency: import(".prisma/client").$Enums.ComplianceFrequency;
             };
             filedBy: {
@@ -18,15 +18,15 @@ export declare class ComplianceTasksController {
                 lastName: string;
             } | null;
         } & {
-            companyId: string;
-            status: import(".prisma/client").$Enums.ComplianceStatus;
             id: string;
+            companyId: string;
             createdAt: Date;
             updatedAt: Date;
-            dueDate: Date;
+            status: import(".prisma/client").$Enums.ComplianceStatus;
             remarks: string | null;
             complianceTypeId: string;
             periodLabel: string;
+            dueDate: Date;
             filedDate: Date | null;
             filedById: string | null;
         })[];
@@ -37,9 +37,9 @@ export declare class ComplianceTasksController {
     findOne(id: string): Promise<{
         complianceType: {
             id: string;
-            code: string;
             name: string;
             category: string;
+            code: string;
             frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
@@ -48,24 +48,24 @@ export declare class ComplianceTasksController {
             lastName: string;
         } | null;
     } & {
-        companyId: string;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        dueDate: Date;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
+        dueDate: Date;
         filedDate: Date | null;
         filedById: string | null;
     }>;
     create(dto: CreateComplianceTaskDto): import(".prisma/client").Prisma.Prisma__ComplianceTaskClient<{
         complianceType: {
             id: string;
-            code: string;
             name: string;
             category: string;
+            code: string;
             frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
@@ -74,24 +74,24 @@ export declare class ComplianceTasksController {
             lastName: string;
         } | null;
     } & {
-        companyId: string;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        dueDate: Date;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
+        dueDate: Date;
         filedDate: Date | null;
         filedById: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     updateStatus(id: string, dto: UpdateComplianceTaskStatusDto): Promise<{
         complianceType: {
             id: string;
-            code: string;
             name: string;
             category: string;
+            code: string;
             frequency: import(".prisma/client").$Enums.ComplianceFrequency;
         };
         filedBy: {
@@ -100,15 +100,15 @@ export declare class ComplianceTasksController {
             lastName: string;
         } | null;
     } & {
-        companyId: string;
-        status: import(".prisma/client").$Enums.ComplianceStatus;
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        dueDate: Date;
+        status: import(".prisma/client").$Enums.ComplianceStatus;
         remarks: string | null;
         complianceTypeId: string;
         periodLabel: string;
+        dueDate: Date;
         filedDate: Date | null;
         filedById: string | null;
     }>;

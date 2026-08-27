@@ -4,23 +4,23 @@ export declare class SafetyAuditsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
-        companyId: string;
         id: string;
-        createdAt: Date;
+        companyId: string;
         location: string;
         auditDate: Date;
         score: number;
         auditor: string;
         findings: string | null;
+        createdAt: Date;
     }[]>;
     create(dto: CreateSafetyAuditDto): import(".prisma/client").Prisma.Prisma__SafetyAuditClient<{
-        companyId: string;
         id: string;
-        createdAt: Date;
+        companyId: string;
         location: string;
         auditDate: Date;
         score: number;
         auditor: string;
         findings: string | null;
+        createdAt: Date;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
 }

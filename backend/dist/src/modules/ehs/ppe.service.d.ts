@@ -4,65 +4,65 @@ export declare class PpeService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
-        companyId: string;
         id: string;
+        companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
         category: string;
         stockQuantity: number;
+        updatedAt: Date;
     }[]>;
     findById(id: string): Promise<{
-        companyId: string;
         id: string;
+        companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
         category: string;
         stockQuantity: number;
+        updatedAt: Date;
     }>;
     create(dto: CreatePpeItemDto): import(".prisma/client").Prisma.Prisma__PpeItemClient<{
-        companyId: string;
         id: string;
+        companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
         category: string;
         stockQuantity: number;
+        updatedAt: Date;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdatePpeItemDto): Promise<{
-        companyId: string;
         id: string;
+        companyId: string;
         createdAt: Date;
-        updatedAt: Date;
         name: string;
         category: string;
         stockQuantity: number;
+        updatedAt: Date;
     }>;
     remove(id: string): Promise<{
         success: boolean;
     }>;
     issue(id: string, dto: IssuePpeDto): Promise<{
         id: string;
-        employeeId: string;
         ppeItemId: string;
+        employeeId: string;
         quantity: number;
         issuedAt: Date;
     }>;
     listIssuances(ppeItemId?: string): import(".prisma/client").Prisma.PrismaPromise<({
+        ppeItem: {
+            id: string;
+            name: string;
+        };
         employee: {
             id: string;
             firstName: string;
             lastName: string;
         };
-        ppeItem: {
-            id: string;
-            name: string;
-        };
     } & {
         id: string;
-        employeeId: string;
         ppeItemId: string;
+        employeeId: string;
         quantity: number;
         issuedAt: Date;
     })[]>;

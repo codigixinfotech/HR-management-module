@@ -6,8 +6,8 @@ export declare class SalaryStructureController {
     list(employeeId: string): import(".prisma/client").Prisma.PrismaPromise<({
         salaryComponent: {
             id: string;
-            code: string;
             name: string;
+            code: string;
             type: import(".prisma/client").$Enums.SalaryComponentType;
             isStatutory: boolean;
         };
@@ -15,16 +15,16 @@ export declare class SalaryStructureController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
         employeeId: string;
+        effectiveFrom: Date;
         salaryComponentId: string;
         monthlyAmount: number;
     })[]>;
     assign(dto: AssignSalaryComponentDto): import(".prisma/client").Prisma.Prisma__EmployeeSalaryComponentClient<{
         salaryComponent: {
             id: string;
-            code: string;
             name: string;
+            code: string;
             type: import(".prisma/client").$Enums.SalaryComponentType;
             isStatutory: boolean;
         };
@@ -32,8 +32,8 @@ export declare class SalaryStructureController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        effectiveFrom: Date;
         employeeId: string;
+        effectiveFrom: Date;
         salaryComponentId: string;
         monthlyAmount: number;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
