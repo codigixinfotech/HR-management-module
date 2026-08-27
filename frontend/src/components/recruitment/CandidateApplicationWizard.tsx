@@ -22,6 +22,7 @@ import {
   Award,
   Check,
   Edit2,
+  Pencil,
   RefreshCw,
   Mail,
   Phone,
@@ -51,6 +52,13 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { jobOpeningsApi } from '@/api/recruitment';
 import type { JobOpening } from '@/api/types';
@@ -85,8 +93,14 @@ export interface CertificationItem {
   id: string;
   name: string;
   issuingOrganization: string;
-  issueDate: string;
+  certificationType?: string;
   credentialId?: string;
+  issueDate: string;
+  hasExpiry: boolean;
+  expiryDate?: string;
+  verificationUrl?: string;
+  certificateName?: string;
+  certificatePath?: string;
 }
 
 export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProps> = ({
@@ -124,7 +138,10 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
   const [currentCtc, setCurrentCtc] = useState('');
   const [expectedCtc, setExpectedCtc] = useState('');
 
-  // ── Step 3: Education Details (All-In-One Form with Multiple Records) ──
+  // ── Step 3: Education Details (MNC-Style Repeatable Qualification Card Pattern) ──
+  const [editingEduId, setEditingEduId] = useState<string | null>(null);
+  const [isAddingEdu, setIsAddingEdu] = useState<boolean>(false);
+
   const [educationList, setEducationList] = useState<EducationItem[]>([
     {
       id: 'edu-1',
@@ -148,6 +165,10 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
   // ── Step 4: Skills & Certifications ──
   const [candidateSkills, setCandidateSkills] = useState('');
   const [technicalSkills, setTechnicalSkills] = useState('');
+  const [hasCertifications, setHasCertifications] = useState<'YES' | 'NO'>('NO');
+  const [certificationList, setCertificationList] = useState<CertificationItem[]>([]);
+  const [editingCertId, setEditingCertId] = useState<string | null>(null);
+  const [isAddingCert, setIsAddingCert] = useState<boolean>(false);
 
   // ── Step 5: Resume & Documents ──
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -161,10 +182,9 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
   // ── Step 7: Preferences & Additional ──
   const [employmentPreference, setEmploymentPreference] = useState(job.employmentType || 'Full Time');
 
-  // ── Step 8: Consent & Declaration ──
-  const [agreeAccuracy, setAgreeAccuracy] = useState(false);
-  const [agreePrivacyPolicy, setAgreePrivacyPolicy] = useState(false);
-  const [agreeRecruitmentConsent, setAgreeRecruitmentConsent] = useState(false);
+  // ── Step 6: Consent & Declaration ──
+  const [agreeDeclaration, setAgreeDeclaration] = useState(false);
+  const [showPrivacyPolicyModal, setShowPrivacyPolicyModal] = useState(false);
 
   // Field Validation Errors
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -249,8 +269,9 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
 
   // Add Qualification
   const addEducation = () => {
+    const newId = `edu-${Date.now()}`;
     const newEdu: EducationItem = {
-      id: `edu-${Date.now()}`,
+      id: newId,
       qualificationType: 'Undergraduate / Graduation',
       degree: '',
       specialization: '',
@@ -267,7 +288,8 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
       stateOrCity: '',
     };
     setEducationList((prev) => [...prev, newEdu]);
-    toast.info('New education qualification form added.');
+    setEditingEduId(newId);
+    setIsAddingEdu(true);
   };
 
   const removeEducation = (id: string) => {
@@ -276,7 +298,63 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
       return;
     }
     setEducationList((prev) => prev.filter((item) => item.id !== id));
+    if (editingEduId === id) {
+      setEditingEduId(null);
+      setIsAddingEdu(false);
+    }
     toast.info('Education record removed.');
+  };
+
+  // Add Certification Helper
+  const addCertification = () => {
+    const newId = `cert-${Date.now()}`;
+    const newCert: CertificationItem = {
+      id: newId,
+      name: '',
+      issuingOrganization: '',
+      certificationType: 'Professional',
+      credentialId: '',
+      issueDate: '',
+      hasExpiry: false,
+      expiryDate: '',
+      verificationUrl: '',
+      certificateName: '',
+      certificatePath: '',
+    };
+    setCertificationList((prev) => [...prev, newCert]);
+    setEditingCertId(newId);
+    setIsAddingCert(true);
+  };
+
+  const removeCertification = (id: string) => {
+    setCertificationList((prev) => prev.filter((item) => item.id !== id));
+    if (editingCertId === id) {
+      setEditingCertId(null);
+      setIsAddingCert(false);
+    }
+    toast.info('Certification record removed.');
+  };
+
+  const handleCertProofUpload = (certId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File size must be under 5 MB');
+      return;
+    }
+
+    setCertificationList((prev) =>
+      prev.map((item) =>
+        item.id === certId
+          ? {
+              ...item,
+              certificateName: file.name,
+              certificatePath: URL.createObjectURL(file),
+            }
+          : item
+      )
+    );
+    toast.success(`Proof document "${file.name}" attached!`);
   };
 
   // Step Validation logic
@@ -299,25 +377,37 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
     }
 
     if (currentStep === 3) {
-      for (let i = 0; i < educationList.length; i++) {
-        const edu = educationList[i];
-        if (!edu.qualificationType) {
-          errs[`edu_${i}_qualificationType`] = `Qualification Type is required for record #${i + 1}.`;
+      if (educationList.length === 0) {
+        errs.education = 'At least one education qualification is required.';
+        toast.error('Please add at least one education qualification.');
+        return false;
+      }
+      // If user is currently editing an active form, validate its required fields
+      if (editingEduId !== null) {
+        const activeEdu = educationList.find((e) => e.id === editingEduId);
+        if (activeEdu) {
+          if (!activeEdu.institution.trim()) {
+            errs.institution = 'School / Institute / College name is required.';
+          }
+          if (!activeEdu.passingYear.trim()) {
+            errs.passingYear = 'Passing Year is required.';
+          }
         }
-        if (!edu.degree.trim()) {
-          errs[`edu_${i}_degree`] = `Degree / Qualification is required for record #${i + 1}.`;
-        }
-        if (!edu.institution.trim()) {
-          errs[`edu_${i}_institution`] = `Institute / College is required for record #${i + 1}.`;
-        }
-        if (!edu.universityOrBoard.trim()) {
-          errs[`edu_${i}_universityOrBoard`] = `University / Board is required for record #${i + 1}.`;
-        }
-        if (!edu.passingYear.trim()) {
-          errs[`edu_${i}_passingYear`] = `Passing Year is required for record #${i + 1}.`;
-        }
-        if (edu.startYear && edu.passingYear && parseInt(edu.passingYear) < parseInt(edu.startYear)) {
-          errs[`edu_${i}_passingYear`] = `Passing Year (${edu.passingYear}) cannot be before Start Year (${edu.startYear}).`;
+      }
+    }
+
+    if (currentStep === 4 && hasCertifications === 'YES') {
+      if (certificationList.length === 0) {
+        toast.error('You indicated you hold certifications. Please click "+ Add Another Certification" to add your details.');
+        return false;
+      }
+      if (editingCertId !== null) {
+        const activeCert = certificationList.find((c) => c.id === editingCertId);
+        if (activeCert) {
+          if (!activeCert.name.trim() || !activeCert.issuingOrganization.trim()) {
+            toast.error('Please save or complete your current certification details before proceeding.');
+            return false;
+          }
         }
       }
     }
@@ -328,9 +418,9 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
       }
     }
 
-    if (currentStep === 8) {
-      if (!agreeAccuracy || !agreePrivacyPolicy || !agreeRecruitmentConsent) {
-        errs.consent = 'You must confirm all mandatory declarations before proceeding.';
+    if (currentStep === 6) {
+      if (!agreeDeclaration) {
+        errs.consent = 'You must confirm the Applicant Declaration & Consent before submitting.';
       }
     }
 
@@ -344,7 +434,7 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
 
   const handleNext = () => {
     if (validateCurrentStep()) {
-      setCurrentStep((prev) => Math.min(prev + 1, 9));
+      setCurrentStep((prev) => Math.min(prev + 1, 6));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -381,7 +471,7 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
       resumePath: resumePath || `/uploads/resumes/${resumeFile?.name || 'resume.pdf'}`,
       source: 'CAREERS_PORTAL',
       stage: 'APPLIED',
-      notes: `Applied on ${new Date().toLocaleDateString()} | App Ref: ${appId} | Willing to Relocate: ${willingToRelocate}`,
+      notes: `Applied on ${new Date().toLocaleDateString()} | App Ref: ${appId}`,
     };
 
     try {
@@ -407,10 +497,7 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
     { number: 3, title: '3. Education Details', icon: GraduationCap },
     { number: 4, title: '4. Skills & Certifications', icon: Star },
     { number: 5, title: '5. Resume & Documents', icon: FileText },
-    { number: 6, title: '6. Questions & Screening', icon: Clock },
-    { number: 7, title: '7. Preferences & Additional', icon: Cog },
-    { number: 8, title: '8. Consent & Declaration', icon: ShieldCheck },
-    { number: 9, title: '9. Review & Submit', icon: CheckCircle2 },
+    { number: 6, title: '6. Review & Submit', icon: CheckCircle2 },
   ];
 
   return (
@@ -618,7 +705,7 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                 </div>
 
                 <Badge variant="outline" className="text-xs font-semibold text-slate-600 border-slate-200 bg-slate-50 px-3 py-1">
-                  Step {currentStep} of 9
+                  Step {currentStep} of 6
                 </Badge>
               </div>
 
@@ -904,400 +991,503 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                 </div>
               )}
 
-              {/* STEP 3: STANDARD EDUCATION DETAILS — ALL IN ONE FORM WITH MULTIPLE QUALIFICATIONS */}
+              {/* STEP 3: MNC-STYLE REPEATABLE QUALIFICATION CARD PATTERN */}
               {currentStep === 3 && (
                 <div className="space-y-6">
-                  {educationList.map((edu, idx) => (
-                    <div key={edu.id} className="border border-slate-200 dark:border-slate-800 rounded-2xl p-5 bg-white dark:bg-slate-900 space-y-4 shadow-2xs">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-indigo-600 text-white font-bold text-xs">
-                            Qualification #{idx + 1}
-                          </Badge>
-                          <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                            {edu.qualificationType || 'Academic Qualification'}
-                          </span>
-                        </div>
-                        {educationList.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeEducation(edu.id)}
-                            className="h-7 text-xs text-rose-600 hover:bg-rose-50 font-semibold"
+                  {/* VIEW MODE: COMPACT SAVED QUALIFICATION CARDS */}
+                  {editingEduId === null && educationList.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        {educationList.map((edu, idx) => (
+                          <div
+                            key={edu.id}
+                            className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4.5 bg-white dark:bg-slate-900 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:border-indigo-300"
                           >
-                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove Record
-                          </Button>
-                        )}
-                      </div>
+                            <div className="space-y-1.5 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge className="bg-emerald-600 text-white font-bold text-xs gap-1 px-2.5 py-0.5 shadow-2xs">
+                                  <CheckCircle2 className="h-3.5 w-3.5" /> {edu.qualificationType}
+                                </Badge>
+                                <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                                  {edu.degree || edu.qualificationType}
+                                </span>
+                              </div>
 
-                      {/* Row 1: Qualification Type & Degree */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Qualification Type *</Label>
-                          <Select
-                            value={edu.qualificationType}
-                            onValueChange={(val) => {
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, qualificationType: val } : item))
-                              );
-                            }}
-                          >
-                            <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
-                              <SelectValue placeholder="Select Qualification" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="10th / Secondary">10th / Secondary</SelectItem>
-                              <SelectItem value="12th / Higher Secondary">12th / Higher Secondary</SelectItem>
-                              <SelectItem value="Diploma">Diploma</SelectItem>
-                              <SelectItem value="ITI">ITI</SelectItem>
-                              <SelectItem value="Undergraduate / Graduation">Undergraduate / Graduation</SelectItem>
-                              <SelectItem value="Postgraduate">Postgraduate</SelectItem>
-                              <SelectItem value="Doctorate / PhD">Doctorate / PhD</SelectItem>
-                              <SelectItem value="Other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {errors[`edu_${idx}_qualificationType`] && (
-                            <p className="text-[11px] text-rose-600 font-semibold">{errors[`edu_${idx}_qualificationType`]}</p>
-                          )}
-                        </div>
+                              <div className="text-xs text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                  {edu.institution || 'Institution Not Specified'}
+                                </span>
+                                {edu.specialization && (
+                                  <>
+                                    <span className="text-slate-400">•</span>
+                                    <span>{edu.specialization}</span>
+                                  </>
+                                )}
+                                {edu.universityOrBoard && (
+                                  <>
+                                    <span className="text-slate-400">•</span>
+                                    <span className="text-slate-500 font-mono">({edu.universityOrBoard})</span>
+                                  </>
+                                )}
+                              </div>
 
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Degree / Qualification *</Label>
-                          <Input
-                            type="text"
-                            value={edu.degree}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, degree: val } : item))
-                              );
-                            }}
-                            placeholder="e.g. B.Tech / B.E. / MBA / SSC"
-                            className="h-9 text-xs"
-                          />
-                          {errors[`edu_${idx}_degree`] && (
-                            <p className="text-[11px] text-rose-600 font-semibold">{errors[`edu_${idx}_degree`]}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Row 2: Specialization & Institute */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Specialization / Stream *</Label>
-                          <Input
-                            type="text"
-                            value={edu.specialization}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, specialization: val } : item))
-                              );
-                            }}
-                            placeholder="e.g. Computer Science / Science"
-                            className="h-9 text-xs"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Institute / College *</Label>
-                          <Input
-                            type="text"
-                            value={edu.institution}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, institution: val } : item))
-                              );
-                            }}
-                            placeholder="College / Institute name"
-                            className="h-9 text-xs"
-                          />
-                          {errors[`edu_${idx}_institution`] && (
-                            <p className="text-[11px] text-rose-600 font-semibold">{errors[`edu_${idx}_institution`]}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Row 3: University / Board & Affiliation */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">University / Board *</Label>
-                          <Input
-                            type="text"
-                            value={edu.universityOrBoard}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, universityOrBoard: val } : item))
-                              );
-                            }}
-                            placeholder="e.g. CBSE / SPPU / State Board"
-                            className="h-9 text-xs"
-                          />
-                          {errors[`edu_${idx}_universityOrBoard`] && (
-                            <p className="text-[11px] text-rose-600 font-semibold">{errors[`edu_${idx}_universityOrBoard`]}</p>
-                          )}
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Affiliation / University</Label>
-                          <Input
-                            type="text"
-                            value={edu.affiliation}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, affiliation: val } : item))
-                              );
-                            }}
-                            placeholder="University name (if affiliated)"
-                            className="h-9 text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Row 4: Start Year & Passing Year */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Start Year *</Label>
-                          <Input
-                            type="text"
-                            value={edu.startYear}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, startYear: val } : item))
-                              );
-                            }}
-                            placeholder="e.g. 2022"
-                            className="h-9 text-xs font-mono"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Passing Year *</Label>
-                          <Input
-                            type="text"
-                            value={edu.passingYear}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, passingYear: val } : item))
-                              );
-                            }}
-                            placeholder="e.g. 2026"
-                            className="h-9 text-xs font-mono"
-                          />
-                          {errors[`edu_${idx}_passingYear`] && (
-                            <p className="text-[11px] text-rose-600 font-semibold">{errors[`edu_${idx}_passingYear`]}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Row 5: Grading System & Score */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Grading System *</Label>
-                          <Select
-                            value={edu.gradingSystem}
-                            onValueChange={(val) => {
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, gradingSystem: val } : item))
-                              );
-                            }}
-                          >
-                            <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
-                              <SelectValue placeholder="Select Grading System" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="CGPA / Percentage">CGPA / Percentage</SelectItem>
-                              <SelectItem value="Percentage">Percentage (%)</SelectItem>
-                              <SelectItem value="Grade Scale (10 Point)">Grade Scale (10 Point)</SelectItem>
-                              <SelectItem value="Grade Scale (4 Point)">Grade Scale (4 Point)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Score / Percentage / CGPA *</Label>
-                          <Input
-                            type="text"
-                            value={edu.score}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, score: val } : item))
-                              );
-                            }}
-                            placeholder="e.g. 8.45 / 84.5%"
-                            className="h-9 text-xs font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Row 6: Education Mode & Result Status */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Education Mode *</Label>
-                          <Select
-                            value={edu.educationMode}
-                            onValueChange={(val) => {
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, educationMode: val } : item))
-                              );
-                            }}
-                          >
-                            <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
-                              <SelectValue placeholder="Select Mode" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Full Time">Full Time</SelectItem>
-                              <SelectItem value="Part Time">Part Time</SelectItem>
-                              <SelectItem value="Distance / Correspondence">Distance / Correspondence</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Result Status *</Label>
-                          <Select
-                            value={edu.resultStatus}
-                            onValueChange={(val) => {
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, resultStatus: val } : item))
-                              );
-                            }}
-                          >
-                            <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
-                              <SelectValue placeholder="Select Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Passed">Passed</SelectItem>
-                              <SelectItem value="Appearing / Pursuing">Appearing / Pursuing</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      {/* Row 7: Country & State / City */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Country *</Label>
-                          <Select
-                            value={edu.country}
-                            onValueChange={(val) => {
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, country: val } : item))
-                              );
-                            }}
-                          >
-                            <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
-                              <SelectValue placeholder="Select Country" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="India">India</SelectItem>
-                              <SelectItem value="United States">United States</SelectItem>
-                              <SelectItem value="United Kingdom">United Kingdom</SelectItem>
-                              <SelectItem value="Canada">Canada</SelectItem>
-                              <SelectItem value="Other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">State / City</Label>
-                          <Input
-                            type="text"
-                            value={edu.stateOrCity}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setEducationList((prev) =>
-                                prev.map((item) => (item.id === edu.id ? { ...item, stateOrCity: val } : item))
-                              );
-                            }}
-                            placeholder="e.g. Pune, Maharashtra"
-                            className="h-9 text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Row 8: Certificate / Marksheet Upload */}
-                      <div className="space-y-1.5 pt-1">
-                        <Label className="font-semibold text-xs">Certificate / Marksheet (Optional)</Label>
-                        {edu.certificateName ? (
-                          <div className="border border-emerald-300 rounded-xl p-3 bg-emerald-50/70 flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-xs text-emerald-800 font-medium">
-                              <FileCheck className="h-4 w-4 text-emerald-600" />
-                              <span>{edu.certificateName}</span>
+                              <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-3 pt-0.5">
+                                <span>Passing Year: <strong className="font-mono text-slate-700 dark:text-slate-300">{edu.passingYear}</strong></span>
+                                {edu.score && (
+                                  <span>Score: <strong className="font-mono text-indigo-600 dark:text-indigo-400">{edu.score}</strong></span>
+                                )}
+                                <span>Status: <strong className="text-slate-700 dark:text-slate-300">{edu.resultStatus || 'Passed'}</strong></span>
+                                {edu.educationMode && (
+                                  <span>Mode: <strong className="text-slate-700 dark:text-slate-300">{edu.educationMode}</strong></span>
+                                )}
+                              </div>
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEducationList((prev) =>
-                                  prev.map((item) => (item.id === edu.id ? { ...item, certificateName: '', certificatePath: '' } : item))
-                                );
-                              }}
-                              className="h-6 text-xs text-rose-600 hover:bg-rose-100"
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="border border-dashed border-slate-200 rounded-xl p-3 bg-slate-50/60 flex items-center justify-between gap-3">
-                            <span className="text-xs text-slate-500">📄 PDF, JPG, JPEG, PNG • Max 5 MB</span>
-                            <Label htmlFor={`cert-file-${edu.id}`} className="cursor-pointer">
-                              <Button type="button" variant="outline" size="sm" className="h-7 text-xs font-semibold pointer-events-none">
-                                Choose File
+
+                            <div className="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingEduId(edu.id);
+                                  setIsAddingEdu(false);
+                                }}
+                                className="h-8 text-xs font-semibold px-3 text-slate-700 dark:text-slate-200 hover:text-indigo-600 border-slate-200 dark:border-slate-700"
+                              >
+                                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
                               </Button>
-                            </Label>
-                            <Input
-                              id={`cert-file-${edu.id}`}
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              onChange={(e) => handleEduCertificateUpload(edu.id, e)}
-                              className="hidden"
-                            />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeEducation(edu.id)}
+                                className="h-8 text-xs font-semibold px-3 text-rose-600 hover:bg-rose-50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                              </Button>
+                            </div>
                           </div>
-                        )}
+                        ))}
+                      </div>
+
+                      {/* + Add Another Qualification Button */}
+                      <div className="pt-3 text-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addEducation}
+                          className="text-xs font-bold gap-2 px-6 h-9 border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950 shadow-2xs cursor-pointer"
+                        >
+                          <Plus className="h-4 w-4" /> + Add Another Qualification
+                        </Button>
                       </div>
                     </div>
-                  ))}
+                  ) : (
+                    /* FORM ENTRY / EDIT MODE FOR ACTIVE QUALIFICATION */
+                    (() => {
+                      const activeEdu = educationList.find((e) => e.id === editingEduId) || educationList[0];
+                      if (!activeEdu) return null;
 
-                  {/* + Add Another Qualification Button */}
-                  <div className="pt-2 text-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addEducation}
-                      className="text-xs font-bold gap-2 px-6 h-9 border-indigo-200 text-indigo-600 hover:bg-indigo-50 shadow-2xs"
-                    >
-                      <Plus className="h-4 w-4" /> Add Another Qualification
-                    </Button>
-                  </div>
+                      const isSchool10th = activeEdu.qualificationType === '10th / Secondary';
+                      const isSchool12th = activeEdu.qualificationType === '12th / Higher Secondary';
+                      const isDiplomaOrIti = activeEdu.qualificationType === 'Diploma' || activeEdu.qualificationType === 'ITI';
+                      const isPhD = activeEdu.qualificationType === 'Doctorate / PhD';
+
+                      return (
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-5 bg-white dark:bg-slate-900 space-y-5 shadow-2xs">
+                          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-indigo-600 text-white font-bold text-xs">
+                                Qualification Entry
+                              </Badge>
+                              <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                                {activeEdu.qualificationType || 'Select Qualification Type'}
+                              </span>
+                            </div>
+                            {educationList.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (isAddingEdu) {
+                                    setEducationList((prev) => prev.filter((e) => e.id !== activeEdu.id));
+                                  }
+                                  setEditingEduId(null);
+                                  setIsAddingEdu(false);
+                                }}
+                                className="h-7 text-xs text-slate-500 hover:bg-slate-100 font-semibold"
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* Row 1: Qualification Type Selector */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">Qualification Type *</Label>
+                              <Select
+                                value={activeEdu.qualificationType}
+                                onValueChange={(val) => {
+                                  setEducationList((prev) =>
+                                    prev.map((item) =>
+                                      item.id === activeEdu.id ? { ...item, qualificationType: val } : item
+                                    )
+                                  );
+                                }}
+                              >
+                                <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
+                                  <SelectValue placeholder="Select Qualification" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="10th / Secondary">10th / Secondary</SelectItem>
+                                  <SelectItem value="12th / Higher Secondary">12th / Higher Secondary</SelectItem>
+                                  <SelectItem value="Diploma">Diploma</SelectItem>
+                                  <SelectItem value="ITI">ITI</SelectItem>
+                                  <SelectItem value="Undergraduate / Graduation">Undergraduate / Graduation</SelectItem>
+                                  <SelectItem value="Postgraduate">Postgraduate</SelectItem>
+                                  <SelectItem value="Doctorate / PhD">Doctorate / PhD</SelectItem>
+                                  <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">
+                                {isSchool10th || isSchool12th
+                                  ? 'School / Institution Name *'
+                                  : isDiplomaOrIti
+                                  ? 'Institute / College *'
+                                  : isPhD
+                                  ? 'Degree / Doctorate Discipline *'
+                                  : 'Degree / Qualification *'}
+                              </Label>
+                              <Input
+                                type="text"
+                                value={isSchool10th ? activeEdu.institution : isSchool12th ? activeEdu.institution : activeEdu.degree}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEducationList((prev) =>
+                                    prev.map((item) =>
+                                      item.id === activeEdu.id
+                                        ? isSchool10th || isSchool12th
+                                          ? { ...item, institution: val, degree: activeEdu.qualificationType }
+                                          : { ...item, degree: val }
+                                        : item
+                                    )
+                                  );
+                                }}
+                                placeholder={
+                                  isSchool10th || isSchool12th
+                                    ? 'e.g. ABC High School / Junior College'
+                                    : isDiplomaOrIti
+                                    ? 'e.g. Govt Polytechnic Institute'
+                                    : 'e.g. B.Tech, BE, BCA, MCA, MBA, B.Sc'
+                                }
+                                className="h-9 text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Row 2: Institution / Board / Specialization */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {!isSchool10th && !isSchool12th && (
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold text-xs">
+                                  {isDiplomaOrIti ? 'Trade / Specialization *' : 'Specialization / Major *'}
+                                </Label>
+                                <Input
+                                  type="text"
+                                  value={activeEdu.specialization}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEducationList((prev) =>
+                                      prev.map((item) => (item.id === activeEdu.id ? { ...item, specialization: val } : item))
+                                    );
+                                  }}
+                                  placeholder="e.g. Computer Science / Mechanical"
+                                  className="h-9 text-xs"
+                                />
+                              </div>
+                            )}
+
+                            {isSchool12th && (
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold text-xs">Stream *</Label>
+                                <Select
+                                  value={activeEdu.specialization || 'Science'}
+                                  onValueChange={(val) => {
+                                    setEducationList((prev) =>
+                                      prev.map((item) => (item.id === activeEdu.id ? { ...item, specialization: val } : item))
+                                    );
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
+                                    <SelectValue placeholder="Select Stream" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Science">Science</SelectItem>
+                                    <SelectItem value="Commerce">Commerce</SelectItem>
+                                    <SelectItem value="Arts / Humanities">Arts / Humanities</SelectItem>
+                                    <SelectItem value="Vocational">Vocational</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">
+                                {isSchool10th || isSchool12th ? 'Board *' : 'University / Board *'}
+                              </Label>
+                              <Input
+                                type="text"
+                                value={activeEdu.universityOrBoard}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEducationList((prev) =>
+                                    prev.map((item) => (item.id === activeEdu.id ? { ...item, universityOrBoard: val } : item))
+                                  );
+                                }}
+                                placeholder={isSchool10th || isSchool12th ? 'e.g. CBSE / ICSE / State Board' : 'e.g. Pune University / CBSE'}
+                                className="h-9 text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Row 3: College / Institute Name (if degree form) */}
+                          {!isSchool10th && !isSchool12th && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold text-xs">Institute / College *</Label>
+                                <Input
+                                  type="text"
+                                  value={activeEdu.institution}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEducationList((prev) =>
+                                      prev.map((item) => (item.id === activeEdu.id ? { ...item, institution: val } : item))
+                                    );
+                                  }}
+                                  placeholder="College / Institute name"
+                                  className="h-9 text-xs"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold text-xs">Education Mode *</Label>
+                                <Select
+                                  value={activeEdu.educationMode}
+                                  onValueChange={(val) => {
+                                    setEducationList((prev) =>
+                                      prev.map((item) => (item.id === activeEdu.id ? { ...item, educationMode: val } : item))
+                                    );
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
+                                    <SelectValue placeholder="Select Mode" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Full Time">Full Time</SelectItem>
+                                    <SelectItem value="Part Time">Part Time</SelectItem>
+                                    <SelectItem value="Distance / Correspondence">Distance / Correspondence</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Row 4: Start Year & Passing Year */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">Start Year</Label>
+                              <Input
+                                type="text"
+                                value={activeEdu.startYear}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEducationList((prev) =>
+                                    prev.map((item) => (item.id === activeEdu.id ? { ...item, startYear: val } : item))
+                                  );
+                                }}
+                                placeholder="e.g. 2022"
+                                className="h-9 text-xs font-mono"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">Passing Year *</Label>
+                              <Input
+                                type="text"
+                                value={activeEdu.passingYear}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEducationList((prev) =>
+                                    prev.map((item) => (item.id === activeEdu.id ? { ...item, passingYear: val } : item))
+                                  );
+                                }}
+                                placeholder="e.g. 2026"
+                                className="h-9 text-xs font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Row 5: Grading System & Score */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">Grading System *</Label>
+                              <Select
+                                value={activeEdu.gradingSystem}
+                                onValueChange={(val) => {
+                                  setEducationList((prev) =>
+                                    prev.map((item) => (item.id === activeEdu.id ? { ...item, gradingSystem: val } : item))
+                                  );
+                                }}
+                              >
+                                <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
+                                  <SelectValue placeholder="Select Grading System" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="CGPA / Percentage">CGPA / Percentage</SelectItem>
+                                  <SelectItem value="Percentage">Percentage (%)</SelectItem>
+                                  <SelectItem value="Grade Scale (10 Point)">Grade Scale (10 Point)</SelectItem>
+                                  <SelectItem value="Grade Scale (4 Point)">Grade Scale (4 Point)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">Score / Percentage / CGPA *</Label>
+                              <Input
+                                type="text"
+                                value={activeEdu.score}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEducationList((prev) =>
+                                    prev.map((item) => (item.id === activeEdu.id ? { ...item, score: val } : item))
+                                  );
+                                }}
+                                placeholder="e.g. 8.45 / 88.2%"
+                                className="h-9 text-xs font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Row 6: Result Status */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">Result Status *</Label>
+                              <Select
+                                value={activeEdu.resultStatus}
+                                onValueChange={(val) => {
+                                  setEducationList((prev) =>
+                                    prev.map((item) => (item.id === activeEdu.id ? { ...item, resultStatus: val } : item))
+                                  );
+                                }}
+                              >
+                                <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
+                                  <SelectValue placeholder="Select Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Passed">Passed</SelectItem>
+                                  <SelectItem value="Appearing / Pursuing">Appearing / Pursuing</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-xs">Country *</Label>
+                              <Select
+                                value={activeEdu.country}
+                                onValueChange={(val) => {
+                                  setEducationList((prev) =>
+                                    prev.map((item) => (item.id === activeEdu.id ? { ...item, country: val } : item))
+                                  );
+                                }}
+                              >
+                                <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
+                                  <SelectValue placeholder="Select Country" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="India">India</SelectItem>
+                                  <SelectItem value="United States">United States</SelectItem>
+                                  <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                                  <SelectItem value="Canada">Canada</SelectItem>
+                                  <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+
+
+                          {/* Save & Cancel Qualification Action Buttons */}
+                          <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                            {educationList.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (isAddingEdu) {
+                                    setEducationList((prev) => prev.filter((e) => e.id !== activeEdu.id));
+                                  }
+                                  setEditingEduId(null);
+                                  setIsAddingEdu(false);
+                                }}
+                                className="h-9 text-xs font-semibold px-4"
+                              >
+                                Cancel
+                              </Button>
+                            )}
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                if (!activeEdu.institution.trim()) {
+                                  toast.error('School / Institution / College name is required.');
+                                  return;
+                                }
+                                if (!activeEdu.passingYear.trim()) {
+                                  toast.error('Passing Year is required.');
+                                  return;
+                                }
+                                setEditingEduId(null);
+                                setIsAddingEdu(false);
+                                toast.success(`${activeEdu.qualificationType} saved successfully!`);
+                              }}
+                              className="h-9 text-xs font-bold px-6 bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
+                            >
+                              <Save className="h-3.5 w-3.5 mr-1.5" /> Save Qualification
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
                 </div>
               )}
 
-              {/* STEP 4: SKILLS & CERTIFICATIONS */}
+              {/* STEP 4: SKILLS & CERTIFICATIONS (DYNAMIC YES/NO + REPEATABLE CERTIFICATION CARDS) */}
               {currentStep === 4 && (
                 <div className="space-y-6">
-                  <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-2">
-                    <span className="font-bold text-xs text-indigo-700 flex items-center gap-1.5">
+                  {/* Required Skills Card */}
+                  <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 space-y-2">
+                    <span className="font-bold text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
                       <Award className="h-4 w-4" /> Required Job Skills (Read-Only)
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {jobRequiredSkillsArray.map((sk, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs font-semibold bg-white border border-indigo-200 text-indigo-600">
+                        <Badge key={idx} variant="secondary" className="text-xs font-semibold bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300">
                           {sk}
                         </Badge>
                       ))}
                     </div>
                   </div>
 
+                  {/* Technical Skills Input */}
                   <div className="space-y-1.5">
                     <Label className="font-semibold text-xs">Technical Skills & Competencies</Label>
                     <Textarea
@@ -1306,6 +1496,356 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                       placeholder="e.g. React.js, Node.js, Docker, Kubernetes, AWS"
                       className="text-xs min-h-[80px]"
                     />
+                  </div>
+
+                  {/* Professional Certifications Dynamic Section */}
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-5 bg-white dark:bg-slate-900 space-y-5 shadow-2xs">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3 space-y-1">
+                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                        CERTIFICATIONS
+                      </h4>
+                      <Label className="font-semibold text-xs text-slate-700 dark:text-slate-300 block">
+                        Do you hold any professional certifications relevant to this position? *
+                      </Label>
+
+                      {/* Yes / No Radio Choice */}
+                      <div className="flex items-center gap-6 pt-2">
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="hasCertifications"
+                            value="YES"
+                            checked={hasCertifications === 'YES'}
+                            onChange={() => {
+                              setHasCertifications('YES');
+                              if (certificationList.length === 0) {
+                                addCertification();
+                              }
+                            }}
+                            className="h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                          />
+                          Yes
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="hasCertifications"
+                            value="NO"
+                            checked={hasCertifications === 'NO'}
+                            onChange={() => {
+                              setHasCertifications('NO');
+                              setEditingCertId(null);
+                              setIsAddingCert(false);
+                            }}
+                            className="h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                          />
+                          No
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* IF NO CERTIFICATIONS SELECTED */}
+                    {hasCertifications === 'NO' && (
+                      <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500 italic">
+                        No certification details required.
+                      </div>
+                    )}
+
+                    {/* IF YES CERTIFICATIONS SELECTED */}
+                    {hasCertifications === 'YES' && (
+                      <div className="space-y-4 pt-1">
+                        {/* VIEW MODE: COMPACT SAVED CARDS */}
+                        {editingCertId === null && certificationList.length > 0 ? (
+                          <div className="space-y-4">
+                            <div className="space-y-3">
+                              {certificationList.map((cert, idx) => (
+                                <div
+                                  key={cert.id}
+                                  className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-white dark:bg-slate-900 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:border-indigo-300"
+                                >
+                                  <div className="space-y-1 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <Badge className="bg-indigo-600 text-white font-bold text-xs gap-1 px-2.5 py-0.5">
+                                        Certification #{idx + 1}
+                                      </Badge>
+                                      <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                                        {cert.name || 'Certification Name Not Set'}
+                                      </span>
+                                      {cert.issuingOrganization && (
+                                        <span className="text-xs text-slate-500 font-semibold">• {cert.issuingOrganization}</span>
+                                      )}
+                                    </div>
+
+                                    <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-3 pt-1">
+                                      {cert.certificationType && (
+                                        <span>Type: <strong className="text-slate-700 dark:text-slate-300">{cert.certificationType}</strong></span>
+                                      )}
+                                      {cert.credentialId && (
+                                        <span>Credential ID: <strong className="font-mono text-slate-700 dark:text-slate-300">{cert.credentialId}</strong></span>
+                                      )}
+                                      {cert.issueDate && (
+                                        <span>Issued: <strong className="font-mono text-slate-700 dark:text-slate-300">{cert.issueDate}</strong></span>
+                                      )}
+                                      <span>
+                                        Expiry:{' '}
+                                        <strong className="font-mono text-slate-700 dark:text-slate-300">
+                                          {cert.hasExpiry && cert.expiryDate ? cert.expiryDate : 'No Expiry'}
+                                        </strong>
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingCertId(cert.id);
+                                        setIsAddingCert(false);
+                                      }}
+                                      className="h-8 text-xs font-semibold px-3 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => removeCertification(cert.id)}
+                                      className="h-8 text-xs font-semibold px-3 text-rose-600 hover:bg-rose-50"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* + Add Another Certification Button */}
+                            <div className="pt-2 text-center">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={addCertification}
+                                className="text-xs font-bold gap-2 px-6 h-9 border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950 shadow-2xs cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4" /> + Add Another Certification
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* FORM ENTRY MODE FOR ACTIVE CERTIFICATION */
+                          (() => {
+                            const activeCert = certificationList.find((c) => c.id === editingCertId) || certificationList[0];
+                            if (!activeCert) return null;
+
+                            return (
+                              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4.5 bg-slate-50/50 dark:bg-slate-900/50 space-y-4">
+                                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
+                                  <span className="font-bold text-xs text-indigo-700 dark:text-indigo-300">
+                                    Certification Details Form
+                                  </span>
+                                  {certificationList.length > 1 && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (isAddingCert) {
+                                          setCertificationList((prev) => prev.filter((c) => c.id !== activeCert.id));
+                                        }
+                                        setEditingCertId(null);
+                                        setIsAddingCert(false);
+                                      }}
+                                      className="h-6 text-xs text-slate-500 hover:bg-slate-200"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  )}
+                                </div>
+
+                                {/* Row 1: Certification Name & Issuing Organization */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold text-xs">Certification Name *</Label>
+                                    <Input
+                                      type="text"
+                                      value={activeCert.name}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCertificationList((prev) =>
+                                          prev.map((c) => (c.id === activeCert.id ? { ...c, name: val } : c))
+                                        );
+                                      }}
+                                      placeholder="e.g. AWS Certified Developer"
+                                      className="h-9 text-xs bg-white dark:bg-slate-900"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold text-xs">Issuing Organization *</Label>
+                                    <Input
+                                      type="text"
+                                      value={activeCert.issuingOrganization}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCertificationList((prev) =>
+                                          prev.map((c) => (c.id === activeCert.id ? { ...c, issuingOrganization: val } : c))
+                                        );
+                                      }}
+                                      placeholder="e.g. Amazon Web Services / Microsoft"
+                                      className="h-9 text-xs bg-white dark:bg-slate-900"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Row 2: Certification Type */}
+                                <div className="space-y-1.5 max-w-sm">
+                                  <Label className="font-semibold text-xs">Certification Type *</Label>
+                                  <Select
+                                    value={activeCert.certificationType || 'Professional'}
+                                    onValueChange={(val) => {
+                                      setCertificationList((prev) =>
+                                        prev.map((c) => (c.id === activeCert.id ? { ...c, certificationType: val } : c))
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
+                                      <SelectValue placeholder="Select Type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Professional">Professional</SelectItem>
+                                      <SelectItem value="Technical">Technical</SelectItem>
+                                      <SelectItem value="Vendor / Industry">Vendor / Industry</SelectItem>
+                                      <SelectItem value="Compliance / Safety">Compliance / Safety</SelectItem>
+                                      <SelectItem value="Other">Other</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {/* Row 3: Issue Date & Has Expiry Radio */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold text-xs">Issue Date *</Label>
+                                    <Input
+                                      type="text"
+                                      value={activeCert.issueDate || ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCertificationList((prev) =>
+                                          prev.map((c) => (c.id === activeCert.id ? { ...c, issueDate: val } : c))
+                                        );
+                                      }}
+                                      placeholder="e.g. Jun 2026 / 2026-06"
+                                      className="h-9 text-xs bg-white dark:bg-slate-900 font-mono"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold text-xs">Does this certification have an expiry date? *</Label>
+                                    <div className="flex items-center gap-6 pt-2">
+                                      <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`hasExpiry-${activeCert.id}`}
+                                          checked={activeCert.hasExpiry === true}
+                                          onChange={() => {
+                                            setCertificationList((prev) =>
+                                              prev.map((c) => (c.id === activeCert.id ? { ...c, hasExpiry: true } : c))
+                                            );
+                                          }}
+                                          className="h-4 w-4 text-indigo-600"
+                                        />
+                                        Yes
+                                      </label>
+                                      <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`hasExpiry-${activeCert.id}`}
+                                          checked={activeCert.hasExpiry === false}
+                                          onChange={() => {
+                                            setCertificationList((prev) =>
+                                              prev.map((c) => (c.id === activeCert.id ? { ...c, hasExpiry: false, expiryDate: '' } : c))
+                                            );
+                                          }}
+                                          className="h-4 w-4 text-indigo-600"
+                                        />
+                                        No
+                                      </label>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Row 4: Expiry Date (If Has Expiry = Yes) */}
+                                {activeCert.hasExpiry && (
+                                  <div className="space-y-1.5 max-w-sm">
+                                    <Label className="font-semibold text-xs">Expiry Date</Label>
+                                    <Input
+                                      type="text"
+                                      value={activeCert.expiryDate || ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCertificationList((prev) =>
+                                          prev.map((c) => (c.id === activeCert.id ? { ...c, expiryDate: val } : c))
+                                        );
+                                      }}
+                                      placeholder="e.g. Jun 2029 / 2029-06"
+                                      className="h-9 text-xs bg-white dark:bg-slate-900 font-mono"
+                                    />
+                                  </div>
+                                )}
+
+
+
+                                {/* Save & Cancel Certification Buttons */}
+                                <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
+                                  {certificationList.length > 1 && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (isAddingCert) {
+                                          setCertificationList((prev) => prev.filter((c) => c.id !== activeCert.id));
+                                        }
+                                        setEditingCertId(null);
+                                        setIsAddingCert(false);
+                                      }}
+                                      className="h-8 text-xs font-semibold px-4"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  )}
+
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (!activeCert.name.trim()) {
+                                        toast.error('Certification Name is required.');
+                                        return;
+                                      }
+                                      if (!activeCert.issuingOrganization.trim()) {
+                                        toast.error('Issuing Organization is required.');
+                                        return;
+                                      }
+                                      setEditingCertId(null);
+                                      setIsAddingCert(false);
+                                      toast.success(`Certification "${activeCert.name}" saved successfully!`);
+                                    }}
+                                    className="h-8 text-xs font-bold px-6 bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
+                                  >
+                                    <Save className="h-3.5 w-3.5 mr-1.5" /> Save Certification
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })()
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1340,107 +1880,113 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                 </div>
               )}
 
-              {/* STEP 6: QUESTIONS & SCREENING */}
+              {/* STEP 6: REVIEW & SUBMIT */}
               {currentStep === 6 && (
                 <div className="space-y-6">
-                  <div className="space-y-4 max-w-md">
-                    <div className="space-y-1.5">
-                      <Label className="font-semibold text-xs">Are you willing to work on-site at {branchName}? *</Label>
-                      <Select value={workModeAgreement} onValueChange={setWorkModeAgreement}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Yes">Yes</SelectItem>
-                          <SelectItem value="No">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="font-semibold text-xs">Are you willing to relocate? *</Label>
-                      <Select value={willingToRelocate} onValueChange={setWillingToRelocate}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Yes">Yes</SelectItem>
-                          <SelectItem value="No">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 7: PREFERENCES & ADDITIONAL */}
-              {currentStep === 7 && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div className="space-y-1.5">
-                      <Label className="font-semibold text-xs">Preferred Work Location</Label>
-                      <Input
-                        type="text"
-                        value={preferredLocation}
-                        onChange={(e) => setPreferredLocation(e.target.value)}
-                        placeholder="e.g. Pune / Mumbai"
-                        className="h-9 text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 8: CONSENT & DECLARATION */}
-              {currentStep === 8 && (
-                <div className="space-y-6">
-                  <div className="space-y-4 bg-slate-50 p-5 rounded-xl border">
-                    <div className="flex items-start gap-3">
-                      <Checkbox id="c1" checked={agreeAccuracy} onCheckedChange={(c: any) => setAgreeAccuracy(Boolean(c))} className="mt-0.5" />
-                      <Label htmlFor="c1" className="text-xs cursor-pointer">
-                        I confirm that all information provided by me is accurate. *
-                      </Label>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Checkbox id="c2" checked={agreePrivacyPolicy} onCheckedChange={(c: any) => setAgreePrivacyPolicy(Boolean(c))} className="mt-0.5" />
-                      <Label htmlFor="c2" className="text-xs cursor-pointer">
-                        I agree to the company's privacy policy. *
-                      </Label>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Checkbox id="c3" checked={agreeRecruitmentConsent} onCheckedChange={(c: any) => setAgreeRecruitmentConsent(Boolean(c))} className="mt-0.5" />
-                      <Label htmlFor="c3" className="text-xs cursor-pointer">
-                        I consent to processing of my personal information for recruitment purposes. *
-                      </Label>
-                    </div>
-                  </div>
-                  {errors.consent && <p className="text-xs text-rose-600 font-semibold">{errors.consent}</p>}
-                </div>
-              )}
-
-              {/* STEP 9: REVIEW & SUBMIT */}
-              {currentStep === 9 && (
-                <div className="space-y-6">
                   <div className="space-y-4">
-                    <div className="border rounded-xl p-4 bg-slate-50 space-y-2 text-xs">
-                      <div className="flex justify-between items-center border-b pb-1">
-                        <span className="font-bold text-indigo-600">Personal Information</span>
-                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)} className="h-6 text-[11px] font-semibold text-indigo-600">
+                    {/* Personal Info Summary */}
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/70 dark:bg-slate-900/50 space-y-2 text-xs">
+                      <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[11px]">
+                          1. Personal Information
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)} className="h-6 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50">
                           <Edit2 className="h-3 w-3 mr-1" /> Edit
                         </Button>
                       </div>
                       <p><strong>Name:</strong> {firstName} {middleName} {lastName}</p>
                       <p><strong>Email:</strong> {email} | <strong>Mobile:</strong> {phone}</p>
+                      <p><strong>Current Location:</strong> {currentLocation} | <strong>Preferred:</strong> {preferredLocation || branchName}</p>
                     </div>
 
-                    <div className="border rounded-xl p-4 bg-slate-50 space-y-2 text-xs">
-                      <div className="flex justify-between items-center border-b pb-1">
-                        <span className="font-bold text-indigo-600">Academic Qualifications ({educationList.length})</span>
-                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(3)} className="h-6 text-[11px] font-semibold text-indigo-600">
+                    {/* Experience Summary */}
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/70 dark:bg-slate-900/50 space-y-2 text-xs">
+                      <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[11px]">
+                          2. Experience Details
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)} className="h-6 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50">
+                          <Edit2 className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                      </div>
+                      <p><strong>Candidate Type:</strong> {candidateType}</p>
+                      {candidateType === 'EXPERIENCED' && (
+                        <p><strong>Total Experience:</strong> {totalExperience} Yrs | <strong>Current Designation:</strong> {currentDesignation || 'N/A'}</p>
+                      )}
+                    </div>
+
+                    {/* Education Summary */}
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/70 dark:bg-slate-900/50 space-y-2 text-xs">
+                      <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[11px]">
+                          3. Academic Qualifications ({educationList.length})
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(3)} className="h-6 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50">
                           <Edit2 className="h-3 w-3 mr-1" /> Edit
                         </Button>
                       </div>
                       {educationList.map((e, i) => (
                         <p key={i}>
-                          • <strong>{e.qualificationType}</strong>: {e.degree} in {e.specialization || 'General'} ({e.institution}, {e.startYear}-{e.passingYear}) — {e.score || 'Passed'}
+                          • <strong>{e.qualificationType}</strong>: {e.degree || e.qualificationType} in {e.specialization || 'General'} ({e.institution || 'School/College'}, {e.passingYear}) — {e.score || 'Passed'}
                         </p>
                       ))}
+                    </div>
+
+                    {/* Skills & Certifications Summary */}
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/70 dark:bg-slate-900/50 space-y-2 text-xs">
+                      <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[11px]">
+                          4. Skills & Certifications
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(4)} className="h-6 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50">
+                          <Edit2 className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                      </div>
+                      <p><strong>Technical Skills:</strong> {technicalSkills || 'Not specified'}</p>
+                      <p><strong>Certifications:</strong> {hasCertifications === 'YES' ? `${certificationList.length} Certifications Saved` : 'No professional certifications'}</p>
+                    </div>
+
+                    {/* Resume & Documents Summary */}
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/70 dark:bg-slate-900/50 space-y-2 text-xs">
+                      <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[11px]">
+                          5. Resume & Attached Documents
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(5)} className="h-6 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50">
+                          <Edit2 className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                      </div>
+                      <p><strong>Resume Document:</strong> {resumeFile ? resumeFile.name : (resumePath ? 'Attached' : 'Not attached')}</p>
+                    </div>
+
+                    {/* Declaration & Consent Single Checkbox */}
+                    <div className="space-y-3 bg-indigo-50/40 dark:bg-indigo-950/30 p-5 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 pt-4">
+                      <h5 className="font-bold text-xs text-indigo-800 dark:text-indigo-300 uppercase tracking-wider">
+                        APPLICANT DECLARATION & CONSENT *
+                      </h5>
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="single-declaration"
+                          checked={agreeDeclaration}
+                          onCheckedChange={(c: any) => setAgreeDeclaration(Boolean(c))}
+                          className="mt-0.5"
+                        />
+                        <Label htmlFor="single-declaration" className="text-xs cursor-pointer leading-relaxed text-slate-700 dark:text-slate-300">
+                          I confirm that the information provided in this application is true and accurate, and I consent to the use of my personal information for recruitment and evaluation purposes in accordance with the company's{' '}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowPrivacyPolicyModal(true);
+                            }}
+                            className="text-indigo-600 dark:text-indigo-400 font-bold underline hover:text-indigo-800 inline-block"
+                          >
+                            Privacy Policy
+                          </button>. *
+                        </Label>
+                      </div>
+                      {errors.consent && <p className="text-xs text-rose-600 font-semibold pt-1">{errors.consent}</p>}
                     </div>
                   </div>
                 </div>
@@ -1474,7 +2020,7 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                     &lt; Back
                   </Button>
 
-                  {currentStep < 9 ? (
+                  {currentStep < 6 ? (
                     <Button
                       type="button"
                       size="sm"
@@ -1513,6 +2059,61 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
           </div>
         </div>
       )}
+
+      {/* ── CANDIDATE PRIVACY POLICY MODAL ── */}
+      <Dialog open={showPrivacyPolicyModal} onOpenChange={setShowPrivacyPolicyModal}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-indigo-700">
+              <ShieldCheck className="h-5 w-5 text-indigo-600" /> Candidate Recruitment Privacy Policy & Data Notice
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              In accordance with DPDP framework and Global Data Protection standards.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 text-xs text-slate-700 dark:text-slate-300 pt-2 leading-relaxed">
+            <div className="space-y-1">
+              <h5 className="font-bold text-slate-900 dark:text-white">1. Information We Collect</h5>
+              <p>
+                We collect personal information including full name, contact details (email & phone number), academic qualifications, work experience history, skills, certifications, and attached resume documents submitted through this application portal.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <h5 className="font-bold text-slate-900 dark:text-white">2. Purpose of Processing</h5>
+              <p>
+                Your personal data is collected and processed exclusively for recruitment, candidate screening, interviewing, background verification, and potential employment contracting by {companyName}.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <h5 className="font-bold text-slate-900 dark:text-white">3. Data Protection & Confidentiality</h5>
+              <p>
+                All data submitted is encrypted in transit and stored securely. Access is strictly restricted to authorized HR recruiters, hiring managers, and interviewers assigned to this requisition. We do not sell or share candidate data with third-party marketers.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <h5 className="font-bold text-slate-900 dark:text-white">4. Your Rights</h5>
+              <p>
+                You retain the right to request access to your submitted data, request corrections, or request deletion of your applicant profile at any time by contacting our HR Talent Acquisition team.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setShowPrivacyPolicyModal(false)}
+              className="text-xs font-semibold px-5 bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              I Understand & Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
