@@ -46,7 +46,10 @@ export function PortalConfigurationPage() {
   const queryClient = useQueryClient();
 
   // Branding & General State
-  const [portalUrl, setPortalUrl] = useState('http://localhost:5174/careers');
+  const defaultPortalUrl =
+    import.meta.env.VITE_CAREERS_PORTAL_URL ||
+    (typeof window !== 'undefined' ? `${window.location.origin}/careers` : '/careers');
+  const [portalUrl, setPortalUrl] = useState(defaultPortalUrl);
   const [companyName, setCompanyName] = useState('StockPulse Inc.');
   const [welcomeHeadline, setWelcomeHeadline] = useState('Join StockPulse — Build the Future of Enterprise HCM');
   const [welcomeSubtitle, setWelcomeSubtitle] = useState(

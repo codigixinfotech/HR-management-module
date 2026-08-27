@@ -456,7 +456,13 @@ export function DocumentVaultTab() {
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-foreground"
                             title="Download Document"
-                            onClick={() => window.open(`http://localhost:3001/${doc.filePath}`)}
+                            onClick={() => {
+                              const serverBaseUrl =
+                                import.meta.env.VITE_SERVER_URL ||
+                                (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : typeof window !== 'undefined' ? window.location.origin : '');
+                              const normalizedPath = doc.filePath.startsWith('/') ? doc.filePath : `/${doc.filePath}`;
+                              window.open(`${serverBaseUrl}${normalizedPath}`, '_blank');
+                            }}
                           >
                             <Download className="h-3.5 w-3.5" />
                           </Button>
