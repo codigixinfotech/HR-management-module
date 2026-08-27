@@ -512,12 +512,51 @@ export function InterviewsTab() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleOpenDetails(item.id)}
+                              className="h-7 px-2 text-xs"
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1" /> View Details
+                            </Button>
+
+                            {isAssigned && item.status !== 'SELECTED' && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleOpenDetails(item.id)}
+                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold"
+                              >
+                                <FileCheck className="h-3.5 w-3.5" /> Evaluate
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()}
+
+                {filteredInterviews.length === 0 && !isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-8 text-center text-xs text-muted-foreground">
+                      No interview schedules found matching your scope/filter. Click{' '}
+                      <strong>Schedule Interview Panel</strong> to create one.
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
           </div>
+
+          {/* Global Reusable EHCM ERP Pagination Component */}
+          {filteredInterviews.length > 0 && (
+            <Pagination
+              totalRecords={filteredInterviews.length}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="interviews"
+              className="p-4"
+            />
+          )}
         </CardContent>
       </Card>
 
