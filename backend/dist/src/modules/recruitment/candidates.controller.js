@@ -34,6 +34,9 @@ let CandidatesController = class CandidatesController {
     updateStage(id, dto) {
         return this.candidatesService.updateStage(id, dto.stage);
     }
+    update(id, dto) {
+        return this.candidatesService.update(id, dto);
+    }
     remove(id) {
         return this.candidatesService.remove(id);
     }
@@ -73,6 +76,15 @@ __decorate([
     __metadata("design:paramtypes", [String, candidate_dto_1.UpdateCandidateStageDto]),
     __metadata("design:returntype", void 0)
 ], CandidatesController.prototype, "updateStage", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    (0, permissions_decorator_1.Permissions)('recruitment.write'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], CandidatesController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, permissions_decorator_1.Permissions)('recruitment.write'),

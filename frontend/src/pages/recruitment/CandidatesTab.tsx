@@ -15,6 +15,8 @@ import {
   Award,
   FileText,
   Eye,
+  Edit,
+  Trash2,
   AlertCircle,
   Clock,
   Sparkles,
@@ -26,6 +28,8 @@ import {
   Brain,
 } from 'lucide-react';
 import { jobOpeningsApi, candidatesApi, assessmentsApi } from '@/api/recruitment';
+import { AtsAnalysisCard } from '@/components/recruitment/AtsAnalysisCard';
+import { ResumeViewerModal } from '@/components/recruitment/ResumeViewerModal';
 import { employeesApi } from '@/api/employees';
 import { tasksApi } from '@/api/tasks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,6 +48,9 @@ import { interviewsApi } from '@/api/interviews';
 import { AssignAssessmentModal } from './AssignAssessmentModal';
 import { ViewAssessmentModal } from './ViewAssessmentModal';
 import { Pagination } from '@/components/common/Pagination';
+import { CandidateFullFormModal } from '@/components/recruitment/CandidateFullFormModal';
+import { CandidateDetailsModal } from '@/components/recruitment/CandidateDetailsModal';
+import { CandidateDeleteModal } from '@/components/recruitment/CandidateDeleteModal';
 
 export function CandidatesTab() {
   const navigate = useNavigate();
@@ -56,13 +63,17 @@ export function CandidatesTab() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
-  // Modal State: Add Candidate
-  const [isOpen, setIsOpen] = useState(false);
-  const [formFirstName, setFormFirstName] = useState('');
-  const [formLastName, setFormLastName] = useState('');
-  const [formEmail, setFormEmail] = useState('');
-  const [formPhone, setFormPhone] = useState('');
-  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  // Modal State: Full Form Add / Edit Candidate
+  const [isFullFormOpen, setIsFullFormOpen] = useState(false);
+  const [editingCandidate, setEditingCandidate] = useState<any | null>(null);
+
+  // Modal State: View Candidate Details
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [viewingCandidate, setViewingCandidate] = useState<any | null>(null);
+
+  // Modal State: Delete Candidate
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deletingCandidate, setDeletingCandidate] = useState<any | null>(null);
 
   // Modal State: Schedule Interview
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -109,6 +120,7 @@ export function CandidatesTab() {
   const [isScreeningOpen, setIsScreeningOpen] = useState(false);
   const [screeningCandidate, setScreeningCandidate] = useState<any>(null);
   const [isFetchingScreening, setIsFetchingScreening] = useState(false);
+  const [resumeViewerCandidate, setResumeViewerCandidate] = useState<any>(null);
 
   // Form Fields: Basic Screening Info
   const [relExpYears, setRelExpYears] = useState<string>('6');
@@ -165,17 +177,24 @@ export function CandidatesTab() {
   const employeeOptions = useMemo(() => {
     if (!employeesData?.items || employeesData.items.length === 0) {
       return [
-        { id: '1', name: 'Aishwarya Roy (Director HR)' },
-        { id: '2', name: 'Priya Verma (HR Lead)' },
-        { id: '3', name: 'Rajesh Sharma (CTO)' },
-        { id: '4', name: 'Admin User' },
+        { id: 'emp-1', code: 'EMP-8265', name: 'Aishwarya Roy', dept: 'Human Resources', company: 'Codigix Infotech Pvt. Ltd.', title: 'Director HR' },
+        { id: 'emp-2', code: 'EMP-0042', name: 'Sanika Mote', dept: 'Engineering', company: 'Codigix Infotech Pvt. Ltd.', title: 'HR Manager' },
+        { id: 'emp-3', code: 'EMP-0019', name: 'Priya Verma', dept: 'Human Resources', company: 'Codigix Infotech Pvt. Ltd.', title: 'HR Lead' },
+        { id: 'emp-4', code: 'EMP-0105', name: 'Rajesh Sharma', dept: 'Executive Office', company: 'Codigix Infotech Pvt. Ltd.', title: 'CTO' },
       ];
     }
     return employeesData.items.map((emp) => {
-      const title = emp.designation?.title || emp.department?.name || 'Employee';
+      const title = emp.designation?.title || 'Employee';
+      const dept = emp.department?.name || 'Engineering';
+      const company = emp.company?.name || 'Codigix Infotech Pvt. Ltd.';
+      const code = emp.employeeCode || `EMP-${emp.id.substring(0, 4).toUpperCase()}`;
       return {
         id: emp.id,
-        name: `${emp.firstName} ${emp.lastName} (${title})`,
+        code,
+        name: `${emp.firstName} ${emp.lastName}`,
+        dept,
+        company,
+        title,
       };
     });
   }, [employeesData]);
@@ -288,56 +307,77 @@ export function CandidatesTab() {
 
   let payloadDecision = screeningDecision;
 
-  const addCandidateMutation = useMutation({
+  const createCandidateMutation = useMutation({
     mutationFn: ({ jobId, payload }: { jobId: string; payload: any }) =>
       jobOpeningsApi.addCandidate(jobId, payload),
     onSuccess: (candidate) => {
       queryClient.invalidateQueries({ queryKey: ['job-openings'] });
       toast.success(`Candidate ${candidate.firstName} ${candidate.lastName} added successfully (Status: APPLIED)`);
-      setIsOpen(false);
-      setFormFirstName('');
-      setFormLastName('');
-      setFormEmail('');
-      setFormPhone('');
+      setIsFullFormOpen(false);
+      setEditingCandidate(null);
     },
     onError: (err: any) =>
       toast.error(err?.response?.data?.message ?? 'Failed to add candidate'),
   });
 
-  const openAddModal = () => {
-    setFormFirstName('');
-    setFormLastName('');
-    setFormEmail('');
-    setFormPhone('');
-    setSelectedJobId(openings[0]?.id || '');
-    setIsOpen(true);
+  const updateCandidateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) =>
+      candidatesApi.update(id, payload),
+    onSuccess: (candidate) => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['candidate-ats-analysis', candidate.id] });
+      toast.success(`Candidate ${candidate.firstName} ${candidate.lastName} updated successfully`);
+      setIsFullFormOpen(false);
+      setEditingCandidate(null);
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? 'Failed to update candidate'),
+  });
+
+  const deleteCandidateMutation = useMutation({
+    mutationFn: (id: string) => candidatesApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      toast.success('Candidate record deleted successfully from database');
+      setIsDeleteOpen(false);
+      setDeletingCandidate(null);
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? 'Failed to delete candidate'),
+  });
+
+  const handleFormSubmit = (payload: any, jobId: string, candidateId?: string) => {
+    if (candidateId) {
+      updateCandidateMutation.mutate({ id: candidateId, payload });
+    } else {
+      createCandidateMutation.mutate({ jobId, payload });
+    }
   };
 
-  const handleAddCandidate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formFirstName.trim() || !formLastName.trim()) {
-      toast.error('First Name and Last Name are required');
-      return;
-    }
-    if (!formEmail.trim()) {
-      toast.error('Email Address is required');
-      return;
-    }
-    if (!selectedJobId) {
-      toast.error('Target Job Requisition is required');
-      return;
-    }
+  const handleOpenAdd = () => {
+    setEditingCandidate(null);
+    setIsFullFormOpen(true);
+  };
 
-    addCandidateMutation.mutate({
-      jobId: selectedJobId,
-      payload: {
-        firstName: formFirstName,
-        lastName: formLastName,
-        email: formEmail,
-        phone: formPhone || undefined,
-        stage: 'APPLIED',
-      },
-    });
+  const handleOpenEdit = (candidate: any) => {
+    setEditingCandidate(candidate);
+    setIsViewDetailsOpen(false);
+    setIsFullFormOpen(true);
+  };
+
+  const handleOpenViewDetails = (candidate: any) => {
+    setViewingCandidate(candidate);
+    setIsViewDetailsOpen(true);
+  };
+
+  const handleOpenDelete = (candidate: any) => {
+    setDeletingCandidate(candidate);
+    setIsViewDetailsOpen(false);
+    setIsDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = (id: string) => {
+    deleteCandidateMutation.mutate(id);
   };
 
   // Open Focused Candidate Screening Evaluation Dialog Modal
@@ -668,88 +708,13 @@ export function CandidatesTab() {
             </div>
 
             <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-              {/* Add Candidate Dialog */}
-              <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs cursor-pointer" onClick={openAddModal}>
-                    <Plus className="h-3.5 w-3.5" /> Add Candidate
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Add New Candidate Profile</DialogTitle>
-                  </DialogHeader>
-                  <form className="space-y-4" onSubmit={handleAddCandidate}>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">First Name *</Label>
-                        <Input
-                          placeholder="e.g. Pratham"
-                          value={formFirstName}
-                          onChange={(e) => setFormFirstName(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Last Name *</Label>
-                        <Input
-                          placeholder="e.g. Sharma"
-                          value={formLastName}
-                          onChange={(e) => setFormLastName(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Email Address *</Label>
-                        <Input
-                          type="email"
-                          placeholder="pratham@example.com"
-                          value={formEmail}
-                          onChange={(e) => setFormEmail(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Phone Number</Label>
-                        <Input
-                          placeholder="+91 9876543210"
-                          value={formPhone}
-                          onChange={(e) => setFormPhone(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Target Job Requisition *</Label>
-                      <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Select Job Requisition" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {openings.map((job) => (
-                            <SelectItem key={job.id} value={job.id} className="text-xs">
-                              {job.title} ({job.department?.name || 'Dept'})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <DialogFooter className="pt-2">
-                      <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setIsOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" size="sm" className="h-8 text-xs font-semibold" disabled={addCandidateMutation.isPending}>
-                        {addCandidateMutation.isPending ? 'Saving...' : 'Add Candidate'}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1.5 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs cursor-pointer"
+                onClick={handleOpenAdd}
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Candidate
+              </Button>
             </div>
           </div>
 
@@ -877,7 +842,37 @@ export function CandidatesTab() {
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-emerald-600 font-mono">{c.score}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                          onClick={() => handleOpenViewDetails(c)}
+                          title="View Candidate Details"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                          onClick={() => handleOpenEdit(c)}
+                          title="Edit Candidate Profile"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                          onClick={() => handleOpenDelete(c)}
+                          title="Delete Candidate Record"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+
                         <Button
                           variant="outline"
                           size="sm"
@@ -1105,10 +1100,7 @@ export function CandidatesTab() {
                       size="sm"
                       className="h-7 text-[11px] text-primary border-primary/30 hover:bg-primary/10 px-2 mt-0.5 gap-1"
                       onClick={() => {
-                        toast.info(`Opening application document for ${screeningCandidate.name}`);
-                        if (screeningCandidate.resumePath) {
-                          window.open(screeningCandidate.resumePath, '_blank');
-                        }
+                        setResumeViewerCandidate(screeningCandidate);
                       }}
                     >
                       <Eye className="h-3 w-3" /> View Resume
@@ -1116,6 +1108,14 @@ export function CandidatesTab() {
                   </div>
                 </div>
               </div>
+
+              {/* REAL ATS RESUME ANALYSIS & JOB MATCHING BREAKDOWN CARD */}
+              <AtsAnalysisCard
+                candidateId={screeningCandidate.id}
+                candidateName={screeningCandidate.name}
+                jobTitle={screeningCandidate.role}
+                resumePath={screeningCandidate.resumePath}
+              />
 
               {/* CANDIDATE INTERVIEW HISTORY */}
               <div className="p-3.5 bg-primary/5 rounded-xl border border-primary/20 space-y-2.5 text-xs">
@@ -1658,6 +1658,64 @@ export function CandidatesTab() {
           toast.info(`Navigating to Recruitment -> Assessments tab to grade candidate attempt.`);
         }}
       />
+
+      {/* FULL-PAGE COMPLETE ADD / EDIT CANDIDATE FORM MODAL */}
+      <CandidateFullFormModal
+        isOpen={isFullFormOpen}
+        onClose={() => {
+          setIsFullFormOpen(false);
+          setEditingCandidate(null);
+        }}
+        onSubmit={handleFormSubmit}
+        jobOpenings={openings}
+        employeesList={employeeOptions}
+        initialData={editingCandidate}
+        isSubmitting={createCandidateMutation.isPending || updateCandidateMutation.isPending}
+      />
+
+      {/* VIEW CANDIDATE DETAILS MODAL */}
+      <CandidateDetailsModal
+        isOpen={isViewDetailsOpen}
+        onClose={() => {
+          setIsViewDetailsOpen(false);
+          setViewingCandidate(null);
+        }}
+        candidate={viewingCandidate}
+        onEdit={handleOpenEdit}
+        onStartScreening={openScreeningModal}
+        onDelete={handleOpenDelete}
+      />
+
+      {/* DELETE CANDIDATE CONFIRMATION MODAL */}
+      <CandidateDeleteModal
+        isOpen={isDeleteOpen}
+        onClose={() => {
+          setIsDeleteOpen(false);
+          setDeletingCandidate(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        candidate={deletingCandidate}
+        isDeleting={deleteCandidateMutation.isPending}
+      />
+
+      {/* INTERACTIVE PDF & RESUME DOCUMENT VIEWER MODAL */}
+      {resumeViewerCandidate && (
+        <ResumeViewerModal
+          isOpen={Boolean(resumeViewerCandidate)}
+          onClose={() => setResumeViewerCandidate(null)}
+          candidateName={resumeViewerCandidate.name}
+          candidateEmail={resumeViewerCandidate.email}
+          candidatePhone={resumeViewerCandidate.phone}
+          candidateLocation={resumeViewerCandidate.currentLocation}
+          jobTitle={resumeViewerCandidate.role || resumeViewerCandidate.jobOpening?.title}
+          resumeUrl={resumeViewerCandidate.resumePath}
+          experienceYears={resumeViewerCandidate.experience}
+          qualification={resumeViewerCandidate.qualification}
+          skills={resumeViewerCandidate.skills}
+          notes={resumeViewerCandidate.notes || resumeViewerCandidate.coverLetter}
+          score={resumeViewerCandidate.score}
+        />
+      )}
     </div>
   );
 }

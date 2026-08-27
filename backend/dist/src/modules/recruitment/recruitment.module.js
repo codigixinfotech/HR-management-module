@@ -20,11 +20,14 @@ const interviews_controller_1 = require("./interviews.controller");
 const interviews_service_1 = require("./interviews.service");
 const offers_controller_1 = require("./offers.controller");
 const offer_email_service_1 = require("./offer-email.service");
+const ats_module_1 = require("./ats/ats.module");
+const teams_interview_service_1 = require("./teams/teams-interview.service");
 let RecruitmentModule = class RecruitmentModule {
 };
 exports.RecruitmentModule = RecruitmentModule;
 exports.RecruitmentModule = RecruitmentModule = __decorate([
     (0, common_1.Module)({
+        imports: [ats_module_1.AtsModule],
         controllers: [
             job_openings_controller_1.JobOpeningsController,
             candidates_controller_1.CandidatesController,
@@ -40,6 +43,7 @@ exports.RecruitmentModule = RecruitmentModule = __decorate([
             manpower_requisitions_service_1.ManpowerRequisitionsService,
             interviews_service_1.InterviewsService,
             offer_email_service_1.OfferEmailService,
+            teams_interview_service_1.TeamsInterviewService,
         ],
         exports: [
             job_openings_service_1.JobOpeningsService,
@@ -48,6 +52,8 @@ exports.RecruitmentModule = RecruitmentModule = __decorate([
             manpower_requisitions_service_1.ManpowerRequisitionsService,
             interviews_service_1.InterviewsService,
             offer_email_service_1.OfferEmailService,
+            teams_interview_service_1.TeamsInterviewService,
+            ats_module_1.AtsModule,
         ],
     })
 ], RecruitmentModule);

@@ -7,8 +7,8 @@ export declare class LeaveTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -19,8 +19,8 @@ export declare class LeaveTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -31,8 +31,8 @@ export declare class LeaveTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -43,8 +43,8 @@ export declare class LeaveTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         isPaid: boolean;

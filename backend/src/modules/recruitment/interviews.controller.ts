@@ -66,6 +66,19 @@ export class InterviewsController {
     return this.interviewsService.updateSchedule(id, dto);
   }
 
+  @Patch(':id/reschedule')
+  rescheduleInterview(
+    @Param('id') id: string,
+    @Body() dto: { interviewDate: string; startTime: string; durationMinutes?: number }
+  ) {
+    return this.interviewsService.rescheduleInterview(id, dto);
+  }
+
+  @Post(':id/cancel')
+  cancelInterview(@Param('id') id: string, @Body() body: { comment?: string }) {
+    return this.interviewsService.cancelInterview(id, body?.comment);
+  }
+
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateInterviewStatusDto) {
     return this.interviewsService.updateStatus(id, dto);

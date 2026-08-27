@@ -4,12 +4,14 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCandidateDto, SaveCandidateScreeningDto } from './dto/candidate.dto';
 
 import { OfferEmailService } from './offer-email.service';
+import { AtsService } from './ats/ats.service';
 
 @Injectable()
 export class CandidatesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly offerEmailService: OfferEmailService,
+    private readonly atsService: AtsService,
   ) {}
 
   listForJobOpening(jobOpeningId: string) {
@@ -18,7 +20,8 @@ export class CandidatesService {
       include: {
         jobOpening: true,
         screenings: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
+        atsAnalysis: true,
+      } as any,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -33,11 +36,17 @@ export class CandidatesService {
             title: true,
             requisitionCode: true,
             mrNumber: true,
+            requiredSkills: true,
+            preferredSkills: true,
+            minExperience: true,
+            maxExperience: true,
+            qualification: true,
             department: { select: { id: true, name: true } },
           },
         },
         screenings: { orderBy: { createdAt: 'desc' } },
-      },
+        atsAnalysis: true,
+      } as any,
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
     return candidate;
@@ -111,6 +120,11 @@ export class CandidatesService {
       .catch((err) => {
         // Logging error so candidate submission is not interrupted if SMTP is unreachable
       });
+
+    // 4. Trigger ATS Resume Parsing & Candidate Job Matching asynchronously
+    this.atsService.processCandidateAsync(candidate.id).catch((err) => {
+      // Log error so candidate creation is not interrupted
+    });
 
     return candidate;
   }
@@ -249,6 +263,26 @@ export class CandidatesService {
     await this.findById(id);
     await this.prisma.candidate.delete({ where: { id } });
     return { success: true };
+  }
+
+  async update(id: string, dto: any) {
+    await this.findById(id);
+    const { middleName, ...prismaData } = dto;
+    const finalData = {
+      ...prismaData,
+      firstName: middleName ? `${prismaData.firstName || ''} ${middleName}`.trim() : prismaData.firstName,
+    };
+    const updated = await this.prisma.candidate.update({
+      where: { id },
+      data: finalData,
+    });
+
+    // Trigger ATS Resume Re-Parsing & Score Re-Analysis asynchronously upon profile/resume update
+    this.atsService.processCandidateAsync(id).catch((err) => {
+      // Log error so update transaction is not interrupted
+    });
+
+    return updated;
   }
 }
 

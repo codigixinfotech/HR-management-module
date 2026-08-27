@@ -48,6 +48,12 @@ let InterviewsController = class InterviewsController {
     updateSchedule(id, dto) {
         return this.interviewsService.updateSchedule(id, dto);
     }
+    rescheduleInterview(id, dto) {
+        return this.interviewsService.rescheduleInterview(id, dto);
+    }
+    cancelInterview(id, body) {
+        return this.interviewsService.cancelInterview(id, body?.comment);
+    }
     updateStatus(id, dto) {
         return this.interviewsService.updateStatus(id, dto);
     }
@@ -109,6 +115,22 @@ __decorate([
     __metadata("design:paramtypes", [String, interview_dto_1.UpdateInterviewScheduleDto]),
     __metadata("design:returntype", void 0)
 ], InterviewsController.prototype, "updateSchedule", null);
+__decorate([
+    (0, common_1.Patch)(':id/reschedule'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], InterviewsController.prototype, "rescheduleInterview", null);
+__decorate([
+    (0, common_1.Post)(':id/cancel'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], InterviewsController.prototype, "cancelInterview", null);
 __decorate([
     (0, common_1.Patch)(':id/status'),
     __param(0, (0, common_1.Param)('id')),

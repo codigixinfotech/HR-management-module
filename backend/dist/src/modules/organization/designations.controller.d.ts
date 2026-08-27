@@ -15,16 +15,16 @@ export declare class DesignationsController {
     } & {
         id: string;
         companyId: string;
-        createdAt: Date;
-        updatedAt: Date;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        title: string;
         description: string | null;
         code: string;
-        isActive: boolean;
         effectiveFrom: Date;
-        title: string;
+        isActive: boolean;
         jobFamily: string | null;
         reportingDesignationId: string | null;
         minSalary: number | null;
@@ -42,16 +42,16 @@ export declare class DesignationsController {
     } & {
         id: string;
         companyId: string;
-        createdAt: Date;
-        updatedAt: Date;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        title: string;
         description: string | null;
         code: string;
-        isActive: boolean;
         effectiveFrom: Date;
-        title: string;
+        isActive: boolean;
         jobFamily: string | null;
         reportingDesignationId: string | null;
         minSalary: number | null;
@@ -60,16 +60,16 @@ export declare class DesignationsController {
     create(dto: CreateDesignationDto): Promise<{
         id: string;
         companyId: string;
-        createdAt: Date;
-        updatedAt: Date;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        title: string;
         description: string | null;
         code: string;
-        isActive: boolean;
         effectiveFrom: Date;
-        title: string;
+        isActive: boolean;
         jobFamily: string | null;
         reportingDesignationId: string | null;
         minSalary: number | null;
@@ -78,16 +78,16 @@ export declare class DesignationsController {
     update(id: string, dto: UpdateDesignationDto): Promise<{
         id: string;
         companyId: string;
-        createdAt: Date;
-        updatedAt: Date;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        title: string;
         description: string | null;
         code: string;
-        isActive: boolean;
         effectiveFrom: Date;
-        title: string;
+        isActive: boolean;
         jobFamily: string | null;
         reportingDesignationId: string | null;
         minSalary: number | null;

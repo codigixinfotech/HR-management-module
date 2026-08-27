@@ -7,44 +7,44 @@ export declare class SalaryComponentsService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
-        isActive: boolean;
         type: import(".prisma/client").$Enums.SalaryComponentType;
+        isActive: boolean;
         isStatutory: boolean;
     }[]>;
     findById(id: string): Promise<{
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
-        isActive: boolean;
         type: import(".prisma/client").$Enums.SalaryComponentType;
+        isActive: boolean;
         isStatutory: boolean;
     }>;
     create(dto: CreateSalaryComponentDto): Promise<{
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
-        isActive: boolean;
         type: import(".prisma/client").$Enums.SalaryComponentType;
+        isActive: boolean;
         isStatutory: boolean;
     }>;
     update(id: string, dto: UpdateSalaryComponentDto): Promise<{
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         code: string;
-        isActive: boolean;
         type: import(".prisma/client").$Enums.SalaryComponentType;
+        isActive: boolean;
         isStatutory: boolean;
     }>;
     remove(id: string): Promise<{

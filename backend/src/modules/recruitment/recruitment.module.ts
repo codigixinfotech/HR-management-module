@@ -11,8 +11,11 @@ import { InterviewsController } from './interviews.controller';
 import { InterviewsService } from './interviews.service';
 import { OffersController } from './offers.controller';
 import { OfferEmailService } from './offer-email.service';
+import { AtsModule } from './ats/ats.module';
+import { TeamsInterviewService } from './teams/teams-interview.service';
 
 @Module({
+  imports: [AtsModule],
   controllers: [
     JobOpeningsController,
     CandidatesController,
@@ -28,6 +31,7 @@ import { OfferEmailService } from './offer-email.service';
     ManpowerRequisitionsService,
     InterviewsService,
     OfferEmailService,
+    TeamsInterviewService,
   ],
   exports: [
     JobOpeningsService,
@@ -36,6 +40,8 @@ import { OfferEmailService } from './offer-email.service';
     ManpowerRequisitionsService,
     InterviewsService,
     OfferEmailService,
+    TeamsInterviewService,
+    AtsModule,
   ],
 })
 export class RecruitmentModule {}

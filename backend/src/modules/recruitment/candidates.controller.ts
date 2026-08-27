@@ -31,6 +31,12 @@ export class CandidatesController {
     return this.candidatesService.updateStage(id, dto.stage);
   }
 
+  @Patch(':id')
+  @Permissions('recruitment.write')
+  update(@Param('id') id: string, @Body() dto: any) {
+    return this.candidatesService.update(id, dto);
+  }
+
   @Delete(':id')
   @Permissions('recruitment.write')
   remove(@Param('id') id: string) {

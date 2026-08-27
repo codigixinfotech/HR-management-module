@@ -14,12 +14,15 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const offer_email_service_1 = require("./offer-email.service");
+const ats_service_1 = require("./ats/ats.service");
 let CandidatesService = class CandidatesService {
     prisma;
     offerEmailService;
-    constructor(prisma, offerEmailService) {
+    atsService;
+    constructor(prisma, offerEmailService, atsService) {
         this.prisma = prisma;
         this.offerEmailService = offerEmailService;
+        this.atsService = atsService;
     }
     listForJobOpening(jobOpeningId) {
         return this.prisma.candidate.findMany({
@@ -27,6 +30,7 @@ let CandidatesService = class CandidatesService {
             include: {
                 jobOpening: true,
                 screenings: { orderBy: { createdAt: 'desc' }, take: 1 },
+                atsAnalysis: true,
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -41,10 +45,16 @@ let CandidatesService = class CandidatesService {
                         title: true,
                         requisitionCode: true,
                         mrNumber: true,
+                        requiredSkills: true,
+                        preferredSkills: true,
+                        minExperience: true,
+                        maxExperience: true,
+                        qualification: true,
                         department: { select: { id: true, name: true } },
                     },
                 },
                 screenings: { orderBy: { createdAt: 'desc' } },
+                atsAnalysis: true,
             },
         });
         if (!candidate)
@@ -103,6 +113,8 @@ let CandidatesService = class CandidatesService {
             applicationDate: formattedDate,
         })
             .catch((err) => {
+        });
+        this.atsService.processCandidateAsync(candidate.id).catch((err) => {
         });
         return candidate;
     }
@@ -219,11 +231,27 @@ let CandidatesService = class CandidatesService {
         await this.prisma.candidate.delete({ where: { id } });
         return { success: true };
     }
+    async update(id, dto) {
+        await this.findById(id);
+        const { middleName, ...prismaData } = dto;
+        const finalData = {
+            ...prismaData,
+            firstName: middleName ? `${prismaData.firstName || ''} ${middleName}`.trim() : prismaData.firstName,
+        };
+        const updated = await this.prisma.candidate.update({
+            where: { id },
+            data: finalData,
+        });
+        this.atsService.processCandidateAsync(id).catch((err) => {
+        });
+        return updated;
+    }
 };
 exports.CandidatesService = CandidatesService;
 exports.CandidatesService = CandidatesService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        offer_email_service_1.OfferEmailService])
+        offer_email_service_1.OfferEmailService,
+        ats_service_1.AtsService])
 ], CandidatesService);
 //# sourceMappingURL=candidates.service.js.map

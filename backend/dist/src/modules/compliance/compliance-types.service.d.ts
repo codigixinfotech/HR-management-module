@@ -7,48 +7,48 @@ export declare class ComplianceTypesService {
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
-        category: string;
         updatedAt: Date;
+        name: string;
         description: string | null;
         code: string;
         isActive: boolean;
+        category: string;
         frequency: import(".prisma/client").$Enums.ComplianceFrequency;
     }[]>;
     findById(id: string): Promise<{
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
-        category: string;
         updatedAt: Date;
+        name: string;
         description: string | null;
         code: string;
         isActive: boolean;
+        category: string;
         frequency: import(".prisma/client").$Enums.ComplianceFrequency;
     }>;
     create(dto: CreateComplianceTypeDto): Promise<{
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
-        category: string;
         updatedAt: Date;
+        name: string;
         description: string | null;
         code: string;
         isActive: boolean;
+        category: string;
         frequency: import(".prisma/client").$Enums.ComplianceFrequency;
     }>;
     update(id: string, dto: UpdateComplianceTypeDto): Promise<{
         id: string;
         companyId: string;
         createdAt: Date;
-        name: string;
-        category: string;
         updatedAt: Date;
+        name: string;
         description: string | null;
         code: string;
         isActive: boolean;
+        category: string;
         frequency: import(".prisma/client").$Enums.ComplianceFrequency;
     }>;
     remove(id: string): Promise<{

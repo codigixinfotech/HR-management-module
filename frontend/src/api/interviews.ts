@@ -21,13 +21,16 @@ export const interviewsApi = {
 
   create: async (payload: {
     candidateId: string;
+    candidateEmail?: string;
     jobOpeningId?: string;
     position: string;
     requisitionCode?: string;
     interviewDate: string;
     startTime: string;
     endTime?: string;
+    durationMinutes?: number;
     interviewFormat?: string;
+    createTeamsMeeting?: boolean;
     meetingLink?: string;
     notes?: string;
     panelMemberIds: string[];
@@ -35,6 +38,12 @@ export const interviewsApi = {
     createdById?: string;
     createdByName?: string;
   }) => (await apiClient.post<CandidateInterview>('/recruitment/interviews', payload)).data,
+
+  reschedule: async (id: string, payload: { interviewDate: string; startTime: string; durationMinutes?: number }) =>
+    (await apiClient.patch<CandidateInterview>(`/recruitment/interviews/${id}/reschedule`, payload)).data,
+
+  cancel: async (id: string, comment?: string) =>
+    (await apiClient.post<CandidateInterview>(`/recruitment/interviews/${id}/cancel`, { comment })).data,
 
   updateSchedule: async (
     id: string,

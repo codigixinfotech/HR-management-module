@@ -403,14 +403,12 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
 
   // Dashboard Stats Calculations
   const totalBudget = useMemo(() => {
-    return costCenters.reduce((sum, c) => sum + c.budget, 0);
+    return costCenters.reduce((sum, c) => sum + (Number(c.budget) || 0), 0);
   }, [costCenters]);
 
   const formattedTotalBudget = useMemo(() => {
-    if (totalBudget >= 10000000) {
-      return `₹${(totalBudget / 10000000).toFixed(1)} Cr`;
-    }
-    return `₹${(totalBudget / 100000).toFixed(0)} L`;
+    const budgetInLakh = totalBudget / 100000;
+    return `₹${budgetInLakh.toFixed(2)} Lakh`;
   }, [totalBudget]);
 
   return (

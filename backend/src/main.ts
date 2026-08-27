@@ -6,7 +6,9 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import { json, urlencoded } from 'express';
+import express, { json, urlencoded } from 'express';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -14,9 +16,23 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
+  // Serve static resume & document uploads from backend/uploads directory
+  const uploadsDir = existsSync(join(process.cwd(), 'backend', 'uploads'))
+    ? join(process.cwd(), 'backend', 'uploads')
+    : existsSync(join(process.cwd(), 'uploads'))
+    ? join(process.cwd(), 'uploads')
+    : join(__dirname, '..', 'uploads');
+
+  app.use('/uploads', express.static(uploadsDir));
+
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      frameguard: false,
+    }),
+  );
   app.use(compression());
   app.use(cookieParser());
 

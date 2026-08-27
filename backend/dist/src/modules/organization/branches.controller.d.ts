@@ -6,12 +6,11 @@ export declare class BranchesController {
     constructor(branchesService: BranchesService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employees: {
-            id: string;
-            companyId: string;
             location: string | null;
-            createdAt: Date;
-            updatedAt: Date;
+            costCenter: string | null;
+            id: string;
             employeeCode: string;
+            companyId: string;
             branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
@@ -35,7 +34,6 @@ export declare class BranchesController {
             grade: string | null;
             level: string | null;
             shift: string | null;
-            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -103,18 +101,20 @@ export declare class BranchesController {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
+            createdAt: Date;
+            updatedAt: Date;
         }[];
         locations: {
             id: string;
-            createdAt: Date;
-            name: string;
-            updatedAt: Date;
             branchId: string;
             shift: string | null;
             city: string | null;
             state: string | null;
             country: string | null;
             pincode: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            name: string;
             code: string;
             isActive: boolean;
             buildingName: string | null;
@@ -128,9 +128,6 @@ export declare class BranchesController {
     } & {
         id: string;
         companyId: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         phone: string | null;
         businessUnit: string | null;
         addressLine1: string | null;
@@ -139,11 +136,14 @@ export declare class BranchesController {
         state: string | null;
         country: string | null;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
-        timezone: string | null;
-        email: string | null;
-        isActive: boolean;
         manager: string | null;
+        isActive: boolean;
+        email: string | null;
+        timezone: string | null;
         branchType: string | null;
         workingCalendar: string | null;
         shiftGroup: string | null;
@@ -151,12 +151,11 @@ export declare class BranchesController {
     })[]>;
     findOne(id: string): Promise<{
         employees: {
-            id: string;
-            companyId: string;
             location: string | null;
-            createdAt: Date;
-            updatedAt: Date;
+            costCenter: string | null;
+            id: string;
             employeeCode: string;
+            companyId: string;
             branchId: string | null;
             departmentId: string | null;
             designationId: string | null;
@@ -180,7 +179,6 @@ export declare class BranchesController {
             grade: string | null;
             level: string | null;
             shift: string | null;
-            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -248,18 +246,20 @@ export declare class BranchesController {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
+            createdAt: Date;
+            updatedAt: Date;
         }[];
         locations: {
             id: string;
-            createdAt: Date;
-            name: string;
-            updatedAt: Date;
             branchId: string;
             shift: string | null;
             city: string | null;
             state: string | null;
             country: string | null;
             pincode: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            name: string;
             code: string;
             isActive: boolean;
             buildingName: string | null;
@@ -273,9 +273,6 @@ export declare class BranchesController {
     } & {
         id: string;
         companyId: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         phone: string | null;
         businessUnit: string | null;
         addressLine1: string | null;
@@ -284,11 +281,14 @@ export declare class BranchesController {
         state: string | null;
         country: string | null;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
-        timezone: string | null;
-        email: string | null;
-        isActive: boolean;
         manager: string | null;
+        isActive: boolean;
+        email: string | null;
+        timezone: string | null;
         branchType: string | null;
         workingCalendar: string | null;
         shiftGroup: string | null;
@@ -297,9 +297,6 @@ export declare class BranchesController {
     create(dto: CreateBranchDto): Promise<{
         id: string;
         companyId: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         phone: string | null;
         businessUnit: string | null;
         addressLine1: string | null;
@@ -308,11 +305,14 @@ export declare class BranchesController {
         state: string | null;
         country: string | null;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
-        timezone: string | null;
-        email: string | null;
-        isActive: boolean;
         manager: string | null;
+        isActive: boolean;
+        email: string | null;
+        timezone: string | null;
         branchType: string | null;
         workingCalendar: string | null;
         shiftGroup: string | null;
@@ -321,9 +321,6 @@ export declare class BranchesController {
     update(id: string, dto: UpdateBranchDto): Promise<{
         id: string;
         companyId: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         phone: string | null;
         businessUnit: string | null;
         addressLine1: string | null;
@@ -332,11 +329,14 @@ export declare class BranchesController {
         state: string | null;
         country: string | null;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
-        timezone: string | null;
-        email: string | null;
-        isActive: boolean;
         manager: string | null;
+        isActive: boolean;
+        email: string | null;
+        timezone: string | null;
         branchType: string | null;
         workingCalendar: string | null;
         shiftGroup: string | null;
@@ -347,15 +347,15 @@ export declare class BranchesController {
     }>;
     listLocations(branchId: string): Promise<{
         id: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         branchId: string;
         shift: string | null;
         city: string | null;
         state: string | null;
         country: string | null;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         buildingName: string | null;
@@ -368,15 +368,15 @@ export declare class BranchesController {
     }[]>;
     createLocation(branchId: string, dto: CreateLocationDto): Promise<{
         id: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         branchId: string;
         shift: string | null;
         city: string | null;
         state: string | null;
         country: string | null;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         buildingName: string | null;
@@ -389,15 +389,15 @@ export declare class BranchesController {
     }>;
     updateLocation(id: string, dto: UpdateLocationDto): Promise<{
         id: string;
-        createdAt: Date;
-        name: string;
-        updatedAt: Date;
         branchId: string;
         shift: string | null;
         city: string | null;
         state: string | null;
         country: string | null;
         pincode: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         code: string;
         isActive: boolean;
         buildingName: string | null;

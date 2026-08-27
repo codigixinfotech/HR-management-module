@@ -12,10 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.InterviewsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const teams_interview_service_1 = require("./teams/teams-interview.service");
 let InterviewsService = class InterviewsService {
     prisma;
-    constructor(prisma) {
+    teamsInterviewService;
+    constructor(prisma, teamsInterviewService) {
         this.prisma = prisma;
+        this.teamsInterviewService = teamsInterviewService;
     }
     async generateNextInterviewCode() {
         const year = new Date().getFullYear();
@@ -55,20 +58,45 @@ let InterviewsService = class InterviewsService {
         }
         const interviewCode = await this.generateNextInterviewCode();
         const interviewDate = new Date(dto.interviewDate);
+        const candEmail = dto.candidateEmail || candidate.email;
+        const format = dto.interviewFormat || 'Microsoft Teams';
+        let teamsDetails = null;
+        if (format === 'Microsoft Teams' || dto.createTeamsMeeting !== false) {
+            const positionName = dto.position || candidate.jobOpening?.title || 'Target Position';
+            teamsDetails = await this.teamsInterviewService.createTeamsInterview({
+                candidateName: `${candidate.firstName} ${candidate.lastName}`,
+                candidateEmail: candEmail,
+                position: positionName,
+                interviewDate: dto.interviewDate,
+                startTime: dto.startTime,
+                durationMinutes: dto.durationMinutes || 60,
+                notes: dto.notes || undefined,
+                attendees: panelEmployees.map((e) => ({
+                    name: `${e.firstName} ${e.lastName}`,
+                    email: e.email || `${e.firstName.toLowerCase()}@codigixinfotech.com`,
+                })),
+            });
+        }
+        const meetingLink = teamsDetails?.teamsJoinUrl || dto.meetingLink || null;
         const interview = await this.prisma.candidateInterview.create({
             data: {
                 interviewCode,
                 candidateId: dto.candidateId,
+                candidateEmail: candEmail,
                 jobOpeningId: dto.jobOpeningId || candidate.jobOpeningId || null,
                 position: dto.position || candidate.jobOpening?.title || 'Target Position',
                 requisitionCode: dto.requisitionCode || candidate.jobOpening?.requisitionCode || 'JR-2026-001',
                 interviewDate,
                 startTime: dto.startTime,
                 endTime: dto.endTime || null,
-                interviewFormat: dto.interviewFormat || 'Google Meet',
-                meetingLink: dto.meetingLink || null,
+                interviewFormat: format,
+                meetingLink,
                 notes: dto.notes || null,
                 status: 'SCHEDULED',
+                teamsMeetingId: teamsDetails?.teamsMeetingId || null,
+                teamsJoinUrl: teamsDetails?.teamsJoinUrl || null,
+                calendarEventId: teamsDetails?.calendarEventId || null,
+                invitationStatus: teamsDetails?.invitationStatus || 'NOT_SENT',
                 createdById: dto.createdById || null,
                 createdByName: dto.createdByName || 'HR Administrator',
                 panelMembers: {
@@ -565,10 +593,57 @@ let InterviewsService = class InterviewsService {
             };
         });
     }
+    async rescheduleInterview(id, dto) {
+        const interview = await this.prisma.candidateInterview.findUnique({
+            where: { id },
+            include: { candidate: true },
+        });
+        if (!interview) {
+            throw new common_1.NotFoundException(`Interview with ID ${id} not found`);
+        }
+        if (interview.calendarEventId) {
+            await this.teamsInterviewService.updateTeamsInterview(interview.calendarEventId, {
+                candidateName: `${interview.candidate?.firstName} ${interview.candidate?.lastName}`,
+                candidateEmail: interview.candidateEmail || interview.candidate?.email || '',
+                position: interview.position,
+                interviewDate: dto.interviewDate,
+                startTime: dto.startTime,
+                durationMinutes: dto.durationMinutes || 60,
+            });
+        }
+        return this.prisma.candidateInterview.update({
+            where: { id },
+            data: {
+                interviewDate: new Date(dto.interviewDate),
+                startTime: dto.startTime,
+                status: 'RESCHEDULED',
+                invitationStatus: 'RESCHEDULED',
+            },
+        });
+    }
+    async cancelInterview(id, comment) {
+        const interview = await this.prisma.candidateInterview.findUnique({
+            where: { id },
+        });
+        if (!interview) {
+            throw new common_1.NotFoundException(`Interview with ID ${id} not found`);
+        }
+        if (interview.calendarEventId) {
+            await this.teamsInterviewService.cancelTeamsInterview(interview.calendarEventId, comment || 'Cancelled by recruiter in EHCM ERP');
+        }
+        return this.prisma.candidateInterview.update({
+            where: { id },
+            data: {
+                status: 'CANCELLED',
+                invitationStatus: 'FAILED',
+            },
+        });
+    }
 };
 exports.InterviewsService = InterviewsService;
 exports.InterviewsService = InterviewsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        teams_interview_service_1.TeamsInterviewService])
 ], InterviewsService);
 //# sourceMappingURL=interviews.service.js.map

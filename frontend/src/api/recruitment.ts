@@ -63,6 +63,8 @@ export const candidatesApi = {
     (await apiClient.post<{ success: boolean; candidate: Candidate; screening: CandidateScreening }>(`/recruitment/candidates/${id}/screening`, payload)).data,
   updateStage: async (id: string, stage: CandidateStage) =>
     (await apiClient.patch<Candidate>(`/recruitment/candidates/${id}/stage`, { stage })).data,
+  update: async (id: string, payload: Partial<Candidate>) =>
+    (await apiClient.patch<Candidate>(`/recruitment/candidates/${id}`, payload)).data,
   remove: async (id: string) => (await apiClient.delete(`/recruitment/candidates/${id}`)).data,
 };
 
@@ -121,6 +123,52 @@ export const offersApi = {
 
   getAuditLogs: async (offerId?: string) =>
     (await apiClient.get<any[]>('/recruitment/offers/audit-logs', { params: { offerId } })).data,
+};
+
+export interface AtsAnalysisData {
+  id: string;
+  candidateId: string;
+  jobOpeningId: string;
+  matchScore: number;
+  skillsMatched: string[];
+  skillsMissing: string[];
+  experienceMatch: {
+    candidateExpYears: number;
+    minRequiredYears: number;
+    maxRequiredYears?: number;
+    isMatch: boolean;
+    score: number;
+    summary?: string;
+  };
+  qualificationMatch: {
+    candidateQual: string;
+    requiredQual: string;
+    isMatch: boolean;
+    score: number;
+  };
+  extractedData: {
+    name: string;
+    email: string;
+    phone?: string;
+    location?: string;
+    experienceYears: number;
+    skills: string[];
+    education: string[];
+    certifications?: string[];
+    companies?: string[];
+    jobTitles?: string[];
+    linkedinUrl?: string;
+    githubUrl?: string;
+  };
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  analyzedAt: string;
+}
+
+export const atsApi = {
+  get: async (candidateId: string) =>
+    (await apiClient.get<AtsAnalysisData>(`/recruitment/candidates/${candidateId}/ats`)).data,
+  reanalyze: async (candidateId: string) =>
+    (await apiClient.post<AtsAnalysisData>(`/recruitment/candidates/${candidateId}/ats/reanalyze`)).data,
 };
 
 

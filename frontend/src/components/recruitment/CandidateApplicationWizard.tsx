@@ -454,6 +454,17 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
     setIsSubmitting(true);
     const appId = `APP-2026-${Math.floor(100000 + Math.random() * 900000)}`;
 
+    const parseCtcToNumber = (val: string | number | undefined | null) => {
+      if (!val) return undefined;
+      const str = String(val).trim();
+      if (!str) return undefined;
+      const cleaned = str.replace(/[^0-9.]/g, '');
+      const num = parseFloat(cleaned);
+      if (isNaN(num)) return undefined;
+      if (num < 100) return num * 100000;
+      return num;
+    };
+
     const candidatePayload: any = {
       jobOpeningId: job.id,
       firstName: middleName.trim() ? `${firstName.trim()} ${middleName.trim()}` : firstName.trim(),
@@ -466,6 +477,8 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
       graduationYear: educationList[0]?.passingYear || '2024',
       experience: candidateType === 'EXPERIENCED' ? `${totalExperience} Years` : '0 Years',
       currentCompany: candidateType === 'EXPERIENCED' ? currentCompany : undefined,
+      currentCtc: parseCtcToNumber(currentCtc),
+      expectedCtc: parseCtcToNumber(expectedCtc),
       skills: candidateSkills || technicalSkills || 'Software Engineering',
       resumePath: resumePath || `/uploads/resumes/${resumeFile?.name || 'resume.pdf'}`,
       source: 'CAREERS_PORTAL',
@@ -962,23 +975,23 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Current CTC (₹ p.a.)</Label>
+                          <Label className="font-semibold text-xs">Current CTC (₹ in Lakhs / LPA)</Label>
                           <Input
-                            type="number"
+                            type="text"
                             value={currentCtc}
                             onChange={(e) => setCurrentCtc(e.target.value)}
-                            placeholder="e.g. 600000"
+                            placeholder="e.g. 6.5 (in Lakhs / LPA)"
                             className="h-9 text-xs font-mono"
                           />
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label className="font-semibold text-xs">Expected CTC (₹ p.a.)</Label>
+                          <Label className="font-semibold text-xs">Expected CTC (₹ in Lakhs / LPA)</Label>
                           <Input
-                            type="number"
+                            type="text"
                             value={expectedCtc}
                             onChange={(e) => setExpectedCtc(e.target.value)}
-                            placeholder="e.g. 900000"
+                            placeholder="e.g. 9.5 (in Lakhs / LPA)"
                             className="h-9 text-xs font-mono"
                           />
                         </div>

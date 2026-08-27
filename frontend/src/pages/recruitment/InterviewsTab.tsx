@@ -484,6 +484,19 @@ export function InterviewsTab() {
 
                         <TableCell className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {item.teamsJoinUrl || item.meetingLink ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300 font-semibold gap-1 hover:bg-indigo-100"
+                                asChild
+                              >
+                                <a href={item.teamsJoinUrl || item.meetingLink} target="_blank" rel="noreferrer">
+                                  <Video className="h-3.5 w-3.5 text-indigo-600" /> Join Teams
+                                </a>
+                              </Button>
+                            ) : null}
+
                             {item.status === 'SELECTED' && (
                               <Button
                                 size="sm"
@@ -514,8 +527,52 @@ export function InterviewsTab() {
                               onClick={() => handleOpenDetails(item.id)}
                               className="h-7 px-2 text-xs"
                             >
-                              <Eye className="h-3.5 w-3.5 mr-1" /> View Details
+                              <Eye className="h-3.5 w-3.5 mr-1" /> View
                             </Button>
+
+                            {item.status !== 'CANCELLED' && item.status !== 'COMPLETED' && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const newDate = prompt('Enter new Interview Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+                                    const newTime = prompt('Enter new Start Time (e.g. 02:00 PM):', '02:00 PM');
+                                    if (newDate && newTime) {
+                                      try {
+                                        await interviewsApi.reschedule(item.id, { interviewDate: newDate, startTime: newTime });
+                                        queryClient.invalidateQueries({ queryKey: ['interviews-list'] });
+                                        toast.success('Interview rescheduled & Teams calendar invite updated!');
+                                      } catch (err) {
+                                        toast.error('Failed to reschedule interview');
+                                      }
+                                    }
+                                  }}
+                                  className="h-7 px-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50"
+                                >
+                                  Reschedule
+                                </Button>
+
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (confirm(`Are you sure you want to cancel interview ${item.interviewCode}? Teams calendar event will be revoked.`)) {
+                                      try {
+                                        await interviewsApi.cancel(item.id, 'Cancelled by recruiter');
+                                        queryClient.invalidateQueries({ queryKey: ['interviews-list'] });
+                                        toast.success(`Interview ${item.interviewCode} cancelled and Teams invite revoked.`);
+                                      } catch (err) {
+                                        toast.error('Failed to cancel interview');
+                                      }
+                                    }
+                                  }}
+                                  className="h-7 px-2 text-xs text-rose-600 hover:bg-rose-50"
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            )}
 
                             {isAssigned && item.status !== 'SELECTED' && (
                               <Button
