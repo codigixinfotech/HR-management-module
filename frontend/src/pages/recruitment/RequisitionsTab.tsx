@@ -35,6 +35,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import type { ManpowerRequisition, JobOpening, Branch } from '@/api/types';
+import { Pagination } from '@/components/common/Pagination';
 
 interface RequisitionsTabProps {
   isStandaloneOpen?: boolean;
@@ -47,6 +48,10 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState<string>('all');
+
+  // Pagination State for Job Requisitions Table
+  const [reqPage, setReqPage] = useState<number>(1);
+  const [reqPageSize, setReqPageSize] = useState<number>(25);
 
   // Create Job Requisition Dialog State
   const [isReqOpen, setIsReqOpen] = useState(false);
@@ -2117,76 +2122,97 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOpenings.map((opening) => {
-                  const isPublished = opening.status === 'PUBLISHED' || opening.isActive;
-                  const isStandalone = !opening.manpowerRequisitionId;
-                  const isReadyToPublish = !isPublished && (isStandalone || opening.status === 'READY_TO_PUBLISH');
-                  const reqCode = opening.requisitionCode || `JR-2026-0${opening.id.substring(0, 2)}`;
+                {(() => {
+                  const totalReqRecords = filteredOpenings.length;
+                  const totalReqPages = Math.max(1, Math.ceil(totalReqRecords / reqPageSize));
+                  const clampedReqPage = Math.min(Math.max(1, reqPage), totalReqPages);
+                  const reqStartIndex = (clampedReqPage - 1) * reqPageSize;
+                  const paginatedOpenings = filteredOpenings.slice(reqStartIndex, reqStartIndex + reqPageSize);
 
-                  return (
-                    <TableRow key={opening.id} className="hover:bg-muted/40 transition-colors">
-                      <TableCell className="font-mono text-xs font-bold text-primary">{reqCode}</TableCell>
-                      <TableCell className="font-mono text-xs text-primary font-bold">
-                        {opening.mrNumber || (opening.manpowerRequisitionId ? requisitions.find((r) => r.id === opening.manpowerRequisitionId)?.mrNumber : null) || 'N/A'}
-                      </TableCell>
-                      <TableCell className="font-semibold text-xs text-foreground">{opening.title}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-semibold">
-                        {opening.department?.name || 'General'}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono font-semibold text-primary">
-                        {opening.numPositions} Positions
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <Badge
-                          className={`text-[10px] font-semibold ${
-                            isPublished
-                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                              : isReadyToPublish
-                              ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                              : 'bg-muted text-muted-foreground border-border'
-                          }`}
-                        >
-                          {isPublished ? 'PUBLISHED' : isReadyToPublish ? 'READY TO PUBLISH' : 'DRAFT'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {new Date(opening.createdAt || Date.now()).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {!isPublished ? (
-                            <Button
-                              size="sm"
-                              className="h-7 text-[10.5px] px-2.5 bg-blue-600 hover:bg-blue-700 text-white gap-1.5 font-semibold shadow-xs"
-                              onClick={() => handleOpenPublishPreview(opening)}
-                            >
-                              <Globe className="h-3 w-3" /> Publish Job Opening
-                            </Button>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <a
-                                href={`/careers/job/${opening.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                  return paginatedOpenings.map((opening) => {
+                    const isPublished = opening.status === 'PUBLISHED' || opening.isActive;
+                    const isStandalone = !opening.manpowerRequisitionId;
+                    const isReadyToPublish = !isPublished && (isStandalone || opening.status === 'READY_TO_PUBLISH');
+                    const reqCode = opening.requisitionCode || `JR-2026-0${opening.id.substring(0, 2)}`;
+
+                    return (
+                      <TableRow key={opening.id} className="hover:bg-muted/40 transition-colors">
+                        <TableCell className="font-mono text-xs font-bold text-primary">{reqCode}</TableCell>
+                        <TableCell className="font-mono text-xs text-primary font-bold">
+                          {opening.mrNumber || (opening.manpowerRequisitionId ? requisitions.find((r) => r.id === opening.manpowerRequisitionId)?.mrNumber : null) || 'N/A'}
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs text-foreground">{opening.title}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-semibold">
+                          {opening.department?.name || 'General'}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono font-semibold text-primary">
+                          {opening.numPositions} Positions
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Badge
+                            className={`text-[10px] font-semibold ${
+                              isPublished
+                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                                : isReadyToPublish
+                                ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                                : 'bg-muted text-muted-foreground border-border'
+                            }`}
+                          >
+                            {isPublished ? 'PUBLISHED' : isReadyToPublish ? 'READY TO PUBLISH' : 'DRAFT'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(opening.createdAt || Date.now()).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {!isPublished ? (
+                              <Button
+                                size="sm"
+                                className="h-7 text-[10.5px] px-2.5 bg-blue-600 hover:bg-blue-700 text-white gap-1.5 font-semibold shadow-xs"
+                                onClick={() => handleOpenPublishPreview(opening)}
                               >
-                                <Button variant="outline" size="sm" className="h-7 text-xs text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-50 font-semibold gap-1">
-                                  <Globe className="h-3 w-3" /> View Career Page
-                                </Button>
-                              </a>
-                              <Link to={`/recruitment/candidates?jobOpeningId=${opening.id}`}>
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-semibold gap-1">
-                                  View Candidates <ArrowUpRight className="h-3 w-3" />
-                                </Button>
-                              </Link>
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                                <Globe className="h-3 w-3" /> Publish Job Opening
+                              </Button>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <a
+                                  href={`/careers/job/${opening.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <Button variant="outline" size="sm" className="h-7 text-xs text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-50 font-semibold gap-1">
+                                    <Globe className="h-3 w-3" /> View Career Page
+                                  </Button>
+                                </a>
+                                <Link to={`/recruitment/candidates?jobOpeningId=${opening.id}`}>
+                                  <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-semibold gap-1">
+                                    View Candidates <ArrowUpRight className="h-3 w-3" />
+                                  </Button>
+                                </Link>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()}
               </TableBody>
             </Table>
+          )}
+
+          {/* Global Reusable EHCM ERP Pagination Component */}
+          {filteredOpenings.length > 0 && (
+            <Pagination
+              totalRecords={filteredOpenings.length}
+              currentPage={reqPage}
+              pageSize={reqPageSize}
+              onPageChange={setReqPage}
+              onPageSizeChange={setReqPageSize}
+              itemLabel="requisitions"
+              className="mt-4"
+            />
           )}
         </CardContent>
       </Card>

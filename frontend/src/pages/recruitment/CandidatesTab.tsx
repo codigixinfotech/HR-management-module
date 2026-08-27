@@ -43,6 +43,7 @@ import { ScheduleInterviewModal } from './ScheduleInterviewModal';
 import { interviewsApi } from '@/api/interviews';
 import { AssignAssessmentModal } from './AssignAssessmentModal';
 import { ViewAssessmentModal } from './ViewAssessmentModal';
+import { Pagination } from '@/components/common/Pagination';
 
 export function CandidatesTab() {
   const navigate = useNavigate();
@@ -1014,81 +1015,16 @@ export function CandidatesTab() {
             </TableBody>
           </Table>
 
-          {/* Pagination Controls Footer */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t border-border/60 text-xs">
-            <div className="flex items-center gap-3 text-muted-foreground font-medium">
-              <span>
-                Showing <strong className="text-foreground font-semibold">{candidateRangeStart}–{candidateRangeEnd}</strong> of{' '}
-                <strong className="text-foreground font-semibold">{totalCandidateCount}</strong> candidates
-              </span>
-              <span className="text-border">|</span>
-              <div className="flex items-center gap-1.5">
-                <span>Per page:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="h-7 text-xs bg-background border border-border/80 rounded-md px-2 font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={15}>15</option>
-                  <option value={20}>20</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs px-2.5 cursor-pointer disabled:opacity-40 font-semibold"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={clampedCandidatePage <= 1}
-              >
-                ← Previous
-              </Button>
-
-              {Array.from({ length: totalCandidatePages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === totalCandidatePages || Math.abs(p - clampedCandidatePage) <= 1)
-                .map((pageNum, idx, arr) => {
-                  const prev = arr[idx - 1];
-                  const showEllipsis = prev && pageNum - prev > 1;
-                  const isActive = pageNum === clampedCandidatePage;
-
-                  return (
-                    <span key={pageNum} className="flex items-center gap-1">
-                      {showEllipsis && <span className="px-1 text-muted-foreground font-bold">...</span>}
-                      <button
-                        type="button"
-                        className={`h-7 w-7 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-primary text-primary-foreground shadow-xs font-bold'
-                            : 'border border-border/80 text-muted-foreground hover:bg-muted/50 hover:text-foreground bg-background'
-                        }`}
-                        onClick={() => setCurrentPage(pageNum)}
-                      >
-                        {pageNum}
-                      </button>
-                    </span>
-                  );
-                })}
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs px-2.5 cursor-pointer disabled:opacity-40 font-semibold"
-                onClick={() => setCurrentPage((p) => Math.min(totalCandidatePages, p + 1))}
-                disabled={clampedCandidatePage >= totalCandidatePages}
-              >
-                Next →
-              </Button>
-            </div>
-          </div>
+          {/* Global Reusable EHCM ERP Pagination Component */}
+          <Pagination
+            totalRecords={totalCandidateCount}
+            currentPage={clampedCandidatePage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="candidates"
+            className="mt-4"
+          />
         </CardContent>
       </Card>
 

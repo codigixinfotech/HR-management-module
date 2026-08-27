@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { StatusBadge } from '@/components/ui/status-badge';
 import { employeesApi } from '@/api/employees';
 import type { Employee } from '@/api/types';
+import { Pagination } from '@/components/common/Pagination';
 
 interface EmployeeDirectoryTabProps {
   employees: Employee[] | undefined;
@@ -29,6 +30,10 @@ interface EmployeeDirectoryTabProps {
 export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectoryTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
+  
+  // Pagination State for Employee Directory
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
   const [selectedDept, setSelectedDept] = useState<string>('all');
   
   const queryClient = useQueryClient();
@@ -158,61 +163,65 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
       {/* Grid View */}
       {!isLoading && displayMode === 'grid' && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredEmployees.map((employee) => (
-            <Card key={employee.id} className="relative overflow-hidden hover:shadow-md transition-all duration-200 border-border/80 group">
-              <CardContent className="p-5 flex flex-col justify-between h-full">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[10px] text-primary font-semibold">{employee.employeeCode}</span>
-                    <StatusBadge status={employee.status} className="text-[9.5px]" />
-                  </div>
-                  <h3 className=" text-base font-semibold text-foreground mt-3 group-hover:text-primary transition-colors">
-                    {employee.firstName} {employee.lastName}
-                  </h3>
-                  <p className="text-xs text-muted-foreground font-semibold mt-0.5">
-                    {employee.designation?.title ?? 'Associate'} • {employee.department?.name ?? 'Corporate Operations'}
-                  </p>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-border/50 space-y-2 text-[11px] text-muted-foreground">
-                  {employee.workEmail && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="line-clamp-1">{employee.workEmail}</span>
+          {(() => {
+            const clampedEmpPage = Math.min(Math.max(1, currentPage), Math.ceil(filteredEmployees.length / pageSize) || 1);
+            const startIndex = (clampedEmpPage - 1) * pageSize;
+            return filteredEmployees.slice(startIndex, startIndex + pageSize).map((employee) => (
+              <Card key={employee.id} className="relative overflow-hidden hover:shadow-md transition-all duration-200 border-border/80 group">
+                <CardContent className="p-5 flex flex-col justify-between h-full">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] text-primary font-semibold">{employee.employeeCode}</span>
+                      <StatusBadge status={employee.status} className="text-[9.5px]" />
                     </div>
-                  )}
-                  {employee.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span>{employee.phone}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7.5 w-7.5 text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDelete(employee.id, `${employee.firstName} ${employee.lastName}`)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                  <div className="flex items-center gap-1.5">
-                    <Button variant="outline" size="sm" className="h-7.5 text-xs font-semibold" asChild>
-                      <Link to={`/employees/master?action=edit&id=${employee.id}`}>Edit</Link>
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-7.5 text-xs gap-1 font-semibold text-primary border-primary/20 hover:bg-primary/5" asChild>
-                      <Link to={`/employees/detail/${employee.id}`}>
-                        View Profile <ExternalLink className="h-3 w-3" />
-                      </Link>
-                    </Button>
+                    <h3 className=" text-base font-semibold text-foreground mt-3 group-hover:text-primary transition-colors">
+                      {employee.firstName} {employee.lastName}
+                    </h3>
+                    <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+                      {employee.designation?.title ?? 'Associate'} • {employee.department?.name ?? 'Corporate Operations'}
+                    </p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  <div className="mt-4 pt-3 border-t border-border/50 space-y-2 text-[11px] text-muted-foreground">
+                    {employee.workEmail && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="line-clamp-1">{employee.workEmail}</span>
+                      </div>
+                    )}
+                    {employee.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span>{employee.phone}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7.5 w-7.5 text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDelete(employee.id, `${employee.firstName} ${employee.lastName}`)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button variant="outline" size="sm" className="h-7.5 text-xs font-semibold" asChild>
+                        <Link to={`/employees/master?action=edit&id=${employee.id}`}>Edit</Link>
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-7.5 text-xs gap-1 font-semibold text-primary border-primary/20 hover:bg-primary/5" asChild>
+                        <Link to={`/employees/detail/${employee.id}`}>
+                          View Profile <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ));
+          })()}
         </div>
       )}
 
@@ -231,53 +240,70 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEmployees.map((employee) => (
-                <TableRow key={employee.id} className="hover:bg-muted/40 transition-colors">
-                  <TableCell className="font-mono text-xs font-semibold text-primary">{employee.employeeCode}</TableCell>
-                  <TableCell className="font-semibold text-xs text-foreground">
-                    {employee.firstName} {employee.lastName}
-                    <span className="block text-[10px] text-muted-foreground mt-0.5">{employee.workEmail}</span>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground font-semibold">
-                    {employee.department?.name ?? '-'}
-                  </TableCell>
-                  <TableCell className="text-xs font-medium text-foreground">
-                    {employee.designation?.title ?? '-'}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <StatusBadge status={employee.status} className="text-[10px]" />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Button variant="outline" size="sm" className="h-7 text-xs font-semibold" asChild>
-                        <Link to={`/employees/detail/${employee.id}`}>View Profile</Link>
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs font-semibold" asChild>
-                        <Link to={`/employees/master?action=edit&id=${employee.id}`}>Edit</Link>
-                      </Button>
-                      {!(employee as any).userId && (
-                        <Button variant="outline" size="sm" className="h-7 text-xs font-semibold text-primary border-primary/20 hover:bg-primary/5 gap-1" asChild>
-                          <Link to="/employees/master">
-                            <Key className="h-3 w-3" /> Create Login
-                          </Link>
+              {(() => {
+                const clampedEmpPage = Math.min(Math.max(1, currentPage), Math.ceil(filteredEmployees.length / pageSize) || 1);
+                const startIndex = (clampedEmpPage - 1) * pageSize;
+                return filteredEmployees.slice(startIndex, startIndex + pageSize).map((employee) => (
+                  <TableRow key={employee.id} className="hover:bg-muted/40 transition-colors">
+                    <TableCell className="font-mono text-xs font-semibold text-primary">{employee.employeeCode}</TableCell>
+                    <TableCell className="font-semibold text-xs text-foreground">
+                      {employee.firstName} {employee.lastName}
+                      <span className="block text-[10px] text-muted-foreground mt-0.5">{employee.workEmail}</span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground font-semibold">
+                      {employee.department?.name ?? '-'}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium text-foreground">
+                      {employee.designation?.title ?? '-'}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <StatusBadge status={employee.status} className="text-[10px]" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button variant="outline" size="sm" className="h-7 text-xs font-semibold" asChild>
+                          <Link to={`/employees/detail/${employee.id}`}>View Profile</Link>
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(employee.id, `${employee.firstName} ${employee.lastName}`)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        <Button variant="outline" size="sm" className="h-7 text-xs font-semibold" asChild>
+                          <Link to={`/employees/master?action=edit&id=${employee.id}`}>Edit</Link>
+                        </Button>
+                        {!(employee as any).userId && (
+                          <Button variant="outline" size="sm" className="h-7 text-xs font-semibold text-primary border-primary/20 hover:bg-primary/5 gap-1" asChild>
+                            <Link to="/employees/master">
+                              <Key className="h-3 w-3" /> Create Login
+                            </Link>
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDelete(employee.id, `${employee.firstName} ${employee.lastName}`)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ));
+              })()}
             </TableBody>
           </Table>
         </Card>
+      )}
+
+      {/* Global Reusable EHCM ERP Pagination Component */}
+      {!isLoading && filteredEmployees.length > 0 && (
+        <Pagination
+          totalRecords={filteredEmployees.length}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="employees"
+          className="mt-4"
+        />
       )}
     </div>
   );

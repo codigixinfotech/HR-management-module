@@ -42,6 +42,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { jobOpeningsApi, candidatesApi, offersApi } from '@/api/recruitment';
 import type { CandidateStage } from '@/api/types';
+import { Pagination } from '@/components/common/Pagination';
 
 interface OfferItem {
   id: string;
@@ -151,6 +152,10 @@ export function OffersTab() {
   const [localOffers, setLocalOffers] = useState<OfferItem[]>(INITIAL_OFFERS);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+
+  // Pagination State for Offers & Onboarding Table
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Fetch real Job Openings & candidates from DB
   const { data: openings = [] } = useQuery({
@@ -923,83 +928,104 @@ export function OffersTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOffers.map((o) => (
-                <TableRow key={o.id} className="hover:bg-muted/40 transition-colors">
-                  <TableCell className="font-mono text-xs font-semibold text-primary">{o.id}</TableCell>
-                  <TableCell className="font-semibold text-xs text-foreground">
-                    <div>{o.candidate}</div>
-                    <span className="text-[10px] text-muted-foreground font-mono">{o.email || 'candidate@example.com'}</span>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground font-semibold">{o.role}</TableCell>
-                  <TableCell className="text-xs font-mono font-semibold text-foreground">{o.ctc}</TableCell>
-                  <TableCell className="text-xs font-mono">{o.releaseDate}</TableCell>
-                  <TableCell className="text-xs font-mono">{o.joiningDate || '20 Sep 2026'}</TableCell>
-                  <TableCell className="text-xs">
-                    {offerStatusBadge(o.status)}
-                  </TableCell>
-                  <TableCell className="text-right flex items-center justify-end gap-1.5">
-                    {/* Action to preview generated offer letter */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs gap-1 font-semibold text-primary hover:bg-primary/10"
-                      onClick={() => {
-                        setSelectedOfferForPreview(o);
-                        setIsPreviewOpen(true);
-                      }}
-                      title="Preview Formal Offer Letter"
-                    >
-                      <Eye className="h-3.5 w-3.5" /> Preview
-                    </Button>
+              {(() => {
+                const totalOffers = filteredOffers.length;
+                const totalOfferPages = Math.max(1, Math.ceil(totalOffers / pageSize));
+                const clampedOfferPage = Math.min(Math.max(1, currentPage), totalOfferPages);
+                const offerStartIndex = (clampedOfferPage - 1) * pageSize;
+                const paginatedOffers = filteredOffers.slice(offerStartIndex, offerStartIndex + pageSize);
 
-                    {o.status === 'ACCEPTED' ? (
+                return paginatedOffers.map((o) => (
+                  <TableRow key={o.id} className="hover:bg-muted/40 transition-colors">
+                    <TableCell className="font-mono text-xs font-semibold text-primary">{o.id}</TableCell>
+                    <TableCell className="font-semibold text-xs text-foreground">
+                      <div>{o.candidate}</div>
+                      <span className="text-[10px] text-muted-foreground font-mono">{o.email || 'candidate@example.com'}</span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground font-semibold">{o.role}</TableCell>
+                    <TableCell className="text-xs font-mono font-semibold text-foreground">{o.ctc}</TableCell>
+                    <TableCell className="text-xs font-mono">{o.releaseDate}</TableCell>
+                    <TableCell className="text-xs font-mono">{o.joiningDate || '20 Sep 2026'}</TableCell>
+                    <TableCell className="text-xs">
+                      {offerStatusBadge(o.status)}
+                    </TableCell>
+                    <TableCell className="text-right flex items-center justify-end gap-1.5">
+                      {/* Action to preview generated offer letter */}
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-semibold"
-                        onClick={() => handleTriggerOnboarding(o)}
+                        className="h-7 text-xs gap-1 font-semibold text-primary hover:bg-primary/10"
+                        onClick={() => {
+                          setSelectedOfferForPreview(o);
+                          setIsPreviewOpen(true);
+                        }}
+                        title="Preview Formal Offer Letter"
                       >
-                        <UserCheck className="h-3.5 w-3.5" /> Trigger Onboarding
+                        <Eye className="h-3.5 w-3.5" /> Preview
                       </Button>
-                    ) : o.status === 'PENDING_SIGNATURE' || o.status === 'GENERATED' || o.status === 'DRAFT' ? (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-300 hover:bg-emerald-50 font-semibold"
-                          onClick={() => {
-                            setLocalOffers((prev) =>
-                              prev.map((item) =>
-                                item.id === o.id ? { ...item, status: 'ACCEPTED' } : item,
-                              ),
-                            );
-                            if (o.candidateId) {
-                              updateStageMutation.mutate({ id: o.candidateId, stage: 'HIRED' });
-                            }
-                            toast.success(`Candidate ${o.candidate} ACCEPTED the offer!`);
-                          }}
-                        >
-                          Mark Accepted
-                        </Button>
 
-                        {/* Retry Send Action Button */}
+                      {o.status === 'ACCEPTED' ? (
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 text-[10.5px] px-2 text-blue-600 border-blue-300 hover:bg-blue-50 font-semibold gap-1"
-                          onClick={() => handleSendOffer(o)}
-                          disabled={isSendingEmail}
-                          title="Retry SMTP Email Dispatch"
+                          className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-semibold"
+                          onClick={() => handleTriggerOnboarding(o)}
                         >
-                          <RefreshCw className={`h-3 w-3 ${isSendingEmail ? 'animate-spin' : ''}`} /> Retry Send
+                          <UserCheck className="h-3.5 w-3.5" /> Trigger Onboarding
                         </Button>
-                      </div>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
+                      ) : o.status === 'PENDING_SIGNATURE' || o.status === 'GENERATED' || o.status === 'DRAFT' ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-300 hover:bg-emerald-50 font-semibold"
+                            onClick={() => {
+                              setLocalOffers((prev) =>
+                                prev.map((item) =>
+                                  item.id === o.id ? { ...item, status: 'ACCEPTED' } : item,
+                                ),
+                              );
+                              if (o.candidateId) {
+                                updateStageMutation.mutate({ id: o.candidateId, stage: 'HIRED' });
+                              }
+                              toast.success(`Candidate ${o.candidate} ACCEPTED the offer!`);
+                            }}
+                          >
+                            Mark Accepted
+                          </Button>
+
+                          {/* Retry Send Action Button */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10.5px] px-2 text-blue-600 border-blue-300 hover:bg-blue-50 font-semibold gap-1"
+                            onClick={() => handleSendOffer(o)}
+                            disabled={isSendingEmail}
+                            title="Retry SMTP Email Dispatch"
+                          >
+                            <RefreshCw className={`h-3 w-3 ${isSendingEmail ? 'animate-spin' : ''}`} /> Retry Send
+                          </Button>
+                        </div>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ));
+              })()}
             </TableBody>
           </Table>
+
+          {/* Global Reusable EHCM ERP Pagination Component */}
+          {filteredOffers.length > 0 && (
+            <Pagination
+              totalRecords={filteredOffers.length}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="offers"
+              className="mt-4"
+            />
+          )}
         </CardContent>
       </Card>
 

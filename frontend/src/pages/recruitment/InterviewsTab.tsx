@@ -29,6 +29,7 @@ import { InterviewDetailsModal } from './InterviewDetailsModal';
 import { useAuthStore } from '@/stores/auth-store';
 
 import { InterviewReminderNotifier, InterviewReminderBanner } from '@/components/recruitment/InterviewReminderNotifier';
+import { Pagination } from '@/components/common/Pagination';
 
 export function InterviewsTab() {
   const navigate = useNavigate();
@@ -41,6 +42,10 @@ export function InterviewsTab() {
   const [viewScope, setViewScope] = useState<'ALL' | 'MY_INTERVIEWS'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedFormat, setSelectedFormat] = useState<string>('ALL');
+
+  // Pagination State for Interviews Table
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Modals state
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -359,173 +364,154 @@ export function InterviewsTab() {
                   <TableHead className="py-3 px-4 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
-
               <TableBody className="divide-y divide-border/40 font-medium">
-                {filteredInterviews.map((item) => {
-                  const isAssigned = item.panelMembers.some(
-                    (pm) => pm.interviewerId === activeEmployee?.id,
-                  );
-                  const evalCount = item.evaluations?.length || 0;
-                  const panelCount = item.panelMembers?.length || 1;
+                {(() => {
+                  const totalInterviews = filteredInterviews.length;
+                  const totalPages = Math.max(1, Math.ceil(totalInterviews / pageSize));
+                  const clampedPage = Math.min(Math.max(1, currentPage), totalPages);
+                  const startIndex = (clampedPage - 1) * pageSize;
+                  const paginatedInterviews = filteredInterviews.slice(startIndex, startIndex + pageSize);
 
-                  // Compute average panel rating
-                  const avgRating =
-                    evalCount > 0
-                      ? Math.round(
-                          (item.evaluations.reduce((a, b) => a + b.overallRating, 0) / evalCount) * 10,
-                        ) / 10
-                      : 0;
+                  return paginatedInterviews.map((item) => {
+                    const isAssigned = item.panelMembers.some(
+                      (pm) => pm.interviewerId === activeEmployee?.id,
+                    );
+                    const evalCount = item.evaluations?.length || 0;
+                    const panelCount = item.panelMembers?.length || 1;
 
-                  return (
-                    <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
-                      <TableCell className="py-3 px-4 font-mono font-bold text-primary">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span>{item.interviewCode}</span>
-                          {item.notes?.includes('Round 2') ? (
-                            <Badge className="bg-blue-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 2</Badge>
-                          ) : item.notes?.includes('Round 3') ? (
-                            <Badge className="bg-purple-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 3</Badge>
-                          ) : item.notes?.includes('Round 4') ? (
-                            <Badge className="bg-indigo-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 4</Badge>
-                          ) : null}
-                        </div>
-                      </TableCell>
+                    // Compute average panel rating
+                    const avgRating =
+                      evalCount > 0
+                        ? Math.round(
+                            (item.evaluations.reduce((a, b) => a + b.overallRating, 0) / evalCount) * 10,
+                          ) / 10
+                        : 0;
 
-                      <TableCell className="py-3 px-4">
-                        <div className="font-semibold text-foreground">
-                          {item.candidate ? `${item.candidate.firstName} ${item.candidate.lastName}` : 'Candidate'}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                          <span>{item.position}</span>
-                          <span>•</span>
-                          <span className="font-mono">{item.requisitionCode || 'JR-2026-001'}</span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="py-3 px-4 max-w-xs">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap gap-1">
-                            {item.panelMembers.map((pm) => {
-                              const isMe = pm.interviewerId === activeEmployee?.id;
-                              return (
-                                <Badge
-                                  key={pm.id}
-                                  variant={isMe ? 'default' : 'outline'}
-                                  className={`text-[10px] flex items-center gap-1 ${
-                                    isMe ? 'bg-primary/20 text-primary border-primary/30 font-bold' : 'bg-background'
-                                  }`}
-                                >
-                                  <span>{pm.interviewerName}</span>
-                                  <span className="text-[9px] text-muted-foreground">– {pm.panelRole}</span>
-                                </Badge>
-                              );
-                            })}
+                    return (
+                      <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="py-3 px-4 font-mono font-bold text-primary">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span>{item.interviewCode}</span>
+                            {item.notes?.includes('Round 2') ? (
+                              <Badge className="bg-blue-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 2</Badge>
+                            ) : item.notes?.includes('Round 3') ? (
+                              <Badge className="bg-purple-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 3</Badge>
+                            ) : item.notes?.includes('Round 4') ? (
+                              <Badge className="bg-indigo-600 text-white text-[9.5px] px-1.5 py-0 font-bold">Round 4</Badge>
+                            ) : null}
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
 
-                      <TableCell className="py-3 px-4">
-                        <div className="font-mono text-[11px]">
-                          {new Date(item.interviewDate).toLocaleDateString('en-GB')}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {item.startTime}
-                        </div>
-                      </TableCell>
+                        <TableCell className="py-3 px-4">
+                          <div className="font-semibold text-foreground">
+                            {item.candidate ? `${item.candidate.firstName} ${item.candidate.lastName}` : 'Candidate'}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                            <span>{item.position}</span>
+                            <span>•</span>
+                            <span className="font-mono">{item.requisitionCode || 'JR-2026-001'}</span>
+                          </div>
+                        </TableCell>
 
-                      <TableCell className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <Badge variant="secondary" className="text-[10px]">
-                            {item.interviewFormat}
-                          </Badge>
-                          {item.meetingLink && (
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" asChild>
-                              <a
-                                href={item.meetingLink.startsWith('http') ? item.meetingLink : '#'}
-                                target="_blank"
-                                rel="noreferrer"
-                                title="Join Meeting"
-                              >
-                                <Video className="h-3.5 w-3.5 text-primary" />
-                              </a>
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="py-3 px-4">{statusBadge(item.status)}</TableCell>
-
-                      <TableCell className="py-3 px-4">
-                        {avgRating > 0 ? (
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1 font-mono font-bold text-amber-600 dark:text-amber-400 text-xs">
-                              <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-                              <span>{avgRating}/5.0</span>
+                        <TableCell className="py-3 px-4 max-w-xs">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap gap-1">
+                              {item.panelMembers.map((pm) => {
+                                const isMe = pm.interviewerId === activeEmployee?.id;
+                                return (
+                                  <Badge
+                                    key={pm.id}
+                                    variant={isMe ? 'default' : 'outline'}
+                                    className={`text-[10px] flex items-center gap-1 ${
+                                      isMe ? 'bg-primary/20 text-primary border-primary/30 font-bold' : 'bg-background'
+                                    }`}
+                                  >
+                                    <span>{pm.interviewerName}</span>
+                                    <span className="text-[9px] text-muted-foreground">– {pm.panelRole}</span>
+                                  </Badge>
+                                );
+                              })}
                             </div>
-                            <span className="text-[10px] text-muted-foreground block">
-                              ({evalCount}/{panelCount} Evaluated)
-                            </span>
                           </div>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground italic">No ratings yet</span>
-                        )}
-                      </TableCell>
+                        </TableCell>
 
-                      <TableCell className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {item.status === 'SELECTED' && (
-                            <Button
-                              size="sm"
-                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1 shadow-xs"
-                              onClick={() => {
-                                const candName = item.candidate
-                                  ? `${item.candidate.firstName} ${item.candidate.lastName}`
-                                  : 'Selected Candidate';
-                                const urlParams = new URLSearchParams({
-                                  autoCreate: 'true',
-                                  candidateId: item.candidateId || '',
-                                  candidateName: candName,
-                                  candidateEmail: item.candidate?.email || 'candidate@example.com',
-                                  position: item.position || 'Product Designer',
-                                  requisitionCode: item.requisitionCode || 'JR-2026-001',
-                                  interviewCode: item.interviewCode || 'INT-2026-001',
-                                });
-                                navigate(`/recruitment/offers?${urlParams.toString()}`);
-                              }}
-                            >
-                              <FileSignature className="h-3.5 w-3.5" /> Release Offer
-                            </Button>
+                        <TableCell className="py-3 px-4">
+                          <div className="font-mono text-[11px]">
+                            {new Date(item.interviewDate).toLocaleDateString('en-GB')}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> {item.startTime}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="secondary" className="text-[10px]">
+                              {item.interviewFormat}
+                            </Badge>
+                            {item.meetingLink && (
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" asChild>
+                                <a
+                                  href={item.meetingLink.startsWith('http') ? item.meetingLink : '#'}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Join Meeting"
+                                >
+                                  <Video className="h-3.5 w-3.5 text-primary" />
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="py-3 px-4">{statusBadge(item.status)}</TableCell>
+
+                        <TableCell className="py-3 px-4">
+                          {avgRating > 0 ? (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 font-mono font-bold text-amber-600 dark:text-amber-400 text-xs">
+                                <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                                <span>{avgRating}/5.0</span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground block">
+                                ({evalCount}/{panelCount} Evaluated)
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground italic">No ratings yet</span>
                           )}
+                        </TableCell>
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenDetails(item.id)}
-                            className="h-7 px-2 text-xs"
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1" /> View Details
-                          </Button>
+                        <TableCell className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {item.status === 'SELECTED' && (
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1 shadow-xs"
+                                onClick={() => {
+                                  const candName = item.candidate
+                                    ? `${item.candidate.firstName} ${item.candidate.lastName}`
+                                    : 'Selected Candidate';
+                                  const urlParams = new URLSearchParams({
+                                    autoCreate: 'true',
+                                    candidateId: item.candidateId || '',
+                                    candidateName: candName,
+                                    candidateEmail: item.candidate?.email || 'candidate@example.com',
+                                    position: item.position || 'Product Designer',
+                                    requisitionCode: item.requisitionCode || 'JR-2026-001',
+                                    interviewCode: item.interviewCode || 'INT-2026-001',
+                                  });
+                                  navigate(`/recruitment/offers?${urlParams.toString()}`);
+                                }}
+                              >
+                                <FileSignature className="h-3.5 w-3.5" /> Release Offer
+                              </Button>
+                            )}
 
-                          {isAssigned && item.status !== 'SELECTED' && (
                             <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleOpenDetails(item.id)}
-                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold"
-                            >
-                              <FileCheck className="h-3.5 w-3.5" /> Evaluate
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-
-                {filteredInterviews.length === 0 && !isLoading && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-xs text-muted-foreground">
-                      No interview schedules found matching your scope/filter. Click{' '}
-                      <strong>Schedule Interview Panel</strong> to create one.
                     </TableCell>
                   </TableRow>
                 )}

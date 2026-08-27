@@ -103,6 +103,8 @@ const DEMO_JOB_OPENINGS: JobOpening[] = [
   } as unknown as JobOpening,
 ];
 
+import { Pagination } from '@/components/common/Pagination';
+
 export function CareersPortalTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -113,6 +115,10 @@ export function CareersPortalTab() {
   const [portalUrl, setPortalUrl] = useState(defaultPortalUrl);
   const [brandColor, setBrandColor] = useState('#2563EB');
   const [welcomeText, setWelcomeText] = useState('Join StockPulse — Build the Future of Enterprise HCM');
+
+  // Pagination State for Portal Table
+  const [portalPage, setPortalPage] = useState<number>(1);
+  const [portalPageSize, setPortalPageSize] = useState<number>(10);
 
   const handleCopyLink = (url: string) => {
     navigator.clipboard.writeText(url);
@@ -300,68 +306,89 @@ export function CareersPortalTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayOpenings.map((j) => {
-                  const reqCode = j.requisitionCode || j.mrNumber || `JR-2026-0${j.id.substring(0, 2)}`;
-                  const isPublished = j.status === 'PUBLISHED' || j.isActive;
-                  const applicantCount = j._count?.candidates ?? j.candidates?.length ?? 0;
+                {(() => {
+                  const totalCount = displayOpenings.length;
+                  const totalPages = Math.max(1, Math.ceil(totalCount / portalPageSize));
+                  const clampedPage = Math.min(Math.max(1, portalPage), totalPages);
+                  const startIndex = (clampedPage - 1) * portalPageSize;
+                  const paginated = displayOpenings.slice(startIndex, startIndex + portalPageSize);
 
-                  return (
-                    <TableRow key={j.id} className="hover:bg-muted/40 transition-colors">
-                      <TableCell className="font-mono text-xs font-bold text-primary">{reqCode}</TableCell>
-                      <TableCell className="text-xs font-semibold text-foreground">{j.title}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-semibold">{j.department?.name || 'General'}</TableCell>
-                      <TableCell className="text-xs font-medium">
-                        {j.workLocation || 'Head Office'} ({j.employmentType || 'Full-Time'})
-                      </TableCell>
-                      <TableCell className="text-xs font-mono font-semibold text-primary">{j.numPositions} Openings</TableCell>
-                      <TableCell className="text-xs">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs font-mono font-bold text-emerald-600 hover:bg-emerald-50 gap-1"
-                          onClick={() => openViewCandidatesModal(j)}
-                          title="View Candidates for this Job Requisition"
-                        >
-                          <Users className="h-3 w-3" /> {applicantCount} Applicants
-                        </Button>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <Badge
-                          className={
-                            isPublished
-                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                              : 'bg-muted text-muted-foreground'
-                          }
-                        >
-                          {isPublished ? 'Published' : 'Draft / Unpublished'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-[10.5px] px-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold gap-1"
-                            onClick={() => openViewCandidatesModal(j)}
-                          >
-                            <Users className="h-3 w-3" /> View Candidates
-                          </Button>
+                  return paginated.map((j) => {
+                    const reqCode = j.requisitionCode || j.mrNumber || `JR-2026-0${j.id.substring(0, 2)}`;
+                    const isPublished = j.status === 'PUBLISHED' || j.isActive;
+                    const applicantCount = j._count?.candidates ?? j.candidates?.length ?? 0;
+
+                    return (
+                      <TableRow key={j.id} className="hover:bg-muted/40 transition-colors">
+                        <TableCell className="font-mono text-xs font-bold text-primary">{reqCode}</TableCell>
+                        <TableCell className="text-xs font-semibold text-foreground">{j.title}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-semibold">{j.department?.name || 'General'}</TableCell>
+                        <TableCell className="text-xs font-medium">
+                          {j.workLocation || 'Head Office'} ({j.employmentType || 'Full-Time'})
+                        </TableCell>
+                        <TableCell className="text-xs font-mono font-semibold text-primary">{j.numPositions} Openings</TableCell>
+                        <TableCell className="text-xs">
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                            onClick={() => handleCopyLink(portalUrl)}
-                            title="Copy Job URL"
+                            size="sm"
+                            className="h-6 px-2 text-xs font-mono font-bold text-emerald-600 hover:bg-emerald-50 gap-1"
+                            onClick={() => openViewCandidatesModal(j)}
+                            title="View Candidates for this Job Requisition"
                           >
-                            <Copy className="h-3.5 w-3.5" />
+                            <Users className="h-3 w-3" /> {applicantCount} Applicants
                           </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Badge
+                            className={
+                              isPublished
+                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                                : 'bg-muted text-muted-foreground'
+                            }
+                          >
+                            {isPublished ? 'Published' : 'Draft / Unpublished'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10.5px] px-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold gap-1"
+                              onClick={() => openViewCandidatesModal(j)}
+                            >
+                              <Users className="h-3 w-3" /> View Candidates
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              onClick={() => handleCopyLink(portalUrl)}
+                              title="Copy Job URL"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()}
               </TableBody>
             </Table>
+          )}
+
+          {/* Global Reusable EHCM ERP Pagination Component */}
+          {displayOpenings.length > 0 && (
+            <Pagination
+              totalRecords={displayOpenings.length}
+              currentPage={portalPage}
+              pageSize={portalPageSize}
+              onPageChange={setPortalPage}
+              onPageSizeChange={setPortalPageSize}
+              itemLabel="listings"
+              className="mt-4"
+            />
           )}
         </CardContent>
       </Card>

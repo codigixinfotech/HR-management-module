@@ -40,6 +40,7 @@ import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/ap
 import { costCentersApi, type CostCenter } from '@/api/cost-grades';
 import { employeesApi } from '@/api/employees';
 import type { ManpowerPlan, Department, Designation, Branch, Company, ManpowerRequisition } from '@/api/types';
+import { Pagination } from '@/components/common/Pagination';
 
 const HIRING_QUARTERS = [
   'Q1 2026',
@@ -58,6 +59,10 @@ export function ManpowerPlanningTab() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTableDept, setSelectedTableDept] = useState<string>('all');
+
+  // Pagination State for Manpower Plans Table
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Modal State - Forecast Plan
   const [isOpen, setIsOpen] = useState(false);
@@ -1330,79 +1335,100 @@ export function ManpowerPlanningTab() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredPlans.map((p, idx) => {
-                    const codeLabel = p.code || `MP-0${idx + 1}`;
-                    const isUnderStaffed = p.status === 'UNDER-STAFFED' || p.plannedHires > 0;
-                    const isCapReached = p.status === 'CAP-REACHED' || p.plannedHires === 0;
+                  (() => {
+                    const totalPlans = filteredPlans.length;
+                    const totalPages = Math.max(1, Math.ceil(totalPlans / pageSize));
+                    const clampedPage = Math.min(Math.max(1, currentPage), totalPages);
+                    const startIndex = (clampedPage - 1) * pageSize;
+                    const paginatedPlans = filteredPlans.slice(startIndex, startIndex + pageSize);
 
-                    return (
-                      <TableRow key={p.id} className="hover:bg-muted/40 transition-colors">
-                        <TableCell className="font-mono text-xs font-semibold text-primary">{codeLabel}</TableCell>
-                        <TableCell className="font-semibold text-xs text-foreground flex items-center gap-2">
-                          <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          {p.role}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground font-semibold">{p.departmentName}</TableCell>
-                        <TableCell className="text-xs font-mono font-medium">{p.costCenter}</TableCell>
-                        <TableCell className="text-xs font-mono font-semibold">{p.budgeted} Staff</TableCell>
-                        <TableCell className="text-xs font-mono font-semibold text-emerald-600">{p.active} Staff</TableCell>
-                        <TableCell className="text-xs font-mono font-semibold text-primary">
-                          +{p.plannedHires} Hires
-                        </TableCell>
-                        <TableCell className="text-xs font-medium text-muted-foreground">{p.quarter}</TableCell>
-                        <TableCell className="text-xs">
-                          <Badge
-                            className={`text-[10px] font-semibold ${
-                              isCapReached
-                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                                : isUnderStaffed
-                                ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-                                : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                            }`}
-                          >
-                            {isCapReached ? 'CAP-REACHED' : isUnderStaffed ? 'UNDER-STAFFED' : 'ON-TRACK'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {p.plannedHires > 0 ? (
+                    return paginatedPlans.map((p, idx) => {
+                      const codeLabel = p.code || `MP-0${startIndex + idx + 1}`;
+                      const isUnderStaffed = p.status === 'UNDER-STAFFED' || p.plannedHires > 0;
+                      const isCapReached = p.status === 'CAP-REACHED' || p.plannedHires === 0;
+
+                      return (
+                        <TableRow key={p.id} className="hover:bg-muted/40 transition-colors">
+                          <TableCell className="font-mono text-xs font-semibold text-primary">{codeLabel}</TableCell>
+                          <TableCell className="font-semibold text-xs text-foreground flex items-center gap-2">
+                            <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            {p.role}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-semibold">{p.departmentName}</TableCell>
+                          <TableCell className="text-xs font-mono font-medium">{p.costCenter}</TableCell>
+                          <TableCell className="text-xs font-mono font-semibold">{p.budgeted} Staff</TableCell>
+                          <TableCell className="text-xs font-mono font-semibold text-emerald-600">{p.active} Staff</TableCell>
+                          <TableCell className="text-xs font-mono font-semibold text-primary">
+                            +{p.plannedHires} Hires
+                          </TableCell>
+                          <TableCell className="text-xs font-medium text-muted-foreground">{p.quarter}</TableCell>
+                          <TableCell className="text-xs">
+                            <Badge
+                              className={`text-[10px] font-semibold ${
+                                isCapReached
+                                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                                  : isUnderStaffed
+                                  ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                                  : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                              }`}
+                            >
+                              {isCapReached ? 'CAP-REACHED' : isUnderStaffed ? 'UNDER-STAFFED' : 'ON-TRACK'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {p.plannedHires > 0 ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-[10.5px] px-2.5 text-primary border-primary/30 hover:bg-primary/10 gap-1 font-semibold"
+                                  onClick={() => openRaiseMrModal(p)}
+                                >
+                                  Raise MR <ArrowRight className="h-3 w-3" />
+                                </Button>
+                              ) : (
+                                <Badge className="bg-muted text-muted-foreground border-border text-[9.5px]">
+                                  CAP REACHED
+                                </Badge>
+                              )}
                               <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-[10.5px] px-2.5 text-primary border-primary/30 hover:bg-primary/10 gap-1 font-semibold"
-                                onClick={() => openRaiseMrModal(p)}
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                onClick={() => openEditModal(p)}
                               >
-                                Raise MR <ArrowRight className="h-3 w-3" />
+                                <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                            ) : (
-                              <Badge className="bg-muted text-muted-foreground border-border text-[9.5px]">
-                                CAP REACHED
-                              </Badge>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                              onClick={() => openEditModal(p)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={() => handleDeletePlan(p.id, p.role)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                onClick={() => handleDeletePlan(p.id, p.role)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
+                  })()
                 )}
               </TableBody>
             </Table>
+          )}
+
+          {/* Global Reusable EHCM ERP Pagination Component */}
+          {filteredPlans.length > 0 && (
+            <Pagination
+              totalRecords={filteredPlans.length}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="plans"
+              className="mt-4"
+            />
           )}
         </CardContent>
       </Card>
