@@ -344,6 +344,9 @@ model Branch {
   locations   Location[]
   costCenters CostCenter[]
   travelBookings TravelBooking[]
+  assets Asset[]
+  manpowerPlans ManpowerPlan[]
+  manpowerRequisitions ManpowerRequisition[]
 
   @@unique([companyId, code])
   @@map("branches")
@@ -410,6 +413,7 @@ model Department {
   manpowerPlans    ManpowerPlan[]
   manpowerRequisitions ManpowerRequisition[]
   travelBookings       TravelBooking[]
+  assets               Asset[]
 
   @@unique([companyId, code])
   @@index([branchId])
@@ -830,6 +834,10 @@ model JobOpening {
   costCenter            String?
   employmentType        String?  @default("FULL_TIME")
   priority              String?  @default("NORMAL")
+  candidateType         String?  @default("BOTH") // FRESHER, EXPERIENCED, BOTH
+  minExperience         Float?   @default(0)
+  maxExperience         Float?   @default(0)
+  graduationYear        String?
   minSalary             Float?
   maxSalary             Float?
   qualification         String?
@@ -838,9 +846,28 @@ model JobOpening {
   workLocation          String?
   reportingManagerId    String?
   applicationDeadline   DateTime?
-  status                String   @default("DRAFT") // DRAFT, READY_TO_PUBLISH, PUBLISHED, CLOSED
+  status                String   @default("DRAFT") // DRAFT, PENDING_REVIEW, READY_TO_PUBLISH, PUBLISHED, CLOSED, CANCELLED
   publishedAt           DateTime?
   isActive              Boolean  @default(true)
+
+  // Enterprise Recruitment Extensions
+  workMode               String?  @default("On-site")
+  hiringManagerId        String?
+  recruiterId            String?
+  hrbpId                 String?
+  applicationStartDate   DateTime? @default(now())
+  jobVisibility          String?  @default("Public")
+  preferredSkills        String?
+  preferredQualification String?
+  certifications         String?
+  languages              String?
+  benefits               String?  @db.Text
+  interviewProcess       String?  @db.Text
+  numInterviewRounds     Int?     @default(3)
+  hasAssessment          Boolean? @default(false)
+  internalNotes          String?  @db.Text
+  internalJustification  String?  @db.Text
+
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -856,28 +883,31 @@ model JobOpening {
 }
 
 model Candidate {
-  id              String         @id @default(cuid())
-  jobOpeningId    String
-  firstName       String
-  lastName        String
-  email           String
-  phone           String?
-  resumePath      String?        @db.Text
-  qualification   String?
-  experience      String?
-  currentCompany  String?
-  currentLocation String?
-  skills          String?
-  currentCtc      Float?
-  expectedCtc     Float?
-  noticePeriod    String?
-  coverLetter     String?        @db.Text
-  source          String?        @default("CAREERS_PORTAL")
-  stage           CandidateStage @default(APPLIED)
-  aiMatchScore    Float?
-  notes           String?        @db.Text
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                String         @id @default(cuid())
+  jobOpeningId      String
+  firstName         String
+  lastName          String
+  email             String
+  phone             String?
+  resumePath        String?        @db.Text
+  candidateType     String?        @default("FRESHER") // FRESHER, EXPERIENCED
+  qualification     String?
+  graduationYear    String?
+  internshipDetails String?        @db.Text
+  experience        String?
+  currentCompany    String?
+  currentLocation   String?
+  skills            String?
+  currentCtc        Float?
+  expectedCtc       Float?
+  noticePeriod      String?
+  coverLetter       String?        @db.Text
+  source            String?        @default("CAREERS_PORTAL")
+  stage             CandidateStage @default(APPLIED)
+  aiMatchScore      Float?
+  notes             String?        @db.Text
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   jobOpening JobOpening           @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
   screenings CandidateScreening[]
@@ -927,6 +957,7 @@ model ManpowerPlan {
   id             String   @id @default(cuid())
   code           String?
   companyId      String?
+  branchId       String?
   departmentId   String?
   designationId  String?
   departmentName String
@@ -944,11 +975,13 @@ model ManpowerPlan {
   updatedAt      DateTime @updatedAt
 
   company      Company?              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
   department   Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   designation  Designation?          @relation(fields: [designationId], references: [id], onDelete: SetNull)
   requisitions ManpowerRequisition[]
 
   @@index([companyId])
+  @@index([branchId])
   @@index([departmentId])
   @@index([designationId])
   @@map("manpower_plans")
@@ -959,6 +992,7 @@ model ManpowerRequisition {
   mrNumber           String   @unique
   manpowerPlanId     String?
   companyId          String?
+  branchId           String?
   departmentId       String?
   departmentName     String
   costCenter         String
@@ -988,11 +1022,13 @@ model ManpowerRequisition {
   updatedAt          DateTime @updatedAt
 
   company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
   department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   manpowerPlan ManpowerPlan? @relation(fields: [manpowerPlanId], references: [id], onDelete: SetNull)
   jobOpening   JobOpening?
 
   @@index([companyId])
+  @@index([branchId])
   @@index([manpowerPlanId])
   @@map("manpower_requisitions")
 }
@@ -1307,19 +1343,36 @@ model ComplianceTask {
 model Asset {
   id                String      @id @default(cuid())
   companyId         String
+  branchId          String?
+  departmentId      String?
   assetTag          String
   name              String
   category          String
+  assetType         String?     @default("Hardware")
+  physicalLocation  String?
+  vendor            String?
+  invoiceNumber     String?
+  poNumber          String?
+  serialNumber      String?
+  manufacturer      String?
+  modelNumber       String?
+  warrantyStart     DateTime?
+  warrantyExpiry    DateTime?
   value             Float?
   status            AssetStatus @default(IN_STOCK)
+  condition         String?     @default("NEW")
+  usefulLife        String?
+  notes             String?     @db.Text
+  remarks           String?     @db.Text
+  photoUrl          String?     @db.Text
   currentEmployeeId String?
   purchaseDate      DateTime?
-  warrantyExpiry    DateTime?
-  notes             String?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
   company         Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch          Branch?                  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department      Department?              @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   currentEmployee Employee?                @relation(fields: [currentEmployeeId], references: [id], onDelete: SetNull)
   allocations     AssetAllocation[]
   maintenanceLogs AssetMaintenanceRecord[]
@@ -1329,12 +1382,20 @@ model Asset {
 }
 
 model AssetAllocation {
-  id          String    @id @default(cuid())
-  assetId     String
-  employeeId  String
-  allocatedAt DateTime  @default(now())
-  returnedAt  DateTime?
-  remarks     String?
+  id                  String    @id @default(cuid())
+  assetId             String
+  employeeId          String
+  allocationType      String?   @default("New Allocation")
+  location            String?
+  allocatedAt         DateTime  @default(now())
+  expectedReturnDate  DateTime?
+  returnedAt          DateTime?
+  returnReason        String?
+  returnedBy          String?
+  returnLocation      String?
+  conditionOnReturn   String?
+  accessoriesReturned String?
+  remarks             String?   @db.Text
 
   asset    Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1345,13 +1406,23 @@ model AssetAllocation {
 }
 
 model AssetMaintenanceRecord {
-  id        String    @id @default(cuid())
-  assetId   String
-  issue     String
-  startDate DateTime
-  endDate   DateTime?
-  cost      Float?
-  createdAt DateTime  @default(now())
+  id              String    @id @default(cuid())
+  assetId         String
+  workOrderNumber String?
+  issue           String
+  priority        String?   @default("MEDIUM")
+  maintenanceType String?   @default("Repair")
+  vendor          String?
+  warrantyClaim   Boolean   @default(false)
+  startDate       DateTime
+  endDate         DateTime?
+  cost            Float?
+  finalCondition  String?
+  workPerformed   String?   @db.Text
+  partsUsed       String?   @db.Text
+  qcStatus        String?   @default("PENDING")
+  notes           String?   @db.Text
+  createdAt       DateTime  @default(now())
 
   asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 

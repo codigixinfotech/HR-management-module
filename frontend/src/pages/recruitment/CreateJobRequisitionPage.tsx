@@ -1,0 +1,2661 @@
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  ArrowLeft,
+  Building2,
+  FileText,
+  Users,
+  DollarSign,
+  Sparkles,
+  ShieldCheck,
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  Briefcase,
+  Search,
+  ChevronDown,
+  X,
+  Plus,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+
+import { jobOpeningsApi, manpowerRequisitionsApi } from '@/api/recruitment';
+import { companiesApi, branchesApi, departmentsApi, designationsApi } from '@/api/organization';
+import { employeesApi } from '@/api/employees';
+import { costCentersApi, type CostCenter } from '@/api/cost-grades';
+import { formatSalaryInLakhs } from '@/lib/utils';
+
+interface TagInputProps {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: string;
+  popularSuggestions?: string[];
+  onBlur?: () => void;
+}
+
+function TagInput({
+  tags,
+  onChange,
+  placeholder = 'Type a skill and press Enter or comma',
+  disabled = false,
+  error,
+  popularSuggestions = [],
+  onBlur,
+}: TagInputProps) {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(inputValue);
+    } else if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
+      onChange(tags.slice(0, -1));
+    }
+  };
+
+  const addTag = (val: string) => {
+    const trimmed = val.trim().replace(/,/g, '');
+    if (trimmed && !tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
+      onChange([...tags, trimmed]);
+      setInputValue('');
+    }
+  };
+
+  const removeTag = (index: number) => {
+    onChange(tags.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div
+        className={`min-h-[42px] p-1.5 rounded-lg border bg-background flex flex-wrap items-center gap-1.5 transition-all ${
+          error
+            ? 'border-rose-500 ring-1 ring-rose-500/20'
+            : 'border-input focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary'
+        } ${disabled ? 'bg-muted/60 cursor-not-allowed' : ''}`}
+      >
+        {tags.map((tag, idx) => (
+          <Badge
+            key={idx}
+            variant="secondary"
+            className="bg-primary/10 text-primary border border-primary/20 text-xs px-2.5 py-1 flex items-center gap-1.5 font-medium rounded-md"
+          >
+            {tag}
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => removeTag(idx)}
+                className="hover:bg-primary/20 rounded-full p-0.5 text-primary/70 hover:text-primary transition-colors text-[10px]"
+              >
+                ✕
+              </button>
+            )}
+          </Badge>
+        ))}
+        {!disabled && (
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => {
+              if (inputValue.trim()) addTag(inputValue);
+              if (onBlur) onBlur();
+            }}
+            placeholder={tags.length === 0 ? placeholder : 'Add more...'}
+            className="flex-1 min-w-[120px] bg-transparent text-xs outline-none px-2 py-1 text-foreground placeholder:text-muted-foreground"
+          />
+        )}
+      </div>
+
+      {!disabled && popularSuggestions.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+          <span className="text-[10px] font-semibold text-muted-foreground">Quick Add:</span>
+          {popularSuggestions
+            .filter((s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase()))
+            .slice(0, 6)
+            .map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => addTag(s)}
+                className="text-[10px] bg-muted hover:bg-primary/10 hover:text-primary border border-border/60 text-muted-foreground px-2 py-0.5 rounded-full transition-colors font-medium"
+              >
+                + {s}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function CreateJobRequisitionPage() {
+  const navigate = useNavigate();
+  const { mrId, id } = useParams<{ mrId?: string; id?: string }>();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+
+  const editId = id || searchParams.get('id') || '';
+  const isEditMode = Boolean(editId);
+  const isFromMR = Boolean((mrId || searchParams.get('mrId')) && !isEditMode);
+  const targetMrId = mrId || searchParams.get('mrId') || '';
+
+  // ── Fetch Existing Job for Edit Mode ──
+  const { data: existingJob } = useQuery({
+    queryKey: ['job-opening-detail', editId],
+    queryFn: () => (editId ? jobOpeningsApi.get(editId) : null),
+    enabled: Boolean(editId),
+  });
+
+  // Tab Stepper State
+  const [activeStepTab, setActiveStepTab] = useState<
+    'mr_ref' | 'posting' | 'requirements' | 'compensation' | 'interview'
+  >('mr_ref');
+
+  // Inline Validation Field Errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // ── Master Data Queries ──
+  const { data: singleMr } = useQuery({
+    queryKey: ['manpower-requisition', targetMrId],
+    queryFn: () => (targetMrId ? manpowerRequisitionsApi.get(targetMrId) : null),
+    enabled: Boolean(targetMrId),
+  });
+
+  const { data: approvedMrsResponse } = useQuery({
+    queryKey: ['approved-manpower-requisitions'],
+    queryFn: async () => {
+      const res = await manpowerRequisitionsApi.list();
+      const list = Array.isArray(res) ? res : (res as any)?.data || [];
+      return list.filter((m: any) => m.status === 'APPROVED');
+    },
+  });
+
+  const approvedMrs = approvedMrsResponse || [];
+  const selectedMr = singleMr || (isFromMR ? approvedMrs.find((m: any) => m.id === targetMrId) : null);
+
+  // ── Form State (Standalone Organization Setup) ──
+  const [standaloneCompanyId, setStandaloneCompanyId] = useState('');
+  const [standaloneBranchId, setStandaloneBranchId] = useState('');
+  const [standaloneBranchIds, setStandaloneBranchIds] = useState<string[]>([]);
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const branchComboboxRef = useRef<HTMLDivElement>(null);
+  const [standaloneDepartmentId, setStandaloneDepartmentId] = useState('');
+  const [standaloneCostCenter, setStandaloneCostCenter] = useState('');
+  const [standaloneDesignationId, setStandaloneDesignationId] = useState('');
+  const [standaloneRoleInput, setStandaloneRoleInput] = useState('');
+  const [isStandaloneDesignationDropdownOpen, setIsStandaloneDesignationDropdownOpen] = useState(false);
+  const standaloneDesignationComboboxRef = useRef<HTMLDivElement>(null);
+  const [standaloneNumPositions, setStandaloneNumPositions] = useState(1);
+
+  // Click-outside listener for comboboxes
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (standaloneDesignationComboboxRef.current && !standaloneDesignationComboboxRef.current.contains(event.target as Node)) {
+        setIsStandaloneDesignationDropdownOpen(false);
+      }
+      if (branchComboboxRef.current && !branchComboboxRef.current.contains(event.target as Node)) {
+        setIsBranchDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleBranchSelection = (bId: string) => {
+    setStandaloneBranchIds((prev) => {
+      const exists = prev.includes(bId);
+      const updated = exists ? prev.filter((id) => id !== bId) : [...prev, bId];
+      setStandaloneBranchId(updated[0] || '');
+      setStandaloneDepartmentId('');
+      setStandaloneCostCenter('');
+      setStandaloneDesignationId('');
+      setStandaloneRoleInput('');
+      setFieldErrors((prevErr) => ({ ...prevErr, standaloneBranchId: '' }));
+      return updated;
+    });
+  };
+
+  const activeCompId = isFromMR ? selectedMr?.companyId : standaloneCompanyId;
+  const activeBranchId = isFromMR ? selectedMr?.branchId : (standaloneBranchIds[0] || standaloneBranchId);
+  const activeDeptId = isFromMR ? selectedMr?.departmentId : standaloneDepartmentId;
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => companiesApi.list(),
+  });
+
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches', activeCompId],
+    queryFn: () => branchesApi.list(activeCompId || undefined),
+  });
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments', activeCompId, activeBranchId],
+    queryFn: () => departmentsApi.list(activeCompId || undefined, activeBranchId || undefined),
+  });
+
+  const { data: designations = [] } = useQuery({
+    queryKey: ['designations', activeCompId, activeDeptId],
+    queryFn: () => designationsApi.list(activeCompId || undefined, activeDeptId || undefined),
+  });
+
+  const { data: costCenters = [] } = useQuery({
+    queryKey: ['cost-centers', activeCompId, activeBranchId, activeDeptId],
+    queryFn: () => costCentersApi.list(activeCompId || undefined, activeBranchId || undefined, activeDeptId || undefined),
+  });
+
+  const { data: employeesResponse } = useQuery({
+    queryKey: ['employees', 1, 'all-active'],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+  });
+
+  const activeEmployees = useMemo(() => {
+    const list = Array.isArray(employeesResponse)
+      ? employeesResponse
+      : (employeesResponse as any)?.items || (employeesResponse as any)?.data || [];
+    return list.filter((e: any) => e.status === 'ACTIVE' || !e.status);
+  }, [employeesResponse]);
+
+  const { data: existingJobOpenings = [] } = useQuery({
+    queryKey: ['job-openings-all'],
+    queryFn: async () => {
+      const res = await jobOpeningsApi.list();
+      return Array.isArray(res) ? res : res?.data || [];
+    },
+  });
+
+  // ── Cascading Dropdowns Filters ──
+  const filteredBranches = useMemo(() => {
+    if (!activeCompId) return [];
+    return branches.filter((b: any) => !b.companyId || b.companyId === activeCompId);
+  }, [branches, activeCompId]);
+
+  const filteredDepartments = useMemo(() => {
+    if (!activeCompId) return [];
+    return departments.filter((d: any) => {
+      const matchComp = !d.companyId || d.companyId === activeCompId;
+      const matchBranch = standaloneBranchIds.length === 0 || !d.branchId || standaloneBranchIds.includes(d.branchId);
+      return matchComp && matchBranch;
+    });
+  }, [departments, activeCompId, standaloneBranchIds]);
+
+  const filteredDesignations = useMemo(() => {
+    if (!activeDeptId) return [];
+    return designations.filter((des: any) => {
+      const matchComp = !activeCompId || !des.companyId || des.companyId === activeCompId;
+      const matchDept = !des.departmentId || des.departmentId === activeDeptId;
+      return matchComp && matchDept;
+    });
+  }, [designations, activeCompId, activeDeptId]);
+
+  // Dynamic search filter for standalone designation combobox
+  const filteredDesignationsForCombobox = useMemo(() => {
+    if (!filteredDesignations) return [];
+    if (!standaloneRoleInput.trim()) return filteredDesignations;
+    const q = standaloneRoleInput.trim().toLowerCase();
+    return filteredDesignations.filter(
+      (des: any) =>
+        des.title.toLowerCase().includes(q) ||
+        (des.code && des.code.toLowerCase().includes(q))
+    );
+  }, [filteredDesignations, standaloneRoleInput]);
+
+  // ── Scoped Team Employees Filtering (Employee Master) ──
+  const filteredTeamEmployees = useMemo(() => {
+    if (!activeCompId) return [];
+
+    return activeEmployees.filter((emp: any) => {
+      // 1. Filter strictly by ACTIVE status
+      if (emp.status && emp.status !== 'ACTIVE') return false;
+
+      // 2. Filter strictly by Company ID
+      if (emp.companyId && emp.companyId !== activeCompId) return false;
+
+      // 3. Filter strictly by Branch ID (if selected)
+      if (activeBranchId && emp.branchId && emp.branchId !== activeBranchId) return false;
+
+      return true;
+    });
+  }, [activeEmployees, activeCompId, activeBranchId]);
+
+  // Role-Prioritized Lists for Hiring Team
+  const eligibleHiringManagers = useMemo(() => {
+    if (!filteredTeamEmployees.length) return [];
+    return [...filteredTeamEmployees].sort((a: any, b: any) => {
+      const aIsDept = activeDeptId && a.departmentId === activeDeptId ? 1 : 0;
+      const bIsDept = activeDeptId && b.departmentId === activeDeptId ? 1 : 0;
+      if (aIsDept !== bIsDept) return bIsDept - aIsDept;
+
+      const aTitle = (a.designation?.title || a.designationTitle || a.role || '').toLowerCase();
+      const bTitle = (b.designation?.title || b.designationTitle || b.role || '').toLowerCase();
+      const aIsMgr = aTitle.includes('manager') || aTitle.includes('lead') || aTitle.includes('head') || aTitle.includes('director') || aTitle.includes('chief') || aTitle.includes('vp') ? 1 : 0;
+      const bIsMgr = bTitle.includes('manager') || bTitle.includes('lead') || bTitle.includes('head') || bTitle.includes('director') || bTitle.includes('chief') || bTitle.includes('vp') ? 1 : 0;
+      return bIsMgr - aIsMgr;
+    });
+  }, [filteredTeamEmployees, activeDeptId]);
+
+  const eligibleRecruiters = useMemo(() => {
+    if (!filteredTeamEmployees.length) return [];
+    const hrOrRecruiter = filteredTeamEmployees.filter((emp: any) => {
+      const deptName = (emp.department?.name || emp.departmentName || '').toLowerCase();
+      const desTitle = (emp.designation?.title || emp.designationTitle || emp.role || '').toLowerCase();
+      return (
+        deptName.includes('hr') ||
+        deptName.includes('recruitment') ||
+        deptName.includes('human') ||
+        desTitle.includes('hr') ||
+        desTitle.includes('recruiter') ||
+        desTitle.includes('talent') ||
+        desTitle.includes('people')
+      );
+    });
+    return hrOrRecruiter.length > 0 ? hrOrRecruiter : filteredTeamEmployees;
+  }, [filteredTeamEmployees]);
+
+  const eligibleHrbps = useMemo(() => {
+    if (!filteredTeamEmployees.length) return [];
+    const hrBps = filteredTeamEmployees.filter((emp: any) => {
+      const deptName = (emp.department?.name || emp.departmentName || '').toLowerCase();
+      const desTitle = (emp.designation?.title || emp.designationTitle || emp.role || '').toLowerCase();
+      return (
+        deptName.includes('hr') ||
+        deptName.includes('human') ||
+        desTitle.includes('hr') ||
+        desTitle.includes('bp') ||
+        desTitle.includes('partner') ||
+        desTitle.includes('people')
+      );
+    });
+    return hrBps.length > 0 ? hrBps : filteredTeamEmployees;
+  }, [filteredTeamEmployees]);
+
+  const formatEmployeeOption = (emp: any) => {
+    const code = emp.employeeCode ? `[${emp.employeeCode}] ` : '';
+    const name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Employee';
+    const designation = emp.designation?.title || emp.designationTitle || emp.role || '';
+    const dept = emp.department?.name || emp.departmentName || '';
+
+    let detail = '';
+    if (designation && dept) detail = ` - ${designation} (${dept})`;
+    else if (designation) detail = ` - ${designation}`;
+    else if (dept) detail = ` (${dept})`;
+
+    return `${code}${name}${detail}`;
+  };
+
+  // Handle Organization Cascading Resets
+  const handleCompanyChange = (cId: string) => {
+    setStandaloneCompanyId(cId);
+    setStandaloneBranchId('');
+    setStandaloneBranchIds([]);
+    setIsBranchDropdownOpen(false);
+    setStandaloneDepartmentId('');
+    setStandaloneCostCenter('');
+    setStandaloneDesignationId('');
+    setStandaloneRoleInput('');
+    setIsStandaloneDesignationDropdownOpen(false);
+    setHiringManagerId('');
+    setRecruiterId('');
+    setHrbpId('');
+    setFieldErrors((prev) => ({ ...prev, standaloneCompanyId: '', standaloneBranchId: '', hiringManagerId: '', recruiterId: '' }));
+  };
+
+  const handleBranchChange = (bId: string) => {
+    setStandaloneBranchId(bId);
+    setStandaloneBranchIds(bId ? [bId] : []);
+    setStandaloneDepartmentId('');
+    setStandaloneCostCenter('');
+    setStandaloneDesignationId('');
+    setStandaloneRoleInput('');
+    setIsStandaloneDesignationDropdownOpen(false);
+    setHiringManagerId('');
+    setRecruiterId('');
+    setHrbpId('');
+    setFieldErrors((prev) => ({ ...prev, standaloneBranchId: '', hiringManagerId: '', recruiterId: '' }));
+  };
+
+  const handleDepartmentChange = (dId: string) => {
+    setStandaloneDepartmentId(dId);
+    setStandaloneDesignationId('');
+    setStandaloneRoleInput('');
+    setIsStandaloneDesignationDropdownOpen(false);
+    const targetDept = departments.find((d: any) => d.id === dId);
+    const matchingCc = costCenters.find((cc: any) => cc.departmentId === dId || cc.branchId === standaloneBranchId);
+
+    if (matchingCc) {
+      setStandaloneCostCenter(`${matchingCc.code} - ${matchingCc.name}`);
+    } else if (targetDept?.costCenter) {
+      setStandaloneCostCenter(targetDept.costCenter);
+    } else if (targetDept) {
+      const cleanCode = targetDept.code ? targetDept.code.replace(/^DEPT-?/i, '') : 'CC';
+      setStandaloneCostCenter(`CC-${cleanCode} - ${targetDept.name}`);
+    } else {
+      setStandaloneCostCenter('');
+    }
+    setFieldErrors((prev) => ({ ...prev, standaloneDepartmentId: '', standaloneCostCenter: '' }));
+  };
+
+  // Duplicate Check
+  const duplicateActiveReq = useMemo(() => {
+    const activeDept = isFromMR ? selectedMr?.departmentId : standaloneDepartmentId;
+    const activeDes = isFromMR ? selectedMr?.designationId : standaloneDesignationId;
+
+    if (!activeDept || !activeDes) return null;
+
+    return existingJobOpenings.find(
+      (job: any) =>
+        job.departmentId === activeDept &&
+        job.designationId === activeDes &&
+        job.status !== 'CLOSED' &&
+        job.status !== 'CANCELLED'
+    );
+  }, [existingJobOpenings, isFromMR, selectedMr, standaloneDepartmentId, standaloneDesignationId]);
+
+  // ── Form State (Job Specification & Requirements) ──
+  const [jobTitle, setJobTitle] = useState('');
+  const [jobSummary, setJobSummary] = useState('');
+  const [jobDescription, setJobDescription] = useState('');
+  const [jobResponsibilities, setJobResponsibilities] = useState('');
+  const [jobQualification, setJobQualification] = useState('');
+  const [preferredQualification, setPreferredQualification] = useState('');
+
+  // Skills as tag lists
+  const [requiredSkillsList, setRequiredSkillsList] = useState<string[]>([]);
+  const [preferredSkillsList, setPreferredSkillsList] = useState<string[]>([]);
+
+  // Job Classification
+  const [jobCategory, setJobCategory] = useState('Software Development');
+  const [jobFamily, setJobFamily] = useState('Engineering → Software Development');
+  const [seniorityLevel, setSeniorityLevel] = useState('Junior');
+
+  const [certifications, setCertifications] = useState('');
+  const [benefits, setBenefits] = useState('');
+
+  const [candidateType, setCandidateType] = useState<'FRESHER' | 'EXPERIENCED' | 'BOTH'>('EXPERIENCED');
+  const [minExp, setMinExp] = useState(1);
+  const [maxExp, setMaxExp] = useState(3);
+  const [graduationYear, setGraduationYear] = useState('');
+
+  const [jobEmploymentType, setJobEmploymentType] = useState<'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN'>('FULL_TIME');
+  const [workMode, setWorkMode] = useState('On-site');
+  const [jobLocation, setJobLocation] = useState('');
+
+  const [hiringManagerId, setHiringManagerId] = useState('');
+  const [recruiterId, setRecruiterId] = useState('');
+  const [hrbpId, setHrbpId] = useState('');
+
+  const [jobMinSalaryLakh, setJobMinSalaryLakh] = useState(4);
+  const [jobMaxSalaryLakh, setJobMaxSalaryLakh] = useState(8);
+
+  const [applicationStartDate, setApplicationStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [jobDeadline, setJobDeadline] = useState(
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [jobVisibility, setJobVisibility] = useState('Public');
+
+  const [interviewProcess, setInterviewProcess] = useState('Screening → Technical Assessment → Interview → HR Round');
+  const [numInterviewRounds, setNumInterviewRounds] = useState(3);
+  const [internalJustification, setInternalJustification] = useState('');
+  const [internalNotes, setInternalNotes] = useState('');
+
+  // Field Blur Tracking
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  const markTouched = (fieldName: string) => {
+    setTouchedFields((prev) => ({ ...prev, [fieldName]: true }));
+  };
+
+  // Auto-clear invalid team selections if organization changes
+  React.useEffect(() => {
+    if (filteredTeamEmployees.length === 0) return;
+    if (hiringManagerId && !filteredTeamEmployees.some((e: any) => e.id === hiringManagerId)) {
+      setHiringManagerId('');
+    }
+    if (recruiterId && !filteredTeamEmployees.some((e: any) => e.id === recruiterId)) {
+      setRecruiterId('');
+    }
+    if (hrbpId && !filteredTeamEmployees.some((e: any) => e.id === hrbpId)) {
+      setHrbpId('');
+    }
+  }, [filteredTeamEmployees, hiringManagerId, recruiterId, hrbpId]);
+
+  // Auto-populate team selection fallbacks when employees load
+  useEffect(() => {
+    if (filteredTeamEmployees.length === 0) return;
+    if (!hiringManagerId && eligibleHiringManagers.length > 0) {
+      setHiringManagerId(eligibleHiringManagers[0].id);
+    }
+    if (!recruiterId && eligibleRecruiters.length > 0) {
+      setRecruiterId(eligibleRecruiters[0].id);
+    }
+    if (!hrbpId && eligibleHrbps.length > 0) {
+      setHrbpId(eligibleHrbps[0].id);
+    }
+  }, [filteredTeamEmployees, eligibleHiringManagers, eligibleRecruiters, eligibleHrbps, hiringManagerId, recruiterId, hrbpId]);
+
+  // Prefill Form Data in Edit Mode
+  useEffect(() => {
+    if (!isEditMode || !existingJob) return;
+
+    if (existingJob.companyId) setStandaloneCompanyId(existingJob.companyId);
+
+    // Resolve Branch Location
+    const targetBranch = branches.find(
+      (b: any) =>
+        b.id === existingJob.branchId ||
+        b.name === existingJob.workLocation ||
+        (existingJob.workLocation &&
+          (b.name.toLowerCase().includes(existingJob.workLocation.toLowerCase()) ||
+            existingJob.workLocation.toLowerCase().includes(b.name.toLowerCase()))) ||
+        b.id === existingJob.department?.branchId
+    ) || branches[0];
+
+    const resolvedBranchId = existingJob.branchId || targetBranch?.id || (branches.length > 0 ? branches[0].id : '');
+    if (resolvedBranchId) {
+      setStandaloneBranchId(resolvedBranchId);
+      setStandaloneBranchIds([resolvedBranchId]);
+    }
+
+    if (existingJob.departmentId) setStandaloneDepartmentId(existingJob.departmentId);
+    if (existingJob.designationId) setStandaloneDesignationId(existingJob.designationId);
+    if (existingJob.title) setStandaloneRoleInput(existingJob.title);
+    if (existingJob.numPositions) setStandaloneNumPositions(existingJob.numPositions);
+
+    // Resolve Cost Center
+    const targetDept = departments.find((d: any) => d.id === (existingJob.departmentId || standaloneDepartmentId));
+    const matchingCc = costCenters.find(
+      (cc: any) => cc.departmentId === existingJob.departmentId || cc.branchId === resolvedBranchId
+    );
+
+    let resolvedCc = existingJob.costCenter || '';
+    if (!resolvedCc && matchingCc) {
+      resolvedCc = `${matchingCc.code} - ${matchingCc.name}`;
+    } else if (!resolvedCc && targetDept?.costCenter) {
+      resolvedCc = targetDept.costCenter;
+    } else if (!resolvedCc && targetDept) {
+      const cleanCode = targetDept.code ? targetDept.code.replace(/^DEPT-?/i, '') : 'CC';
+      resolvedCc = `CC-${cleanCode} - ${targetDept.name}`;
+    } else if (!resolvedCc) {
+      resolvedCc = 'CC-IT-001 - Main Cost Center';
+    }
+
+    if (resolvedCc) setStandaloneCostCenter(resolvedCc);
+
+    if (existingJob.title) setJobTitle(existingJob.title);
+    if (existingJob.jobSummary) setJobSummary(existingJob.jobSummary);
+    if (existingJob.jobDescription) setJobDescription(existingJob.jobDescription);
+    if (existingJob.jobResponsibilities) setJobResponsibilities(existingJob.jobResponsibilities);
+    if (existingJob.qualification) setJobQualification(existingJob.qualification);
+    if (existingJob.preferredQualification) setPreferredQualification(existingJob.preferredQualification);
+
+    if (existingJob.requiredSkills) {
+      const skills = existingJob.requiredSkills.split(',').map((s: string) => s.trim()).filter(Boolean);
+      setRequiredSkillsList(skills);
+    }
+    if (existingJob.preferredSkills) {
+      const pSkills = existingJob.preferredSkills.split(',').map((s: string) => s.trim()).filter(Boolean);
+      setPreferredSkillsList(pSkills);
+    }
+
+    if (existingJob.candidateType) setCandidateType(existingJob.candidateType as any);
+    if (existingJob.minExperience != null) setMinExp(existingJob.minExperience);
+    if (existingJob.maxExperience != null) setMaxExp(existingJob.maxExperience);
+
+    if (existingJob.employmentType) setJobEmploymentType(existingJob.employmentType as any);
+    if (existingJob.workMode) setWorkMode(existingJob.workMode);
+    if (existingJob.workLocation) setJobLocation(existingJob.workLocation);
+
+    if (existingJob.minSalary != null) {
+      const val = existingJob.minSalary > 1000 ? existingJob.minSalary / 100000 : existingJob.minSalary;
+      setJobMinSalaryLakh(val);
+    }
+    if (existingJob.maxSalary != null) {
+      const val = existingJob.maxSalary > 1000 ? existingJob.maxSalary / 100000 : existingJob.maxSalary;
+      setJobMaxSalaryLakh(val);
+    }
+
+    if (existingJob.applicationDeadline) {
+      setJobDeadline(new Date(existingJob.applicationDeadline).toISOString().split('T')[0]);
+    }
+
+    if (existingJob.hiringManagerId) setHiringManagerId(existingJob.hiringManagerId);
+    if (existingJob.recruiterId) setRecruiterId(existingJob.recruiterId);
+    if (existingJob.hrbpId) setHrbpId(existingJob.hrbpId);
+  }, [isEditMode, existingJob, branches, departments, costCenters]);
+
+  // Professional Job Description & Template Auto-Generator
+  const generateJobContent = (targetTitle?: string, targetDept?: string) => {
+    const roleName = targetTitle || jobTitle || selectedMr?.role || standaloneRoleInput || 'Job Role';
+    const deptName = targetDept || selectedMr?.departmentName || (departments.find((d: any) => d.id === standaloneDepartmentId)?.name) || 'Operations';
+
+    const roleLower = roleName.toLowerCase();
+    const deptLower = deptName.toLowerCase();
+
+    let summaryText = '';
+    let descriptionText = '';
+    let responsibilitiesText = '';
+
+    if (roleLower.includes('software') || roleLower.includes('developer') || roleLower.includes('engineer') || roleLower.includes('programmer') || deptLower.includes('tech') || deptLower.includes('it')) {
+      summaryText = `We are seeking a talented and detail-oriented ${roleName} to join our ${deptName} team. The candidate will collaborate with cross-functional engineering teams to design, build, and maintain high-performing software applications.`;
+
+      descriptionText = `As a ${roleName} at our company, you will play a critical role in developing modern software solutions, implementing scalable architecture, and delivering high-quality user experiences. You will work closely with product managers, QA engineers, and senior tech leads to drive product innovation and solve complex technical challenges.
+
+Key Focus Areas:
+- Writing maintainable, well-tested, and performant code across technical stacks.
+- Participating in agile development workflows, code reviews, and technical design discussions.
+- Continuous learning and adoption of modern engineering standards, clean code principles, and DevOps practices.`;
+
+      responsibilitiesText = `• Develop, test, and deploy clean, secure, and scalable code for core applications.
+• Collaborate with design, product, and QA teams to deliver feature releases on schedule.
+• Troubleshoot production bugs, conduct root-cause analysis, and optimize application performance.
+• Participate in technical design sessions, pull request reviews, and sprint planning.
+• Document technical specifications, API schemas, and component workflows.`;
+    } else if (roleLower.includes('support') || roleLower.includes('executive') || roleLower.includes('customer') || deptLower.includes('support')) {
+      summaryText = `We are looking for a customer-obsessed ${roleName} to join our ${deptName} division. You will serve as a primary liaison for customer inquiries, resolving technical and operational requests efficiently.`;
+
+      descriptionText = `As a ${roleName}, you will deliver world-class service and technical support to our enterprise clients. You will manage incoming support tickets, diagnose operational issues, and collaborate with product and engineering teams to ensure customer satisfaction and high SLA compliance.
+
+Key Focus Areas:
+- Providing rapid, empathetic, and effective resolution to customer inquiries and incidents.
+- Maintaining clear documentation, escalation matrices, and support knowledge bases.
+- Monitoring ticket queues, identifying recurring feedback, and driving process improvements.`;
+
+      responsibilitiesText = `• Respond to customer inquiries via phone, email, and live chat within target SLA timelines.
+• Troubleshoot technical queries, reproduce reported bugs, and escalate unresolved issues.
+• Maintain accurate ticket records, root-cause tags, and customer interaction logs.
+• Partner with product and engineering teams to communicate client feedback and feature requests.
+• Conduct client onboarding sessions and publish self-help knowledge base guides.`;
+    } else if (roleLower.includes('manager') || roleLower.includes('lead') || roleLower.includes('head')) {
+      summaryText = `We are hiring an experienced and strategic ${roleName} to lead operations and team deliverables in ${deptName}. You will drive strategic roadmap execution and team growth.`;
+
+      descriptionText = `As a ${roleName}, you will be responsible for leading a high-performing team, aligning departmental goals with organizational strategy, and overseeing operational excellence. You will mentor team members, optimize workflows, and manage key stakeholder relationships.
+
+Key Focus Areas:
+- Leadership, talent development, performance management, and team mentoring.
+- Strategic resource planning, project execution, and budget tracking.
+- Driving cross-departmental collaboration and continuous process optimization.`;
+
+      responsibilitiesText = `• Lead, mentor, and evaluate team performance to achieve quarterly business goals.
+• Develop operational frameworks, project timelines, and performance KPIs.
+• Manage resource allocation, headcount budgets, and cross-functional dependencies.
+• Communicate project updates, risk assessments, and executive metrics to leadership.
+• Foster a collaborative, growth-oriented, and accountable team culture.`;
+    } else {
+      summaryText = `We are seeking a qualified ${roleName} to join our ${deptName} team. The ideal candidate will be responsible for driving operational excellence and contributing to business outcomes.`;
+
+      descriptionText = `In this role as ${roleName}, you will work within the ${deptName} department to support day-to-day operations, execute strategic initiatives, and maintain high standards of quality and productivity.
+
+Key Focus Areas:
+- Executing core departmental workflows and maintaining operational compliance.
+- Collaborating with cross-functional stakeholders to achieve team objectives.
+- Continuously identifying opportunities for workflow improvement and efficiency.`;
+
+      responsibilitiesText = `• Execute core operational deliverables and daily departmental tasks efficiently.
+• Maintain compliance with company policies, documentation standards, and reporting guidelines.
+• Collaborate with team members to resolve operational bottlenecks and drive project milestones.
+• Prepare periodic progress reports, metrics dashboards, and stakeholder updates.`;
+    }
+
+    setJobSummary(summaryText);
+    setJobDescription(descriptionText);
+    setJobResponsibilities(responsibilitiesText);
+  };
+
+  // Auto-fill when MR or Designation changes
+  React.useEffect(() => {
+    if (isFromMR && selectedMr) {
+      setJobTitle(selectedMr.role || '');
+      setJobQualification(selectedMr.qualification || 'B.Tech / Graduate');
+
+      const rawSkills = selectedMr.requiredSkills || '';
+      let parsed = rawSkills
+        .split(/[,;\n]/)
+        .map((s: string) => s.trim())
+        .filter((s: string) => Boolean(s) && s.toLowerCase() !== 'as per role specification');
+
+      if (parsed.length === 0) {
+        const roleLower = (selectedMr.role || '').toLowerCase();
+        const deptLower = (selectedMr.departmentName || '').toLowerCase();
+
+        if (roleLower.includes('software') || roleLower.includes('developer') || roleLower.includes('engineer')) {
+          parsed = ['Software Engineering', 'Problem Solving', 'System Design', 'Team Collaboration'];
+        } else if (roleLower.includes('support') || roleLower.includes('executive') || deptLower.includes('support')) {
+          parsed = ['Customer Support', 'Communication', 'Troubleshooting', 'CRM & Incident Resolution'];
+        } else if (roleLower.includes('manager') || roleLower.includes('lead')) {
+          parsed = ['Team Management', 'Strategic Planning', 'Resource Allocation', 'Leadership'];
+        } else {
+          parsed = ['Domain Expertise', 'Communication', 'Problem Solving', 'Teamwork'];
+        }
+      }
+      setRequiredSkillsList(parsed);
+
+      setJobLocation(selectedMr.workLocation || '');
+      const mgrId = selectedMr.reportingManagerId || selectedMr.managerId;
+      if (mgrId) {
+        setHiringManagerId(mgrId);
+      }
+
+      if (!jobSummary || !jobDescription || !jobResponsibilities) {
+        generateJobContent(selectedMr.role, selectedMr.departmentName);
+      }
+    } else if (!isFromMR && standaloneDesignationId) {
+      const selectedDes = designations.find((d: any) => d.id === standaloneDesignationId);
+      if (selectedDes) {
+        if (!jobTitle) setJobTitle(selectedDes.title);
+        if (!jobQualification && selectedDes.qualification) setJobQualification(selectedDes.qualification);
+        if (selectedDes.skills) {
+          const parsed = selectedDes.skills
+            .split(/[,;\n]/)
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+          if (parsed.length > 0) setRequiredSkillsList(parsed);
+        }
+        if (!jobSummary || !jobDescription || !jobResponsibilities) {
+          generateJobContent(selectedDes.title);
+        }
+      }
+    } else if (!isFromMR && standaloneRoleInput.trim()) {
+      if (!jobSummary || !jobDescription || !jobResponsibilities) {
+        generateJobContent(standaloneRoleInput);
+      }
+    }
+  }, [isFromMR, selectedMr, standaloneDesignationId, standaloneRoleInput, designations]);
+
+  // ── Step Validation Functions ──
+  const validateStep1 = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!isFromMR) {
+      if (!standaloneCompanyId) errors.standaloneCompanyId = 'Please select a Company Entity.';
+      if (!standaloneBranchId && standaloneBranchIds.length === 0) errors.standaloneBranchId = 'Please select at least one Branch Location.';
+      if (!standaloneDepartmentId) errors.standaloneDepartmentId = 'Please select a Department.';
+      if (!standaloneCostCenter.trim()) errors.standaloneCostCenter = 'Cost Center is required.';
+      if (!standaloneDesignationId && !standaloneRoleInput.trim()) errors.standaloneDesignationId = 'Please enter or select a Designation / Job Role.';
+      if (!standaloneNumPositions || standaloneNumPositions < 1) errors.standaloneNumPositions = 'Openings must be at least 1.';
+    }
+    setFieldErrors((prev) => ({ ...prev, ...errors }));
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateStep2 = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!jobTitle.trim() || jobTitle.length < 3) errors.jobTitle = 'Job Posting Title must contain at least 3 characters.';
+    if (!jobSummary.trim() || jobSummary.length < 20) errors.jobSummary = 'Job Summary must be at least 20 characters.';
+    if (!jobDescription.trim() || jobDescription.length < 50) errors.jobDescription = 'Detailed Job Description must be at least 50 characters.';
+    if (!jobResponsibilities.trim() || jobResponsibilities.length < 20) errors.jobResponsibilities = 'Key Responsibilities must be at least 20 characters.';
+    if (!jobQualification.trim()) errors.jobQualification = 'Required Qualification is required.';
+    if (requiredSkillsList.length === 0) errors.requiredSkills = 'At least one Required Skill must be selected.';
+    if (!jobCategory.trim()) errors.jobCategory = 'Job Category is required.';
+    if (!seniorityLevel.trim()) errors.seniorityLevel = 'Seniority Level is required.';
+
+    setFieldErrors((prev) => ({ ...prev, ...errors }));
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateStep3 = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (candidateType !== 'FRESHER') {
+      if (minExp < 0) errors.minExp = 'Min Experience cannot be negative.';
+      if (maxExp < minExp) errors.minExp = 'Max Experience must be greater than or equal to Min Experience.';
+    }
+    if (!hiringManagerId) errors.hiringManagerId = 'Please select a Hiring Manager.';
+    if (!recruiterId) errors.recruiterId = 'Please select an Assigned Recruiter.';
+
+    setFieldErrors((prev) => ({ ...prev, ...errors }));
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateStep4 = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!isFromMR) {
+      if (jobMinSalaryLakh <= 0) errors.jobMinSalaryLakh = 'Min Salary must be greater than 0.';
+      if (jobMaxSalaryLakh < jobMinSalaryLakh) errors.jobMinSalaryLakh = 'Max Salary must be greater than or equal to Min Salary.';
+    }
+    if (!isFromMR && !jobLocation.trim()) errors.jobLocation = 'Work Location is required.';
+    if (!jobDeadline) errors.jobDeadline = 'Application deadline date is required.';
+
+    setFieldErrors((prev) => ({ ...prev, ...errors }));
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateStep5 = (targetStatus: string): boolean => {
+    const errors: Record<string, string> = {};
+    if (targetStatus === 'PENDING_APPROVAL') {
+      const dummyText = ['ok', 'test', 'abc', 'testing', 'n/a', 'na'];
+      const cleanedText = internalJustification.trim().toLowerCase();
+      if (!cleanedText || cleanedText.length < 15 || dummyText.includes(cleanedText)) {
+        errors.internalJustification = 'Please provide a meaningful business rationale (minimum 15 characters).';
+      }
+    }
+    setFieldErrors((prev) => ({ ...prev, ...errors }));
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleNextStep = (nextTab: typeof activeStepTab) => {
+    if (activeStepTab === 'mr_ref') {
+      if (!validateStep1()) {
+        toast.error('Please complete all required fields in Step 1 (Organization Setup) before continuing.');
+        return;
+      }
+    } else if (activeStepTab === 'posting') {
+      if (!validateStep2()) {
+        toast.error('Please complete all required fields in Step 2 (Job Details) before continuing.');
+        return;
+      }
+    } else if (activeStepTab === 'requirements') {
+      if (!validateStep3()) {
+        toast.error('Please complete all required fields in Step 3 (Candidate & Team) before continuing.');
+        return;
+      }
+    } else if (activeStepTab === 'compensation') {
+      if (!validateStep4()) {
+        toast.error('Please complete all required fields in Step 4 (Compensation & Dates) before continuing.');
+        return;
+      }
+    }
+    setActiveStepTab(nextTab);
+  };
+
+  // ── Create / Update Job Opening Mutation ──
+  const createJobReqMutation = useMutation({
+    mutationFn: (data: any) =>
+      isEditMode ? jobOpeningsApi.update(editId, data) : jobOpeningsApi.create(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['job-requisitions'] });
+      queryClient.invalidateQueries({ queryKey: ['approved-manpower-requisitions'] });
+      queryClient.invalidateQueries({ queryKey: ['job-opening-detail', editId] });
+
+      const statusText = isEditMode
+        ? 'Job Requisition updated successfully!'
+        : variables.status === 'DRAFT'
+        ? 'Job Requisition saved as Draft.'
+        : 'Job Requisition created successfully and set to READY TO PUBLISH!';
+      toast.success(statusText);
+      navigate('/recruitment/requisitions');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Failed to submit Job Requisition.');
+    },
+  });
+
+  const handleSubmit = (targetStatus: 'DRAFT' | 'READY_TO_PUBLISH' | 'PENDING_APPROVAL' = 'READY_TO_PUBLISH') => {
+    if (targetStatus !== 'DRAFT') {
+      if (!validateStep1() || !validateStep2() || !validateStep3() || !validateStep4() || !validateStep5(targetStatus)) {
+        toast.error('Validation failed. Please review highlighted inline errors across all steps.');
+        return;
+      }
+    }
+
+    const payload: any = {
+      title: jobTitle.trim() || 'Job Requisition',
+      summary: jobSummary.trim() || undefined,
+      description: jobDescription.trim() || undefined,
+      responsibilities: jobResponsibilities.trim() || undefined,
+      qualification: isFromMR ? (selectedMr?.qualification || jobQualification) : jobQualification,
+      preferredQualification: preferredQualification.trim() || undefined,
+      requiredSkills: isFromMR ? (selectedMr?.requiredSkills || requiredSkillsList.join(', ')) : requiredSkillsList.join(', '),
+      preferredSkills: preferredSkillsList.join(', ') || undefined,
+      category: jobCategory,
+      jobFamily: jobFamily || undefined,
+      seniorityLevel: seniorityLevel,
+      certifications: certifications.trim() || undefined,
+      benefits: benefits.trim() || undefined,
+
+      candidateType,
+      minExperience: candidateType === 'FRESHER' ? 0 : Number(minExp),
+      maxExperience: candidateType === 'FRESHER' ? 1 : Number(maxExp),
+      graduationYear: candidateType === 'FRESHER' ? graduationYear : undefined,
+
+      employmentType: jobEmploymentType,
+      workMode,
+      workLocation: isFromMR ? selectedMr?.workLocation : jobLocation,
+
+      hiringManagerId: hiringManagerId || undefined,
+      recruiterId: recruiterId || undefined,
+      hrbpId: hrbpId || undefined,
+
+      minSalary: isFromMR
+        ? Number(selectedMr?.minSalary)
+        : Math.round(Number(jobMinSalaryLakh) * 100000),
+      maxSalary: isFromMR
+        ? Number(selectedMr?.maxSalary)
+        : Math.round(Number(jobMaxSalaryLakh) * 100000),
+
+      applicationStartDate: applicationStartDate ? new Date(applicationStartDate).toISOString() : undefined,
+      applicationDeadline: jobDeadline ? new Date(jobDeadline).toISOString() : undefined,
+      jobVisibility: jobVisibility,
+
+      interviewProcess: interviewProcess.trim() || undefined,
+      numInterviewRounds: Number(numInterviewRounds),
+      internalJustification: internalJustification.trim() || undefined,
+      internalNotes: internalNotes.trim() || undefined,
+
+      status: targetStatus,
+      isActive: false,
+    };
+
+    if (isFromMR && selectedMr) {
+      payload.manpowerRequisitionId = selectedMr.id;
+      payload.mrNumber = selectedMr.mrNumber;
+      payload.companyId = selectedMr.companyId;
+      payload.branchId = selectedMr.branchId;
+      payload.departmentId = selectedMr.departmentId;
+      payload.designationId = selectedMr.designationId;
+      payload.costCenter = selectedMr.costCenter;
+      payload.numPositions = selectedMr.numOpenings;
+    } else {
+      const matchedDesig = designations.find((d: any) => d.title.trim().toLowerCase() === standaloneRoleInput.trim().toLowerCase());
+      const selectedBranchObjs = branches.filter((b: any) => standaloneBranchIds.includes(b.id) || b.id === standaloneBranchId);
+      const branchNamesStr = selectedBranchObjs.map((b: any) => b.name).join(', ');
+
+      payload.companyId = standaloneCompanyId;
+      payload.branchId = standaloneBranchIds[0] || standaloneBranchId || undefined;
+      payload.workLocation = branchNamesStr || jobLocation || undefined;
+      payload.departmentId = standaloneDepartmentId;
+      payload.designationId = standaloneDesignationId || matchedDesig?.id || undefined;
+      payload.costCenter = standaloneCostCenter;
+      payload.numPositions = Number(standaloneNumPositions);
+    }
+
+    createJobReqMutation.mutate(payload);
+  };
+
+  const planCompany = isFromMR && selectedMr ? companies.find((c: any) => c.id === selectedMr.companyId) : null;
+  const planBranch = isFromMR && selectedMr ? branches.find((b: any) => b.id === selectedMr.branchId) : null;
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* ── Top Navigation Header ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+            <button
+              onClick={() => navigate('/recruitment/requisitions')}
+              className="hover:underline flex items-center gap-1 font-medium"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to Job Requisitions
+            </button>
+            <ChevronRight className="h-3 w-3" />
+            <span>Recruitment</span>
+            <ChevronRight className="h-3 w-3" />
+            <span>Job Requisitions</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className="font-semibold text-foreground">Create Job Requisition</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-primary" />
+              Create Job Requisition
+            </h1>
+            <Badge variant="outline" className="text-xs font-semibold bg-blue-500/10 text-blue-600 border-blue-500/30">
+              {isFromMR ? 'APPROVED MR 🔒' : 'READY TO PUBLISH'}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Enterprise recruitment workflow: Complete organization, specification, team assignment, and budget setup.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-xs"
+            onClick={() => navigate('/recruitment/requisitions')}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="text-xs font-semibold"
+            onClick={() => handleSubmit('DRAFT')}
+            disabled={createJobReqMutation.isPending}
+          >
+            Save Draft
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-xs"
+            onClick={() => handleSubmit('READY_TO_PUBLISH')}
+            disabled={createJobReqMutation.isPending}
+          >
+            <CheckCircle2 className="h-4 w-4" /> Save & Set Ready to Publish
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Compact Realtime Summary Bar ── */}
+      <Card className="border-border/80 bg-muted/30">
+        <CardContent className="p-3.5 grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-medium">Company Entity</span>
+            <span className="font-semibold truncate block">
+              {isFromMR
+                ? (planCompany?.name || 'Selected Company')
+                : (companies.find((c: any) => c.id === standaloneCompanyId)?.name || 'Not Selected')}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-medium">Branch Location</span>
+            <span className="font-semibold truncate block">
+              {isFromMR
+                ? (planBranch?.name || 'Selected Branch')
+                : (standaloneBranchIds.length > 0
+                    ? branches.filter((b: any) => standaloneBranchIds.includes(b.id)).map((b: any) => b.name).join(', ')
+                    : (branches.find((b: any) => b.id === standaloneBranchId)?.name || 'Not Selected'))}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-medium">Department</span>
+            <span className="font-semibold truncate block">
+              {isFromMR
+                ? selectedMr?.departmentName
+                : (departments.find((d: any) => d.id === standaloneDepartmentId)?.name || 'Not Selected')}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-medium">Designation / Role</span>
+            <span className="font-semibold truncate block">
+              {isFromMR
+                ? selectedMr?.role
+                : (standaloneRoleInput.trim() || (designations.find((des: any) => des.id === standaloneDesignationId)?.title || 'Not Selected'))}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-medium">Approved Openings</span>
+            <span className="font-bold text-primary block">
+              +{isFromMR ? (selectedMr?.numOpenings || 1) : standaloneNumPositions} Pos
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-medium">Workflow Mode</span>
+            <Badge
+              variant="outline"
+              className={`text-[10px] font-semibold mt-0.5 ${
+                isFromMR
+                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                  : 'bg-blue-500/10 text-blue-600 border-blue-500/30'
+              }`}
+            >
+              {isFromMR ? 'APPROVED MR 🔒' : 'HEADCOUNT REVIEW'}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Stepper Navigation Tabs ── */}
+      <div className="flex items-center gap-2 border-b pb-3 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => handleNextStep('mr_ref')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+            activeStepTab === 'mr_ref'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'bg-card text-muted-foreground hover:bg-muted border'
+          }`}
+        >
+          <Building2 className="h-4 w-4" />
+          {isFromMR ? '1. Approved MR 🔒' : '1. Organization Setup'}
+          {(fieldErrors.standaloneCompanyId || fieldErrors.standaloneBranchId || fieldErrors.standaloneDepartmentId || fieldErrors.standaloneDesignationId) && (
+            <span className="text-xs text-rose-500 font-bold">⚠️</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleNextStep('posting')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+            activeStepTab === 'posting'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'bg-card text-muted-foreground hover:bg-muted border'
+          }`}
+        >
+          <FileText className="h-4 w-4" /> 2. Job Specifications
+          {(fieldErrors.jobTitle || fieldErrors.jobSummary || fieldErrors.jobDescription || fieldErrors.jobResponsibilities) && (
+            <span className="text-xs text-rose-500 font-bold">⚠️</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleNextStep('requirements')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+            activeStepTab === 'requirements'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'bg-card text-muted-foreground hover:bg-muted border'
+          }`}
+        >
+          <Users className="h-4 w-4" /> 3. Candidate & Team
+          {(fieldErrors.minExp || fieldErrors.hiringManagerId || fieldErrors.recruiterId) && (
+            <span className="text-xs text-rose-500 font-bold">⚠️</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleNextStep('compensation')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+            activeStepTab === 'compensation'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'bg-card text-muted-foreground hover:bg-muted border'
+          }`}
+        >
+          <DollarSign className="h-4 w-4" /> 4. Compensation & Dates
+          {(fieldErrors.jobMinSalaryLakh || fieldErrors.jobDeadline) && (
+            <span className="text-xs text-rose-500 font-bold">⚠️</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleNextStep('interview')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+            activeStepTab === 'interview'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'bg-card text-muted-foreground hover:bg-muted border'
+          }`}
+        >
+          <Sparkles className="h-4 w-4" /> 5. Interview & Internal
+          {fieldErrors.internalJustification && <span className="text-xs text-rose-500 font-bold">⚠️</span>}
+        </button>
+      </div>
+
+      {/* ── STEP CONTENT ── */}
+      <Card className="shadow-xs border-border">
+        <CardContent className="p-6 text-xs space-y-6">
+          {/* STEP 1: ORGANIZATION SETUP */}
+          {activeStepTab === 'mr_ref' && (
+            isFromMR && selectedMr ? (
+              <div className="space-y-6">
+                <div className="bg-primary/5 p-5 rounded-xl border border-primary/20 space-y-4">
+                  <div className="flex items-center justify-between border-b border-primary/20 pb-3">
+                    <h4 className="font-semibold text-sm text-primary flex items-center gap-2">
+                      <Building2 className="h-5 w-5" /> Approved Manpower Requisition (Source of Truth)
+                    </h4>
+                    <Badge variant="outline" className="bg-background text-xs text-emerald-600 border-emerald-500/30 gap-1 font-semibold">
+                      <ShieldCheck className="h-3.5 w-3.5" /> Locked Headcount Budget
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">MR Number (Auto)</Label>
+                      <p className="font-mono font-bold text-base text-primary mt-0.5">{selectedMr.mrNumber}</p>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Manpower Plan Ref</Label>
+                      <p className="font-mono font-bold text-xs text-foreground mt-0.5">{selectedMr.manpowerPlanId || 'MP-07'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Company (Locked)</Label>
+                      <p className="font-semibold text-xs text-foreground mt-0.5 truncate flex items-center gap-1">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        {planCompany?.name || 'CODIGIX_A'}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Branch (Locked)</Label>
+                      <p className="font-semibold text-xs text-foreground mt-0.5 truncate flex items-center gap-1">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        {planBranch?.name ? `${planBranch.name} (${planBranch.city || 'Nashik'})` : 'NASHIK DEVELOPMENT'}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Department (Locked)</Label>
+                      <p className="font-semibold text-xs text-foreground mt-0.5">{selectedMr.departmentName}</p>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Cost Center (Locked)</Label>
+                      <p className="font-mono font-semibold text-xs text-foreground mt-0.5">{selectedMr.costCenter}</p>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Designation / Role (Locked)</Label>
+                      <p className="font-semibold text-xs text-foreground mt-0.5">{selectedMr.role}</p>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Approved Openings</Label>
+                      <div className="mt-0.5">
+                        <Badge className="bg-primary/10 text-primary border-primary/30 font-mono font-bold text-xs">
+                          +{selectedMr.numOpenings} Openings Approved
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="button"
+                    className="text-xs font-semibold gap-2"
+                    onClick={() => handleNextStep('posting')}
+                  >
+                    Next: Job Specifications &rarr;
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {duplicateActiveReq && (
+                  <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-xl border border-amber-300 dark:border-amber-800 flex items-start gap-3 text-xs text-amber-800 dark:text-amber-300 shadow-xs">
+                    <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-sm block text-amber-900 dark:text-amber-200">Active Requisition Already Exists</span>
+                      An active requisition ({duplicateActiveReq.requisitionCode || duplicateActiveReq.title}) already exists for this Designation in this Department. Requisition Status: <strong className="font-mono">{duplicateActiveReq.status}</strong>.
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-primary/5 p-5 rounded-xl border border-primary/20 space-y-4">
+                  <div className="flex items-center justify-between border-b border-primary/20 pb-3">
+                    <div>
+                      <h4 className="font-semibold text-sm text-primary flex items-center gap-2">
+                        <Building2 className="h-5 w-5" /> 1. Organization & Headcount Setup (Standalone Direct Requisition)
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Select organization details in sequence: Company &rarr; Branch &rarr; Department &rarr; Cost Center &rarr; Designation.
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="bg-background text-xs text-blue-600 border-blue-500/30 gap-1 font-semibold shrink-0">
+                      <Sparkles className="h-3.5 w-3.5" /> Direct Setup
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* 1. Company */}
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-xs">Company Entity *</Label>
+                      <Select value={standaloneCompanyId} onValueChange={handleCompanyChange}>
+                        <SelectTrigger className="h-9 text-xs bg-background font-semibold">
+                          <SelectValue placeholder="Select Company" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id} className="text-xs font-semibold">
+                              {c.name} ({c.code})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldErrors.standaloneCompanyId && (
+                        <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneCompanyId}</p>
+                      )}
+                    </div>
+
+                    {/* 2. Branch Location - Multi-Select Support */}
+                    <div className="space-y-1.5 relative" ref={branchComboboxRef}>
+                      <Label className="font-semibold text-xs flex items-center justify-between">
+                        <span>Branch Location *</span>
+                        {standaloneBranchIds.length > 0 && (
+                          <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary font-bold">
+                            {standaloneBranchIds.length} Branch{standaloneBranchIds.length > 1 ? 'es' : ''} Selected
+                          </Badge>
+                        )}
+                      </Label>
+
+                      <div
+                        onClick={() => {
+                          if (standaloneCompanyId) setIsBranchDropdownOpen((prev) => !prev);
+                        }}
+                        className={`min-h-[36px] px-3 py-1.5 rounded-md border text-xs bg-background cursor-pointer flex items-center justify-between transition-colors ${
+                          !standaloneCompanyId ? 'opacity-50 cursor-not-allowed bg-muted/40' : 'hover:border-primary/50'
+                        }`}
+                      >
+                        <div className="flex flex-wrap gap-1 items-center max-w-[90%]">
+                          {standaloneBranchIds.length === 0 ? (
+                            <span className="text-muted-foreground">
+                              {standaloneCompanyId ? 'Select Branch Location(s)...' : 'Select Company first'}
+                            </span>
+                          ) : (
+                            filteredBranches
+                              .filter((b: any) => standaloneBranchIds.includes(b.id))
+                              .map((b: any) => (
+                                <Badge
+                                  key={b.id}
+                                  variant="secondary"
+                                  className="text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 gap-1 py-0.5 px-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleBranchSelection(b.id);
+                                  }}
+                                >
+                                  {b.name}
+                                  <X className="w-3 h-3 hover:text-rose-600" />
+                                </Badge>
+                              ))
+                          )}
+                        </div>
+                        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
+                      </div>
+
+                      {/* Multi-Select Dropdown Menu */}
+                      {isBranchDropdownOpen && standaloneCompanyId && (
+                        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-56 overflow-y-auto animate-in fade-in-50">
+                          <div className="p-1 space-y-0.5">
+                            <div
+                              onClick={() => {
+                                if (standaloneBranchIds.length === filteredBranches.length) {
+                                  setStandaloneBranchIds([]);
+                                  setStandaloneBranchId('');
+                                } else {
+                                  const allIds = filteredBranches.map((b: any) => b.id);
+                                  setStandaloneBranchIds(allIds);
+                                  setStandaloneBranchId(allIds[0] || '');
+                                }
+                                setStandaloneDepartmentId('');
+                                setStandaloneCostCenter('');
+                                setStandaloneDesignationId('');
+                                setStandaloneRoleInput('');
+                              }}
+                              className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 rounded cursor-pointer flex items-center justify-between border-b mb-1"
+                            >
+                              <span>Select All Branches ({filteredBranches.length})</span>
+                              {standaloneBranchIds.length === filteredBranches.length && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                            </div>
+
+                            {filteredBranches.map((b: any) => {
+                              const isChecked = standaloneBranchIds.includes(b.id);
+                              return (
+                                <div
+                                  key={b.id}
+                                  onClick={() => toggleBranchSelection(b.id)}
+                                  className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
+                                    isChecked ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-accent'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {}}
+                                      className="rounded text-primary focus:ring-primary h-3.5 w-3.5"
+                                    />
+                                    <span>{b.name}</span>
+                                    {b.city && <span className="text-[10px] text-muted-foreground">({b.city})</span>}
+                                  </div>
+                                  {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {fieldErrors.standaloneBranchId && (
+                        <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneBranchId}</p>
+                      )}
+                    </div>
+
+                    {/* 3. Department */}
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-xs">Department *</Label>
+                      <Select
+                        value={standaloneDepartmentId}
+                        onValueChange={handleDepartmentChange}
+                        disabled={!standaloneBranchId}
+                      >
+                        <SelectTrigger className="h-9 text-xs bg-background">
+                          <SelectValue placeholder={standaloneBranchId ? 'Select Department' : 'Select Branch first'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredDepartments.map((d: any) => (
+                            <SelectItem key={d.id} value={d.id} className="text-xs">
+                              {d.name} ({d.code})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldErrors.standaloneDepartmentId && (
+                        <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneDepartmentId}</p>
+                      )}
+                    </div>
+
+                    {/* 4. Cost Center */}
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-xs">Cost Center *</Label>
+                      {costCenters.length > 0 ? (
+                        <Select
+                          value={standaloneCostCenter}
+                          onValueChange={(v) => {
+                            setStandaloneCostCenter(v);
+                            setFieldErrors((prev) => ({ ...prev, standaloneCostCenter: '' }));
+                          }}
+                          disabled={!standaloneDepartmentId}
+                        >
+                          <SelectTrigger className="h-9 text-xs bg-background font-mono font-semibold">
+                            <SelectValue placeholder={standaloneDepartmentId ? 'Select Cost Center' : 'Select Department first'} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-56 overflow-y-auto">
+                            {costCenters.map((cc: any) => (
+                              <SelectItem key={cc.id} value={`${cc.code} - ${cc.name}`} className="text-xs font-mono">
+                                {cc.code} - {cc.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          type="text"
+                          value={standaloneCostCenter}
+                          onChange={(e) => {
+                            setStandaloneCostCenter(e.target.value);
+                            setFieldErrors((prev) => ({ ...prev, standaloneCostCenter: '' }));
+                          }}
+                          disabled={!standaloneDepartmentId}
+                          placeholder={standaloneDepartmentId ? 'e.g. CC-101 - IT Operations' : 'Select Department first'}
+                          className="h-9 text-xs bg-background font-mono font-semibold"
+                        />
+                      )}
+                      {fieldErrors.standaloneCostCenter && (
+                        <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneCostCenter}</p>
+                      )}
+                    </div>
+
+                    {/* 5. Designation / Job Role - Single Searchable + Editable Combobox */}
+                    <div className="space-y-1.5 relative" ref={standaloneDesignationComboboxRef}>
+                      <Label className="font-semibold text-xs flex items-center justify-between">
+                        <span>Designation / Job Role *</span>
+                        {standaloneRoleInput.trim() && (
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            {standaloneDesignationId && designations.some((d: any) => d.id === standaloneDesignationId) ? (
+                              <span className="text-emerald-600 font-medium flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 inline" /> Master Role Selected
+                              </span>
+                            ) : (
+                              <span className="text-blue-600 font-medium flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 inline" /> Custom Manual Role
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </Label>
+
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+                          <Search className="w-3.5 h-3.5" />
+                        </div>
+
+                        <Input
+                          type="text"
+                          placeholder={
+                            !standaloneDepartmentId
+                              ? 'Select Department first...'
+                              : designations.length === 0
+                              ? 'No master designations found (type custom role)...'
+                              : 'Search or enter job role...'
+                          }
+                          value={standaloneRoleInput}
+                          disabled={!standaloneDepartmentId}
+                          onFocus={() => {
+                            if (standaloneDepartmentId) setIsStandaloneDesignationDropdownOpen(true);
+                          }}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setStandaloneRoleInput(val);
+                            setJobTitle(val);
+                            setIsStandaloneDesignationDropdownOpen(true);
+                            setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '', jobTitle: '' }));
+
+                            // Check exact match in master designations
+                            const exactMatch = designations.find(
+                              (d: any) => d.title.trim().toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (exactMatch) {
+                              setStandaloneDesignationId(exactMatch.id);
+                            } else {
+                              setStandaloneDesignationId('');
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setIsStandaloneDesignationDropdownOpen(false);
+                            }
+                          }}
+                          className="pl-8 pr-16 h-9 text-xs focus-visible:ring-1 bg-background font-semibold"
+                        />
+
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          {standaloneRoleInput.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setStandaloneRoleInput('');
+                                setStandaloneDesignationId('');
+                                setJobTitle('');
+                              }}
+                              title="Clear text"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={!standaloneDepartmentId}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              if (standaloneDepartmentId) {
+                                setIsStandaloneDesignationDropdownOpen((prev) => !prev);
+                              }
+                            }}
+                            title="Toggle dropdown"
+                          >
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isStandaloneDesignationDropdownOpen ? 'rotate-180' : ''}`} />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Dropdown Menu */}
+                      {isStandaloneDesignationDropdownOpen && standaloneDepartmentId && (
+                        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-60 overflow-y-auto animate-in fade-in-50 zoom-in-95">
+                          {/* Master Designations */}
+                          {filteredDesignationsForCombobox.length > 0 ? (
+                            <div className="p-1">
+                              <div className="px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-muted-foreground bg-muted/30 rounded mb-1">
+                                Master Job Roles ({filteredDesignationsForCombobox.length})
+                              </div>
+                              {filteredDesignationsForCombobox.map((des: any) => {
+                                const isSelected = standaloneDesignationId === des.id || standaloneRoleInput.trim().toLowerCase() === des.title.trim().toLowerCase();
+                                return (
+                                  <div
+                                    key={des.id}
+                                    onClick={() => {
+                                      setStandaloneDesignationId(des.id);
+                                      setStandaloneRoleInput(des.title);
+                                      setJobTitle(des.title);
+                                      if (!jobQualification && des.qualification) {
+                                        setJobQualification(des.qualification);
+                                      }
+                                      if (des.skills) {
+                                        const parsed = des.skills.split(/[,;\n]/).map((s: string) => s.trim()).filter(Boolean);
+                                        if (parsed.length > 0) setRequiredSkillsList(parsed);
+                                      }
+                                      setIsStandaloneDesignationDropdownOpen(false);
+                                      setFieldErrors((prev) => ({ ...prev, standaloneDesignationId: '', jobTitle: '' }));
+                                    }}
+                                    className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
+                                      isSelected
+                                        ? 'bg-primary/10 text-primary font-medium'
+                                        : 'hover:bg-accent hover:text-accent-foreground'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
+                                      <span>{des.title}</span>
+                                      {des.code && <span className="text-[10px] text-muted-foreground">({des.code})</span>}
+                                    </div>
+                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="p-3 text-xs text-muted-foreground text-center">
+                              No matching master job roles found.
+                            </div>
+                          )}
+
+                          {/* Custom role entry option */}
+                          {standaloneRoleInput.trim().length > 0 && (
+                            <div className="border-t border-border p-1 bg-muted/20">
+                              <div
+                                onClick={() => {
+                                  setJobTitle(standaloneRoleInput.trim());
+                                  setIsStandaloneDesignationDropdownOpen(false);
+                                }}
+                                className="px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between bg-primary/5 hover:bg-primary/10 text-primary font-medium border border-primary/20 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                  <Plus className="w-3.5 h-3.5 text-primary shrink-0" />
+                                  <span className="truncate">
+                                    Use entered role: <strong className="font-semibold text-foreground">"{standaloneRoleInput.trim()}"</strong>
+                                  </span>
+                                </div>
+                                <Badge variant="outline" className="text-[10px] bg-background text-primary shrink-0 ml-2">
+                                  Select
+                                </Badge>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {fieldErrors.standaloneDesignationId && (
+                        <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneDesignationId}</p>
+                      )}
+                    </div>
+
+                    {/* 6. Openings */}
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-xs">Number of Openings *</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={standaloneNumPositions}
+                        onChange={(e) => {
+                          setStandaloneNumPositions(Math.max(1, Math.floor(Number(e.target.value))));
+                          setFieldErrors((prev) => ({ ...prev, standaloneNumPositions: '' }));
+                        }}
+                        className="h-9 text-xs font-mono font-bold bg-background text-primary"
+                      />
+                      {fieldErrors.standaloneNumPositions && (
+                        <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneNumPositions}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="button"
+                    className="text-xs font-semibold gap-2"
+                    onClick={() => handleNextStep('posting')}
+                  >
+                    Next: Job Specifications &rarr;
+                  </Button>
+                </div>
+              </div>
+            )
+          )}
+
+          {/* STEP 2: JOB POSTING DETAILS */}
+          {activeStepTab === 'posting' && (
+            <div className="space-y-6">
+              {/* Stepper Progress Banner */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary text-sm">Step 2 of 5</span>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="font-semibold text-foreground">Job Posting Details</span>
+                    <Badge variant="secondary" className="text-[10px] font-semibold bg-primary/10 text-primary">
+                      40% Complete
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Define job overview, detailed description, key responsibilities, qualifications, tag-based skills, and job classifications.
+                  </p>
+                </div>
+                <div className="w-full sm:w-48 space-y-1">
+                  <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
+                    <span>Progress</span>
+                    <span>40%</span>
+                  </div>
+                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: '40%' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 1: JOB OVERVIEW */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h4 className="font-semibold text-xs text-foreground flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-primary" /> Section 1: Job Overview
+                  </h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateJobContent()}
+                    className="text-[11px] font-semibold text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 gap-1.5 h-7"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Auto-Generate Professional Description
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Job Posting Title */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">
+                        Job Posting Title * {isFromMR ? '(Locked from MR)' : ''}
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{jobTitle.length}/150</span>
+                    </div>
+                    <Input
+                      type="text"
+                      readOnly={isFromMR}
+                      value={jobTitle}
+                      onChange={(e) => {
+                        setJobTitle(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobTitle: '' }));
+                      }}
+                      onBlur={() => markTouched('jobTitle')}
+                      className={`h-9 text-xs font-semibold ${
+                        isFromMR ? 'bg-muted/60 text-foreground cursor-not-allowed' : 'bg-background'
+                      }`}
+                      placeholder="e.g. Junior Software Engineer"
+                    />
+                    {isFromMR && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        🔒 This value is controlled by the approved Manpower Requisition.
+                      </p>
+                    )}
+                    {fieldErrors.jobTitle && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobTitle}</p>
+                    )}
+                  </div>
+
+                  {/* Job Summary */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Job Summary *</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{jobSummary.length}/500</span>
+                    </div>
+                    <Textarea
+                      value={jobSummary}
+                      onChange={(e) => {
+                        setJobSummary(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobSummary: '' }));
+                      }}
+                      onBlur={() => markTouched('jobSummary')}
+                      className="text-xs bg-background min-h-[60px] leading-relaxed"
+                      rows={2}
+                      placeholder="Short 1-2 sentence overview for career portal card..."
+                    />
+                    {fieldErrors.jobSummary && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobSummary}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: DESCRIPTION & RESPONSIBILITIES */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h4 className="font-semibold text-xs text-foreground flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" /> Section 2: Description & Responsibilities
+                  </h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateJobContent()}
+                    className="text-[11px] font-semibold text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 gap-1.5 h-7"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Re-Generate Template
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Detailed Job Description */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Detailed Job Description *</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{jobDescription.length}/5000 (Min 50 chars)</span>
+                    </div>
+                    <Textarea
+                      value={jobDescription}
+                      onChange={(e) => {
+                        setJobDescription(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobDescription: '' }));
+                      }}
+                      onBlur={() => markTouched('jobDescription')}
+                      className="text-xs min-h-[140px] leading-relaxed"
+                      rows={6}
+                      placeholder="Provide full job description including team overview, project scope, domain expectations, technical challenges, and growth opportunities..."
+                    />
+                    {fieldErrors.jobDescription && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobDescription}</p>
+                    )}
+                  </div>
+
+                  {/* Key Responsibilities & Duties */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Key Responsibilities & Duties *</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">{jobResponsibilities.length}/2000 (Min 20 chars)</span>
+                    </div>
+                    <Textarea
+                      value={jobResponsibilities}
+                      onChange={(e) => {
+                        setJobResponsibilities(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobResponsibilities: '' }));
+                      }}
+                      onBlur={() => markTouched('jobResponsibilities')}
+                      className="text-xs min-h-[140px] font-sans leading-relaxed"
+                      rows={6}
+                      placeholder="Enter bullet-point key responsibilities...&#10;• Develop and maintain web applications&#10;• Write clean and maintainable code&#10;• Collaborate with cross-functional engineering teams"
+                    />
+                    {fieldErrors.jobResponsibilities && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobResponsibilities}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: QUALIFICATIONS & SKILLS */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary" /> Section 3: Qualifications & Skills
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Required Qualification */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">
+                      Required Qualification * {isFromMR ? '(Locked from MR)' : ''}
+                    </Label>
+                    <Input
+                      type="text"
+                      readOnly={isFromMR}
+                      value={isFromMR ? (selectedMr?.qualification || jobQualification || 'As per Specification') : jobQualification}
+                      onChange={(e) => {
+                        setJobQualification(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobQualification: '' }));
+                      }}
+                      onBlur={() => markTouched('jobQualification')}
+                      className={`h-9 text-xs ${
+                        isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'
+                      }`}
+                      placeholder="e.g. B.Tech / B.E. / MCA / M.Sc. Computer Science"
+                    />
+                    {isFromMR && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        🔒 Controlled by approved MR data.
+                      </p>
+                    )}
+                    {fieldErrors.jobQualification && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobQualification}</p>
+                    )}
+                  </div>
+
+                  {/* Preferred Qualification */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Preferred Qualification</Label>
+                    <Input
+                      type="text"
+                      value={preferredQualification}
+                      onChange={(e) => setPreferredQualification(e.target.value)}
+                      className="h-9 text-xs bg-background"
+                      placeholder="e.g. M.Tech / AWS Certification / Cloud Certification"
+                    />
+                  </div>
+
+                  {/* Required Skills (Tag Input) */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="font-semibold text-xs flex items-center justify-between">
+                      <span>Required Skills * {isFromMR ? '(Locked from MR)' : ''}</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        {requiredSkillsList.length} skills selected
+                      </span>
+                    </Label>
+                    <TagInput
+                      tags={requiredSkillsList}
+                      onChange={(tags) => {
+                        setRequiredSkillsList(tags);
+                        if (tags.length > 0) setFieldErrors((prev) => ({ ...prev, requiredSkills: '' }));
+                      }}
+                      disabled={false}
+                      error={fieldErrors.requiredSkills}
+                      placeholder="Type a skill (e.g. React, Customer Support, Communication) and press Enter"
+                      popularSuggestions={['Customer Support', 'Communication', 'Troubleshooting', 'React', 'TypeScript', 'Node.js', 'Problem Solving', 'Git']}
+                      onBlur={() => markTouched('requiredSkills')}
+                    />
+                    {isFromMR && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        ℹ️ Pre-populated from approved MR. You can add or refine skills for this job posting.
+                      </p>
+                    )}
+                    {fieldErrors.requiredSkills && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.requiredSkills}</p>
+                    )}
+                  </div>
+
+                  {/* Preferred Skills (Tag Input) */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="font-semibold text-xs flex items-center justify-between">
+                      <span>Preferred Skills</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        {preferredSkillsList.length} skills selected
+                      </span>
+                    </Label>
+                    <TagInput
+                      tags={preferredSkillsList}
+                      onChange={(tags) => setPreferredSkillsList(tags)}
+                      placeholder="Type a preferred skill (e.g. Docker, Kubernetes, AWS, System Design) and press Enter"
+                      popularSuggestions={['Docker', 'Kubernetes', 'AWS', 'GraphQL', 'Redis', 'Microservices', 'CI/CD', 'Next.js', 'TailwindCSS']}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 4: JOB CLASSIFICATION */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <Building2 className="h-4 w-4 text-primary" /> Section 4: Job Classification
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Job Category */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Job Category *</Label>
+                    <Select
+                      value={jobCategory}
+                      onValueChange={(v) => {
+                        setJobCategory(v);
+                        setFieldErrors((prev) => ({ ...prev, jobCategory: '' }));
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue placeholder="Select Job Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Software Development" className="text-xs">Software Development</SelectItem>
+                        <SelectItem value="Engineering" className="text-xs">Engineering</SelectItem>
+                        <SelectItem value="Finance" className="text-xs">Finance & Accounting</SelectItem>
+                        <SelectItem value="Human Resources" className="text-xs">Human Resources (HR)</SelectItem>
+                        <SelectItem value="Sales & Business Development" className="text-xs">Sales & Business Development</SelectItem>
+                        <SelectItem value="Marketing" className="text-xs">Marketing & Communications</SelectItem>
+                        <SelectItem value="Operations & Logistics" className="text-xs">Operations & Logistics</SelectItem>
+                        <SelectItem value="Product Management" className="text-xs">Product Management</SelectItem>
+                        <SelectItem value="Design & UX" className="text-xs">Design & User Experience</SelectItem>
+                        <SelectItem value="Quality Assurance" className="text-xs">Quality Assurance & Testing</SelectItem>
+                        <SelectItem value="Legal & Compliance" className="text-xs">Legal & Compliance</SelectItem>
+                        <SelectItem value="Customer Success" className="text-xs">Customer Success & Support</SelectItem>
+                        <SelectItem value="Executive Leadership" className="text-xs">Executive Leadership</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.jobCategory && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobCategory}</p>
+                    )}
+                  </div>
+
+                  {/* Job Family */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Job Family</Label>
+                    <Input
+                      type="text"
+                      value={jobFamily}
+                      onChange={(e) => setJobFamily(e.target.value)}
+                      className="h-9 text-xs bg-background"
+                      placeholder="e.g. Engineering → Software Development"
+                    />
+                  </div>
+
+                  {/* Seniority Level */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Seniority Level *</Label>
+                    <Select
+                      value={seniorityLevel}
+                      onValueChange={(v) => {
+                        setSeniorityLevel(v);
+                        setFieldErrors((prev) => ({ ...prev, seniorityLevel: '' }));
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue placeholder="Select Seniority Level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Intern" className="text-xs">Intern</SelectItem>
+                        <SelectItem value="Entry Level" className="text-xs">Entry Level</SelectItem>
+                        <SelectItem value="Junior" className="text-xs">Junior</SelectItem>
+                        <SelectItem value="Mid-Level" className="text-xs">Mid-Level</SelectItem>
+                        <SelectItem value="Senior" className="text-xs">Senior</SelectItem>
+                        <SelectItem value="Lead" className="text-xs">Lead</SelectItem>
+                        <SelectItem value="Manager" className="text-xs">Manager</SelectItem>
+                        <SelectItem value="Director" className="text-xs">Director</SelectItem>
+                        <SelectItem value="Executive" className="text-xs">Executive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.seniorityLevel && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.seniorityLevel}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: EMPLOYMENT DETAILS */}
+              <div className="space-y-4 border rounded-xl p-4 bg-card shadow-2xs">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <Briefcase className="h-4 w-4 text-primary" /> Section 5: Employment Details
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Employment Type */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Employment Type *</Label>
+                    <Select
+                      value={jobEmploymentType}
+                      onValueChange={(v: any) => setJobEmploymentType(v)}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue placeholder="Select Employment Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FULL_TIME" className="text-xs">Full Time</SelectItem>
+                        <SelectItem value="PART_TIME" className="text-xs">Part Time</SelectItem>
+                        <SelectItem value="CONTRACT" className="text-xs">Contract</SelectItem>
+                        <SelectItem value="TEMPORARY" className="text-xs">Temporary</SelectItem>
+                        <SelectItem value="INTERN" className="text-xs">Internship</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Work Mode */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Work Mode *</Label>
+                    <Select
+                      value={workMode}
+                      onValueChange={(v) => setWorkMode(v)}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue placeholder="Select Work Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="On-site" className="text-xs">On-site</SelectItem>
+                        <SelectItem value="Hybrid" className="text-xs">Hybrid</SelectItem>
+                        <SelectItem value="Remote" className="text-xs">Remote</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Work Location */}
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">
+                      Work Location * {isFromMR ? '(Locked from MR)' : ''}
+                    </Label>
+                    <Input
+                      type="text"
+                      readOnly={isFromMR}
+                      value={isFromMR ? (selectedMr?.workLocation || 'Main Office') : jobLocation}
+                      onChange={(e) => {
+                        setJobLocation(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, jobLocation: '' }));
+                      }}
+                      className={`h-9 text-xs ${
+                        isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'
+                      }`}
+                      placeholder="e.g. NASHIK DEVELOPMENT (Nashik)"
+                    />
+                    {isFromMR && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        🔒 Controlled by approved MR data.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP NAVIGATION FOOTER */}
+              <div className="flex items-center justify-between pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs gap-1.5"
+                  onClick={() => setActiveStepTab('mr_ref')}
+                >
+                  &larr; Previous Step
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+                  onClick={() => handleNextStep('requirements')}
+                >
+                  Next: Candidate & Team &rarr;
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: CANDIDATE REQUIREMENTS & HIRING TEAM */}
+          {activeStepTab === 'requirements' && (
+            <div className="space-y-6">
+              {/* Candidate Eligibility Selector */}
+              <div className="bg-muted/30 p-4 rounded-xl border border-border space-y-4">
+                <h4 className="font-semibold text-xs text-foreground flex items-center justify-between">
+                  <span>Candidate Eligibility & Experience Range *</span>
+                  <Badge variant="outline" className="text-[10px] bg-background">
+                    {candidateType === 'FRESHER'
+                      ? 'Fresher Only (0 - 1 Years)'
+                      : candidateType === 'EXPERIENCED'
+                      ? `Experienced (${minExp} - ${maxExp} Years)`
+                      : `Freshers & Experienced Both Eligible (${minExp} - ${maxExp} Years)`}
+                  </Badge>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Experience Type *</Label>
+                    <Select value={candidateType} onValueChange={(v: any) => setCandidateType(v)}>
+                      <SelectTrigger className="h-9 text-xs bg-background">
+                        <SelectValue placeholder="Select Candidate Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FRESHER" className="text-xs font-medium">Fresher (0 - 1 Years)</SelectItem>
+                        <SelectItem value="EXPERIENCED" className="text-xs font-medium">Experienced Only</SelectItem>
+                        <SelectItem value="BOTH" className="text-xs font-medium">Both (Freshers & Experienced)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {candidateType === 'FRESHER' ? (
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="font-semibold text-xs">Graduation / Passing Year</Label>
+                      <Input
+                        type="text"
+                        value={graduationYear}
+                        onChange={(e) => setGraduationYear(e.target.value)}
+                        placeholder="e.g. 2024 / 2025 / 2026"
+                        className="h-9 text-xs bg-background"
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold text-xs">Min Exp (Years) *</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={minExp}
+                          onChange={(e) => {
+                            setMinExp(Number(e.target.value));
+                            setFieldErrors((prev) => ({ ...prev, minExp: '' }));
+                          }}
+                          className="h-9 text-xs font-mono bg-background"
+                        />
+                        {fieldErrors.minExp && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.minExp}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold text-xs">Max Exp (Years) *</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={maxExp}
+                          onChange={(e) => {
+                            setMaxExp(Number(e.target.value));
+                            setFieldErrors((prev) => ({ ...prev, minExp: '' }));
+                          }}
+                          className="h-9 text-xs font-mono bg-background"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Hiring Team Assignment */}
+              <div className="bg-card p-4 rounded-xl border border-border space-y-4 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2 gap-2">
+                  <h4 className="font-semibold text-xs text-foreground flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" /> Hiring Team Assignment (Filtered Employee Master)
+                  </h4>
+                  <Badge variant="outline" className="text-[10px] bg-muted/50 font-mono w-fit">
+                    Scoped to Company & Branch
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Hiring Manager Dropdown */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Hiring Manager *</Label>
+                      {activeCompId && activeBranchId && (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {eligibleHiringManagers.length} eligible
+                        </span>
+                      )}
+                    </div>
+                    <Select
+                      value={hiringManagerId}
+                      onValueChange={(v) => {
+                        setHiringManagerId(v);
+                        setFieldErrors((prev) => ({ ...prev, hiringManagerId: '' }));
+                      }}
+                      disabled={!activeCompId || !activeBranchId}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue
+                          placeholder={
+                            !activeCompId || !activeBranchId
+                              ? 'Select Company & Branch first'
+                              : eligibleHiringManagers.length === 0
+                              ? 'No active employees found'
+                              : 'Select Hiring Manager'
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {eligibleHiringManagers.length === 0 ? (
+                          <div className="p-3 text-xs text-muted-foreground text-center font-medium">
+                            No active employees found for the selected company and branch.
+                          </div>
+                        ) : (
+                          eligibleHiringManagers.map((emp: any) => (
+                            <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                              {formatEmployeeOption(emp)}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.hiringManagerId && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.hiringManagerId}</p>
+                    )}
+                  </div>
+
+                  {/* Assigned Recruiter Dropdown */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Assigned Recruiter *</Label>
+                      {activeCompId && activeBranchId && (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {eligibleRecruiters.length} eligible
+                        </span>
+                      )}
+                    </div>
+                    <Select
+                      value={recruiterId}
+                      onValueChange={(v) => {
+                        setRecruiterId(v);
+                        setFieldErrors((prev) => ({ ...prev, recruiterId: '' }));
+                      }}
+                      disabled={!activeCompId || !activeBranchId}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue
+                          placeholder={
+                            !activeCompId || !activeBranchId
+                              ? 'Select Company & Branch first'
+                              : eligibleRecruiters.length === 0
+                              ? 'No active HR employees found'
+                              : 'Select Assigned Recruiter'
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {eligibleRecruiters.length === 0 ? (
+                          <div className="p-3 text-xs text-muted-foreground text-center font-medium">
+                            No active employees found for the selected company and branch.
+                          </div>
+                        ) : (
+                          eligibleRecruiters.map((emp: any) => (
+                            <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                              {formatEmployeeOption(emp)}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.recruiterId && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.recruiterId}</p>
+                    )}
+                  </div>
+
+                  {/* HR Business Partner Dropdown */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">HR Business Partner (HRBP)</Label>
+                      {activeCompId && activeBranchId && (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          Optional
+                        </span>
+                      )}
+                    </div>
+                    <Select
+                      value={hrbpId}
+                      onValueChange={(v) => setHrbpId(v)}
+                      disabled={!activeCompId || !activeBranchId}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
+                        <SelectValue
+                          placeholder={
+                            !activeCompId || !activeBranchId
+                              ? 'Select Company & Branch first'
+                              : eligibleHrbps.length === 0
+                              ? 'No active HRBP employees found'
+                              : 'Select HRBP (Optional)'
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {eligibleHrbps.length === 0 ? (
+                          <div className="p-3 text-xs text-muted-foreground text-center font-medium">
+                            No active employees found for the selected company and branch.
+                          </div>
+                        ) : (
+                          eligibleHrbps.map((emp: any) => (
+                            <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                              {formatEmployeeOption(emp)}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => setActiveStepTab('posting')}>
+                  &larr; Previous
+                </Button>
+                <Button type="button" size="sm" className="text-xs font-semibold gap-1.5" onClick={() => handleNextStep('compensation')}>
+                  Next: Compensation & Dates &rarr;
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: COMPENSATION & DATES */}
+          {activeStepTab === 'compensation' && (
+            <div className="space-y-6">
+              {/* Employment & Location */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs">Employment Type *</Label>
+                  <Select value={jobEmploymentType} onValueChange={(v: any) => setJobEmploymentType(v)}>
+                    <SelectTrigger className="h-9 text-xs bg-background font-semibold">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FULL_TIME" className="text-xs">Full Time</SelectItem>
+                      <SelectItem value="PART_TIME" className="text-xs">Part Time</SelectItem>
+                      <SelectItem value="CONTRACT" className="text-xs">Contract</SelectItem>
+                      <SelectItem value="INTERN" className="text-xs">Internship</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs">Work Mode *</Label>
+                  <Select value={workMode} onValueChange={setWorkMode}>
+                    <SelectTrigger className="h-9 text-xs bg-background font-semibold">
+                      <SelectValue placeholder="Select mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="On-site" className="text-xs">On-site</SelectItem>
+                      <SelectItem value="Hybrid" className="text-xs">Hybrid</SelectItem>
+                      <SelectItem value="Remote" className="text-xs">Remote</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs">
+                    Work Location {isFromMR ? '(Locked from MR)' : '*'}
+                  </Label>
+                  <Input
+                    type="text"
+                    readOnly={isFromMR}
+                    value={isFromMR ? (selectedMr?.workLocation || 'Nashik Center') : jobLocation}
+                    onChange={(e) => {
+                      setJobLocation(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, jobLocation: '' }));
+                    }}
+                    className={`h-9 text-xs ${isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'}`}
+                    placeholder="e.g. Nashik Development Center / Remote"
+                  />
+                  {fieldErrors.jobLocation && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobLocation}</p>}
+                </div>
+              </div>
+
+              {/* Compensation Details */}
+              <div className="bg-primary/5 p-5 rounded-xl border border-primary/20 space-y-4">
+                <h4 className="font-semibold text-xs text-primary flex items-center justify-between border-b border-primary/20 pb-2">
+                  <span className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" /> Compensation Budget Range {isFromMR ? '(Locked from MR)' : ''}
+                  </span>
+                  <Badge variant="outline" className="bg-background text-xs text-emerald-600 border-emerald-500/30 gap-1 font-semibold">
+                    <ShieldCheck className="h-3.5 w-3.5" /> Salary Band
+                  </Badge>
+                </h4>
+
+                {isFromMR && selectedMr ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Minimum Annual CTC (Locked from MR)</Label>
+                      <p className="font-mono font-bold text-base text-primary mt-0.5">
+                        {formatSalaryInLakhs(selectedMr.minSalary >= 1000 ? selectedMr.minSalary : selectedMr.minSalary * 100000)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Stored: ₹{(selectedMr.minSalary >= 1000 ? selectedMr.minSalary : Math.round(selectedMr.minSalary * 100000)).toLocaleString('en-IN')} / year
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground font-medium">Maximum Annual CTC (Locked from MR)</Label>
+                      <p className="font-mono font-bold text-base text-primary mt-0.5">
+                        {formatSalaryInLakhs(selectedMr.maxSalary >= 1000 ? selectedMr.maxSalary : selectedMr.maxSalary * 100000)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Stored: ₹{(selectedMr.maxSalary >= 1000 ? selectedMr.maxSalary : Math.round(selectedMr.maxSalary * 100000)).toLocaleString('en-IN')} / year
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold text-xs">Min Annual CTC (₹ Lakhs) *</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={jobMinSalaryLakh}
+                          onChange={(e) => {
+                            setJobMinSalaryLakh(Number(e.target.value));
+                            setFieldErrors((prev) => ({ ...prev, jobMinSalaryLakh: '' }));
+                          }}
+                          className="h-9 text-xs font-mono font-bold bg-background text-primary"
+                        />
+                        {fieldErrors.jobMinSalaryLakh && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobMinSalaryLakh}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold text-xs">Max Annual CTC (₹ Lakhs) *</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={jobMaxSalaryLakh}
+                          onChange={(e) => {
+                            setJobMaxSalaryLakh(Number(e.target.value));
+                            setFieldErrors((prev) => ({ ...prev, jobMinSalaryLakh: '' }));
+                          }}
+                          className="h-9 text-xs font-mono font-bold bg-background text-primary"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-background p-3 rounded-lg border border-border/70 flex items-center justify-between text-xs font-mono">
+                      <span className="text-muted-foreground text-[11px]">Formatted CTC Band:</span>
+                      <span className="font-bold text-primary">
+                        ₹{jobMinSalaryLakh.toFixed(2)} Lakh – ₹{jobMaxSalaryLakh.toFixed(2)} Lakh / year
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Dates & Job Visibility */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs">Application Start Date *</Label>
+                  <Input
+                    type="date"
+                    value={applicationStartDate}
+                    onChange={(e) => setApplicationStartDate(e.target.value)}
+                    className="h-9 text-xs bg-background font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs">Application Deadline *</Label>
+                  <Input
+                    type="date"
+                    value={jobDeadline}
+                    onChange={(e) => {
+                      setJobDeadline(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, jobDeadline: '' }));
+                    }}
+                    className="h-9 text-xs bg-background font-mono"
+                  />
+                  {fieldErrors.jobDeadline && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobDeadline}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs">Job Visibility *</Label>
+                  <Select value={jobVisibility} onValueChange={setJobVisibility}>
+                    <SelectTrigger className="h-9 text-xs bg-background font-semibold">
+                      <SelectValue placeholder="Select visibility" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Public" className="text-xs">Public (Career Portal)</SelectItem>
+                      <SelectItem value="Internal" className="text-xs">Internal Only (Employee Portal)</SelectItem>
+                      <SelectItem value="Public + Internal" className="text-xs">Public + Internal Both</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => setActiveStepTab('requirements')}>
+                  &larr; Previous
+                </Button>
+                <Button type="button" size="sm" className="text-xs font-semibold gap-1.5" onClick={() => handleNextStep('interview')}>
+                  Next: Interview & Internal &rarr;
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5: INTERVIEW PROCESS & INTERNAL INFORMATION */}
+          {activeStepTab === 'interview' && (
+            <div className="space-y-6">
+              {/* Interview Process Configuration */}
+              <div className="bg-muted/30 p-4 rounded-xl border border-border space-y-4">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <Sparkles className="h-4 w-4 text-primary" /> Interview Process & Evaluation Setup
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="font-semibold text-xs">Interview Process Stages</Label>
+                    <Input
+                      type="text"
+                      value={interviewProcess}
+                      onChange={(e) => setInterviewProcess(e.target.value)}
+                      className="h-9 text-xs bg-background"
+                      placeholder="e.g. Screening → Technical Assessment → Technical Interview → HR Round"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Number of Rounds</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={numInterviewRounds}
+                      onChange={(e) => setNumInterviewRounds(Number(e.target.value))}
+                      className="h-9 text-xs font-mono bg-background"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Internal Information & Rationale */}
+              <div className="bg-muted/30 p-4 rounded-xl border border-border space-y-4">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-2 border-b pb-2">
+                  <FileText className="h-4 w-4 text-primary" /> Internal Information & Hiring Rationale
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Hiring Reason / Justification *</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">Min 15 chars</span>
+                    </div>
+                    <Textarea
+                      value={internalJustification}
+                      onChange={(e) => {
+                        setInternalJustification(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, internalJustification: '' }));
+                      }}
+                      className="text-xs min-h-[70px]"
+                      rows={3}
+                      placeholder="Provide detailed business rationale for headcount requirement..."
+                    />
+                    {fieldErrors.internalJustification && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.internalJustification}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Internal Notes & Budget Comments</Label>
+                    <Textarea
+                      value={internalNotes}
+                      onChange={(e) => setInternalNotes(e.target.value)}
+                      className="text-xs min-h-[70px]"
+                      rows={3}
+                      placeholder="Special budget notes or internal recruiter instructions..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => setActiveStepTab('compensation')}>
+                  &larr; Previous
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="text-xs font-semibold"
+                    onClick={() => handleSubmit('DRAFT')}
+                    disabled={createJobReqMutation.isPending}
+                  >
+                    Save Draft
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-xs"
+                    onClick={() => handleSubmit('READY_TO_PUBLISH')}
+                    disabled={createJobReqMutation.isPending}
+                  >
+                    <CheckCircle2 className="h-4 w-4" /> Save & Set Ready to Publish
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

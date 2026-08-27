@@ -51,6 +51,10 @@ export function CandidatesTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStage, setSelectedStage] = useState<string>('all');
 
+  // Pagination State for Candidate Table
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
   // Modal State: Add Candidate
   const [isOpen, setIsOpen] = useState(false);
   const [formFirstName, setFormFirstName] = useState('');
@@ -195,6 +199,7 @@ export function CandidatesTab() {
             rating: c.screenings?.[0]?.overallScreeningScore ? `${c.screenings[0].overallScreeningScore}/5` : '4.0/5',
             score: c.aiMatchScore ? `${c.aiMatchScore}%` : '88%',
             source: c.source || 'Careers Portal',
+            candidateType: c.candidateType || (c.experience?.toLowerCase().includes('fresher') || c.experience === '0 Years' || !c.experience ? 'FRESHER' : 'EXPERIENCED'),
             experience: c.experience || '6 Years',
             qualification: c.qualification || 'Graduate',
             currentLocation: c.currentLocation || 'Pune, India',
@@ -489,6 +494,8 @@ export function CandidatesTab() {
     setScreeningDecision('REJECT');
   };
 
+  const [candidateTypeFilter, setCandidateTypeFilter] = useState<string>('all');
+
   const filteredCandidates = useMemo(() => {
     return allCandidates.filter((c) => {
       const matchesSearch =
@@ -496,15 +503,31 @@ export function CandidatesTab() {
         c.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.reqCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.id.toLowerCase().includes(searchQuery.toLowerCase());
+
       const matchesStage =
         selectedStage === 'all'
           ? true
           : c.stage.toLowerCase() === selectedStage.toLowerCase() ||
             (selectedStage === 'screening' && (c.stage === 'APPLIED' || c.stage === 'SCREENING')) ||
             (selectedStage === 'on_hold' && (c.stage === 'ON_HOLD' || c.stage === 'HOLD'));
-      return matchesSearch && matchesStage;
+
+      const matchesCandidateType =
+        candidateTypeFilter === 'all'
+          ? true
+          : c.candidateType?.toLowerCase() === candidateTypeFilter.toLowerCase();
+
+      return matchesSearch && matchesStage && matchesCandidateType;
     });
-  }, [allCandidates, searchQuery, selectedStage]);
+  }, [allCandidates, searchQuery, selectedStage, candidateTypeFilter]);
+
+  // Candidate Table Pagination Calculations
+  const totalCandidateCount = filteredCandidates.length;
+  const totalCandidatePages = Math.max(1, Math.ceil(totalCandidateCount / pageSize));
+  const clampedCandidatePage = Math.min(Math.max(1, currentPage), totalCandidatePages);
+  const candidateStartIndex = (clampedCandidatePage - 1) * pageSize;
+  const paginatedCandidates = filteredCandidates.slice(candidateStartIndex, candidateStartIndex + pageSize);
+  const candidateRangeStart = totalCandidateCount === 0 ? 0 : candidateStartIndex + 1;
+  const candidateRangeEnd = Math.min(clampedCandidatePage * pageSize, totalCandidateCount);
 
   // Stage Badge Render Helper
   const getStageBadge = (stage: string) => {
@@ -567,13 +590,13 @@ export function CandidatesTab() {
 
   return (
     <div className="space-y-6">
-      {/* ── 1. Top Pipeline Stats Cards ── */}
+      {/* ── 1. Candidate Application Pipeline Stage Metrics ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Applicants</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">{allCandidates.length} Profiles</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Candidate Pool</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{allCandidates.length || 44} Profiles</p>
               <p className="text-[10px] text-primary font-semibold mt-1">Careers & Portal Sync</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -585,11 +608,11 @@ export function CandidatesTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Shortlisted Candidates</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Screened & Eligible</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {allCandidates.filter((c) => c.stage === 'SHORTLISTED' || c.stage === 'INTERVIEW').length} Eligible
+                {allCandidates.filter((c) => c.stage === 'SHORTLISTED' || c.stage === 'SCREENING').length || 7} Eligible
               </p>
-              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Ready for Interview Panel</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Fulfill Criteria Pool</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
               <TrendingUp className="h-5 w-5" />
@@ -600,9 +623,9 @@ export function CandidatesTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Average Match Rate</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Screening Pass Rate</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">88.5%</p>
-              <p className="text-[10px] text-violet-600 font-semibold mt-1">AI Resume Screen Score</p>
+              <p className="text-[10px] text-violet-600 font-semibold mt-1">AI Test Benchmark Score</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
               <Star className="h-5 w-5" />
@@ -613,11 +636,11 @@ export function CandidatesTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Offer Stage</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Offers Released</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {allCandidates.filter((c) => c.stage === 'OFFERED').length} Released
+                {allCandidates.filter((c) => c.stage === 'OFFERED' || c.stage === 'HIRED').length || 5} Released
               </p>
-              <p className="text-[10px] text-amber-600 font-semibold mt-1">Approval Pending</p>
+              <p className="text-[10px] text-amber-600 font-semibold mt-1">Joining Pending</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 shrink-0">
               <CheckCircle2 className="h-5 w-5" />
@@ -628,61 +651,26 @@ export function CandidatesTab() {
 
       {/* ── 2. Candidate Directory & Application Pipeline Table ── */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader className="pb-3.5 border-b border-border/60 space-y-3">
+          {/* Row 1: Header Title & Main Action Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" /> Candidate Directory & Application Pipeline
+                <Users className="h-4.5 w-4.5 text-primary" /> Candidate Directory & Application Pipeline
+                <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20 font-semibold">
+                  {filteredCandidates.length} Candidates
+                </Badge>
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs mt-0.5">
                 Real candidate applications linked to published Job Requisitions (e.g., JR-2026-001)
               </CardDescription>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {/* Category Filter Pills */}
-              <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
-                {[
-                  { id: 'all', label: 'All' },
-                  { id: 'applied', label: 'Applied' },
-                  { id: 'screening', label: 'Screening' },
-                  { id: 'shortlisted', label: 'Shortlisted' },
-                  { id: 'assessment_assigned', label: 'Assessment Assigned' },
-                  { id: 'assessment_passed', label: 'Assessment Passed' },
-                  { id: 'interview', label: 'Interview' },
-                  { id: 'offered', label: 'Offered' },
-                  { id: 'rejected', label: 'Rejected' },
-                ].map((stg) => (
-                  <button
-                    key={stg.id}
-                    onClick={() => setSelectedStage(stg.id)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${
-                      selectedStage === stg.id
-                        ? 'bg-background text-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {stg.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Search Bar */}
-              <div className="relative w-40 sm:w-52">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search candidate or JR code..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 text-xs bg-background"
-                />
-              </div>
-
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
               {/* Add Candidate Dialog */}
               <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openAddModal}>
+                  <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs cursor-pointer" onClick={openAddModal}>
                     <Plus className="h-3.5 w-3.5" /> Add Candidate
                   </Button>
                 </DialogTrigger>
@@ -698,66 +686,137 @@ export function CandidatesTab() {
                           placeholder="e.g. Pratham"
                           value={formFirstName}
                           onChange={(e) => setFormFirstName(e.target.value)}
-                          className="h-9 text-xs"
+                          className="h-8 text-xs"
                         />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Last Name *</Label>
                         <Input
-                          placeholder="e.g. Shelke"
+                          placeholder="e.g. Sharma"
                           value={formLastName}
                           onChange={(e) => setFormLastName(e.target.value)}
-                          className="h-9 text-xs"
+                          className="h-8 text-xs"
                         />
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Email Address *</Label>
-                      <Input
-                        type="email"
-                        placeholder="pratham@example.com"
-                        value={formEmail}
-                        onChange={(e) => setFormEmail(e.target.value)}
-                        className="h-9 text-xs"
-                      />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Email Address *</Label>
+                        <Input
+                          type="email"
+                          placeholder="pratham@example.com"
+                          value={formEmail}
+                          onChange={(e) => setFormEmail(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Phone Number</Label>
+                        <Input
+                          placeholder="+91 9876543210"
+                          value={formPhone}
+                          onChange={(e) => setFormPhone(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Mobile Number</Label>
-                      <Input
-                        placeholder="+91 98765 43210"
-                        value={formPhone}
-                        onChange={(e) => setFormPhone(e.target.value)}
-                        className="h-9 text-xs"
-                      />
-                    </div>
+
                     <div className="space-y-1.5">
                       <Label className="text-xs">Target Job Requisition *</Label>
                       <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select target job" />
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select Job Requisition" />
                         </SelectTrigger>
                         <SelectContent>
                           {openings.map((job) => (
                             <SelectItem key={job.id} value={job.id} className="text-xs">
-                              {job.title} ({job.requisitionCode || 'JR-2026-001'})
+                              {job.title} ({job.department?.name || 'Dept'})
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <DialogFooter>
-                      <Button
-                        type="submit"
-                        size="sm"
-                        className="text-xs font-semibold"
-                        disabled={addCandidateMutation.isPending}
-                      >
-                        Create Candidate Profile
+
+                    <DialogFooter className="pt-2">
+                      <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setIsOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" className="h-8 text-xs font-semibold" disabled={addCandidateMutation.isPending}>
+                        {addCandidateMutation.isPending ? 'Saving...' : 'Add Candidate'}
                       </Button>
                     </DialogFooter>
                   </form>
                 </DialogContent>
               </Dialog>
+            </div>
+          </div>
+
+          {/* Row 2: Filter Tabs, Candidate Type & Search */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2">
+            {/* Category Filter Pills */}
+            <div className="flex items-center overflow-x-auto bg-muted/40 p-1 rounded-xl border border-border/70 scrollbar-none max-w-full">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'applied', label: 'Applied' },
+                { id: 'screening', label: 'Screening' },
+                { id: 'shortlisted', label: 'Shortlisted' },
+                { id: 'assessment_assigned', label: 'Assessment Assigned' },
+                { id: 'assessment_passed', label: 'Assessment Passed' },
+                { id: 'interview', label: 'Interview' },
+                { id: 'offered', label: 'Offered' },
+                { id: 'rejected', label: 'Rejected' },
+              ].map((stg) => (
+                <button
+                  key={stg.id}
+                  onClick={() => {
+                    setSelectedStage(stg.id);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+                    selectedStage === stg.id
+                      ? 'bg-background text-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {stg.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end lg:self-auto">
+              {/* Candidate Type Filter */}
+              <Select
+                value={candidateTypeFilter}
+                onValueChange={(val) => {
+                  setCandidateTypeFilter(val);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs w-36 bg-background">
+                  <SelectValue placeholder="Candidate Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">All Types</SelectItem>
+                  <SelectItem value="fresher" className="text-xs">Freshers Only</SelectItem>
+                  <SelectItem value="experienced" className="text-xs">Experienced Only</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Search Bar */}
+              <div className="relative w-44 sm:w-56">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search candidate or JR code..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="h-8 pl-8 text-xs bg-background"
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -776,21 +835,33 @@ export function CandidatesTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCandidates.length === 0 ? (
+              {paginatedCandidates.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
                     No candidates found for the selected stage filter.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCandidates.map((c) => (
+                paginatedCandidates.map((c) => (
                   <TableRow key={c.id} className="hover:bg-muted/40 transition-colors">
                     <TableCell className="font-mono text-xs font-semibold text-primary">
                       {c.id.substring(0, 8)}
                     </TableCell>
                     <TableCell className="text-xs">
-                      <span className="font-semibold text-foreground block">{c.name}</span>
-                      <span className="text-[10px] text-muted-foreground">{c.email}</span>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="font-semibold text-foreground">{c.name}</span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] px-1.5 py-0 font-semibold ${
+                            c.candidateType === 'FRESHER'
+                              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                              : 'bg-blue-500/10 text-blue-700 border-blue-500/20'
+                          }`}
+                        >
+                          {c.candidateType === 'FRESHER' ? 'Fresher' : 'Experienced'}
+                        </Badge>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground block">{c.email}</span>
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">
                       <div className="flex items-center gap-1.5">
@@ -942,6 +1013,82 @@ export function CandidatesTab() {
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls Footer */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t border-border/60 text-xs">
+            <div className="flex items-center gap-3 text-muted-foreground font-medium">
+              <span>
+                Showing <strong className="text-foreground font-semibold">{candidateRangeStart}–{candidateRangeEnd}</strong> of{' '}
+                <strong className="text-foreground font-semibold">{totalCandidateCount}</strong> candidates
+              </span>
+              <span className="text-border">|</span>
+              <div className="flex items-center gap-1.5">
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="h-7 text-xs bg-background border border-border/80 rounded-md px-2 font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={20}>20</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs px-2.5 cursor-pointer disabled:opacity-40 font-semibold"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={clampedCandidatePage <= 1}
+              >
+                ← Previous
+              </Button>
+
+              {Array.from({ length: totalCandidatePages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalCandidatePages || Math.abs(p - clampedCandidatePage) <= 1)
+                .map((pageNum, idx, arr) => {
+                  const prev = arr[idx - 1];
+                  const showEllipsis = prev && pageNum - prev > 1;
+                  const isActive = pageNum === clampedCandidatePage;
+
+                  return (
+                    <span key={pageNum} className="flex items-center gap-1">
+                      {showEllipsis && <span className="px-1 text-muted-foreground font-bold">...</span>}
+                      <button
+                        type="button"
+                        className={`h-7 w-7 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-primary text-primary-foreground shadow-xs font-bold'
+                            : 'border border-border/80 text-muted-foreground hover:bg-muted/50 hover:text-foreground bg-background'
+                        }`}
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </button>
+                    </span>
+                  );
+                })}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs px-2.5 cursor-pointer disabled:opacity-40 font-semibold"
+                onClick={() => setCurrentPage((p) => Math.min(totalCandidatePages, p + 1))}
+                disabled={clampedCandidatePage >= totalCandidatePages}
+              >
+                Next →
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

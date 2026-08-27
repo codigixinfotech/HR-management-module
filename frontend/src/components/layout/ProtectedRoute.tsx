@@ -1,8 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { isHrOrAdminUser } from '@/lib/modules';
-import { toast } from 'sonner';
-import { useEffect } from 'react';
 
 const ADMIN_ONLY_ROUTES = [
   '/organization',
@@ -25,6 +23,11 @@ export function ProtectedRoute() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const location = useLocation();
+  const currentPath = location.pathname;
+
+  if (currentPath.startsWith('/careers') || currentPath === '/login') {
+    return <Outlet />;
+  }
 
   if (!accessToken) {
     return <Navigate to="/login" replace />;
@@ -32,7 +35,6 @@ export function ProtectedRoute() {
 
   const isHrOrAdmin = isHrOrAdminUser(user);
   const isEmployee = !isHrOrAdmin;
-  const currentPath = location.pathname;
 
   // Check if route is restricted for standard employees
   const isAdminOnly =

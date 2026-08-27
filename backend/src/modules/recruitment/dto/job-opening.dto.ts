@@ -7,11 +7,63 @@ export class CreateJobOpeningDto {
 
   @IsOptional()
   @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
   departmentId?: string;
 
   @IsOptional()
   @IsString()
   designationId?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  jobFamily?: string;
+
+  @IsOptional()
+  @IsString()
+  seniorityLevel?: string;
+
+  @IsOptional()
+  @IsString()
+  summary?: string;
+
+  @IsOptional()
+  @IsString()
+  skills?: string;
+
+  @IsOptional()
+  @IsNumber()
+  minExp?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxExp?: number;
+
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @IsOptional()
+  @IsDateString()
+  deadline?: string;
+
+  @IsOptional()
+  @IsString()
+  visibility?: string;
+
+  @IsOptional()
+  @IsNumber()
+  numRounds?: number;
+
+  @IsOptional()
+  @IsNumber()
+  positionsCount?: number;
 
   @IsOptional()
   @IsString()
@@ -58,6 +110,22 @@ export class CreateJobOpeningDto {
   priority?: string;
 
   @IsOptional()
+  @IsString()
+  candidateType?: string; // FRESHER, EXPERIENCED, BOTH
+
+  @IsOptional()
+  @IsNumber()
+  minExperience?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxExperience?: number;
+
+  @IsOptional()
+  @IsString()
+  graduationYear?: string;
+
+  @IsOptional()
   @IsNumber()
   minSalary?: number;
 
@@ -96,6 +164,70 @@ export class CreateJobOpeningDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  workMode?: string;
+
+  @IsOptional()
+  @IsString()
+  hiringManagerId?: string;
+
+  @IsOptional()
+  @IsString()
+  recruiterId?: string;
+
+  @IsOptional()
+  @IsString()
+  hrbpId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  applicationStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  jobVisibility?: string;
+
+  @IsOptional()
+  @IsString()
+  preferredSkills?: string;
+
+  @IsOptional()
+  @IsString()
+  preferredQualification?: string;
+
+  @IsOptional()
+  @IsString()
+  certifications?: string;
+
+  @IsOptional()
+  @IsString()
+  languages?: string;
+
+  @IsOptional()
+  @IsString()
+  benefits?: string;
+
+  @IsOptional()
+  @IsString()
+  interviewProcess?: string;
+
+  @IsOptional()
+  @IsInt()
+  numInterviewRounds?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  hasAssessment?: boolean;
+
+  @IsOptional()
+  @IsString()
+  internalNotes?: string;
+
+  @IsOptional()
+  @IsString()
+  internalJustification?: string;
 }
 
 export class UpdateJobOpeningDto extends PartialType(CreateJobOpeningDto) {}

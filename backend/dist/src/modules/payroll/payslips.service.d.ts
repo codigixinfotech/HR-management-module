@@ -13,10 +13,10 @@ export declare class PayslipsService {
         components: {
             id: string;
             name: string;
-            payslipId: string;
-            salaryComponentId: string | null;
             type: import(".prisma/client").$Enums.SalaryComponentType;
             amount: number;
+            payslipId: string;
+            salaryComponentId: string | null;
         }[];
     } & {
         id: string;
@@ -40,10 +40,10 @@ export declare class PayslipsService {
         components: {
             id: string;
             name: string;
-            payslipId: string;
-            salaryComponentId: string | null;
             type: import(".prisma/client").$Enums.SalaryComponentType;
             amount: number;
+            payslipId: string;
+            salaryComponentId: string | null;
         }[];
     } & {
         id: string;

@@ -53,11 +53,11 @@ async function bootstrap() {
         .build();
     const document = swagger_1.SwaggerModule.createDocument(app, swaggerConfig);
     swagger_1.SwaggerModule.setup('api/docs', app, document);
-    const port = config.get('PORT', 4000);
+    const port = config.get('PORT') || Number(process.env.PORT) || 3001;
     await app.listen(port, '0.0.0.0');
-    const dbUser = process.env.DB_USER || 'hrm_user';
-    const dbPort = process.env.DB_PORT || '3307';
-    const dbName = process.env.DB_NAME || 'hrm_db';
+    const dbUser = process.env.DB_USER;
+    const dbPort = process.env.DB_PORT;
+    const dbName = process.env.DB_NAME;
     console.log('\x1b[1m\x1b[32m%s\x1b[0m', `=========================================================`);
     console.log('\x1b[1m\x1b[32m%s\x1b[0m', `  ✅ DATABASE CONNECTED: MySQL (${dbName}) on port ${dbPort} as ${dbUser}`);
     console.log('\x1b[1m\x1b[32m%s\x1b[0m', `  🚀 EHCM backend listening on http://0.0.0.0:${port}/api`);

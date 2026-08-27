@@ -90,8 +90,8 @@ export declare class ExitsService implements OnModuleInit {
             id: string;
             createdAt: Date;
             remarks: string | null;
-            exitId: string;
             action: string;
+            exitId: string;
             previousStatus: string | null;
             newStatus: string;
             performedBy: string;
@@ -319,8 +319,8 @@ export declare class ExitsService implements OnModuleInit {
             id: string;
             createdAt: Date;
             remarks: string | null;
-            exitId: string;
             action: string;
+            exitId: string;
             previousStatus: string | null;
             newStatus: string;
             performedBy: string;
@@ -387,8 +387,8 @@ export declare class ExitsService implements OnModuleInit {
             id: string;
             createdAt: Date;
             remarks: string | null;
-            exitId: string;
             action: string;
+            exitId: string;
             previousStatus: string | null;
             newStatus: string;
             performedBy: string;

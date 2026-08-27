@@ -3,7 +3,7 @@ import { CreateDesignationDto, UpdateDesignationDto } from './dto/designation.dt
 export declare class DesignationsController {
     private readonly designationsService;
     constructor(designationsService: DesignationsService);
-    list(companyId?: string, departmentId?: string): never[] | import(".prisma/client").Prisma.PrismaPromise<({
+    list(companyId?: string, departmentId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         department: {
             id: string;
             name: string;
@@ -14,16 +14,16 @@ export declare class DesignationsController {
         } | null;
     } & {
         id: string;
-        code: string;
-        isActive: boolean;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
-        effectiveFrom: Date;
         description: string | null;
+        code: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         title: string;
         jobFamily: string | null;
         reportingDesignationId: string | null;
@@ -41,16 +41,16 @@ export declare class DesignationsController {
         } | null;
     } & {
         id: string;
-        code: string;
-        isActive: boolean;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
-        effectiveFrom: Date;
         description: string | null;
+        code: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         title: string;
         jobFamily: string | null;
         reportingDesignationId: string | null;
@@ -59,16 +59,16 @@ export declare class DesignationsController {
     }>;
     create(dto: CreateDesignationDto): Promise<{
         id: string;
-        code: string;
-        isActive: boolean;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
-        effectiveFrom: Date;
         description: string | null;
+        code: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         title: string;
         jobFamily: string | null;
         reportingDesignationId: string | null;
@@ -77,16 +77,16 @@ export declare class DesignationsController {
     }>;
     update(id: string, dto: UpdateDesignationDto): Promise<{
         id: string;
-        code: string;
-        isActive: boolean;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
-        effectiveFrom: Date;
         description: string | null;
+        code: string;
+        isActive: boolean;
+        effectiveFrom: Date;
         title: string;
         jobFamily: string | null;
         reportingDesignationId: string | null;

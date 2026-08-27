@@ -31,6 +31,7 @@ export class ManpowerPlansService implements OnModuleInit {
     companyId?: string,
     departmentId?: string,
     designationId?: string,
+    branchId?: string,
   ): Promise<number> {
     const where: any = {
       status: 'ACTIVE',
@@ -38,6 +39,10 @@ export class ManpowerPlansService implements OnModuleInit {
 
     if (companyId) {
       where.companyId = companyId;
+    }
+
+    if (branchId) {
+      where.branchId = branchId;
     }
 
     if (designationId) {
@@ -81,11 +86,12 @@ export class ManpowerPlansService implements OnModuleInit {
     return matched.length;
   }
 
-  async list(companyId?: string) {
+  async list(companyId?: string, branchId?: string) {
     const plans = await this.prisma.manpowerPlan.findMany({
       where: {
         isActive: true,
         ...(companyId ? { companyId } : {}),
+        ...(branchId ? { branchId } : {}),
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -99,6 +105,7 @@ export class ManpowerPlansService implements OnModuleInit {
           p.companyId || undefined,
           p.departmentId || undefined,
           p.designationId || undefined,
+          p.branchId || undefined,
         );
         const rawPlannedHires = Math.max(0, p.budgeted - activeCount);
         const availableOpenings = Math.max(0, rawPlannedHires - (p.mrRaisedHires || 0));
@@ -132,6 +139,7 @@ export class ManpowerPlansService implements OnModuleInit {
       plan.companyId || undefined,
       plan.departmentId || undefined,
       plan.designationId || undefined,
+      plan.branchId || undefined,
     );
     const rawPlannedHires = Math.max(0, plan.budgeted - activeCount);
     const availableOpenings = Math.max(0, rawPlannedHires - (plan.mrRaisedHires || 0));
@@ -160,6 +168,7 @@ export class ManpowerPlansService implements OnModuleInit {
       dto.companyId,
       dto.departmentId,
       dto.designationId,
+      dto.branchId,
     );
     const plannedHires = Math.max(0, dto.budgeted - activeCount);
     const status = activeCount >= dto.budgeted || plannedHires === 0 ? 'CAP-REACHED' : 'UNDER-STAFFED';
@@ -168,6 +177,7 @@ export class ManpowerPlansService implements OnModuleInit {
       data: {
         code,
         companyId: dto.companyId || null,
+        branchId: dto.branchId || null,
         departmentId: dto.departmentId || null,
         designationId: dto.designationId || null,
         departmentName: dto.departmentName,
@@ -188,9 +198,10 @@ export class ManpowerPlansService implements OnModuleInit {
     const departmentName = dto.departmentName ?? existing.departmentName;
     const role = dto.role ?? existing.role;
     const companyId = dto.companyId ?? existing.companyId ?? undefined;
+    const branchId = dto.branchId ?? existing.branchId ?? undefined;
     const budgeted = dto.budgeted ?? existing.budgeted;
 
-    const activeCount = await this.countActiveStaff(departmentName, role, companyId);
+    const activeCount = await this.countActiveStaff(departmentName, role, companyId, undefined, undefined, branchId);
     const plannedHires = Math.max(0, budgeted - activeCount);
     const status = activeCount >= budgeted || plannedHires === 0 ? 'CAP-REACHED' : 'UNDER-STAFFED';
 

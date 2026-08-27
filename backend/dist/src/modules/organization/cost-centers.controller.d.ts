@@ -3,7 +3,7 @@ import { CreateCostCenterDto, UpdateCostCenterDto } from './dto/cost-center.dto'
 export declare class CostCentersController {
     private readonly service;
     constructor(service: CostCentersService);
-    list(companyId?: string): Promise<({
+    list(companyId?: string, branchId?: string, departmentId?: string): Promise<({
         branch: {
             id: string;
             name: string;
@@ -15,17 +15,17 @@ export declare class CostCentersController {
     } & {
         id: string;
         companyId: string;
+        createdAt: Date;
+        name: string;
+        updatedAt: Date;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         description: string | null;
         code: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
@@ -42,17 +42,17 @@ export declare class CostCentersController {
     } & {
         id: string;
         companyId: string;
+        createdAt: Date;
+        name: string;
+        updatedAt: Date;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         description: string | null;
         code: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
@@ -60,17 +60,17 @@ export declare class CostCentersController {
     create(dto: CreateCostCenterDto): Promise<{
         id: string;
         companyId: string;
+        createdAt: Date;
+        name: string;
+        updatedAt: Date;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         description: string | null;
         code: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
@@ -78,17 +78,17 @@ export declare class CostCentersController {
     update(id: string, dto: UpdateCostCenterDto): Promise<{
         id: string;
         companyId: string;
+        createdAt: Date;
+        name: string;
+        updatedAt: Date;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         description: string | null;
         code: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;
@@ -96,17 +96,17 @@ export declare class CostCentersController {
     remove(id: string): Promise<{
         id: string;
         companyId: string;
+        createdAt: Date;
+        name: string;
+        updatedAt: Date;
         branchId: string | null;
         departmentId: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         description: string | null;
         code: string;
+        isActive: boolean;
         type: string;
         headcountCapacity: number;
         effectiveFrom: Date;
-        isActive: boolean;
         managerId: string | null;
         managerName: string | null;
         budget: import("@prisma/client/runtime/library").Decimal;

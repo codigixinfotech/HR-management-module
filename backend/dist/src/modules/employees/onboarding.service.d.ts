@@ -10,8 +10,8 @@ export declare class OnboardingService {
         employeeId: string;
         status: import(".prisma/client").$Enums.ApprovalStatus;
         description: string | null;
-        dueDate: Date | null;
         title: string;
+        dueDate: Date | null;
         completedAt: Date | null;
         ownerType: string;
     }[]>;
@@ -21,8 +21,8 @@ export declare class OnboardingService {
         employeeId: string;
         status: import(".prisma/client").$Enums.ApprovalStatus;
         description: string | null;
-        dueDate: Date | null;
         title: string;
+        dueDate: Date | null;
         completedAt: Date | null;
         ownerType: string;
     }>;
@@ -32,8 +32,8 @@ export declare class OnboardingService {
         employeeId: string;
         status: import(".prisma/client").$Enums.ApprovalStatus;
         description: string | null;
-        dueDate: Date | null;
         title: string;
+        dueDate: Date | null;
         completedAt: Date | null;
         ownerType: string;
     }>;

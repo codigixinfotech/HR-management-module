@@ -17,46 +17,46 @@ export declare class TravelExpenseController {
     listBookings(companyId?: string, search?: string, status?: string, travelType?: string, departmentId?: string, employeeId?: string, startDate?: string, endDate?: string): Promise<({
         company: {
             id: string;
-            code: string;
             name: string;
+            code: string;
         };
-        expenseClaims: {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            companyId: string;
-            status: string;
-            title: string;
-            employeeId: string;
-            remarks: string | null;
-            claimCode: string;
-            travelBookingId: string | null;
-            category: string;
-            amount: import("@prisma/client/runtime/library").Decimal;
-            date: Date;
-            receiptUrl: string | null;
-        }[];
-        branch: {
-            id: string;
-            code: string;
-            name: string;
-        } | null;
         employee: {
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
         };
+        branch: {
+            id: string;
+            name: string;
+            code: string;
+        } | null;
         department: {
             id: string;
-            code: string;
             name: string;
+            code: string;
         } | null;
         designation: {
             id: string;
             code: string;
             title: string;
         } | null;
+        expenseClaims: {
+            id: string;
+            companyId: string;
+            createdAt: Date;
+            category: string;
+            updatedAt: Date;
+            employeeId: string;
+            status: string;
+            remarks: string | null;
+            title: string;
+            claimCode: string;
+            travelBookingId: string | null;
+            amount: import("@prisma/client/runtime/library").Decimal;
+            date: Date;
+            receiptUrl: string | null;
+        }[];
         approvalHistory: {
             id: string;
             createdAt: Date;
@@ -68,16 +68,16 @@ export declare class TravelExpenseController {
         }[];
     } & {
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
+        employeeId: string;
         branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         status: string;
         bookingCode: string;
-        employeeId: string;
         costCenterId: string | null;
         gradeId: string | null;
         purpose: string;
@@ -105,46 +105,46 @@ export declare class TravelExpenseController {
     getBooking(id: string): Promise<{
         company: {
             id: string;
-            code: string;
             name: string;
+            code: string;
         };
-        expenseClaims: {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            companyId: string;
-            status: string;
-            title: string;
-            employeeId: string;
-            remarks: string | null;
-            claimCode: string;
-            travelBookingId: string | null;
-            category: string;
-            amount: import("@prisma/client/runtime/library").Decimal;
-            date: Date;
-            receiptUrl: string | null;
-        }[];
-        branch: {
-            id: string;
-            code: string;
-            name: string;
-        } | null;
         employee: {
             id: string;
             employeeCode: string;
             firstName: string;
             lastName: string;
         };
+        branch: {
+            id: string;
+            name: string;
+            code: string;
+        } | null;
         department: {
             id: string;
-            code: string;
             name: string;
+            code: string;
         } | null;
         designation: {
             id: string;
             code: string;
             title: string;
         } | null;
+        expenseClaims: {
+            id: string;
+            companyId: string;
+            createdAt: Date;
+            category: string;
+            updatedAt: Date;
+            employeeId: string;
+            status: string;
+            remarks: string | null;
+            title: string;
+            claimCode: string;
+            travelBookingId: string | null;
+            amount: import("@prisma/client/runtime/library").Decimal;
+            date: Date;
+            receiptUrl: string | null;
+        }[];
         approvalHistory: {
             id: string;
             createdAt: Date;
@@ -156,16 +156,16 @@ export declare class TravelExpenseController {
         }[];
     } & {
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
+        employeeId: string;
         branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         status: string;
         bookingCode: string;
-        employeeId: string;
         costCenterId: string | null;
         gradeId: string | null;
         purpose: string;
@@ -206,16 +206,16 @@ export declare class TravelExpenseController {
         } | null;
     } & {
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
+        employeeId: string;
         branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         status: string;
         bookingCode: string;
-        employeeId: string;
         costCenterId: string | null;
         gradeId: string | null;
         purpose: string;
@@ -242,16 +242,16 @@ export declare class TravelExpenseController {
     }>;
     updateBooking(id: string, dto: Partial<CreateTravelBookingDto>, req: any): Promise<{
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
+        employeeId: string;
         branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         status: string;
         bookingCode: string;
-        employeeId: string;
         costCenterId: string | null;
         gradeId: string | null;
         purpose: string;
@@ -278,16 +278,16 @@ export declare class TravelExpenseController {
     }>;
     updateStatus(id: string, dto: UpdateTravelStatusDto, req: any): Promise<{
         id: string;
+        companyId: string;
         createdAt: Date;
         updatedAt: Date;
-        companyId: string;
+        employeeId: string;
         branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         reportingManagerId: string | null;
         status: string;
         bookingCode: string;
-        employeeId: string;
         costCenterId: string | null;
         gradeId: string | null;
         purpose: string;
@@ -314,16 +314,16 @@ export declare class TravelExpenseController {
     }>;
     createExpenseClaimFromBooking(id: string, dto: Partial<CreateExpenseClaimDto>): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         companyId: string;
-        status: string;
-        title: string;
+        createdAt: Date;
+        category: string;
+        updatedAt: Date;
         employeeId: string;
+        status: string;
         remarks: string | null;
+        title: string;
         claimCode: string;
         travelBookingId: string | null;
-        category: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         receiptUrl: string | null;
@@ -346,16 +346,16 @@ export declare class TravelExpenseController {
         } | null;
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         companyId: string;
-        status: string;
-        title: string;
+        createdAt: Date;
+        category: string;
+        updatedAt: Date;
         employeeId: string;
+        status: string;
         remarks: string | null;
+        title: string;
         claimCode: string;
         travelBookingId: string | null;
-        category: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         receiptUrl: string | null;
@@ -378,16 +378,16 @@ export declare class TravelExpenseController {
         } | null;
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         companyId: string;
-        status: string;
-        title: string;
+        createdAt: Date;
+        category: string;
+        updatedAt: Date;
         employeeId: string;
+        status: string;
         remarks: string | null;
+        title: string;
         claimCode: string;
         travelBookingId: string | null;
-        category: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         receiptUrl: string | null;
@@ -413,16 +413,16 @@ export declare class TravelExpenseController {
         } | null;
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         companyId: string;
-        status: string;
-        title: string;
+        createdAt: Date;
+        category: string;
+        updatedAt: Date;
         employeeId: string;
+        status: string;
         remarks: string | null;
+        title: string;
         claimCode: string;
         travelBookingId: string | null;
-        category: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         receiptUrl: string | null;

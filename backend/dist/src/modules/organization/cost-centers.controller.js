@@ -21,8 +21,8 @@ let CostCentersController = class CostCentersController {
     constructor(service) {
         this.service = service;
     }
-    list(companyId) {
-        return this.service.list(companyId);
+    list(companyId, branchId, departmentId) {
+        return this.service.list(companyId, branchId, departmentId);
     }
     findOne(id) {
         return this.service.findOne(id);
@@ -41,8 +41,10 @@ exports.CostCentersController = CostCentersController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)('companyId')),
+    __param(1, (0, common_1.Query)('branchId')),
+    __param(2, (0, common_1.Query)('departmentId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", void 0)
 ], CostCentersController.prototype, "list", null);
 __decorate([

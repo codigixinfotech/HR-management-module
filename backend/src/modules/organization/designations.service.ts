@@ -14,10 +14,9 @@ export class DesignationsService {
   constructor(private readonly prisma: PrismaService) { }
 
   list(companyId?: string, departmentId?: string) {
-    if (!companyId) return [];
     return this.prisma.designation.findMany({
       where: {
-        companyId,
+        ...(companyId ? { companyId } : {}),
         ...(departmentId ? { departmentId } : {}),
       },
       include: {

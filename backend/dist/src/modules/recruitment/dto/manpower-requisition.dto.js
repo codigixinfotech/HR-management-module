@@ -15,6 +15,7 @@ const class_validator_1 = require("class-validator");
 class CreateManpowerRequisitionDto {
     mrNumber;
     companyId;
+    branchId;
     manpowerPlanId;
     departmentId;
     departmentName;
@@ -48,6 +49,11 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateManpowerRequisitionDto.prototype, "companyId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateManpowerRequisitionDto.prototype, "branchId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

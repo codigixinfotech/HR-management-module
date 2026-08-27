@@ -347,6 +347,10 @@ export interface JobOpening {
   costCenter?: string | null;
   employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN' | null;
   priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' | null;
+  candidateType?: 'FRESHER' | 'EXPERIENCED' | 'BOTH' | string | null;
+  minExperience?: number | null;
+  maxExperience?: number | null;
+  graduationYear?: string | null;
   minSalary?: number | null;
   maxSalary?: number | null;
   qualification?: string | null;
@@ -355,9 +359,28 @@ export interface JobOpening {
   workLocation?: string | null;
   reportingManagerId?: string | null;
   applicationDeadline?: string | null;
-  status: 'DRAFT' | 'READY_TO_PUBLISH' | 'PUBLISHED' | 'CLOSED';
+  status: 'DRAFT' | 'PENDING_REVIEW' | 'READY_TO_PUBLISH' | 'PUBLISHED' | 'PAUSED' | 'CLOSED' | 'CANCELLED' | string;
   publishedAt?: string | null;
   isActive: boolean;
+
+  // Enterprise Extensions
+  workMode?: string | null;
+  hiringManagerId?: string | null;
+  recruiterId?: string | null;
+  hrbpId?: string | null;
+  applicationStartDate?: string | null;
+  jobVisibility?: string | null;
+  preferredSkills?: string | null;
+  preferredQualification?: string | null;
+  certifications?: string | null;
+  languages?: string | null;
+  benefits?: string | null;
+  interviewProcess?: string | null;
+  numInterviewRounds?: number | null;
+  hasAssessment?: boolean | null;
+  internalNotes?: string | null;
+  internalJustification?: string | null;
+
   department?: { id: string; name: string } | null;
   designation?: { id: string; title: string } | null;
   manpowerRequisition?: ManpowerRequisition | null;
@@ -375,7 +398,10 @@ export interface Candidate {
   email: string;
   phone?: string | null;
   resumePath?: string | null;
+  candidateType?: 'FRESHER' | 'EXPERIENCED' | string | null;
   qualification?: string | null;
+  graduationYear?: string | null;
+  internshipDetails?: string | null;
   experience?: string | null;
   currentCompany?: string | null;
   currentLocation?: string | null;
@@ -895,23 +921,43 @@ export interface ComplianceTask {
   filedBy?: { id: string; firstName: string; lastName: string } | null;
 }
 
-export type AssetStatus = 'IN_STOCK' | 'ALLOCATED' | 'UNDER_MAINTENANCE' | 'RETIRED';
+export type AssetStatus = 'IN_STOCK' | 'AVAILABLE' | 'ALLOCATED' | 'UNDER_MAINTENANCE' | 'RETIRED' | 'DISPOSED' | string;
 
 export interface Asset {
   id: string;
   companyId: string;
+  branchId?: string | null;
+  departmentId?: string | null;
   assetTag: string;
   name: string;
   category: string;
+  assetType?: string | null;
+  physicalLocation?: string | null;
+  vendor?: string | null;
+  invoiceNumber?: string | null;
+  poNumber?: string | null;
+  serialNumber?: string | null;
+  manufacturer?: string | null;
+  modelNumber?: string | null;
   value?: number | null;
   status: AssetStatus;
+  condition?: string | null;
+  usefulLife?: string | null;
+  notes?: string | null;
+  remarks?: string | null;
+  photoUrl?: string | null;
   currentEmployeeId?: string | null;
   purchaseDate?: string | null;
+  warrantyStart?: string | null;
   warrantyExpiry?: string | null;
-  notes?: string | null;
+  company?: { id: string; name: string; code?: string } | null;
+  branch?: { id: string; name: string; code?: string } | null;
+  department?: { id: string; name: string; code?: string } | null;
   currentEmployee?: { id: string; firstName: string; lastName: string; employeeCode: string } | null;
-  allocations?: AssetAllocation[];
+  allocations?: (AssetAllocation & { employee?: { id: string; firstName: string; lastName: string; employeeCode: string } })[];
   maintenanceLogs?: AssetMaintenanceRecord[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AssetAllocation {
@@ -926,11 +972,31 @@ export interface AssetAllocation {
 export interface AssetMaintenanceRecord {
   id: string;
   assetId: string;
+  workOrderNumber?: string | null;
   issue: string;
+  priority?: 'HIGH' | 'MEDIUM' | 'LOW' | string | null;
+  maintenanceType?: string | null;
+  vendor?: string | null;
+  warrantyClaim?: boolean | null;
   startDate: string;
   endDate?: string | null;
   cost?: number | null;
-  asset?: { id: string; assetTag: string; name: string };
+  finalCondition?: string | null;
+  workPerformed?: string | null;
+  partsUsed?: string | null;
+  qcStatus?: 'PENDING' | 'PASS' | 'FAIL' | string | null;
+  notes?: string | null;
+  asset?: {
+    id: string;
+    assetTag: string;
+    name: string;
+    category?: string;
+    serialNumber?: string | null;
+    company?: { id: string; name: string } | null;
+    branch?: { id: string; name: string } | null;
+    department?: { id: string; name: string } | null;
+    currentEmployee?: { id: string; firstName: string; lastName: string; employeeCode: string } | null;
+  };
 }
 
 export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -982,6 +1048,7 @@ export interface ManpowerPlan {
   id: string;
   code?: string | null;
   companyId?: string | null;
+  branchId?: string | null;
   departmentId?: string | null;
   designationId?: string | null;
   departmentName: string;
@@ -1003,6 +1070,7 @@ export interface ManpowerRequisition {
   mrNumber: string;
   manpowerPlanId?: string | null;
   companyId?: string | null;
+  branchId?: string | null;
   departmentId?: string | null;
   departmentName: string;
   costCenter: string;

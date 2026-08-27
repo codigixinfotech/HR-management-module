@@ -40,8 +40,8 @@ let AssetsController = class AssetsController {
     allocate(id, dto) {
         return this.assetsService.allocate(id, dto);
     }
-    returnAsset(id) {
-        return this.assetsService.returnAsset(id);
+    returnAsset(id, dto) {
+        return this.assetsService.returnAsset(id, dto);
     }
 };
 exports.AssetsController = AssetsController;
@@ -99,8 +99,9 @@ __decorate([
     (0, common_1.Post)(':id/return'),
     (0, permissions_decorator_1.Permissions)('asset_management.write'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, asset_dto_1.ReturnAssetDto]),
     __metadata("design:returntype", void 0)
 ], AssetsController.prototype, "returnAsset", null);
 exports.AssetsController = AssetsController = __decorate([

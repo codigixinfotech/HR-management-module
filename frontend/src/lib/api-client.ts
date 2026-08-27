@@ -2,12 +2,12 @@ import axios, { AxiosError } from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
 
 const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
   if (typeof window !== 'undefined' && window.location?.hostname) {
     const hostname = window.location.hostname;
     return `http://${hostname}:3001/api`;
   }
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-  return 'http://localhost:3001/api';
+  return '/api';
 };
 
 export const API_BASE_URL = getApiBaseUrl();

@@ -26,8 +26,8 @@ export declare class UsersService {
             companyId: string | null;
             createdAt: Date;
             updatedAt: Date;
-            isActive: boolean;
             email: string;
+            isActive: boolean;
             mustResetPassword: boolean;
             lastLoginAt: Date | null;
         }[];
@@ -54,8 +54,8 @@ export declare class UsersService {
         companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
-        isActive: boolean;
         email: string;
+        isActive: boolean;
         mustResetPassword: boolean;
         lastLoginAt: Date | null;
     }>;
@@ -78,8 +78,8 @@ export declare class UsersService {
         companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
-        isActive: boolean;
         email: string;
+        isActive: boolean;
         mustResetPassword: boolean;
         lastLoginAt: Date | null;
     }>;
@@ -102,8 +102,8 @@ export declare class UsersService {
         companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
-        isActive: boolean;
         email: string;
+        isActive: boolean;
         mustResetPassword: boolean;
         lastLoginAt: Date | null;
     }>;

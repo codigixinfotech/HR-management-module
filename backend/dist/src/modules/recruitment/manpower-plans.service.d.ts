@@ -5,8 +5,8 @@ export declare class ManpowerPlansService implements OnModuleInit {
     private readonly prisma;
     constructor(prisma: PrismaService);
     onModuleInit(): Promise<void>;
-    countActiveStaff(departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string): Promise<number>;
-    list(companyId?: string): Promise<{
+    countActiveStaff(departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string, branchId?: string): Promise<number>;
+    list(companyId?: string, branchId?: string): Promise<{
         code: string;
         active: number;
         plannedHires: number;
@@ -15,6 +15,7 @@ export declare class ManpowerPlansService implements OnModuleInit {
         companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         costCenter: string;
@@ -34,6 +35,7 @@ export declare class ManpowerPlansService implements OnModuleInit {
         companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         costCenter: string;
@@ -51,6 +53,7 @@ export declare class ManpowerPlansService implements OnModuleInit {
         companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         status: string;
@@ -71,6 +74,7 @@ export declare class ManpowerPlansService implements OnModuleInit {
         companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
+        branchId: string | null;
         departmentId: string | null;
         designationId: string | null;
         status: string;

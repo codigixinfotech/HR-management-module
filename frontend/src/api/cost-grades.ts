@@ -41,8 +41,8 @@ export interface PayGrade {
 }
 
 export const costCentersApi = {
-  list: async (companyId?: string) =>
-    (await apiClient.get<CostCenter[]>('/organization/cost-centers', { params: { companyId } })).data,
+  list: async (companyId?: string, branchId?: string, departmentId?: string) =>
+    (await apiClient.get<CostCenter[]>('/organization/cost-centers', { params: { companyId, branchId, departmentId } })).data,
 
   create: async (payload: Partial<CostCenter>) =>
     (await apiClient.post<CostCenter>('/organization/cost-centers', payload)).data,

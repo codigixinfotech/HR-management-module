@@ -23,12 +23,11 @@ export default function AssetManagementPage() {
   const { data: assets } = useQuery({
     queryKey: ['assets', companyId],
     queryFn: () => assetsApi.list(companyId),
-    enabled: !!companyId,
   });
 
   const totalValue = assets?.reduce((sum, a) => sum + (a.value ?? 0), 0) ?? 0;
   const allocatedCount = assets?.filter((a) => a.status === 'ALLOCATED').length ?? 0;
-  const inStockCount = assets?.filter((a) => a.status === 'IN_STOCK').length ?? 0;
+  const inStockCount = assets?.filter((a) => a.status === 'IN_STOCK' || a.status === 'AVAILABLE').length ?? 0;
   const maintenanceCount = assets?.filter((a) => a.status === 'UNDER_MAINTENANCE').length ?? 0;
 
   const assetCategories = Array.from(new Set((assets ?? []).map((a) => a.category))).map((category) => {
@@ -37,7 +36,7 @@ export default function AssetManagementPage() {
       category,
       count: categoryAssets.length,
       allocated: categoryAssets.filter((a) => a.status === 'ALLOCATED').length,
-      inStock: categoryAssets.filter((a) => a.status === 'IN_STOCK').length,
+      inStock: categoryAssets.filter((a) => a.status === 'IN_STOCK' || a.status === 'AVAILABLE').length,
     };
   });
   const categoryAccents = ['primary', 'info', 'success', 'warning'] as const;

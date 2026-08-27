@@ -264,7 +264,8 @@ export function EmployeeMasterTab() {
 
   const handleCopyCredentials = () => {
     if (!createdCredentialsData) return;
-    const credText = `EHCM Workspace Credentials\n========================\nEmployee Name: ${createdCredentialsData.employeeName}\nWork Email: ${createdCredentialsData.email}\nEmployee Code: ${createdCredentialsData.employeeCode}\nTemporary Password: ${createdCredentialsData.temporaryPassword}\nRole: ${createdCredentialsData.role}\nLogin URL: http://localhost:5173/login\nNote: You will be required to set a new password on your first login.`;
+    const loginUrl = `${import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/login`;
+    const credText = `EHCM Workspace Credentials\n========================\nEmployee Name: ${createdCredentialsData.employeeName}\nWork Email: ${createdCredentialsData.email}\nEmployee Code: ${createdCredentialsData.employeeCode}\nTemporary Password: ${createdCredentialsData.temporaryPassword}\nRole: ${createdCredentialsData.role}\nLogin URL: ${loginUrl}\nNote: You will be required to set a new password on your first login.`;
     navigator.clipboard.writeText(credText);
     setIsCopied(true);
     toast.success('Login credentials copied to clipboard');

@@ -22,11 +22,11 @@ let ManpowerPlansController = class ManpowerPlansController {
     constructor(manpowerPlansService) {
         this.manpowerPlansService = manpowerPlansService;
     }
-    list(companyId) {
-        return this.manpowerPlansService.list(companyId);
+    list(companyId, branchId) {
+        return this.manpowerPlansService.list(companyId, branchId);
     }
-    countActive(departmentName, role, companyId, departmentId, designationId) {
-        return this.manpowerPlansService.countActiveStaff(departmentName, role, companyId, departmentId, designationId);
+    countActive(departmentName, role, companyId, branchId, departmentId, designationId) {
+        return this.manpowerPlansService.countActiveStaff(departmentName, role, companyId, departmentId, designationId, branchId);
     }
     findOne(id) {
         return this.manpowerPlansService.findOne(id);
@@ -46,8 +46,9 @@ __decorate([
     (0, common_1.Get)(),
     (0, permissions_decorator_1.Permissions)('recruitment.read'),
     __param(0, (0, common_1.Query)('companyId')),
+    __param(1, (0, common_1.Query)('branchId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], ManpowerPlansController.prototype, "list", null);
 __decorate([
@@ -56,10 +57,11 @@ __decorate([
     __param(0, (0, common_1.Query)('departmentName')),
     __param(1, (0, common_1.Query)('role')),
     __param(2, (0, common_1.Query)('companyId')),
-    __param(3, (0, common_1.Query)('departmentId')),
-    __param(4, (0, common_1.Query)('designationId')),
+    __param(3, (0, common_1.Query)('branchId')),
+    __param(4, (0, common_1.Query)('departmentId')),
+    __param(5, (0, common_1.Query)('designationId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], ManpowerPlansController.prototype, "countActive", null);
 __decorate([

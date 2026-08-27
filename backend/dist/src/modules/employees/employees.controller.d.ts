@@ -40,8 +40,6 @@ export declare class EmployeesController {
                 uploadedAt: Date;
             }[];
         } & {
-            location: string | null;
-            costCenter: string | null;
             id: string;
             companyId: string;
             location: string | null;
@@ -71,6 +69,7 @@ export declare class EmployeesController {
             grade: string | null;
             level: string | null;
             shift: string | null;
+            costCenter: string | null;
             employeeCategory: string | null;
             workPhone: string | null;
             workMode: string | null;
@@ -194,12 +193,12 @@ export declare class EmployeesController {
         onboardingTasks: {
             id: string;
             createdAt: Date;
-            title: string;
-            description: string | null;
-            dueDate: Date | null;
-            title: string;
-            completedAt: Date | null;
             employeeId: string;
+            status: import(".prisma/client").$Enums.ApprovalStatus;
+            description: string | null;
+            title: string;
+            dueDate: Date | null;
+            completedAt: Date | null;
             ownerType: string;
         }[];
         courseEnrollments: {
@@ -208,18 +207,19 @@ export declare class EmployeesController {
             updatedAt: Date;
             employeeId: string;
             status: string;
+            completionDate: Date | null;
             courseName: string;
             courseType: string;
             enrollmentDate: Date;
-            completionDate: Date | null;
             certification: string | null;
         }[];
         kpis: {
             id: string;
             createdAt: Date;
+            category: string;
             updatedAt: Date;
             employeeId: string;
-            category: string;
+            managerFeedback: string | null;
             kpi: string;
             target: string;
             weightage: number;
@@ -229,9 +229,9 @@ export declare class EmployeesController {
         hrNotes: {
             id: string;
             employeeId: string;
-            createdBy: string;
             note: string;
             noteType: string;
+            createdBy: string;
             createdDate: Date;
         }[];
         timelineEvents: {
@@ -249,10 +249,9 @@ export declare class EmployeesController {
                 createdAt: Date;
                 name: string;
                 updatedAt: Date;
-                name: string;
                 code: string;
-                type: import(".prisma/client").$Enums.SalaryComponentType;
                 isActive: boolean;
+                type: import(".prisma/client").$Enums.SalaryComponentType;
                 isStatutory: boolean;
             };
         } & {
@@ -260,9 +259,9 @@ export declare class EmployeesController {
             createdAt: Date;
             updatedAt: Date;
             employeeId: string;
+            effectiveFrom: Date;
             salaryComponentId: string;
             monthlyAmount: number;
-            effectiveFrom: Date;
         })[];
         currentAssets: {
             id: string;
@@ -271,16 +270,29 @@ export declare class EmployeesController {
             name: string;
             category: string;
             updatedAt: Date;
+            branchId: string | null;
+            departmentId: string | null;
             status: import(".prisma/client").$Enums.AssetStatus;
+            remarks: string | null;
+            vendor: string | null;
+            notes: string | null;
             assetTag: string;
+            assetType: string | null;
+            physicalLocation: string | null;
+            invoiceNumber: string | null;
+            poNumber: string | null;
+            serialNumber: string | null;
+            manufacturer: string | null;
+            modelNumber: string | null;
+            warrantyStart: Date | null;
+            warrantyExpiry: Date | null;
             value: number | null;
+            condition: string | null;
+            usefulLife: string | null;
+            photoUrl: string | null;
             currentEmployeeId: string | null;
             purchaseDate: Date | null;
-            warrantyExpiry: Date | null;
-            notes: string | null;
         }[];
-        location: string | null;
-        costCenter: string | null;
         id: string;
         companyId: string;
         location: string | null;
@@ -308,6 +320,7 @@ export declare class EmployeesController {
         dateOfExit: Date | null;
         businessUnit: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -424,8 +437,6 @@ export declare class EmployeesController {
             uploadedAt: Date;
         }[];
     } & {
-        location: string | null;
-        costCenter: string | null;
         id: string;
         companyId: string;
         location: string | null;
@@ -455,6 +466,7 @@ export declare class EmployeesController {
         grade: string | null;
         level: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -554,8 +566,6 @@ export declare class EmployeesController {
             uploadedAt: Date;
         }[];
     } & {
-        location: string | null;
-        costCenter: string | null;
         id: string;
         companyId: string;
         location: string | null;
@@ -585,6 +595,7 @@ export declare class EmployeesController {
         grade: string | null;
         level: string | null;
         shift: string | null;
+        costCenter: string | null;
         employeeCategory: string | null;
         workPhone: string | null;
         workMode: string | null;
@@ -678,34 +689,34 @@ export declare class EmployeesController {
     listOnboardingTasks(id: string): Promise<{
         id: string;
         createdAt: Date;
-        title: string;
-        description: string | null;
-        dueDate: Date | null;
-        title: string;
-        completedAt: Date | null;
         employeeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        description: string | null;
+        title: string;
+        dueDate: Date | null;
+        completedAt: Date | null;
         ownerType: string;
     }[]>;
     createOnboardingTask(id: string, dto: CreateOnboardingTaskDto): Promise<{
         id: string;
         createdAt: Date;
-        title: string;
-        description: string | null;
-        dueDate: Date | null;
-        title: string;
-        completedAt: Date | null;
         employeeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        description: string | null;
+        title: string;
+        dueDate: Date | null;
+        completedAt: Date | null;
         ownerType: string;
     }>;
     updateOnboardingTaskStatus(taskId: string, status: ApprovalStatus): Promise<{
         id: string;
         createdAt: Date;
-        title: string;
-        description: string | null;
-        dueDate: Date | null;
-        title: string;
-        completedAt: Date | null;
         employeeId: string;
+        status: import(".prisma/client").$Enums.ApprovalStatus;
+        description: string | null;
+        title: string;
+        dueDate: Date | null;
+        completedAt: Date | null;
         ownerType: string;
     }>;
     enrollInCourse(id: string, dto: {
@@ -719,10 +730,10 @@ export declare class EmployeesController {
         updatedAt: Date;
         employeeId: string;
         status: string;
+        completionDate: Date | null;
         courseName: string;
         courseType: string;
         enrollmentDate: Date;
-        completionDate: Date | null;
         certification: string | null;
     }>;
     addKpi(id: string, dto: {
@@ -736,9 +747,10 @@ export declare class EmployeesController {
     }): Promise<{
         id: string;
         createdAt: Date;
+        category: string;
         updatedAt: Date;
         employeeId: string;
-        category: string;
+        managerFeedback: string | null;
         kpi: string;
         target: string;
         weightage: number;
@@ -752,9 +764,9 @@ export declare class EmployeesController {
     }): Promise<{
         id: string;
         employeeId: string;
-        createdBy: string;
         note: string;
         noteType: string;
+        createdBy: string;
         createdDate: Date;
     }>;
 }

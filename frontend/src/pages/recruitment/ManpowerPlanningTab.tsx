@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -20,6 +20,9 @@ import {
   Building2,
   UserCheck,
   FileText,
+  ShieldCheck,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,11 +34,12 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 
+import { formatSalaryInLakhs } from '@/lib/utils';
 import { manpowerPlansApi, manpowerRequisitionsApi } from '@/api/recruitment';
-import { departmentsApi, designationsApi, branchesApi } from '@/api/organization';
+import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/api/organization';
 import { costCentersApi, type CostCenter } from '@/api/cost-grades';
 import { employeesApi } from '@/api/employees';
-import type { ManpowerPlan, Department, Designation, Branch, ManpowerRequisition } from '@/api/types';
+import type { ManpowerPlan, Department, Designation, Branch, Company, ManpowerRequisition } from '@/api/types';
 
 const HIRING_QUARTERS = [
   'Q1 2026',
@@ -60,9 +64,14 @@ export function ManpowerPlanningTab() {
   const [editingPlan, setEditingPlan] = useState<ManpowerPlan | null>(null);
 
   // Selected Forecast Form Fields
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [selectedDeptId, setSelectedDeptId] = useState<string>('');
   const [selectedCostCenterCode, setSelectedCostCenterCode] = useState<string>('');
   const [selectedDesignationId, setSelectedDesignationId] = useState<string>('');
+  const [roleInput, setRoleInput] = useState<string>('');
+  const [isDesignationDropdownOpen, setIsDesignationDropdownOpen] = useState<boolean>(false);
+  const designationComboboxRef = useRef<HTMLDivElement>(null);
   const [formBudgeted, setFormBudgeted] = useState<number>(5);
   const [formActive, setFormActive] = useState<number>(0);
   const [formQuarter, setFormQuarter] = useState<string>('Q3 2026');
@@ -75,8 +84,9 @@ export function ManpowerPlanningTab() {
   const [mrJoiningDate, setMrJoiningDate] = useState('');
   const [mrEmploymentType, setMrEmploymentType] = useState<'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN'>('FULL_TIME');
   const [mrPriority, setMrPriority] = useState<'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'>('NORMAL');
-  const [mrMinSalary, setMrMinSalary] = useState<number>(800000);
-  const [mrMaxSalary, setMrMaxSalary] = useState<number>(1200000);
+  const [mrExperienceLevel, setMrExperienceLevel] = useState<'Fresher' | 'Experienced'>('Experienced');
+  const [mrMinSalaryLakh, setMrMinSalaryLakh] = useState<number>(8);
+  const [mrMaxSalaryLakh, setMrMaxSalaryLakh] = useState<number>(12);
   const [mrQualification, setMrQualification] = useState('B.Tech / M.Tech / MBA / Graduate');
   const [mrExperience, setMrExperience] = useState('3 - 5 Years');
   const [mrRequiredSkills, setMrRequiredSkills] = useState('Technical leadership, domain expertise, team coordination');
@@ -92,24 +102,29 @@ export function ManpowerPlanningTab() {
     queryFn: () => manpowerPlansApi.list(),
   });
 
-  const { data: rawDepartments = [] } = useQuery({
-    queryKey: ['departments'],
+  const { data: companies = [], isLoading: isCompaniesLoading } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => companiesApi.list(),
+  });
+
+  const { data: rawBranches = [], isLoading: isBranchesLoading } = useQuery({
+    queryKey: ['all-master-branches'],
+    queryFn: () => branchesApi.list(),
+  });
+
+  const { data: rawDepartments = [], isLoading: isDepartmentsLoading } = useQuery({
+    queryKey: ['all-master-departments'],
     queryFn: () => departmentsApi.list(),
   });
 
-  const { data: costCenters = [] } = useQuery({
-    queryKey: ['cost-centers'],
+  const { data: rawCostCenters = [], isLoading: isCostCentersLoading } = useQuery({
+    queryKey: ['all-master-cost-centers'],
     queryFn: () => costCentersApi.list(),
   });
 
-  const { data: rawDesignations = [] } = useQuery({
-    queryKey: ['designations'],
+  const { data: rawDesignations = [], isLoading: isDesignationsLoading } = useQuery({
+    queryKey: ['all-master-designations'],
     queryFn: () => designationsApi.list(),
-  });
-
-  const { data: branches = [] } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchesApi.list(),
   });
 
   const { data: employeesData } = useQuery({
@@ -122,125 +137,281 @@ export function ManpowerPlanningTab() {
     return employeesData.items.filter((emp: any) => emp.status === 'ACTIVE');
   }, [employeesData]);
 
-  // Clean & Deduplicate Master Departments List
+  // Clean & Deduplicate Master Branches List for Selected Company
+  const branches = useMemo(() => {
+    if (!rawBranches) return [];
+    if (!selectedCompanyId) return rawBranches;
+    return rawBranches.filter((b) => b.companyId === selectedCompanyId);
+  }, [rawBranches, selectedCompanyId]);
+
+  // Clean & Deduplicate Master Departments List for Selected Company + Branch
   const departments = useMemo(() => {
     if (!rawDepartments) return [];
     const map = new Map<string, Department>();
     rawDepartments.forEach((d) => {
+      if (selectedCompanyId && d.companyId !== selectedCompanyId) return;
+      if (selectedBranchId && d.branchId && d.branchId !== selectedBranchId) return;
+
       const cleanName = d.name ? d.name.trim() : '';
-      const key = cleanName.toLowerCase();
+      const key = `${d.id}_${cleanName.toLowerCase()}`;
       if (cleanName && !map.has(key)) {
         map.set(key, { ...d, name: cleanName });
       }
     });
     return Array.from(map.values());
-  }, [rawDepartments]);
+  }, [rawDepartments, selectedCompanyId, selectedBranchId]);
 
-  // Clean & Deduplicate Master Cost Centers List
-  const uniqueCostCenters = useMemo(() => {
-    if (!costCenters) return [];
-    const map = new Map<string, CostCenter>();
-    costCenters.forEach((cc) => {
-      const codeKey = cc.code ? cc.code.trim().toUpperCase() : '';
-      if (codeKey && !map.has(codeKey)) {
-        map.set(codeKey, cc);
-      }
-    });
-    return Array.from(map.values());
-  }, [costCenters]);
+  // Active selected company object
+  const currentCompany = useMemo(() => {
+    return companies.find((c) => c.id === selectedCompanyId);
+  }, [companies, selectedCompanyId]);
 
-  // Clean & Deduplicate Master Designations List
-  const designations = useMemo(() => {
-    if (!rawDesignations) return [];
-    const map = new Map<string, Designation>();
-    rawDesignations.forEach((des) => {
-      const cleanTitle = des.title ? des.title.trim() : '';
-      const key = cleanTitle.toLowerCase();
-      if (cleanTitle && !map.has(key)) {
-        map.set(key, { ...des, title: cleanTitle });
-      }
-    });
-    return Array.from(map.values());
-  }, [rawDesignations]);
+  // Active selected branch object
+  const currentBranch = useMemo(() => {
+    return branches.find((b) => b.id === selectedBranchId);
+  }, [branches, selectedBranchId]);
 
   // Active selected department object
   const currentDept = useMemo(() => {
     return departments.find((d) => d.id === selectedDeptId);
   }, [departments, selectedDeptId]);
 
-  // Active selected designation object
+  // Clean & Deduplicate Master Cost Centers List for Selected Company + Branch + Department
+  const costCenters = useMemo(() => {
+    if (!rawCostCenters) return [];
+    const map = new Map<string, CostCenter>();
+    rawCostCenters.forEach((cc) => {
+      if (selectedCompanyId && cc.companyId && cc.companyId !== selectedCompanyId) return;
+      if (selectedBranchId && cc.branchId && cc.branchId !== selectedBranchId) return;
+
+      if (selectedDeptId) {
+        const matchesDeptId = cc.departmentId === selectedDeptId;
+        const targetDeptName = currentDept?.name ? currentDept.name.trim().toLowerCase() : '';
+        const ccDeptName = cc.department?.name ? cc.department.name.trim().toLowerCase() : '';
+        const ccName = cc.name ? cc.name.trim().toLowerCase() : '';
+
+        const matchesDeptName = targetDeptName && ccDeptName && (ccDeptName.includes(targetDeptName) || targetDeptName.includes(ccDeptName));
+        const matchesCcName = targetDeptName && ccName && (ccName.includes(targetDeptName) || targetDeptName.includes(ccName));
+
+        if (!matchesDeptId && !matchesDeptName && !matchesCcName) {
+          return;
+        }
+      }
+
+      const codeKey = cc.code ? cc.code.trim().toUpperCase() : '';
+      if (codeKey && !map.has(codeKey)) {
+        map.set(codeKey, cc);
+      }
+    });
+    return Array.from(map.values());
+  }, [rawCostCenters, selectedCompanyId, selectedBranchId, selectedDeptId, currentDept]);
+
+  // Clean & Deduplicate Master Designations List for Selected Department
+  const designations = useMemo(() => {
+    if (!rawDesignations) return [];
+    const map = new Map<string, Designation>();
+    rawDesignations.forEach((des) => {
+      if (selectedCompanyId && des.companyId !== selectedCompanyId) return;
+      if (selectedDeptId && des.departmentId && des.departmentId !== selectedDeptId) return;
+
+      const cleanTitle = des.title ? des.title.trim() : '';
+      const key = `${des.id}_${cleanTitle.toLowerCase()}`;
+      if (cleanTitle && !map.has(key)) {
+        map.set(key, { ...des, title: cleanTitle });
+      }
+    });
+    return Array.from(map.values());
+  }, [rawDesignations, selectedCompanyId, selectedDeptId]);
+
+  // Active selected designation object (or matched from typed title)
   const currentDesignation = useMemo(() => {
-    return designations.find((d) => d.id === selectedDesignationId);
-  }, [designations, selectedDesignationId]);
+    if (selectedDesignationId) {
+      const match = designations.find((d) => d.id === selectedDesignationId);
+      if (match) return match;
+    }
+    if (roleInput.trim()) {
+      return designations.find((d) => d.title.trim().toLowerCase() === roleInput.trim().toLowerCase());
+    }
+    return undefined;
+  }, [designations, selectedDesignationId, roleInput]);
+
+  // Filter master designations dynamically based on roleInput
+  const filteredDesignations = useMemo(() => {
+    if (!designations) return [];
+    if (!roleInput.trim()) return designations;
+    const q = roleInput.trim().toLowerCase();
+    return designations.filter(
+      (des) =>
+        des.title.toLowerCase().includes(q) ||
+        (des.code && des.code.toLowerCase().includes(q))
+    );
+  }, [designations, roleInput]);
+
+  // Click outside listener for Designation Combobox Dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (designationComboboxRef.current && !designationComboboxRef.current.contains(event.target as Node)) {
+        setIsDesignationDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Active plan company object for MR Modal
+  const planCompany = useMemo(() => {
+    if (!raisingPlan) return null;
+    if (raisingPlan.company) return raisingPlan.company;
+    return companies.find((c) => c.id === raisingPlan.companyId);
+  }, [raisingPlan, companies]);
+
+  // Active plan branch object for MR Modal
+  const planBranch = useMemo(() => {
+    if (!raisingPlan) return null;
+    if (raisingPlan.branch) return raisingPlan.branch;
+    return rawBranches.find((b) => b.id === raisingPlan.branchId);
+  }, [raisingPlan, rawBranches]);
+
+  // MR Branches/Locations filtered strictly by selected Company + Branch of the Forecast Plan
+  const mrBranches = useMemo(() => {
+    if (!raisingPlan || !rawBranches) return [];
+    return rawBranches.filter((b: Branch) => {
+      const matchesCompany = !raisingPlan.companyId || b.companyId === raisingPlan.companyId;
+      const matchesBranch = !raisingPlan.branchId || b.id === raisingPlan.branchId;
+      return matchesCompany && matchesBranch;
+    });
+  }, [raisingPlan, rawBranches]);
+
+  // MR Reporting Managers filtered strictly by Company + Branch (+ Department) of the Forecast Plan
+  const mrReportingManagers = useMemo(() => {
+    if (!raisingPlan || !activeEmployees.length) return [];
+
+    const planCompId = raisingPlan.companyId;
+    const planCompName = planCompany?.name ? planCompany.name.trim().toLowerCase() : '';
+
+    const planBranchId = raisingPlan.branchId || planBranch?.id;
+    const planBranchName = planBranch?.name ? planBranch.name.trim().toLowerCase() : '';
+
+    const planDeptId = raisingPlan.departmentId;
+    const planDeptName = raisingPlan.departmentName ? raisingPlan.departmentName.trim().toLowerCase() : '';
+
+    // 1. Branch level employees matching Company & Branch
+    const branchEmployees = activeEmployees.filter((emp: any) => {
+      let matchesCompany = true;
+      if (planCompId) {
+        matchesCompany = emp.companyId === planCompId || emp.company?.id === planCompId;
+      } else if (planCompName) {
+        const empCompName = emp.company?.name ? emp.company.name.trim().toLowerCase() : '';
+        matchesCompany = !empCompName || empCompName === planCompName;
+      }
+
+      let matchesBranch = true;
+      if (planBranchId) {
+        matchesBranch = emp.branchId === planBranchId || emp.branch?.id === planBranchId;
+      } else if (planBranchName) {
+        const empBranchName = emp.branch?.name ? emp.branch.name.trim().toLowerCase() : '';
+        matchesBranch = !empBranchName || empBranchName.includes(planBranchName) || planBranchName.includes(empBranchName);
+      }
+
+      return matchesCompany && matchesBranch;
+    });
+
+    if (branchEmployees.length === 0) {
+      // Fallback to Company level employees if branch ID is not assigned on employee records
+      return activeEmployees.filter((emp: any) => {
+        return !planCompId || emp.companyId === planCompId || emp.company?.id === planCompId;
+      });
+    }
+
+    // 2. Department level employees matching Department
+    const deptEmployees = branchEmployees.filter((emp: any) => {
+      if (planDeptId && (emp.departmentId === planDeptId || emp.department?.id === planDeptId)) return true;
+      const empDeptName = emp.department?.name ? emp.department.name.trim().toLowerCase() : (emp.departmentName ? emp.departmentName.trim().toLowerCase() : '');
+      return planDeptName && empDeptName && (empDeptName.includes(planDeptName) || planDeptName.includes(empDeptName));
+    });
+
+    return deptEmployees.length > 0 ? deptEmployees : branchEmployees;
+  }, [raisingPlan, activeEmployees, planCompany, planBranch]);
+
+  // Handle Cascading Company Change
+  const handleCompanyChange = (newCompanyId: string) => {
+    setSelectedCompanyId(newCompanyId);
+    setSelectedBranchId('');
+    setSelectedDeptId('');
+    setSelectedCostCenterCode('');
+    setSelectedDesignationId('');
+    setRoleInput('');
+    setIsDesignationDropdownOpen(false);
+    setFormActive(0);
+  };
+
+  // Handle Cascading Branch Change
+  const handleBranchChange = (newBranchId: string) => {
+    setSelectedBranchId(newBranchId);
+    setSelectedDeptId('');
+    setSelectedCostCenterCode('');
+    setSelectedDesignationId('');
+    setRoleInput('');
+    setIsDesignationDropdownOpen(false);
+    setFormActive(0);
+  };
 
   // Handle Cascading Department Change
   const handleDepartmentChange = (newDeptId: string) => {
     setSelectedDeptId(newDeptId);
+    setSelectedCostCenterCode('');
+    setSelectedDesignationId('');
+    setRoleInput('');
+    setIsDesignationDropdownOpen(false);
+    setFormActive(0);
+  };
 
-    const newDeptObj = departments.find((d) => d.id === newDeptId);
-    if (!newDeptObj) return;
+  // Handle Cost Center Change
+  const handleCostCenterChange = (newCcCode: string) => {
+    setSelectedCostCenterCode(newCcCode);
+  };
 
-    // Find cost center matching new department name or ID
-    const matchedCC = uniqueCostCenters.find((cc) => {
-      if (cc.departmentId === newDeptId) return true;
-      if (cc.department?.name && cc.department.name.toLowerCase() === newDeptObj.name.toLowerCase()) return true;
-      if (cc.name && cc.name.toLowerCase() === newDeptObj.name.toLowerCase()) return true;
-      return false;
-    });
-
-    if (matchedCC) {
-      setSelectedCostCenterCode(matchedCC.code);
-    }
-
-    // Find designation matching new department
-    const matchingDeptIds = rawDepartments
-      .filter((d) => d.name && d.name.trim().toLowerCase() === newDeptObj.name.toLowerCase())
-      .map((d) => d.id);
-
-    const matchedDesig = rawDesignations.find((des) => {
-      if (des.departmentId && matchingDeptIds.includes(des.departmentId)) return true;
-      return false;
-    });
-
-    if (matchedDesig) {
-      const uniqueDesig = designations.find((d) => d.title.toLowerCase() === matchedDesig.title.toLowerCase());
-      if (uniqueDesig) {
-        setSelectedDesignationId(uniqueDesig.id);
-      }
-    }
+  // Handle Designation Selection from Combobox
+  const handleDesignationSelect = (des: Designation) => {
+    setSelectedDesignationId(des.id);
+    setRoleInput(des.title);
+    setIsDesignationDropdownOpen(false);
   };
 
   // Dynamic Active Staff Count from Employee Management
   useEffect(() => {
-    if (!activeEmployees || !selectedDeptId) {
+    const searchRole = roleInput.trim().toLowerCase();
+    if (!activeEmployees || !selectedCompanyId || !selectedBranchId || !selectedDeptId || (!selectedDesignationId && !searchRole)) {
       setFormActive(0);
       return;
     }
 
     const targetDeptName = currentDept?.name?.toLowerCase().trim() || '';
-    const targetRoleTitle = currentDesignation?.title?.toLowerCase().trim() || '';
+    const targetRoleTitle = currentDesignation?.title?.toLowerCase().trim() || searchRole;
 
     const count = activeEmployees.filter((emp: any) => {
+      if (selectedCompanyId && emp.companyId && emp.companyId !== selectedCompanyId) return false;
+      if (selectedBranchId && emp.branchId && emp.branchId !== selectedBranchId) return false;
+
       const empDeptId = emp.departmentId;
       const empDeptName = (emp.department?.name || '').toLowerCase().trim();
       const matchesDept = empDeptId === selectedDeptId || (targetDeptName && empDeptName.includes(targetDeptName));
 
       if (!matchesDept) return false;
-      if (!selectedDesignationId && !targetRoleTitle) return true;
 
       const empDesigId = emp.designationId;
       const empDesigTitle = (emp.designation?.title || '').toLowerCase().trim();
       const prevTitle = (emp.prevJobTitle || '').toLowerCase().trim();
 
       const matchesRole =
-        empDesigId === selectedDesignationId ||
+        (selectedDesignationId && empDesigId === selectedDesignationId) ||
         (targetRoleTitle && (empDesigTitle.includes(targetRoleTitle) || targetRoleTitle.includes(empDesigTitle) || prevTitle.includes(targetRoleTitle)));
 
       return matchesRole;
     }).length;
 
     setFormActive(count);
-  }, [activeEmployees, selectedDeptId, selectedDesignationId, currentDept, currentDesignation]);
+  }, [activeEmployees, selectedCompanyId, selectedBranchId, selectedDeptId, selectedDesignationId, roleInput, currentDept, currentDesignation]);
 
   // Planned Hires calculation
   const plannedHiresCount = useMemo(() => {
@@ -250,19 +421,18 @@ export function ManpowerPlanningTab() {
   // Open Modal for Add Forecast Plan
   const openAddModal = () => {
     setEditingPlan(null);
-    const initialDept = departments[0];
-    const initialDeptId = initialDept?.id || '';
+    const initialCompanyId = companies[0]?.id || '';
+    setSelectedCompanyId(initialCompanyId);
 
-    setSelectedDeptId(initialDeptId);
+    const companyBranches = rawBranches.filter((b) => !initialCompanyId || b.companyId === initialCompanyId);
+    const initialBranchId = companyBranches[0]?.id || '';
+    setSelectedBranchId(initialBranchId);
 
-    const initialCCList = uniqueCostCenters.filter((cc) => cc.departmentId === initialDeptId || (initialDept && cc.department?.name?.toLowerCase() === initialDept.name.toLowerCase()));
-    const initialCC = initialCCList.length > 0 ? initialCCList[0] : uniqueCostCenters[0];
-    setSelectedCostCenterCode(initialCC?.code || '');
-
-    const initialDesigList = designations.filter((d) => d.departmentId === initialDeptId || !d.departmentId);
-    const initialDesig = initialDesigList.length > 0 ? initialDesigList[0] : designations[0];
-    setSelectedDesignationId(initialDesig?.id || '');
-
+    setSelectedDeptId('');
+    setSelectedDesignationId('');
+    setRoleInput('');
+    setIsDesignationDropdownOpen(false);
+    setSelectedCostCenterCode('');
     setFormBudgeted(5);
     setFormQuarter('Q3 2026');
     setFormReason('');
@@ -273,13 +443,13 @@ export function ManpowerPlanningTab() {
   const openEditModal = (plan: ManpowerPlan) => {
     setEditingPlan(plan);
 
-    const matchedDept = departments.find((d) => d.id === plan.departmentId || d.name.toLowerCase() === plan.departmentName.toLowerCase());
-    setSelectedDeptId(matchedDept?.id || departments[0]?.id || '');
-
+    setSelectedCompanyId(plan.companyId || companies[0]?.id || '');
+    setSelectedBranchId(plan.branchId || '');
+    setSelectedDeptId(plan.departmentId || '');
+    setSelectedDesignationId(plan.designationId || '');
+    setRoleInput(plan.role || '');
+    setIsDesignationDropdownOpen(false);
     setSelectedCostCenterCode(plan.costCenter);
-
-    const matchedDesig = designations.find((d) => d.id === plan.designationId || d.title.toLowerCase() === plan.role.toLowerCase());
-    setSelectedDesignationId(matchedDesig?.id || designations[0]?.id || '');
 
     setFormBudgeted(plan.budgeted);
     setFormQuarter(plan.quarter);
@@ -287,7 +457,7 @@ export function ManpowerPlanningTab() {
     setIsOpen(true);
   };
 
-  // Open Raise MR Modal (Populate all MR defaults)
+  // Open Raise MR Modal (Populate all MR defaults with strict isolation)
   const openRaiseMrModal = async (plan: ManpowerPlan) => {
     setRaisingPlan(plan);
     try {
@@ -297,8 +467,40 @@ export function ManpowerPlanningTab() {
       setMrNumber('MR-2026-001');
     }
 
-    const defaultLoc = branches[0]?.name ? `${branches[0].name} (${branches[0].city || 'Pune'})` : 'Head Office (Pune)';
-    const defaultMgr = activeEmployees[0]?.id || '';
+    // Determine Work Location strictly from Forecast Plan's Branch & Company
+    const targetBranch = rawBranches.find((b: Branch) => b.id === plan.branchId) ||
+                         rawBranches.find((b: Branch) => b.companyId === plan.companyId);
+
+    const defaultLoc = targetBranch
+      ? `${targetBranch.name} (${targetBranch.city || 'Nashik'})`
+      : 'NASHIK DEVELOPMENT (Nashik)';
+
+    // Determine Reporting Manager strictly from Forecast Plan's Company, Branch & Department
+    const planCompId = plan.companyId;
+    const targetBranchId = plan.branchId || targetBranch?.id;
+
+    const branchMgrs = activeEmployees.filter((emp: any) => {
+      const matchesCompany = !planCompId || emp.companyId === planCompId || emp.company?.id === planCompId;
+      const matchesBranch = !targetBranchId || emp.branchId === targetBranchId || emp.branch?.id === targetBranchId;
+      return matchesCompany && matchesBranch;
+    });
+
+    const deptMgrs = branchMgrs.filter((emp: any) => {
+      if (plan.departmentId && (emp.departmentId === plan.departmentId || emp.department?.id === plan.departmentId)) return true;
+      const empDeptName = emp.department?.name ? emp.department.name.trim().toLowerCase() : (emp.departmentName ? emp.departmentName.trim().toLowerCase() : '');
+      const planDeptName = plan.departmentName ? plan.departmentName.trim().toLowerCase() : '';
+      return planDeptName && empDeptName && (empDeptName.includes(planDeptName) || planDeptName.includes(empDeptName));
+    });
+
+    const companyMgrs = activeEmployees.filter((emp: any) => !planCompId || emp.companyId === planCompId || emp.company?.id === planCompId);
+
+    const defaultMgr = deptMgrs[0]?.id || branchMgrs[0]?.id || companyMgrs[0]?.id || activeEmployees[0]?.id || '';
+
+    // Look up Designation master object for salary budget, qualification, and skills
+    const desigObj = rawDesignations.find((d: Designation) => d.id === plan.designationId || d.title.toLowerCase() === plan.role.toLowerCase());
+
+    const minSalaryLakh = desigObj?.minSalary ? Math.round(desigObj.minSalary / 100000) : 0;
+    const maxSalaryLakh = desigObj?.maxSalary ? Math.round(desigObj.maxSalary / 100000) : 0;
 
     // Date default: 30 days from today
     const futureDate = new Date();
@@ -307,14 +509,15 @@ export function ManpowerPlanningTab() {
 
     setMrEmploymentType('FULL_TIME');
     setMrPriority('NORMAL');
-    setMrMinSalary(800000);
-    setMrMaxSalary(1200000);
-    setMrQualification('B.Tech / M.Tech / MBA / Graduate');
-    setMrExperience('3 - 5 Years');
-    setMrRequiredSkills('Technical leadership, domain expertise, team coordination');
+    setMrExperienceLevel('Experienced');
+    setMrExperience('');
+    setMrMinSalaryLakh(minSalaryLakh);
+    setMrMaxSalaryLakh(maxSalaryLakh);
+    setMrQualification('');
+    setMrRequiredSkills('');
     setMrWorkLocation(defaultLoc);
     setMrReportingManagerId(defaultMgr);
-    setMrReason(plan.reason || `Approved manpower forecast hiring for ${plan.role} in ${plan.departmentName}.`);
+    setMrReason('');
     setMrComments('');
     setMrRequestorName('HR Admin');
     setIsMrOpen(true);
@@ -369,37 +572,63 @@ export function ManpowerPlanningTab() {
   const handleSavePlan = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!selectedCompanyId) {
+      toast.error('Please select a company.');
+      return;
+    }
+    if (!selectedBranchId) {
+      toast.error('Please select a branch.');
+      return;
+    }
     if (!selectedDeptId || !currentDept) {
-      toast.error('Please select a valid Department');
+      if (departments.length === 0) {
+        toast.error('No departments found for the selected company and branch.');
+      } else {
+        toast.error('Please select a department.');
+      }
       return;
     }
     if (!selectedCostCenterCode) {
-      toast.error('Please select a valid Cost Center');
+      if (costCenters.length === 0) {
+        toast.error('No cost centers found for the selected company, branch and department.');
+      } else {
+        toast.error('Please select a cost center.');
+      }
       return;
     }
-    if (!selectedDesignationId || !currentDesignation) {
-      toast.error('Please select a valid Target Job Designation / Role');
+    if (!roleInput.trim()) {
+      toast.error('Please enter or select a target job designation/role.');
       return;
     }
     if (formBudgeted <= 0) {
-      toast.error('Budgeted Headcount must be greater than 0');
+      toast.error('Budgeted headcount must be greater than 0.');
       return;
     }
     if (!formQuarter) {
-      toast.error('Target Hiring Quarter is required');
+      toast.error('Please select a hiring quarter.');
       return;
     }
     if (!formReason.trim()) {
-      toast.error('Hiring Reason / Justification is required');
+      toast.error('Please provide a hiring reason/justification.');
       return;
     }
 
+    const isCcValid = costCenters.some((cc) => cc.code === selectedCostCenterCode);
+    if (!isCcValid) {
+      toast.error('Selected Cost Center does not belong to the selected company, branch and department.');
+      return;
+    }
+
+    const matchedDesig = currentDesignation || designations.find((d) => d.title.trim().toLowerCase() === roleInput.trim().toLowerCase());
+
     const payload: Partial<ManpowerPlan> = {
+      companyId: selectedCompanyId,
+      branchId: selectedBranchId,
       departmentId: currentDept.id,
       departmentName: currentDept.name,
       costCenter: selectedCostCenterCode,
-      designationId: currentDesignation.id,
-      role: currentDesignation.title,
+      designationId: selectedDesignationId || matchedDesig?.id || undefined,
+      role: roleInput.trim(),
       budgeted: formBudgeted,
       quarter: formQuarter,
       reason: formReason,
@@ -418,10 +647,30 @@ export function ManpowerPlanningTab() {
 
     if (!raisingPlan) return;
 
+    // Work Location mismatch validation
+    if (mrWorkLocation && raisingPlan.branchId) {
+      const targetBranch = rawBranches.find((b) => b.id === raisingPlan.branchId);
+      if (targetBranch) {
+        const branchNamePart = targetBranch.name.toLowerCase();
+        const locLower = mrWorkLocation.toLowerCase();
+        if (locLower.includes('bengaluru') && !branchNamePart.includes('bengaluru')) {
+          toast.error('Selected Work Location does not match the Forecast Plan branch.');
+          return;
+        }
+      }
+    }
+
     if (!mrJoiningDate) {
       toast.error('Required Joining Date is required');
       return;
     }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (mrJoiningDate < todayStr) {
+      toast.error('Required Joining Date cannot be in the past.');
+      return;
+    }
+
     if (!mrEmploymentType) {
       toast.error('Employment Type is required');
       return;
@@ -430,12 +679,24 @@ export function ManpowerPlanningTab() {
       toast.error('Priority is required');
       return;
     }
+    if (mrMinSalaryLakh <= 0) {
+      toast.error('Minimum Annual CTC must be a positive number');
+      return;
+    }
+    if (mrMaxSalaryLakh <= 0) {
+      toast.error('Maximum Annual CTC must be a positive number');
+      return;
+    }
+    if (mrMinSalaryLakh > mrMaxSalaryLakh) {
+      toast.error('Minimum CTC cannot be greater than Maximum CTC.');
+      return;
+    }
     if (!mrQualification.trim()) {
       toast.error('Qualification is required');
       return;
     }
-    if (!mrExperience.trim()) {
-      toast.error('Experience is required');
+    if (mrExperienceLevel === 'Experienced' && !mrExperience.trim()) {
+      toast.error('Please specify required experience range');
       return;
     }
     if (!mrWorkLocation.trim()) {
@@ -451,9 +712,18 @@ export function ManpowerPlanningTab() {
       return;
     }
 
+    const minSalaryRupees = mrMinSalaryLakh >= 1000 ? mrMinSalaryLakh : Math.round(mrMinSalaryLakh * 100000);
+    const maxSalaryRupees = mrMaxSalaryLakh >= 1000 ? mrMaxSalaryLakh : Math.round(mrMaxSalaryLakh * 100000);
+
+    const formattedExperience = mrExperienceLevel === 'Fresher'
+      ? 'Fresher (0 - 1 Years)'
+      : (mrExperience.toLowerCase().includes('year') ? mrExperience : `${mrExperience} Years`);
+
     const payload: Partial<ManpowerRequisition> = {
       mrNumber,
       manpowerPlanId: raisingPlan.id,
+      companyId: raisingPlan.companyId || null,
+      branchId: raisingPlan.branchId || null,
       departmentId: raisingPlan.departmentId || null,
       departmentName: raisingPlan.departmentName,
       costCenter: raisingPlan.costCenter,
@@ -463,10 +733,10 @@ export function ManpowerPlanningTab() {
       joiningDate: mrJoiningDate,
       employmentType: mrEmploymentType,
       priority: mrPriority,
-      minSalary: Number(mrMinSalary) || undefined,
-      maxSalary: Number(mrMaxSalary) || undefined,
+      minSalary: minSalaryRupees,
+      maxSalary: maxSalaryRupees,
       qualification: mrQualification,
-      experience: mrExperience,
+      experience: formattedExperience,
       requiredSkills: mrRequiredSkills,
       workLocation: mrWorkLocation,
       reportingManagerId: mrReportingManagerId,
@@ -632,60 +902,302 @@ export function ManpowerPlanningTab() {
                   </DialogHeader>
 
                   <form className="space-y-4 text-xs pt-1" onSubmit={handleSavePlan}>
+                    {/* 1. Company & Branch Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Company Dropdown */}
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold">Company *</Label>
+                        <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select Company" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {companies.map((c) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs">
+                                {c.name} ({c.code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Branch Dropdown */}
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold">Branch *</Label>
+                        <Select
+                          value={selectedBranchId}
+                          onValueChange={handleBranchChange}
+                          disabled={!selectedCompanyId}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue
+                              placeholder={
+                                !selectedCompanyId
+                                  ? 'Please select a company.'
+                                  : isBranchesLoading
+                                  ? 'Loading branches...'
+                                  : branches.length === 0
+                                  ? 'No branches found'
+                                  : 'Select Branch'
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {branches.length === 0 ? (
+                              <div className="p-2 text-xs text-muted-foreground text-center">
+                                No branches found for the selected company.
+                              </div>
+                            ) : (
+                              branches.map((b) => (
+                                <SelectItem key={b.id} value={b.id} className="text-xs">
+                                  {b.name} ({b.code})
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* 2. Department & Cost Center Row */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* Department Dropdown */}
                       <div className="space-y-1.5">
                         <Label className="font-semibold">Department *</Label>
-                        <Select value={selectedDeptId} onValueChange={handleDepartmentChange}>
+                        <Select
+                          value={selectedDeptId}
+                          onValueChange={handleDepartmentChange}
+                          disabled={!selectedBranchId}
+                        >
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Department" />
+                            <SelectValue
+                              placeholder={
+                                !selectedCompanyId
+                                  ? 'Please select a company.'
+                                  : !selectedBranchId
+                                  ? 'Please select a branch.'
+                                  : isDepartmentsLoading
+                                  ? 'Loading departments...'
+                                  : departments.length === 0
+                                  ? 'No departments found for the selected company and branch.'
+                                  : 'Select Department'
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            {departments.map((d) => (
-                              <SelectItem key={d.id} value={d.id} className="text-xs">
-                                {d.name}
-                              </SelectItem>
-                            ))}
+                            {departments.length === 0 ? (
+                              <div className="p-2 text-xs text-muted-foreground text-center">
+                                No departments found for the selected company and branch.
+                              </div>
+                            ) : (
+                              departments.map((d) => (
+                                <SelectItem key={d.id} value={d.id} className="text-xs">
+                                  {d.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {/* Cost Center Dropdown */}
+                      {/* Cost Center Dropdown - Filtered by Company + Branch + Department */}
                       <div className="space-y-1.5">
                         <Label className="font-semibold">Cost Center *</Label>
-                        <Select value={selectedCostCenterCode} onValueChange={setSelectedCostCenterCode}>
+                        <Select
+                          value={selectedCostCenterCode}
+                          onValueChange={handleCostCenterChange}
+                          disabled={!selectedDeptId}
+                        >
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Cost Center" />
+                            <SelectValue
+                              placeholder={
+                                !selectedCompanyId
+                                  ? 'Please select a company.'
+                                  : !selectedBranchId
+                                  ? 'Please select a branch.'
+                                  : !selectedDeptId
+                                  ? 'Please select a department.'
+                                  : isCostCentersLoading
+                                  ? 'Loading cost centers...'
+                                  : costCenters.length === 0
+                                  ? 'No cost centers found for the selected company, branch and department.'
+                                  : 'Select Cost Center'
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent className="max-h-60 overflow-y-auto">
-                            {uniqueCostCenters.map((cc: CostCenter) => (
-                              <SelectItem key={cc.id} value={cc.code} className="text-xs">
-                                {cc.code} - {cc.name}
-                              </SelectItem>
-                            ))}
+                            {costCenters.length === 0 ? (
+                              <div className="p-2 text-xs text-muted-foreground text-center">
+                                No cost centers found for the selected company, branch and department.
+                              </div>
+                            ) : (
+                              costCenters.map((cc: CostCenter) => (
+                                <SelectItem key={cc.id} value={cc.code} className="text-xs">
+                                  {cc.code} - {cc.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
-                    {/* Target Job Role / Designation Dropdown */}
-                    <div className="space-y-1.5">
-                      <Label className="font-semibold">Target Job Designation / Role *</Label>
-                      <Select value={selectedDesignationId} onValueChange={setSelectedDesignationId}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select Designation / Role" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60 overflow-y-auto">
-                          {designations.map((des: Designation) => (
-                            <SelectItem key={des.id} value={des.id} className="text-xs">
-                              {des.title} {des.code ? `(${des.code})` : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {/* 3. Target Job Designation / Role - Searchable + Editable Single Combobox */}
+                    <div className="space-y-1.5 relative" ref={designationComboboxRef}>
+                      <Label className="font-semibold flex items-center justify-between">
+                        <span>Target Job Designation / Role *</span>
+                        {roleInput.trim() && (
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            {selectedDesignationId && designations.some((d) => d.id === selectedDesignationId) ? (
+                              <span className="text-emerald-600 font-medium flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 inline" /> Master Role Selected
+                              </span>
+                            ) : (
+                              <span className="text-blue-600 font-medium flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 inline" /> Custom Manual Role
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </Label>
+
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+                          <Search className="w-3.5 h-3.5" />
+                        </div>
+
+                        <Input
+                          type="text"
+                          placeholder={
+                            !selectedDeptId
+                              ? 'Please select a department first...'
+                              : isDesignationsLoading
+                              ? 'Loading designations...'
+                              : 'Search or enter job role...'
+                          }
+                          value={roleInput}
+                          disabled={!selectedDeptId}
+                          onFocus={() => {
+                            if (selectedDeptId) setIsDesignationDropdownOpen(true);
+                          }}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setRoleInput(val);
+                            setIsDesignationDropdownOpen(true);
+
+                            // Check if matching master designation exists
+                            const exactMatch = designations.find(
+                              (d) => d.title.trim().toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (exactMatch) {
+                              setSelectedDesignationId(exactMatch.id);
+                            } else {
+                              setSelectedDesignationId('');
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setIsDesignationDropdownOpen(false);
+                            }
+                          }}
+                          className="pl-8 pr-16 h-9 text-xs focus-visible:ring-1 bg-background"
+                        />
+
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          {roleInput.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setRoleInput('');
+                                setSelectedDesignationId('');
+                              }}
+                              title="Clear text"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={!selectedDeptId}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              if (selectedDeptId) {
+                                setIsDesignationDropdownOpen((prev) => !prev);
+                              }
+                            }}
+                            title="Toggle dropdown"
+                          >
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isDesignationDropdownOpen ? 'rotate-180' : ''}`} />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Dropdown Menu */}
+                      {isDesignationDropdownOpen && selectedDeptId && (
+                        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-60 overflow-y-auto animate-in fade-in-50 zoom-in-95">
+                          {/* Existing filtered master designations */}
+                          {filteredDesignations.length > 0 ? (
+                            <div className="p-1">
+                              <div className="px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-muted-foreground bg-muted/30 rounded mb-1">
+                                Master Job Roles ({filteredDesignations.length})
+                              </div>
+                              {filteredDesignations.map((des: Designation) => {
+                                const isSelected = selectedDesignationId === des.id || roleInput.trim().toLowerCase() === des.title.trim().toLowerCase();
+                                return (
+                                  <div
+                                    key={des.id}
+                                    onClick={() => handleDesignationSelect(des)}
+                                    className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
+                                      isSelected
+                                        ? 'bg-primary/10 text-primary font-medium'
+                                        : 'hover:bg-accent hover:text-accent-foreground'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
+                                      <span>{des.title}</span>
+                                      {des.code && <span className="text-[10px] text-muted-foreground">({des.code})</span>}
+                                    </div>
+                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="p-3 text-xs text-muted-foreground text-center">
+                              No matching master job roles found.
+                            </div>
+                          )}
+
+                          {/* Manual entry selection option */}
+                          {roleInput.trim().length > 0 && (
+                            <div className="border-t border-border p-1 bg-muted/20">
+                              <div
+                                onClick={() => setIsDesignationDropdownOpen(false)}
+                                className="px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between bg-primary/5 hover:bg-primary/10 text-primary font-medium border border-primary/20 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                  <Plus className="w-3.5 h-3.5 text-primary shrink-0" />
+                                  <span className="truncate">
+                                    Use entered role: <strong className="font-semibold text-foreground">"{roleInput.trim()}"</strong>
+                                  </span>
+                                </div>
+                                <Badge variant="outline" className="text-[10px] bg-background text-primary shrink-0 ml-2">
+                                  Select
+                                </Badge>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Budgeted & Active & Planned Hires Calculation */}
+                    {/* 4. Budgeted & Active & Planned Hires Calculation */}
                     <div className="grid grid-cols-3 gap-3 bg-muted/30 p-3 rounded-xl border border-border">
                       <div className="space-y-1">
                         <Label className="font-semibold text-[11px]">Budgeted Headcount *</Label>
@@ -913,10 +1425,15 @@ export function ManpowerPlanningTab() {
             <form className="space-y-5 text-xs pt-2" onSubmit={handleSubmitMr}>
               {/* Section 1: Manpower Requisition Details (Read-Only Auto-Filled Card) */}
               <div className="bg-primary/5 p-3.5 rounded-xl border border-primary/20 space-y-2.5">
-                <h4 className="font-semibold text-xs text-primary flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5" /> 1. Manpower Requisition Details (Auto-Filled)
+                <h4 className="font-semibold text-xs text-primary flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5" /> 1. Manpower Requisition Details (Auto-Filled & Locked)
+                  </span>
+                  <Badge variant="outline" className="bg-background text-[10px] text-emerald-600 border-emerald-500/30 gap-1 font-semibold">
+                    <ShieldCheck className="h-3 w-3" /> Single Source of Truth
+                  </Badge>
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <Label className="text-[10px] text-muted-foreground font-medium">MR Number (Auto)</Label>
                     <p className="font-mono font-bold text-xs text-primary mt-0.5">{mrNumber}</p>
@@ -926,15 +1443,29 @@ export function ManpowerPlanningTab() {
                     <p className="font-mono font-bold text-xs text-foreground mt-0.5">{raisingPlan.code || 'MP-06'}</p>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground font-medium">Department</Label>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Company (Locked)</Label>
+                    <p className="font-semibold text-xs text-foreground mt-0.5 truncate flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
+                      {planCompany?.name || 'CODIGIX_A'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Branch (Locked)</Label>
+                    <p className="font-semibold text-xs text-foreground mt-0.5 truncate flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
+                      {planBranch?.name ? `${planBranch.name} (${planBranch.city || 'Nashik'})` : 'NASHIK DEVELOPMENT'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Department (Locked)</Label>
                     <p className="font-semibold text-xs text-foreground mt-0.5">{raisingPlan.departmentName}</p>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground font-medium">Cost Center</Label>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Cost Center (Locked)</Label>
                     <p className="font-mono font-semibold text-xs text-foreground mt-0.5">{raisingPlan.costCenter}</p>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground font-medium">Designation / Role</Label>
+                    <Label className="text-[10px] text-muted-foreground font-medium">Designation / Role (Locked)</Label>
                     <p className="font-semibold text-xs text-foreground mt-0.5">{raisingPlan.role}</p>
                   </div>
                   <div>
@@ -954,8 +1485,37 @@ export function ManpowerPlanningTab() {
                   <UserCheck className="h-3.5 w-3.5 text-primary" /> 2. Hiring Requirements
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="space-y-1 sm:col-span-1">
+                    <Label className="font-semibold text-xs flex items-center justify-between">
+                      <span>Experience Type *</span>
+                    </Label>
+                    <Select
+                      value={mrExperienceLevel}
+                      onValueChange={(val: 'Fresher' | 'Experienced') => {
+                        setMrExperienceLevel(val);
+                        if (val === 'Fresher') {
+                          setMrExperience('0 - 1 Years');
+                        } else {
+                          setMrExperience('');
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-primary/5 font-semibold border-primary/30">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Fresher" className="text-xs font-medium">
+                          Fresher
+                        </SelectItem>
+                        <SelectItem value="Experienced" className="text-xs font-medium">
+                          Experienced
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-1">
                     <Label className="font-semibold">Required Joining Date *</Label>
                     <Input
                       type="date"
@@ -965,7 +1525,7 @@ export function ManpowerPlanningTab() {
                     />
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-1">
                     <Label className="font-semibold">Employment Type *</Label>
                     <Select value={mrEmploymentType} onValueChange={(val: any) => setMrEmploymentType(val)}>
                       <SelectTrigger className="h-8 text-xs">
@@ -980,7 +1540,7 @@ export function ManpowerPlanningTab() {
                     </Select>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-1">
                     <Label className="font-semibold">Priority *</Label>
                     <Select value={mrPriority} onValueChange={(val: any) => setMrPriority(val)}>
                       <SelectTrigger className="h-8 text-xs">
@@ -996,26 +1556,46 @@ export function ManpowerPlanningTab() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-3 rounded-xl border border-border">
                   <div className="space-y-1">
-                    <Label className="font-semibold">Salary / CTC Budget Min (₹)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Minimum Annual CTC (₹ Lakh) *</Label>
+                      <span className="text-[10.5px] font-mono text-primary font-bold">
+                        {formatSalaryInLakhs(mrMinSalaryLakh >= 1000 ? mrMinSalaryLakh : mrMinSalaryLakh * 100000)}
+                      </span>
+                    </div>
                     <Input
                       type="number"
-                      value={mrMinSalary}
-                      onChange={(e) => setMrMinSalary(Number(e.target.value))}
+                      step="0.1"
+                      min={0}
+                      value={mrMinSalaryLakh || ''}
+                      onChange={(e) => setMrMinSalaryLakh(parseFloat(e.target.value) || 0)}
                       className="h-8 text-xs font-mono bg-background"
-                      placeholder="e.g. 800000"
+                      placeholder="e.g. 8"
                     />
+                    <p className="text-[9.5px] text-muted-foreground">
+                      Stored: ₹{(mrMinSalaryLakh >= 1000 ? mrMinSalaryLakh : Math.round(mrMinSalaryLakh * 100000)).toLocaleString('en-IN')} / year
+                    </p>
                   </div>
                   <div className="space-y-1">
-                    <Label className="font-semibold">Salary / CTC Budget Max (₹)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-xs">Maximum Annual CTC (₹ Lakh) *</Label>
+                      <span className="text-[10.5px] font-mono text-primary font-bold">
+                        {formatSalaryInLakhs(mrMaxSalaryLakh >= 1000 ? mrMaxSalaryLakh : mrMaxSalaryLakh * 100000)}
+                      </span>
+                    </div>
                     <Input
                       type="number"
-                      value={mrMaxSalary}
-                      onChange={(e) => setMrMaxSalary(Number(e.target.value))}
+                      step="0.1"
+                      min={0}
+                      value={mrMaxSalaryLakh || ''}
+                      onChange={(e) => setMrMaxSalaryLakh(parseFloat(e.target.value) || 0)}
                       className="h-8 text-xs font-mono bg-background"
-                      placeholder="e.g. 1200000"
+                      placeholder="e.g. 12"
                     />
+                    <p className="text-[9.5px] text-muted-foreground">
+                      Stored: ₹{(mrMaxSalaryLakh >= 1000 ? mrMaxSalaryLakh : Math.round(mrMaxSalaryLakh * 100000)).toLocaleString('en-IN')} / year
+                    </p>
                   </div>
                 </div>
 
@@ -1027,18 +1607,40 @@ export function ManpowerPlanningTab() {
                       value={mrQualification}
                       onChange={(e) => setMrQualification(e.target.value)}
                       className="h-8 text-xs bg-background"
-                      placeholder="e.g. B.Tech / M.Tech / MBA"
+                      placeholder="e.g. B.Tech / M.Tech / MBA / Graduate / Diploma"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="font-semibold">Required Experience *</Label>
-                    <Input
-                      type="text"
-                      value={mrExperience}
-                      onChange={(e) => setMrExperience(e.target.value)}
-                      className="h-8 text-xs bg-background"
-                      placeholder="e.g. 3 - 5 Years"
-                    />
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold">Required Experience *</Label>
+                      {mrExperienceLevel === 'Fresher' && (
+                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                          <ShieldCheck className="h-3 w-3" /> Auto-locked for Freshers
+                        </span>
+                      )}
+                    </div>
+
+                    {mrExperienceLevel === 'Fresher' ? (
+                      <Input
+                        type="text"
+                        readOnly
+                        value="0 - 1 Years"
+                        className="h-8 text-xs bg-muted/60 font-semibold cursor-not-allowed text-foreground"
+                      />
+                    ) : (
+                      <Select value={mrExperience} onValueChange={setMrExperience}>
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Select experience range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1 - 3 Years" className="text-xs">1 - 3 Years</SelectItem>
+                          <SelectItem value="3 - 5 Years" className="text-xs">3 - 5 Years</SelectItem>
+                          <SelectItem value="5 - 8 Years" className="text-xs">5 - 8 Years</SelectItem>
+                          <SelectItem value="8 - 12 Years" className="text-xs">8 - 12 Years</SelectItem>
+                          <SelectItem value="12+ Years" className="text-xs">12+ Years</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
@@ -1049,47 +1651,63 @@ export function ManpowerPlanningTab() {
                     value={mrRequiredSkills}
                     onChange={(e) => setMrRequiredSkills(e.target.value)}
                     className="h-8 text-xs bg-background"
-                    placeholder="e.g. React, Node.js, Cloud Architecture"
+                    placeholder={mrExperienceLevel === 'Fresher' ? "e.g. Problem solving, Basic Programming, Quick Learner" : "e.g. React, Node.js, Cloud Architecture"}
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="font-semibold">Work Location *</Label>
+                    <Label className="font-semibold flex items-center justify-between text-xs">
+                      <span>Work Location *</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">(Branch Filtered)</span>
+                    </Label>
                     <Select value={mrWorkLocation} onValueChange={setMrWorkLocation}>
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-8 text-xs bg-background">
                         <SelectValue placeholder="Select work location" />
                       </SelectTrigger>
                       <SelectContent>
-                        {branches.length > 0 ? (
-                          branches.map((b: Branch) => (
-                            <SelectItem key={b.id} value={`${b.name} (${b.city || 'Location'})`} className="text-xs">
-                              {b.name} ({b.city || 'Location'})
+                        {mrBranches.length > 0 ? (
+                          mrBranches.map((b: Branch) => (
+                            <SelectItem key={b.id} value={`${b.name} (${b.city || 'Nashik'})`} className="text-xs font-medium">
+                              {b.name} ({b.city || 'Nashik'})
                             </SelectItem>
                           ))
                         ) : (
-                          <>
-                            <SelectItem value="Head Office (Pune)" className="text-xs">Head Office (Pune)</SelectItem>
-                            <SelectItem value="Tech Campus (Bengaluru)" className="text-xs">Tech Campus (Bengaluru)</SelectItem>
-                            <SelectItem value="Regional Office (Mumbai)" className="text-xs">Regional Office (Mumbai)</SelectItem>
-                          </>
+                          <SelectItem
+                            value={planBranch?.name ? `${planBranch.name} (${planBranch.city || 'Nashik'})` : 'NASHIK DEVELOPMENT (Nashik)'}
+                            className="text-xs font-medium"
+                          >
+                            {planBranch?.name ? `${planBranch.name} (${planBranch.city || 'Nashik'})` : 'NASHIK DEVELOPMENT (Nashik)'}
+                          </SelectItem>
                         )}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="font-semibold">Reporting Manager *</Label>
+                    <Label className="font-semibold flex items-center justify-between text-xs">
+                      <span>Reporting Manager *</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">(Dept Filtered)</span>
+                    </Label>
                     <Select value={mrReportingManagerId} onValueChange={setMrReportingManagerId}>
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-8 text-xs bg-background">
                         <SelectValue placeholder="Select reporting manager" />
                       </SelectTrigger>
-                      <SelectContent className="max-h-48 overflow-y-auto">
-                        {activeEmployees.map((emp: any) => (
-                          <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                            {emp.firstName} {emp.lastName} ({emp.designation?.title || emp.employeeCode})
-                          </SelectItem>
-                        ))}
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {mrReportingManagers.length === 0 ? (
+                          <div className="p-2 text-xs text-muted-foreground text-center">
+                            No active employees found for the selected company, branch and department.
+                          </div>
+                        ) : (
+                          mrReportingManagers.map((emp: any) => {
+                            const empDesignation = emp.designationTitle || emp.designation?.title || emp.role || 'Lead / Manager';
+                            return (
+                              <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                                {emp.firstName} {emp.lastName} ({empDesignation})
+                              </SelectItem>
+                            );
+                          })
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1109,6 +1727,7 @@ export function ManpowerPlanningTab() {
                     onChange={(e) => setMrReason(e.target.value)}
                     className="text-xs min-h-[60px]"
                     rows={2}
+                    placeholder="Provide a detailed hiring reason / justification for this requisition..."
                   />
                 </div>
 

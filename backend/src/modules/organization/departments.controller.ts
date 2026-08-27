@@ -18,8 +18,11 @@ export class DepartmentsController {
 
   @Get()
   @Permissions('organization.departments.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.departmentsService.list(companyId);
+  list(
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    return this.departmentsService.list(companyId, branchId);
   }
 
   @Get(':id')

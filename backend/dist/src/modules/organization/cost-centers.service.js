@@ -17,9 +17,48 @@ let CostCentersService = class CostCentersService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async list(companyId) {
+    async list(companyId, branchId, departmentId) {
+        const where = {};
+        if (companyId) {
+            where.companyId = companyId;
+        }
+        if (branchId) {
+            where.OR = [{ branchId }, { branchId: null }];
+        }
+        if (departmentId) {
+            const targetDept = await this.prisma.department.findUnique({
+                where: { id: departmentId },
+                select: { id: true, name: true },
+            });
+            const deptName = targetDept?.name?.toLowerCase().trim();
+            const deptConditions = [{ departmentId }];
+            if (deptName) {
+                deptConditions.push({
+                    department: {
+                        name: {
+                            equals: targetDept?.name,
+                        },
+                    },
+                });
+                deptConditions.push({
+                    name: {
+                        equals: targetDept?.name,
+                    },
+                });
+            }
+            if (where.OR) {
+                where.AND = [
+                    { OR: [{ branchId }, { branchId: null }] },
+                    { OR: deptConditions },
+                ];
+                delete where.OR;
+            }
+            else {
+                where.OR = deptConditions;
+            }
+        }
         return this.prisma.costCenter.findMany({
-            where: companyId ? { companyId } : undefined,
+            where: Object.keys(where).length > 0 ? where : undefined,
             include: {
                 branch: { select: { id: true, name: true } },
                 department: { select: { id: true, name: true } },

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AssetMaintenanceService } from './asset-maintenance.service';
-import { CreateAssetMaintenanceDto } from './dto/asset-maintenance.dto';
+import { CreateAssetMaintenanceDto, CompleteAssetMaintenanceDto } from './dto/asset-maintenance.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('asset-management/maintenance')
@@ -21,7 +21,7 @@ export class AssetMaintenanceController {
 
   @Post(':id/complete')
   @Permissions('asset_management.write')
-  complete(@Param('id') id: string) {
-    return this.assetMaintenanceService.complete(id);
+  complete(@Param('id') id: string, @Body() dto?: CompleteAssetMaintenanceDto) {
+    return this.assetMaintenanceService.complete(id, dto);
   }
 }

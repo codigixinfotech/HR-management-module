@@ -4,6 +4,33 @@ import type { Candidate, CandidateStage, JobOpening, ManpowerPlan, ManpowerRequi
 export const jobOpeningsApi = {
   list: async (companyId?: string, status?: string) =>
     (await apiClient.get<JobOpening[]>('/recruitment/job-openings', { params: { companyId, status } })).data,
+  listPublic: async (companyId?: string) =>
+    (await apiClient.get<JobOpening[]>('/recruitment/job-openings/public/list', { params: { companyId } })).data,
+  getPortalConfig: async () =>
+    (await apiClient.get<Record<string, any>>('/recruitment/job-openings/public/config')).data,
+  updatePortalConfig: async (payload: Record<string, any>) =>
+    (await apiClient.patch<Record<string, any>>('/recruitment/job-openings/portal-config', payload)).data,
+  listPublicPaginated: async (params?: {
+    companyId?: string;
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    department?: string;
+    type?: string;
+    sortBy?: string;
+  }) =>
+    (
+      await apiClient.get<{
+        jobs: JobOpening[];
+        totalCount: number;
+        currentPage: number;
+        pageSize: number;
+        totalPages: number;
+        config: Record<string, any>;
+      }>('/recruitment/job-openings/public/paginated', { params })
+    ).data,
+  findPublic: async (id: string) =>
+    (await apiClient.get<JobOpening>(`/recruitment/job-openings/public/${id}`)).data,
   get: async (id: string) => (await apiClient.get<JobOpening>(`/recruitment/job-openings/${id}`)).data,
   create: async (payload: Partial<JobOpening>) =>
     (await apiClient.post<JobOpening>('/recruitment/job-openings', payload)).data,
@@ -49,11 +76,11 @@ export const assessmentsApi = {
 };
 
 export const manpowerPlansApi = {
-  list: async (companyId?: string) =>
-    (await apiClient.get<ManpowerPlan[]>('/recruitment/manpower-plans', { params: { companyId } })).data,
+  list: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<ManpowerPlan[]>('/recruitment/manpower-plans', { params: { companyId, branchId } })).data,
   get: async (id: string) => (await apiClient.get<ManpowerPlan>(`/recruitment/manpower-plans/${id}`)).data,
-  countActive: async (departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string) =>
-    (await apiClient.get<number>('/recruitment/manpower-plans/count-active', { params: { departmentName, role, companyId, departmentId, designationId } })).data,
+  countActive: async (departmentName?: string, role?: string, companyId?: string, departmentId?: string, designationId?: string, branchId?: string) =>
+    (await apiClient.get<number>('/recruitment/manpower-plans/count-active', { params: { departmentName, role, companyId, departmentId, designationId, branchId } })).data,
   create: async (payload: Partial<ManpowerPlan>) =>
     (await apiClient.post<ManpowerPlan>('/recruitment/manpower-plans', payload)).data,
   update: async (id: string, payload: Partial<ManpowerPlan>) =>
