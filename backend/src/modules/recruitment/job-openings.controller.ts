@@ -48,6 +48,40 @@ export class JobOpeningsController {
   }
 
   @Public()
+  @Get('public/config')
+  getPortalConfig() {
+    return this.jobOpeningsService.getPortalConfig();
+  }
+
+  @Patch('portal-config')
+  @Permissions('recruitment.write')
+  updatePortalConfig(@Body() body: Record<string, any>) {
+    return this.jobOpeningsService.updatePortalConfig(body);
+  }
+
+  @Public()
+  @Get('public/paginated')
+  listPublicPaginated(
+    @Query('companyId') companyId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('department') department?: string,
+    @Query('type') type?: string,
+    @Query('sortBy') sortBy?: string,
+  ) {
+    return this.jobOpeningsService.listPublicJobsPaginated({
+      companyId,
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      search,
+      department,
+      type,
+      sortBy,
+    });
+  }
+
+  @Public()
   @Get('public/:id')
   findPublicJob(@Param('id') id: string) {
     return this.jobOpeningsService.findPublicJob(id);

@@ -149,12 +149,21 @@ function TagInput({
 
 export default function CreateJobRequisitionPage() {
   const navigate = useNavigate();
-  const { mrId } = useParams<{ mrId?: string }>();
+  const { mrId, id } = useParams<{ mrId?: string; id?: string }>();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
-  const isFromMR = Boolean(mrId || searchParams.get('mrId'));
+  const editId = id || searchParams.get('id') || '';
+  const isEditMode = Boolean(editId);
+  const isFromMR = Boolean((mrId || searchParams.get('mrId')) && !isEditMode);
   const targetMrId = mrId || searchParams.get('mrId') || '';
+
+  // ── Fetch Existing Job for Edit Mode ──
+  const { data: existingJob } = useQuery({
+    queryKey: ['job-opening-detail', editId],
+    queryFn: () => (editId ? jobOpeningsApi.get(editId) : null),
+    enabled: Boolean(editId),
+  });
 
   // Tab Stepper State
   const [activeStepTab, setActiveStepTab] = useState<
@@ -516,6 +525,7 @@ export default function CreateJobRequisitionPage() {
 
   // Auto-clear invalid team selections if organization changes
   React.useEffect(() => {
+    if (filteredTeamEmployees.length === 0) return;
     if (hiringManagerId && !filteredTeamEmployees.some((e: any) => e.id === hiringManagerId)) {
       setHiringManagerId('');
     }
@@ -526,6 +536,110 @@ export default function CreateJobRequisitionPage() {
       setHrbpId('');
     }
   }, [filteredTeamEmployees, hiringManagerId, recruiterId, hrbpId]);
+
+  // Auto-populate team selection fallbacks when employees load
+  useEffect(() => {
+    if (filteredTeamEmployees.length === 0) return;
+    if (!hiringManagerId && eligibleHiringManagers.length > 0) {
+      setHiringManagerId(eligibleHiringManagers[0].id);
+    }
+    if (!recruiterId && eligibleRecruiters.length > 0) {
+      setRecruiterId(eligibleRecruiters[0].id);
+    }
+    if (!hrbpId && eligibleHrbps.length > 0) {
+      setHrbpId(eligibleHrbps[0].id);
+    }
+  }, [filteredTeamEmployees, eligibleHiringManagers, eligibleRecruiters, eligibleHrbps, hiringManagerId, recruiterId, hrbpId]);
+
+  // Prefill Form Data in Edit Mode
+  useEffect(() => {
+    if (!isEditMode || !existingJob) return;
+
+    if (existingJob.companyId) setStandaloneCompanyId(existingJob.companyId);
+
+    // Resolve Branch Location
+    const targetBranch = branches.find(
+      (b: any) =>
+        b.id === existingJob.branchId ||
+        b.name === existingJob.workLocation ||
+        (existingJob.workLocation &&
+          (b.name.toLowerCase().includes(existingJob.workLocation.toLowerCase()) ||
+            existingJob.workLocation.toLowerCase().includes(b.name.toLowerCase()))) ||
+        b.id === existingJob.department?.branchId
+    ) || branches[0];
+
+    const resolvedBranchId = existingJob.branchId || targetBranch?.id || (branches.length > 0 ? branches[0].id : '');
+    if (resolvedBranchId) {
+      setStandaloneBranchId(resolvedBranchId);
+      setStandaloneBranchIds([resolvedBranchId]);
+    }
+
+    if (existingJob.departmentId) setStandaloneDepartmentId(existingJob.departmentId);
+    if (existingJob.designationId) setStandaloneDesignationId(existingJob.designationId);
+    if (existingJob.title) setStandaloneRoleInput(existingJob.title);
+    if (existingJob.numPositions) setStandaloneNumPositions(existingJob.numPositions);
+
+    // Resolve Cost Center
+    const targetDept = departments.find((d: any) => d.id === (existingJob.departmentId || standaloneDepartmentId));
+    const matchingCc = costCenters.find(
+      (cc: any) => cc.departmentId === existingJob.departmentId || cc.branchId === resolvedBranchId
+    );
+
+    let resolvedCc = existingJob.costCenter || '';
+    if (!resolvedCc && matchingCc) {
+      resolvedCc = `${matchingCc.code} - ${matchingCc.name}`;
+    } else if (!resolvedCc && targetDept?.costCenter) {
+      resolvedCc = targetDept.costCenter;
+    } else if (!resolvedCc && targetDept) {
+      const cleanCode = targetDept.code ? targetDept.code.replace(/^DEPT-?/i, '') : 'CC';
+      resolvedCc = `CC-${cleanCode} - ${targetDept.name}`;
+    } else if (!resolvedCc) {
+      resolvedCc = 'CC-IT-001 - Main Cost Center';
+    }
+
+    if (resolvedCc) setStandaloneCostCenter(resolvedCc);
+
+    if (existingJob.title) setJobTitle(existingJob.title);
+    if (existingJob.jobSummary) setJobSummary(existingJob.jobSummary);
+    if (existingJob.jobDescription) setJobDescription(existingJob.jobDescription);
+    if (existingJob.jobResponsibilities) setJobResponsibilities(existingJob.jobResponsibilities);
+    if (existingJob.qualification) setJobQualification(existingJob.qualification);
+    if (existingJob.preferredQualification) setPreferredQualification(existingJob.preferredQualification);
+
+    if (existingJob.requiredSkills) {
+      const skills = existingJob.requiredSkills.split(',').map((s: string) => s.trim()).filter(Boolean);
+      setRequiredSkillsList(skills);
+    }
+    if (existingJob.preferredSkills) {
+      const pSkills = existingJob.preferredSkills.split(',').map((s: string) => s.trim()).filter(Boolean);
+      setPreferredSkillsList(pSkills);
+    }
+
+    if (existingJob.candidateType) setCandidateType(existingJob.candidateType as any);
+    if (existingJob.minExperience != null) setMinExp(existingJob.minExperience);
+    if (existingJob.maxExperience != null) setMaxExp(existingJob.maxExperience);
+
+    if (existingJob.employmentType) setJobEmploymentType(existingJob.employmentType as any);
+    if (existingJob.workMode) setWorkMode(existingJob.workMode);
+    if (existingJob.workLocation) setJobLocation(existingJob.workLocation);
+
+    if (existingJob.minSalary != null) {
+      const val = existingJob.minSalary > 1000 ? existingJob.minSalary / 100000 : existingJob.minSalary;
+      setJobMinSalaryLakh(val);
+    }
+    if (existingJob.maxSalary != null) {
+      const val = existingJob.maxSalary > 1000 ? existingJob.maxSalary / 100000 : existingJob.maxSalary;
+      setJobMaxSalaryLakh(val);
+    }
+
+    if (existingJob.applicationDeadline) {
+      setJobDeadline(new Date(existingJob.applicationDeadline).toISOString().split('T')[0]);
+    }
+
+    if (existingJob.hiringManagerId) setHiringManagerId(existingJob.hiringManagerId);
+    if (existingJob.recruiterId) setRecruiterId(existingJob.recruiterId);
+    if (existingJob.hrbpId) setHrbpId(existingJob.hrbpId);
+  }, [isEditMode, existingJob, branches, departments, costCenters]);
 
   // Professional Job Description & Template Auto-Generator
   const generateJobContent = (targetTitle?: string, targetDept?: string) => {
@@ -759,20 +873,23 @@ Key Focus Areas:
     setActiveStepTab(nextTab);
   };
 
-  // ── Create Job Opening Mutation ──
+  // ── Create / Update Job Opening Mutation ──
   const createJobReqMutation = useMutation({
-    mutationFn: (data: any) => jobOpeningsApi.create(data),
+    mutationFn: (data: any) =>
+      isEditMode ? jobOpeningsApi.update(editId, data) : jobOpeningsApi.create(data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['job-openings'] });
       queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
       queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
       queryClient.invalidateQueries({ queryKey: ['job-requisitions'] });
       queryClient.invalidateQueries({ queryKey: ['approved-manpower-requisitions'] });
+      queryClient.invalidateQueries({ queryKey: ['job-opening-detail', editId] });
 
-      const statusText =
-        variables.status === 'DRAFT'
-          ? 'Job Requisition saved as Draft.'
-          : 'Job Requisition created successfully and set to READY TO PUBLISH!';
+      const statusText = isEditMode
+        ? 'Job Requisition updated successfully!'
+        : variables.status === 'DRAFT'
+        ? 'Job Requisition saved as Draft.'
+        : 'Job Requisition created successfully and set to READY TO PUBLISH!';
       toast.success(statusText);
       navigate('/recruitment/requisitions');
     },

@@ -74,6 +74,7 @@ export default function App() {
               <Route path="/recruitment" element={<JobOpeningsPage />} />
               <Route path="/recruitment/requisitions/new" element={<CreateJobRequisitionPage />} />
               <Route path="/recruitment/requisitions/create-from-mr/:mrId" element={<CreateJobRequisitionPage />} />
+              <Route path="/recruitment/requisitions/edit/:id" element={<CreateJobRequisitionPage />} />
               <Route path="/recruitment/:tab" element={<JobOpeningsPage />} />
               <Route path="/recruitment/detail/:id" element={<JobOpeningDetailPage />} />
 

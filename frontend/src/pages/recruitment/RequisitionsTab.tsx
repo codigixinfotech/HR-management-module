@@ -56,6 +56,11 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
   const [isViewMrOpen, setIsViewMrOpen] = useState(false);
   const [viewingMr, setViewingMr] = useState<ManpowerRequisition | null>(null);
 
+  // Publish Job Opening Preview Modal & Final Confirmation Dialog State
+  const [isPublishPreviewOpen, setIsPublishPreviewOpen] = useState(false);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [publishingJob, setPublishingJob] = useState<JobOpening | null>(null);
+
   const openViewMrModal = (mr: ManpowerRequisition) => {
     setViewingMr(mr);
     setIsViewMrOpen(true);
@@ -393,13 +398,22 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
       queryClient.invalidateQueries({ queryKey: ['job-openings'] });
       queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
       queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
-      toast.success('Job published successfully! It is now live on the Career Portal.');
+      toast.success(`Job Requisition ${data.requisitionCode || 'JR'} published successfully! It is now live on the Career Portal.`);
+      setIsConfirmDialogOpen(false);
+      setIsPublishPreviewOpen(false);
+      setPublishingJob(null);
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to publish job opening'),
   });
 
-  const handlePublishJobOpening = (opening: any) => {
-    publishOpeningMutation.mutate(opening.id);
+  const handleOpenPublishPreview = (opening: any) => {
+    setPublishingJob(opening);
+    setIsPublishPreviewOpen(true);
+  };
+
+  const handleConfirmPublish = () => {
+    if (!publishingJob) return;
+    publishOpeningMutation.mutate(publishingJob.id);
   };
 
   // Handle Approve MR with Clean Confirmation Prompt
@@ -2144,15 +2158,14 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                             <Button
                               size="sm"
                               className="h-7 text-[10.5px] px-2.5 bg-blue-600 hover:bg-blue-700 text-white gap-1.5 font-semibold shadow-xs"
-                              onClick={() => handlePublishJobOpening(opening)}
-                              disabled={publishOpeningMutation.isPending}
+                              onClick={() => handleOpenPublishPreview(opening)}
                             >
                               <Globe className="h-3 w-3" /> Publish Job Opening
                             </Button>
                           ) : (
                             <div className="flex items-center gap-1.5">
                               <a
-                                href="/careers"
+                                href={`/careers/job/${opening.id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
@@ -2177,6 +2190,311 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
           )}
         </CardContent>
       </Card>
+
+      {/* ── 5. ERP-Style "Publish Job Opening" Review & Preview Modal ── */}
+      <Dialog open={isPublishPreviewOpen} onOpenChange={setIsPublishPreviewOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-6 text-xs font-sans">
+          <DialogHeader className="border-b border-border pb-3">
+            <DialogTitle className="flex items-center justify-between text-base font-bold">
+              <span className="flex items-center gap-2 text-foreground">
+                <Globe className="h-4 w-4 text-primary" /> Publish Job Opening Review
+              </span>
+              <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 font-mono text-[10px] font-bold">
+                {publishingJob?.requisitionCode || 'JR-2026-012'}
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          {publishingJob && (
+            <div className="space-y-6 pt-2">
+              {/* Top Banner Status */}
+              <div className="bg-blue-50/70 dark:bg-blue-950/40 p-4 rounded-xl border border-blue-200 dark:border-blue-800 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-xs text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-blue-600" /> Review Requisition Before Publishing
+                  </h4>
+                  <p className="text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">
+                    Once published, this job opening will be visible on the public Careers Portal for candidates to apply.
+                  </p>
+                </div>
+                <Badge className="bg-blue-600 text-white font-mono font-bold text-xs shrink-0">
+                  READY TO PUBLISH
+                </Badge>
+              </div>
+
+              {/* 1. Requisition Information */}
+              <div className="space-y-2 border-b border-border/60 pb-4">
+                <h5 className="font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" /> 1. Requisition Information
+                </h5>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-muted/30 p-3 rounded-xl border border-border/50">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Requisition Code</span>
+                    <span className="font-mono font-bold text-primary">{publishingJob.requisitionCode || 'JR-2026-012'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">MR Reference</span>
+                    <span className="font-mono font-semibold text-foreground">
+                      {publishingJob.mrNumber || (publishingJob.manpowerRequisitionId ? requisitions.find((r) => r.id === publishingJob.manpowerRequisitionId)?.mrNumber : null) || 'N/A'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Created Date</span>
+                    <span className="font-semibold text-foreground">
+                      {new Date(publishingJob.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Organization */}
+              <div className="space-y-2 border-b border-border/60 pb-4">
+                <h5 className="font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5" /> 2. Organization Structure
+                </h5>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-xl border border-border/50">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Company</span>
+                    <span className="font-semibold text-foreground">{publishingJob.company?.name || companies[0]?.name || 'Codigix Infotech Pvt. Ltd.'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Branch / Location</span>
+                    <span className="font-semibold text-foreground">{publishingJob.workLocation || 'Pune Head Office'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Department</span>
+                    <span className="font-semibold text-foreground">{publishingJob.department?.name || 'Information Technology'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Cost Center</span>
+                    <span className="font-mono font-semibold text-foreground">CC-IT-001</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Job Details */}
+              <div className="space-y-2 border-b border-border/60 pb-4">
+                <h5 className="font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <Briefcase className="h-3.5 w-3.5" /> 3. Job Position & Qualifications
+                </h5>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-xl border border-border/50 mb-3">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Job Title</span>
+                    <span className="font-bold text-foreground">{publishingJob.title}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Number of Openings</span>
+                    <span className="font-mono font-bold text-emerald-600">{publishingJob.numPositions} Positions</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Experience Required</span>
+                    <span className="font-semibold text-foreground">
+                      {publishingJob.candidateType === 'FRESHER'
+                        ? 'Freshers (0 Yrs)'
+                        : `${publishingJob.minExperience ?? 1} - ${publishingJob.maxExperience ?? 3} Years`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Qualification</span>
+                    <span className="font-semibold text-foreground">{publishingJob.qualification || 'B.Tech / B.E.'}</span>
+                  </div>
+                </div>
+
+                <div className="bg-muted/20 p-3 rounded-xl border border-border/40 space-y-2">
+                  <div>
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase block mb-1">Required Skills:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(publishingJob.requiredSkills || 'React, Node.js, TypeScript, PostgreSQL')
+                        .split(',')
+                        .map((sk: string, i: number) => (
+                          <Badge key={i} variant="secondary" className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-semibold text-[11px]">
+                            {sk.trim()}
+                          </Badge>
+                        ))}
+                    </div>
+                  </div>
+
+                  {publishingJob.jobSummary && (
+                    <div className="pt-2">
+                      <span className="text-[11px] font-bold text-muted-foreground uppercase block mb-1">Job Summary:</span>
+                      <p className="text-xs text-foreground bg-background p-2.5 rounded-lg border leading-relaxed">
+                        {publishingJob.jobSummary}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 4. Employment & Work */}
+              <div className="space-y-2 border-b border-border/60 pb-4">
+                <h5 className="font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5" /> 4. Employment & Work Mode
+                </h5>
+                <div className="grid grid-cols-3 gap-3 bg-muted/30 p-3 rounded-xl border border-border/50">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Employment Type</span>
+                    <span className="font-semibold text-foreground">{publishingJob.employmentType || 'Full Time'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Work Mode</span>
+                    <span className="font-semibold text-foreground">{publishingJob.workMode || 'On-site'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Work Location</span>
+                    <span className="font-semibold text-foreground">{publishingJob.workLocation || 'Pune Head Office'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Compensation & Dates */}
+              <div className="space-y-2 border-b border-border/60 pb-4">
+                <h5 className="font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <DollarSign className="h-3.5 w-3.5" /> 5. Compensation & Key Dates
+                </h5>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-xl border border-border/50">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Minimum CTC</span>
+                    <span className="font-mono font-semibold text-foreground">
+                      {publishingJob.minSalary ? formatSalaryInLakhs(publishingJob.minSalary) : '₹4.00 Lakhs / yr'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Maximum CTC</span>
+                    <span className="font-mono font-semibold text-foreground">
+                      {publishingJob.maxSalary ? formatSalaryInLakhs(publishingJob.maxSalary) : '₹8.00 Lakhs / yr'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Posting Date</span>
+                    <span className="font-semibold text-foreground">Today</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Visibility Target</span>
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]">
+                      Public Careers Portal
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* 6. Recruitment Team */}
+              <div className="space-y-2 pb-2">
+                <h5 className="font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" /> 6. Recruitment Team Contacts
+                </h5>
+                <div className="grid grid-cols-3 gap-3 bg-muted/30 p-3 rounded-xl border border-border/50">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Hiring Manager</span>
+                    <span className="font-semibold text-foreground">Senior Engineering Lead</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Assigned Recruiter</span>
+                    <span className="font-semibold text-foreground">HR Recruitment Team</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">HRBP</span>
+                    <span className="font-semibold text-foreground">Corporate HRBP</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="border-t border-border pt-4 flex items-center justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsPublishPreviewOpen(false);
+                if (publishingJob) {
+                  navigate(`/recruitment/requisitions/edit/${publishingJob.id}`);
+                }
+              }}
+              className="text-xs font-semibold"
+            >
+              Edit Details
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsPublishPreviewOpen(false)}
+                className="text-xs font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setIsConfirmDialogOpen(true)}
+                className="text-xs font-bold gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-sm px-5"
+              >
+                <Globe className="h-3.5 w-3.5" /> Publish Job
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 6. Final Publish Confirmation Dialog ── */}
+      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-md p-6 text-xs font-sans space-y-4">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
+              <Globe className="h-5 w-5 text-blue-600" /> Publish this job opening?
+            </DialogTitle>
+          </DialogHeader>
+
+          {publishingJob && (
+            <div className="space-y-3">
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-border space-y-2 text-xs">
+                <div className="flex justify-between items-center border-b pb-2">
+                  <span className="font-bold text-sm text-foreground">{publishingJob.title}</span>
+                  <Badge variant="outline" className="font-mono text-[10px] font-bold text-blue-600 border-blue-200">
+                    {publishingJob.requisitionCode || 'JR-2026-012'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Openings:</span>
+                  <strong className="text-foreground">{publishingJob.numPositions} Positions</strong>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Location:</span>
+                  <strong className="text-foreground">{publishingJob.workLocation || 'Pune Head Office'}</strong>
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-[11.5px] leading-relaxed">
+                ✓ <strong>Public Visibility:</strong> This job opening will become visible immediately on the public Career Portal.
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-2 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsConfirmDialogOpen(false)}
+              className="text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={publishOpeningMutation.isPending}
+              onClick={handleConfirmPublish}
+              className="text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md px-5"
+            >
+              {publishOpeningMutation.isPending ? 'Publishing...' : 'Confirm & Publish'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

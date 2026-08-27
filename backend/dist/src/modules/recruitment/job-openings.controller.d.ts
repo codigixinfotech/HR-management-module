@@ -193,6 +193,16 @@ export declare class JobOpeningsController {
         createdAt: Date;
         updatedAt: Date;
     })[]>;
+    getPortalConfig(): Record<string, any>;
+    updatePortalConfig(body: Record<string, any>): Record<string, any>;
+    listPublicPaginated(companyId?: string, page?: string, pageSize?: string, search?: string, department?: string, type?: string, sortBy?: string): Promise<{
+        jobs: any[];
+        totalCount: number;
+        currentPage: number;
+        pageSize: number;
+        totalPages: number;
+        config: Record<string, any>;
+    }>;
     findPublicJob(id: string): Promise<{
         company: {
             id: string;

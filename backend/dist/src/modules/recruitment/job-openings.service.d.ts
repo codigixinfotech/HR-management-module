@@ -528,4 +528,23 @@ export declare class JobOpeningsService {
         createdAt: Date;
         updatedAt: Date;
     }>;
+    private portalConfigStore;
+    getPortalConfig(): Record<string, any>;
+    updatePortalConfig(dto: Record<string, any>): Record<string, any>;
+    listPublicJobsPaginated(params: {
+        companyId?: string;
+        page?: number;
+        pageSize?: number;
+        search?: string;
+        department?: string;
+        type?: string;
+        sortBy?: string;
+    }): Promise<{
+        jobs: any[];
+        totalCount: number;
+        currentPage: number;
+        pageSize: number;
+        totalPages: number;
+        config: Record<string, any>;
+    }>;
 }

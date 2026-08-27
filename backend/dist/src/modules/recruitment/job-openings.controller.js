@@ -36,6 +36,23 @@ let JobOpeningsController = class JobOpeningsController {
     listPublicJobs(companyId) {
         return this.jobOpeningsService.listPublicJobs(companyId);
     }
+    getPortalConfig() {
+        return this.jobOpeningsService.getPortalConfig();
+    }
+    updatePortalConfig(body) {
+        return this.jobOpeningsService.updatePortalConfig(body);
+    }
+    listPublicPaginated(companyId, page, pageSize, search, department, type, sortBy) {
+        return this.jobOpeningsService.listPublicJobsPaginated({
+            companyId,
+            page: page ? parseInt(page, 10) : undefined,
+            pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+            search,
+            department,
+            type,
+            sortBy,
+        });
+    }
     findPublicJob(id) {
         return this.jobOpeningsService.findPublicJob(id);
     }
@@ -97,6 +114,35 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], JobOpeningsController.prototype, "listPublicJobs", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('public/config'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], JobOpeningsController.prototype, "getPortalConfig", null);
+__decorate([
+    (0, common_1.Patch)('portal-config'),
+    (0, permissions_decorator_1.Permissions)('recruitment.write'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], JobOpeningsController.prototype, "updatePortalConfig", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('public/paginated'),
+    __param(0, (0, common_1.Query)('companyId')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('pageSize')),
+    __param(3, (0, common_1.Query)('search')),
+    __param(4, (0, common_1.Query)('department')),
+    __param(5, (0, common_1.Query)('type')),
+    __param(6, (0, common_1.Query)('sortBy')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, String]),
+    __metadata("design:returntype", void 0)
+], JobOpeningsController.prototype, "listPublicPaginated", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Get)('public/:id'),

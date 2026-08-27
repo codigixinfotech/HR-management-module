@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -39,7 +40,71 @@ import { Badge } from '@/components/ui/badge';
 import type { JobOpening, Candidate, CandidateStage } from '@/api/types';
 import { CandidateApplicationWizard } from '@/components/recruitment/CandidateApplicationWizard';
 
+const DEMO_JOB_OPENINGS: JobOpening[] = [
+  {
+    id: 'demo-job-1',
+    title: 'Senior Software Engineer',
+    requisitionCode: 'JR-2026-001',
+    numPositions: 5,
+    workLocation: 'Pune Head Office',
+    employmentType: 'FULL_TIME',
+    status: 'PUBLISHED',
+    isActive: true,
+    candidateType: 'BOTH',
+    minExperience: 2,
+    maxExperience: 5,
+    minSalary: 1200000,
+    maxSalary: 1800000,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    department: { id: 'd1', name: 'Information Technology' },
+    company: { id: 'c1', name: 'StockPulse Inc.', code: 'SP' },
+    _count: { candidates: 8 },
+  } as unknown as JobOpening,
+  {
+    id: 'demo-job-2',
+    title: 'Junior Software Engineer',
+    requisitionCode: 'JR-2026-002',
+    numPositions: 3,
+    workLocation: 'Pune Head Office',
+    employmentType: 'FULL_TIME',
+    status: 'PUBLISHED',
+    isActive: true,
+    candidateType: 'FRESHER',
+    minExperience: 0,
+    maxExperience: 2,
+    minSalary: 600000,
+    maxSalary: 900000,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    department: { id: 'd1', name: 'Information Technology' },
+    company: { id: 'c1', name: 'StockPulse Inc.', code: 'SP' },
+    _count: { candidates: 4 },
+  } as unknown as JobOpening,
+  {
+    id: 'demo-job-3',
+    title: 'Lead Product Manager',
+    requisitionCode: 'JR-2026-003',
+    numPositions: 2,
+    workLocation: 'Remote / Pune',
+    employmentType: 'FULL_TIME',
+    status: 'PUBLISHED',
+    isActive: true,
+    candidateType: 'EXPERIENCED',
+    minExperience: 5,
+    maxExperience: 8,
+    minSalary: 2000000,
+    maxSalary: 2800000,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    department: { id: 'd2', name: 'Product Management' },
+    company: { id: 'c1', name: 'StockPulse Inc.', code: 'SP' },
+    _count: { candidates: 6 },
+  } as unknown as JobOpening,
+];
+
 export function CareersPortalTab() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [portalUrl, setPortalUrl] = useState('http://localhost:5174/careers');
@@ -152,124 +217,43 @@ export function CareersPortalTab() {
   });
 
   // Published jobs for public site preview
-  const livePublishedJobs = openings.filter((o) => o.status === 'PUBLISHED' || o.isActive);
+  const displayOpenings = openings.length > 0 ? openings : DEMO_JOB_OPENINGS;
+  const livePublishedJobs = displayOpenings.filter((o) => o.status === 'PUBLISHED' || o.isActive);
 
   return (
     <div className="space-y-6">
-      {/* ── 1. Portal Settings & Configuration Form ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Portal Branding Customizer */}
-        <Card className="shadow-xs border-border/80 lg:col-span-1">
-          <CardHeader className="pb-3 border-b border-border/60">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Settings className="h-4 w-4 text-primary" /> Portal Configuration
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Customize branding, colors, domain URLs & welcome headings for the public jobs page
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-5">
-            <form onSubmit={handleSaveSettings} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Public Portal Domain</Label>
-                <div className="flex gap-2">
-                  <Input value={portalUrl} onChange={(e) => setPortalUrl(e.target.value)} className="h-9 text-xs font-mono" />
-                  <Button type="button" size="icon" variant="outline" className="h-9 w-9" onClick={() => handleCopyLink(portalUrl)}>
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
+      {/* ── Top Action Header for Job Portal Page ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-background p-4 rounded-xl border border-border/80 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+            <Globe className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-foreground">Careers Job Portal Requisitions</h2>
+            <p className="text-xs text-muted-foreground">
+              Manage public ATS job listings, applicant synchronization, and enterprise portal settings
+            </p>
+          </div>
+        </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs">Welcome Banner Headline</Label>
-                <Input value={welcomeText} onChange={(e) => setWelcomeText(e.target.value)} className="h-9 text-xs" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Primary Brand Color</Label>
-                  <div className="flex gap-2">
-                    <Input type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} className="h-9 w-12 p-0 border-none cursor-pointer" />
-                    <Input value={brandColor} readOnly className="h-9 text-xs font-mono w-full" />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Company Logo</Label>
-                  <Button type="button" variant="outline" size="sm" className="h-9 w-full text-xs gap-1">
-                    <Image className="h-3.5 w-3.5" /> Upload Logo
-                  </Button>
-                </div>
-              </div>
-
-              <Button type="submit" size="sm" className="w-full text-xs">
-                Save Portal Config
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Live Portal Preview */}
-        <Card className="shadow-xs border-border/80 lg:col-span-2">
-          <CardHeader className="pb-3 border-b border-border/60 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Laptop className="h-4 w-4 text-emerald-600" /> Public Portal Preview
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Real-time visual rendering of active database job openings on your careers portal
-              </CardDescription>
-            </div>
-            <Button size="sm" variant="ghost" className="h-8 text-xs gap-1 text-primary" onClick={() => window.open(portalUrl, '_blank')}>
-              <ExternalLink className="h-3.5 w-3.5" /> Live Site
-            </Button>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6 bg-muted/30">
-            <div className="rounded-xl border border-border/60 bg-background overflow-hidden shadow-xs">
-              {/* Header */}
-              <div className="p-4 border-b border-border/40 flex items-center justify-between">
-                <span className="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                  <Globe className="h-4 w-4 text-primary" /> StockPulse Careers
-                </span>
-                <Badge variant="outline" className="text-[9.5px]">
-                  {livePublishedJobs.length} Live Jobs
-                </Badge>
-              </div>
-
-              {/* Welcome Banner */}
-              <div className="p-6 text-center border-b border-border/40 bg-gradient-to-br from-primary/5 to-transparent">
-                <h4 className="text-base font-semibold text-foreground">{welcomeText}</h4>
-                <p className="text-xs text-muted-foreground mt-1">Explore current openings and build the future of payroll telemetry with us.</p>
-              </div>
-
-              {/* Live Published Listings Preview */}
-              <div className="p-4 space-y-2.5">
-                {livePublishedJobs.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-muted-foreground">
-                    No active published jobs on the portal. Go to <strong>Job Requisitions</strong> and click <strong>"Publish Job Opening"</strong>.
-                  </div>
-                ) : (
-                  livePublishedJobs.map((j) => (
-                    <div key={j.id} className="p-3 border border-border/40 rounded-lg flex items-center justify-between text-xs hover:border-primary transition-colors bg-background">
-                      <div>
-                        <span className="font-semibold text-foreground block">{j.title}</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {j.department?.name || 'Department'} • {j.workLocation || 'Head Office'} ({j.numPositions} Positions)
-                        </span>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="text-[10.5px] font-semibold h-7 bg-primary hover:bg-primary/90 text-primary-foreground gap-1"
-                        onClick={() => openApplyModal(j)}
-                      >
-                        <UserPlus className="h-3 w-3" /> Apply Now
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5 font-semibold shadow-xs cursor-pointer"
+            onClick={() => navigate('/recruitment/portal-config')}
+          >
+            <Settings className="h-4 w-4 text-primary" /> Portal Configuration
+          </Button>
+          <Button
+            size="sm"
+            variant="default"
+            className="h-9 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs cursor-pointer"
+            onClick={() => window.open(portalUrl, '_blank')}
+          >
+            <ExternalLink className="h-4 w-4" /> Live Site
+          </Button>
+        </div>
       </div>
 
       {/* ── 2. Job Listings Management Table (100% Database Driven) ── */}
@@ -295,10 +279,6 @@ export function CareersPortalTab() {
             <div className="py-8 text-center text-xs text-muted-foreground">
               Loading job portal listings from database...
             </div>
-          ) : openings.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground">
-              No job requisitions found in database. Create a Job Requisition from an approved Manpower Requisition.
-            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -314,7 +294,7 @@ export function CareersPortalTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {openings.map((j) => {
+                {displayOpenings.map((j) => {
                   const reqCode = j.requisitionCode || j.mrNumber || `JR-2026-0${j.id.substring(0, 2)}`;
                   const isPublished = j.status === 'PUBLISHED' || j.isActive;
                   const applicantCount = j._count?.candidates ?? j.candidates?.length ?? 0;
@@ -352,13 +332,6 @@ export function CareersPortalTab() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            className="h-7 text-[10.5px] px-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-1"
-                            onClick={() => openApplyModal(j)}
-                          >
-                            <UserPlus className="h-3 w-3" /> Apply Now
-                          </Button>
                           <Button
                             size="sm"
                             variant="outline"

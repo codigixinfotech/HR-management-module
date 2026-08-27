@@ -6,6 +6,29 @@ export const jobOpeningsApi = {
     (await apiClient.get<JobOpening[]>('/recruitment/job-openings', { params: { companyId, status } })).data,
   listPublic: async (companyId?: string) =>
     (await apiClient.get<JobOpening[]>('/recruitment/job-openings/public/list', { params: { companyId } })).data,
+  getPortalConfig: async () =>
+    (await apiClient.get<Record<string, any>>('/recruitment/job-openings/public/config')).data,
+  updatePortalConfig: async (payload: Record<string, any>) =>
+    (await apiClient.patch<Record<string, any>>('/recruitment/job-openings/portal-config', payload)).data,
+  listPublicPaginated: async (params?: {
+    companyId?: string;
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    department?: string;
+    type?: string;
+    sortBy?: string;
+  }) =>
+    (
+      await apiClient.get<{
+        jobs: JobOpening[];
+        totalCount: number;
+        currentPage: number;
+        pageSize: number;
+        totalPages: number;
+        config: Record<string, any>;
+      }>('/recruitment/job-openings/public/paginated', { params })
+    ).data,
   findPublic: async (id: string) =>
     (await apiClient.get<JobOpening>(`/recruitment/job-openings/public/${id}`)).data,
   get: async (id: string) => (await apiClient.get<JobOpening>(`/recruitment/job-openings/${id}`)).data,
