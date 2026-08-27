@@ -3,9 +3,14 @@ import { CandidateStage } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCandidateDto, SaveCandidateScreeningDto } from './dto/candidate.dto';
 
+import { OfferEmailService } from './offer-email.service';
+
 @Injectable()
 export class CandidatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly offerEmailService: OfferEmailService,
+  ) {}
 
   listForJobOpening(jobOpeningId: string) {
     return this.prisma.candidate.findMany({
@@ -64,7 +69,50 @@ export class CandidatesService {
       }
     }
 
-    return this.prisma.candidate.create({ data: dto });
+    const { middleName, ...prismaData } = dto as any;
+    const finalData = {
+      ...prismaData,
+      firstName: middleName ? `${prismaData.firstName || ''} ${middleName}`.trim() : prismaData.firstName,
+    };
+
+    // 1. Save candidate in database
+    const candidate = await this.prisma.candidate.create({
+      data: finalData,
+      include: {
+        jobOpening: { select: { title: true, requisitionCode: true } },
+      },
+    });
+
+    // 2. Extract Application Reference ID
+    let appId = `APP-2026-${candidate.id.substring(candidate.id.length - 6)}`;
+    if (candidate.notes && candidate.notes.includes('App Ref:')) {
+      const match = candidate.notes.match(/App Ref:\s*([A-Z0-9-]+)/);
+      if (match && match[1]) appId = match[1];
+    }
+
+    const jobTitle = candidate.jobOpening?.title || jobOpening?.title || 'Applied Position';
+    const reqCode = candidate.jobOpening?.requisitionCode || jobOpening?.requisitionCode || 'JR-2026-001';
+    const formattedDate = new Date(candidate.createdAt).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    // 3. Trigger automatic confirmation email asynchronously after DB transaction succeeds
+    this.offerEmailService
+      .sendApplicationConfirmationEmail({
+        candidateEmail: candidate.email,
+        candidateName: `${candidate.firstName} ${candidate.lastName}`.trim(),
+        jobTitle,
+        requisitionCode: reqCode,
+        applicationId: appId,
+        applicationDate: formattedDate,
+      })
+      .catch((err) => {
+        // Logging error so candidate submission is not interrupted if SMTP is unreachable
+      });
+
+    return candidate;
   }
 
   async updateStage(id: string, stage: CandidateStage) {

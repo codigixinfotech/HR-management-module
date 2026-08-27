@@ -16,6 +16,15 @@ export interface SendOfferEmailDto {
   manager?: string;
 }
 
+export interface SendApplicationConfirmationDto {
+  candidateEmail: string;
+  candidateName: string;
+  jobTitle: string;
+  requisitionCode: string;
+  applicationId: string;
+  applicationDate: string;
+}
+
 export interface EmailAuditLog {
   id: string;
   offerId: string;
@@ -346,5 +355,91 @@ ${315 + streamLength + 30}
       return this.auditLogs.filter((l) => l.offerId === offerId);
     }
     return this.auditLogs;
+  }
+
+  // Automatic Candidate Application Received Confirmation Email
+  async sendApplicationConfirmationEmail(dto: SendApplicationConfirmationDto) {
+    if (!dto.candidateEmail || !this.validateEmail(dto.candidateEmail)) {
+      this.logger.warn(`Invalid candidate email for application confirmation: ${dto.candidateEmail}`);
+      return;
+    }
+
+    this.initTransporter();
+
+    const fromEmail = this.configService.get<string>('SMTP_FROM_EMAIL', 'reactjscodigix@gmail.com');
+    const fromName = this.configService.get<string>('SMTP_FROM_NAME', 'Codigix HR Team');
+
+    const subject = `Application Received – ${dto.jobTitle} | ${dto.applicationId}`;
+
+    const textContent = `Dear ${dto.candidateName},
+
+Thank you for applying for the ${dto.jobTitle} position at Codigix Infotech Pvt. Ltd.
+
+Your application has been successfully received.
+
+Application Details
+────────────────────────────
+Application ID: ${dto.applicationId}
+Position: ${dto.jobTitle}
+Requisition Code: ${dto.requisitionCode}
+Status: Application Received
+Application Date: ${dto.applicationDate}
+
+Our recruitment team will review your application. If your profile matches the requirements, we will contact you regarding the next steps.
+
+Please keep your Application ID for future reference.
+
+Regards,
+HR / Recruitment Team
+Codigix Infotech Pvt. Ltd.`;
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff;">
+        <div style="background-color: #4f46e5; padding: 24px; text-align: center; color: white;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 700;">Codigix Infotech Pvt. Ltd.</h2>
+          <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Candidate Application Received Confirmation</p>
+        </div>
+        <div style="padding: 24px; font-size: 14px; line-height: 1.6;">
+          <p>Dear <strong>${dto.candidateName}</strong>,</p>
+          <p>Thank you for applying for the <strong>${dto.jobTitle}</strong> position at Codigix Infotech Pvt. Ltd.</p>
+          <p>Your application has been successfully received and registered in our HR portal.</p>
+          
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <h4 style="margin: 0 0 12px 0; color: #4f46e5; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Application Details</h4>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Application ID:</td><td style="font-family: monospace; font-weight: bold; color: #4f46e5;">${dto.applicationId}</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Position:</td><td style="font-weight: 600;">${dto.jobTitle}</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Requisition Code:</td><td style="font-family: monospace;">${dto.requisitionCode}</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Status:</td><td><span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px;">Application Received</span></td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Application Date:</td><td>${dto.applicationDate}</td></tr>
+            </table>
+          </div>
+
+          <p>Our recruitment team will review your application. If your profile matches the job requirements, we will contact you regarding the next steps.</p>
+          <p style="font-size: 12px; color: #64748b;">Please keep your Application ID for future reference.</p>
+
+          <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+          <p style="margin: 0; color: #475569; font-weight: 600;">Regards,</p>
+          <p style="margin: 2px 0 0 0; color: #64748b;">HR / Recruitment Team<br /><strong>Codigix Infotech Pvt. Ltd.</strong></p>
+        </div>
+      </div>
+    `;
+
+    try {
+      if (this.transporter) {
+        await this.transporter.sendMail({
+          from: `"${fromName}" <${fromEmail}>`,
+          to: dto.candidateEmail,
+          subject,
+          text: textContent,
+          html: htmlContent,
+        });
+        this.logger.log(`Application confirmation email successfully sent to ${dto.candidateEmail} (App ID: ${dto.applicationId}) via SMTP`);
+      } else {
+        this.logger.warn(`SMTP Transporter unavailable. Logged confirmation email trigger for ${dto.candidateEmail}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to send application confirmation email to ${dto.candidateEmail}: ${err.message}`);
+    }
   }
 }

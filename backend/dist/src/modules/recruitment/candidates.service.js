@@ -13,10 +13,13 @@ exports.CandidatesService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const offer_email_service_1 = require("./offer-email.service");
 let CandidatesService = class CandidatesService {
     prisma;
-    constructor(prisma) {
+    offerEmailService;
+    constructor(prisma, offerEmailService) {
         this.prisma = prisma;
+        this.offerEmailService = offerEmailService;
     }
     listForJobOpening(jobOpeningId) {
         return this.prisma.candidate.findMany({
@@ -66,7 +69,42 @@ let CandidatesService = class CandidatesService {
                 }
             }
         }
-        return this.prisma.candidate.create({ data: dto });
+        const { middleName, ...prismaData } = dto;
+        const finalData = {
+            ...prismaData,
+            firstName: middleName ? `${prismaData.firstName || ''} ${middleName}`.trim() : prismaData.firstName,
+        };
+        const candidate = await this.prisma.candidate.create({
+            data: finalData,
+            include: {
+                jobOpening: { select: { title: true, requisitionCode: true } },
+            },
+        });
+        let appId = `APP-2026-${candidate.id.substring(candidate.id.length - 6)}`;
+        if (candidate.notes && candidate.notes.includes('App Ref:')) {
+            const match = candidate.notes.match(/App Ref:\s*([A-Z0-9-]+)/);
+            if (match && match[1])
+                appId = match[1];
+        }
+        const jobTitle = candidate.jobOpening?.title || jobOpening?.title || 'Applied Position';
+        const reqCode = candidate.jobOpening?.requisitionCode || jobOpening?.requisitionCode || 'JR-2026-001';
+        const formattedDate = new Date(candidate.createdAt).toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        });
+        this.offerEmailService
+            .sendApplicationConfirmationEmail({
+            candidateEmail: candidate.email,
+            candidateName: `${candidate.firstName} ${candidate.lastName}`.trim(),
+            jobTitle,
+            requisitionCode: reqCode,
+            applicationId: appId,
+            applicationDate: formattedDate,
+        })
+            .catch((err) => {
+        });
+        return candidate;
     }
     async updateStage(id, stage) {
         await this.findById(id);
@@ -185,6 +223,7 @@ let CandidatesService = class CandidatesService {
 exports.CandidatesService = CandidatesService;
 exports.CandidatesService = CandidatesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        offer_email_service_1.OfferEmailService])
 ], CandidatesService);
 //# sourceMappingURL=candidates.service.js.map

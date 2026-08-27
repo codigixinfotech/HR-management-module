@@ -12,6 +12,14 @@ export interface SendOfferEmailDto {
     location?: string;
     manager?: string;
 }
+export interface SendApplicationConfirmationDto {
+    candidateEmail: string;
+    candidateName: string;
+    jobTitle: string;
+    requisitionCode: string;
+    applicationId: string;
+    applicationDate: string;
+}
 export interface EmailAuditLog {
     id: string;
     offerId: string;
@@ -61,4 +69,5 @@ export declare class OfferEmailService {
         testedEmail?: undefined;
     }>;
     getAuditLogs(offerId?: string): EmailAuditLog[];
+    sendApplicationConfirmationEmail(dto: SendApplicationConfirmationDto): Promise<void>;
 }

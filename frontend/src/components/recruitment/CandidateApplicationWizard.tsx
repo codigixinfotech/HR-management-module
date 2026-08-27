@@ -456,8 +456,7 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
 
     const candidatePayload: any = {
       jobOpeningId: job.id,
-      firstName: firstName.trim(),
-      middleName: middleName.trim() || undefined,
+      firstName: middleName.trim() ? `${firstName.trim()} ${middleName.trim()}` : firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
@@ -610,21 +609,24 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
             </p>
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-800 border rounded-xl p-5 max-w-sm mx-auto space-y-2 text-xs text-left">
-            <div className="flex justify-between border-b pb-2">
+          <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 max-w-sm mx-auto space-y-3 text-xs text-left">
+            <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
               <span className="text-slate-500">Application ID:</span>
-              <span className="font-mono font-bold text-indigo-600">{generatedAppId}</span>
+              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{generatedAppId}</span>
             </div>
-            <div className="flex justify-between border-b pb-2">
+            <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
               <span className="text-slate-500">Requisition Code:</span>
               <span className="font-mono font-semibold">{job.requisitionCode || 'JR-2026-017'}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
               <span className="text-slate-500">Status:</span>
-              <Badge className="bg-blue-100 text-blue-700 text-[11px] font-semibold">
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[11px] font-semibold">
                 Application Received
               </Badge>
             </div>
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold text-center pt-1">
+              ✉️ A confirmation email has been sent to your registered email address ({email}).
+            </p>
           </div>
 
           {onCancel && (
