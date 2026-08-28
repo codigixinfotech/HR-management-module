@@ -511,10 +511,17 @@ export function InterviewsTab() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              className="h-7 text-xs gap-1"
                               onClick={() => handleOpenDetails(item.id)}
-                    </TableCell>
-                  </TableRow>
-                )}
+                            >
+                              <Eye className="h-3.5 w-3.5" /> Details
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()}
               </TableBody>
             </Table>
           </div>
