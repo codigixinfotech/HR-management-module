@@ -524,11 +524,10 @@ export function InterviewsTab() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 text-xs gap-1"
+                              className="h-7 px-2 text-xs gap-1"
                               onClick={() => handleOpenDetails(item.id)}
-                              className="h-7 px-2 text-xs"
                             >
-                              <Eye className="h-3.5 w-3.5 mr-1" /> View
+                              <Eye className="h-3.5 w-3.5" /> View
                             </Button>
 
                             {item.status !== 'CANCELLED' && item.status !== 'COMPLETED' && (
@@ -584,9 +583,6 @@ export function InterviewsTab() {
                                 <FileCheck className="h-3.5 w-3.5" /> Evaluate
                               </Button>
                             )}
-                            >
-                              <Eye className="h-3.5 w-3.5" /> Details
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
