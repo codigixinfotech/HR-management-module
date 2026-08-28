@@ -88,4 +88,9 @@ export class InterviewsController {
   submitEvaluation(@Param('id') id: string, @Body() dto: SubmitEvaluationDto) {
     return this.interviewsService.submitEvaluation(id, dto);
   }
+
+  @Post(':id/send-email')
+  sendEmail(@Param('id') id: string) {
+    return this.interviewsService.sendInterviewEmail(id);
+  }
 }

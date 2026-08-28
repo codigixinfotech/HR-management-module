@@ -81,4 +81,7 @@ export const interviewsApi = {
 
   getCandidateHistory: async (candidateId: string) =>
     (await apiClient.get<CandidateInterview[]>(`/recruitment/interviews/candidate/${candidateId}/history`)).data,
+
+  sendEmail: async (id: string) =>
+    (await apiClient.post<{ success: boolean; message: string; messageId?: string }>(`/recruitment/interviews/${id}/send-email`)).data,
 };
