@@ -5,10 +5,10 @@ export declare class LeaveTypesService {
     constructor(prisma: PrismaService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -17,10 +17,10 @@ export declare class LeaveTypesService {
     }[]>;
     findById(id: string): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -29,10 +29,10 @@ export declare class LeaveTypesService {
     }>;
     create(dto: CreateLeaveTypeDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         isActive: boolean;
         isPaid: boolean;
@@ -41,10 +41,10 @@ export declare class LeaveTypesService {
     }>;
     update(id: string, dto: UpdateLeaveTypeDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         isActive: boolean;
         isPaid: boolean;

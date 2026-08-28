@@ -13,6 +13,11 @@ export declare class ExitsController {
     }>;
     findAll(search?: string, status?: string, companyId?: string): Promise<({
         employee: {
+            id: string;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            firstName: string;
+            lastName: string;
+            phone: string | null;
             department: {
                 id: string;
                 name: string;
@@ -21,13 +26,8 @@ export declare class ExitsController {
                 id: string;
                 title: string;
             } | null;
-            id: string;
             employeeCode: string;
-            firstName: string;
-            lastName: string;
             workEmail: string | null;
-            phone: string | null;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             reportingManager: {
                 id: string;
                 firstName: string;
@@ -61,11 +61,11 @@ export declare class ExitsController {
             exitId: string;
         }[];
         clearanceItems: {
-            department: string;
             id: string;
             status: string;
             createdAt: Date;
             updatedAt: Date;
+            department: string;
             remarks: string | null;
             itemKey: string;
             itemLabel: string;
@@ -96,10 +96,10 @@ export declare class ExitsController {
         } | null;
     } & {
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         remarks: string | null;
         employeeId: string;
         exitCode: string;
@@ -138,21 +138,20 @@ export declare class ExitsController {
             } | null;
             positionHistory: {
                 id: string;
+                status: string;
+                createdAt: Date;
+                updatedAt: Date;
                 branchId: string | null;
                 departmentId: string | null;
                 designationId: string | null;
                 reportingManagerId: string | null;
-                status: string;
                 grade: string | null;
                 level: string | null;
-                createdAt: Date;
-                updatedAt: Date;
                 departmentName: string | null;
                 remarks: string | null;
                 employeeId: string;
                 approvedBy: string | null;
                 effectiveDate: Date;
-                reason: string | null;
                 transferId: string | null;
                 movementType: string;
                 designationTitle: string | null;
@@ -163,11 +162,18 @@ export declare class ExitsController {
                 prevGrade: string | null;
                 prevBranchName: string | null;
                 approvedDate: Date | null;
+                reason: string | null;
             }[];
         } & {
+            id: string;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            firstName: string;
+            lastName: string;
+            phone: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             location: string | null;
             costCenter: string | null;
-            id: string;
             employeeCode: string;
             companyId: string;
             branchId: string | null;
@@ -175,19 +181,15 @@ export declare class ExitsController {
             designationId: string | null;
             userId: string | null;
             reportingManagerId: string | null;
-            firstName: string;
             middleName: string | null;
-            lastName: string;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
-            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
             employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
             grade: string | null;
@@ -260,8 +262,6 @@ export declare class ExitsController {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         };
         exitInterview: {
             id: string;
@@ -290,11 +290,11 @@ export declare class ExitsController {
             exitId: string;
         }[];
         clearanceItems: {
-            department: string;
             id: string;
             status: string;
             createdAt: Date;
             updatedAt: Date;
+            department: string;
             remarks: string | null;
             itemKey: string;
             itemLabel: string;
@@ -325,10 +325,10 @@ export declare class ExitsController {
         } | null;
     } & {
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         remarks: string | null;
         employeeId: string;
         exitCode: string;
@@ -358,11 +358,11 @@ export declare class ExitsController {
             exitId: string;
         }[];
         clearanceItems: {
-            department: string;
             id: string;
             status: string;
             createdAt: Date;
             updatedAt: Date;
+            department: string;
             remarks: string | null;
             itemKey: string;
             itemLabel: string;
@@ -393,10 +393,10 @@ export declare class ExitsController {
         } | null;
     } & {
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         remarks: string | null;
         employeeId: string;
         exitCode: string;
@@ -416,10 +416,10 @@ export declare class ExitsController {
     }>;
     updateStatus(id: string, dto: UpdateExitStatusDto): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         remarks: string | null;
         employeeId: string;
         exitCode: string;
@@ -439,10 +439,10 @@ export declare class ExitsController {
     }>;
     adjustLwd(id: string, dto: AdjustLwdDto): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         remarks: string | null;
         employeeId: string;
         exitCode: string;
@@ -461,11 +461,11 @@ export declare class ExitsController {
         updatedById: string | null;
     }>;
     updateClearanceItem(itemId: string, dto: UpdateClearanceItemDto): Promise<{
-        department: string;
         id: string;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        department: string;
         remarks: string | null;
         itemKey: string;
         itemLabel: string;
@@ -512,10 +512,10 @@ export declare class ExitsController {
     }>;
     completeExit(id: string, performedBy?: string): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         remarks: string | null;
         employeeId: string;
         exitCode: string;

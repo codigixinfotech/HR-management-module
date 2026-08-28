@@ -14,12 +14,12 @@ export declare class CostCentersService {
         } | null;
     } & {
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         description: string | null;
         code: string;
         type: string;
@@ -41,12 +41,12 @@ export declare class CostCentersService {
         } | null;
     } & {
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         description: string | null;
         code: string;
         type: string;
@@ -59,12 +59,12 @@ export declare class CostCentersService {
     }>;
     create(dto: CreateCostCenterDto): Promise<{
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         description: string | null;
         code: string;
         type: string;
@@ -77,12 +77,12 @@ export declare class CostCentersService {
     }>;
     update(id: string, dto: UpdateCostCenterDto): Promise<{
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         description: string | null;
         code: string;
         type: string;
@@ -95,12 +95,12 @@ export declare class CostCentersService {
     }>;
     remove(id: string): Promise<{
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         description: string | null;
         code: string;
         type: string;

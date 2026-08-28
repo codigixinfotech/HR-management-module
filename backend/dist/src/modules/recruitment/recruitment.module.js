@@ -22,6 +22,8 @@ const offers_controller_1 = require("./offers.controller");
 const offer_email_service_1 = require("./offer-email.service");
 const ats_module_1 = require("./ats/ats.module");
 const teams_interview_service_1 = require("./teams/teams-interview.service");
+const teams_chat_service_1 = require("./teams/teams-chat.service");
+const teams_chat_controller_1 = require("./teams/teams-chat.controller");
 let RecruitmentModule = class RecruitmentModule {
 };
 exports.RecruitmentModule = RecruitmentModule;
@@ -35,6 +37,7 @@ exports.RecruitmentModule = RecruitmentModule = __decorate([
             manpower_requisitions_controller_1.ManpowerRequisitionsController,
             interviews_controller_1.InterviewsController,
             offers_controller_1.OffersController,
+            teams_chat_controller_1.TeamsChatController,
         ],
         providers: [
             job_openings_service_1.JobOpeningsService,
@@ -44,6 +47,7 @@ exports.RecruitmentModule = RecruitmentModule = __decorate([
             interviews_service_1.InterviewsService,
             offer_email_service_1.OfferEmailService,
             teams_interview_service_1.TeamsInterviewService,
+            teams_chat_service_1.TeamsChatService,
         ],
         exports: [
             job_openings_service_1.JobOpeningsService,
@@ -53,6 +57,7 @@ exports.RecruitmentModule = RecruitmentModule = __decorate([
             interviews_service_1.InterviewsService,
             offer_email_service_1.OfferEmailService,
             teams_interview_service_1.TeamsInterviewService,
+            teams_chat_service_1.TeamsChatService,
             ats_module_1.AtsModule,
         ],
     })

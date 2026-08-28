@@ -10,12 +10,12 @@ export declare class IncidentsController {
             lastName: string;
         } | null;
     } & {
-        location: string;
         id: string;
-        companyId: string;
         status: import(".prisma/client").$Enums.IncidentStatus;
         createdAt: Date;
         updatedAt: Date;
+        location: string;
+        companyId: string;
         description: string | null;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
@@ -30,12 +30,12 @@ export declare class IncidentsController {
             lastName: string;
         } | null;
     } & {
-        location: string;
         id: string;
-        companyId: string;
         status: import(".prisma/client").$Enums.IncidentStatus;
         createdAt: Date;
         updatedAt: Date;
+        location: string;
+        companyId: string;
         description: string | null;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
@@ -50,12 +50,12 @@ export declare class IncidentsController {
             lastName: string;
         } | null;
     } & {
-        location: string;
         id: string;
-        companyId: string;
         status: import(".prisma/client").$Enums.IncidentStatus;
         createdAt: Date;
         updatedAt: Date;
+        location: string;
+        companyId: string;
         description: string | null;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;
@@ -70,12 +70,12 @@ export declare class IncidentsController {
             lastName: string;
         } | null;
     } & {
-        location: string;
         id: string;
-        companyId: string;
         status: import(".prisma/client").$Enums.IncidentStatus;
         createdAt: Date;
         updatedAt: Date;
+        location: string;
+        companyId: string;
         description: string | null;
         incidentType: string;
         severity: import(".prisma/client").$Enums.IncidentSeverity;

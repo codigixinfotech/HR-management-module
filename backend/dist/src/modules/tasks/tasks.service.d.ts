@@ -14,6 +14,9 @@ export declare class TasksService {
         search?: string;
     }): Promise<({
         assignedTo: {
+            id: string;
+            firstName: string;
+            lastName: string;
             department: {
                 id: string;
                 name: string;
@@ -22,20 +25,17 @@ export declare class TasksService {
                 id: string;
                 title: string;
             } | null;
-            id: string;
             employeeCode: string;
-            firstName: string;
-            lastName: string;
         };
         assignedBy: {
+            id: string;
+            firstName: string;
+            lastName: string;
             designation: {
                 id: string;
                 title: string;
             } | null;
-            id: string;
             employeeCode: string;
-            firstName: string;
-            lastName: string;
         };
         activities: {
             id: string;
@@ -50,10 +50,10 @@ export declare class TasksService {
         }[];
     } & {
         id: string;
-        departmentId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        departmentId: string | null;
         taskCode: string;
         title: string;
         description: string | null;
@@ -80,6 +80,9 @@ export declare class TasksService {
     })[]>;
     findById(id: string): Promise<{
         assignedTo: {
+            id: string;
+            firstName: string;
+            lastName: string;
             department: {
                 id: string;
                 name: string;
@@ -88,20 +91,17 @@ export declare class TasksService {
                 id: string;
                 title: string;
             } | null;
-            id: string;
             employeeCode: string;
-            firstName: string;
-            lastName: string;
         };
         assignedBy: {
+            id: string;
+            firstName: string;
+            lastName: string;
             designation: {
                 id: string;
                 title: string;
             } | null;
-            id: string;
             employeeCode: string;
-            firstName: string;
-            lastName: string;
         };
         activities: {
             id: string;
@@ -116,10 +116,10 @@ export declare class TasksService {
         }[];
     } & {
         id: string;
-        departmentId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        departmentId: string | null;
         taskCode: string;
         title: string;
         description: string | null;
@@ -157,10 +157,10 @@ export declare class TasksService {
         };
     } & {
         id: string;
-        departmentId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        departmentId: string | null;
         taskCode: string;
         title: string;
         description: string | null;
@@ -187,9 +187,15 @@ export declare class TasksService {
     }>;
     startTask(id: string, startedBy?: string): Promise<{
         assignedTo: {
+            id: string;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            firstName: string;
+            lastName: string;
+            phone: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             location: string | null;
             costCenter: string | null;
-            id: string;
             employeeCode: string;
             companyId: string;
             branchId: string | null;
@@ -197,19 +203,15 @@ export declare class TasksService {
             designationId: string | null;
             userId: string | null;
             reportingManagerId: string | null;
-            firstName: string;
             middleName: string | null;
-            lastName: string;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
-            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
             employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
             grade: string | null;
@@ -282,13 +284,17 @@ export declare class TasksService {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         };
         assignedBy: {
+            id: string;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            firstName: string;
+            lastName: string;
+            phone: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             location: string | null;
             costCenter: string | null;
-            id: string;
             employeeCode: string;
             companyId: string;
             branchId: string | null;
@@ -296,19 +302,15 @@ export declare class TasksService {
             designationId: string | null;
             userId: string | null;
             reportingManagerId: string | null;
-            firstName: string;
             middleName: string | null;
-            lastName: string;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
-            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
             employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
             grade: string | null;
@@ -381,15 +383,13 @@ export declare class TasksService {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         };
     } & {
         id: string;
-        departmentId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        departmentId: string | null;
         taskCode: string;
         title: string;
         description: string | null;
@@ -416,10 +416,10 @@ export declare class TasksService {
     }>;
     updateProgress(id: string, dto: UpdateTaskProgressDto): Promise<{
         id: string;
-        departmentId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        departmentId: string | null;
         taskCode: string;
         title: string;
         description: string | null;
@@ -446,10 +446,10 @@ export declare class TasksService {
     }>;
     completeTask(id: string, dto: CompleteTaskDto): Promise<{
         id: string;
-        departmentId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        departmentId: string | null;
         taskCode: string;
         title: string;
         description: string | null;
@@ -476,10 +476,10 @@ export declare class TasksService {
     }>;
     reviewTask(id: string, dto: ReviewTaskDto): Promise<{
         id: string;
-        departmentId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        departmentId: string | null;
         taskCode: string;
         title: string;
         description: string | null;
@@ -516,14 +516,17 @@ export declare class TasksService {
     }>;
     listRequests(requestedById?: string): Promise<({
         requestedBy: {
+            id: string;
+            firstName: string;
+            lastName: string;
             department: {
-                costCenter: string | null;
                 id: string;
-                companyId: string;
-                branchId: string | null;
                 createdAt: Date;
                 updatedAt: Date;
                 name: string;
+                costCenter: string | null;
+                companyId: string;
+                branchId: string | null;
                 description: string | null;
                 code: string;
                 type: string;
@@ -534,10 +537,7 @@ export declare class TasksService {
                 effectiveFrom: Date;
                 isActive: boolean;
             } | null;
-            id: string;
             employeeCode: string;
-            firstName: string;
-            lastName: string;
         };
     } & {
         id: string;

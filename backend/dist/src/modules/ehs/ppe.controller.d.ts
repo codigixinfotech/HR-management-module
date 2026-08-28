@@ -5,10 +5,10 @@ export declare class PpeController {
     constructor(ppeService: PpeService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         category: string;
         stockQuantity: number;
     }[]>;
@@ -31,19 +31,19 @@ export declare class PpeController {
     })[]>;
     create(dto: CreatePpeItemDto): import(".prisma/client").Prisma.Prisma__PpeItemClient<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         category: string;
         stockQuantity: number;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdatePpeItemDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         category: string;
         stockQuantity: number;
     }>;

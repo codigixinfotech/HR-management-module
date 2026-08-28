@@ -7,9 +7,9 @@ export declare class ShiftAssignmentsService {
     list(employeeId?: string, shiftTypeId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         shiftType: {
             id: string;
@@ -19,9 +19,9 @@ export declare class ShiftAssignmentsService {
         };
     } & {
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string;
         effectiveFrom: Date;
         isActive: boolean;
         employeeId: string;
@@ -31,9 +31,9 @@ export declare class ShiftAssignmentsService {
     findById(id: string): Promise<{
         employee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         shiftType: {
             id: string;
@@ -43,9 +43,9 @@ export declare class ShiftAssignmentsService {
         };
     } & {
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string;
         effectiveFrom: Date;
         isActive: boolean;
         employeeId: string;
@@ -55,9 +55,9 @@ export declare class ShiftAssignmentsService {
     create(dto: CreateShiftAssignmentDto): import(".prisma/client").Prisma.Prisma__ShiftAssignmentClient<{
         employee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         shiftType: {
             id: string;
@@ -67,9 +67,9 @@ export declare class ShiftAssignmentsService {
         };
     } & {
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string;
         effectiveFrom: Date;
         isActive: boolean;
         employeeId: string;
@@ -79,9 +79,9 @@ export declare class ShiftAssignmentsService {
     update(id: string, dto: UpdateShiftAssignmentDto): Promise<{
         employee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         shiftType: {
             id: string;
@@ -91,9 +91,9 @@ export declare class ShiftAssignmentsService {
         };
     } & {
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string;
         effectiveFrom: Date;
         isActive: boolean;
         employeeId: string;

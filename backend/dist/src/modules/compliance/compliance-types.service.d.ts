@@ -5,10 +5,10 @@ export declare class ComplianceTypesService {
     constructor(prisma: PrismaService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         description: string | null;
         code: string;
         isActive: boolean;
@@ -17,10 +17,10 @@ export declare class ComplianceTypesService {
     }[]>;
     findById(id: string): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         description: string | null;
         code: string;
         isActive: boolean;
@@ -29,10 +29,10 @@ export declare class ComplianceTypesService {
     }>;
     create(dto: CreateComplianceTypeDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         description: string | null;
         code: string;
         isActive: boolean;
@@ -41,10 +41,10 @@ export declare class ComplianceTypesService {
     }>;
     update(id: string, dto: UpdateComplianceTypeDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         description: string | null;
         code: string;
         isActive: boolean;

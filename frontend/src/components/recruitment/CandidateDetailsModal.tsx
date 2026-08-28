@@ -52,6 +52,14 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
   onDelete,
 }) => {
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
+  const [liveScore, setLiveScore] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (candidate) {
+      setLiveScore(candidate.atsAnalysis?.matchScore !== undefined ? `${candidate.atsAnalysis.matchScore}%` : (candidate.aiMatchScore !== null && candidate.aiMatchScore !== undefined ? `${candidate.aiMatchScore}%` : null));
+    }
+  }, [candidate]);
+
   if (!candidate) return null;
 
   const candidateIdShort = candidate.id ? candidate.id.substring(0, 8) : 'CMT-2026';
@@ -62,6 +70,8 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
         year: 'numeric',
       })
     : '27 Aug 2026';
+
+  const displayScore = liveScore || (candidate.atsAnalysis?.matchScore !== undefined ? `${candidate.atsAnalysis.matchScore}%` : (candidate.aiMatchScore ? `${candidate.aiMatchScore}%` : (candidate.score && candidate.score !== '88%' ? candidate.score : 'N/A')));
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -101,7 +111,7 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
             <div>
               <span className="text-[10px] text-slate-400 uppercase font-semibold block">AI Match Score</span>
               <span className="text-sm font-bold text-emerald-600 font-mono mt-0.5 block">
-                {candidate.score || '88%'}
+                {displayScore}
               </span>
             </div>
             <div>
@@ -124,6 +134,11 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
             candidateName={candidate.name}
             jobTitle={candidate.role}
             resumePath={candidate.resumePath}
+            onAnalysisLoaded={(atsData) => {
+              if (atsData && atsData.matchScore !== undefined) {
+                setLiveScore(`${atsData.matchScore}%`);
+              }
+            }}
           />
           <div className="space-y-3">
             <h4 className="font-bold text-xs text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b pb-1.5">

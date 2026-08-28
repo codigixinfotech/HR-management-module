@@ -5,6 +5,8 @@ export declare class AssetMaintenanceService {
     constructor(prisma: PrismaService);
     list(assetId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         asset: {
+            id: string;
+            name: string;
             company: {
                 id: string;
                 name: string;
@@ -17,25 +19,23 @@ export declare class AssetMaintenanceService {
                 id: string;
                 name: string;
             } | null;
-            id: string;
-            name: string;
             category: string;
             assetTag: string;
             serialNumber: string | null;
             currentEmployee: {
                 id: string;
-                employeeCode: string;
                 firstName: string;
                 lastName: string;
+                employeeCode: string;
             } | null;
         };
     } & {
         id: string;
+        notes: string | null;
         createdAt: Date;
         priority: string | null;
         startDate: Date;
         vendor: string | null;
-        notes: string | null;
         endDate: Date | null;
         assetId: string;
         workOrderNumber: string | null;
@@ -50,11 +50,11 @@ export declare class AssetMaintenanceService {
     })[]>;
     create(dto: CreateAssetMaintenanceDto): Promise<{
         id: string;
+        notes: string | null;
         createdAt: Date;
         priority: string | null;
         startDate: Date;
         vendor: string | null;
-        notes: string | null;
         endDate: Date | null;
         assetId: string;
         workOrderNumber: string | null;
@@ -69,11 +69,11 @@ export declare class AssetMaintenanceService {
     }>;
     complete(id: string, dto?: CompleteAssetMaintenanceDto): Promise<{
         id: string;
+        notes: string | null;
         createdAt: Date;
         priority: string | null;
         startDate: Date;
         vendor: string | null;
-        notes: string | null;
         endDate: Date | null;
         assetId: string;
         workOrderNumber: string | null;

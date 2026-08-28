@@ -18,6 +18,7 @@ import { RequisitionsTab } from './RequisitionsTab';
 import { CareersPortalTab } from './CareersPortalTab';
 import { PortalConfigurationPage } from './PortalConfigurationPage';
 import { CandidatesTab } from './CandidatesTab';
+import { CandidateCommunicationTab } from './CandidateCommunicationTab';
 import { InterviewsTab } from './InterviewsTab';
 import { AssessmentsTab } from './AssessmentsTab';
 import { OffersTab } from './OffersTab';
@@ -131,6 +132,8 @@ export default function JobOpeningsPage() {
       {activeTab === 'portal' && <CareersPortalTab />}
 
       {activeTab === 'candidates' && <CandidatesTab />}
+
+      {activeTab === 'communication' && <CandidateCommunicationTab />}
 
       {activeTab === 'interviews' && <InterviewsTab />}
 

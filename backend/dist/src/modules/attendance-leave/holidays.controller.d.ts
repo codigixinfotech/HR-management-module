@@ -5,36 +5,36 @@ export declare class HolidaysController {
     constructor(holidaysService: HolidaysService);
     list(companyId?: string, year?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         name: string;
+        companyId: string;
         type: string;
         isActive: boolean;
         date: Date;
     }[]>;
     findOne(id: string): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         name: string;
+        companyId: string;
         type: string;
         isActive: boolean;
         date: Date;
     }>;
     create(dto: CreateHolidayDto): import(".prisma/client").Prisma.Prisma__HolidayClient<{
         id: string;
-        companyId: string;
         createdAt: Date;
         name: string;
+        companyId: string;
         type: string;
         isActive: boolean;
         date: Date;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, dto: UpdateHolidayDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         name: string;
+        companyId: string;
         type: string;
         isActive: boolean;
         date: Date;

@@ -82,6 +82,7 @@ export const HCM_MODULES: HcmModule[] = [
       { key: 'requisitions', label: 'Job Requisitions', path: '/recruitment/requisitions' },
       { key: 'portal', label: 'Job Portal', path: '/recruitment/portal' },
       { key: 'candidates', label: 'Candidates', path: '/recruitment/candidates' },
+      { key: 'communication', label: 'Teams – Candidate Communication', path: '/recruitment/communication' },
       { key: 'interviews', label: 'Interviews', path: '/recruitment/interviews' },
       { key: 'assessments', label: 'Assessments', path: '/recruitment/assessments' },
       { key: 'offers', label: 'Offers & Joining', path: '/recruitment/offers' },

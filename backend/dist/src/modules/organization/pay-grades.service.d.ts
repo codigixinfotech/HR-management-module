@@ -10,12 +10,12 @@ export declare class PayGradesService {
         } | null;
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         businessUnit: string | null;
         level: string;
-        createdAt: Date;
-        updatedAt: Date;
         description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
@@ -34,12 +34,12 @@ export declare class PayGradesService {
         } | null;
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         businessUnit: string | null;
         level: string;
-        createdAt: Date;
-        updatedAt: Date;
         description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
@@ -53,12 +53,12 @@ export declare class PayGradesService {
     }>;
     create(dto: CreatePayGradeDto): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         businessUnit: string | null;
         level: string;
-        createdAt: Date;
-        updatedAt: Date;
         description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
@@ -72,12 +72,12 @@ export declare class PayGradesService {
     }>;
     update(id: string, dto: UpdatePayGradeDto): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         businessUnit: string | null;
         level: string;
-        createdAt: Date;
-        updatedAt: Date;
         description: string | null;
         effectiveFrom: Date;
         isActive: boolean;
@@ -91,12 +91,12 @@ export declare class PayGradesService {
     }>;
     remove(id: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         businessUnit: string | null;
         level: string;
-        createdAt: Date;
-        updatedAt: Date;
         description: string | null;
         effectiveFrom: Date;
         isActive: boolean;

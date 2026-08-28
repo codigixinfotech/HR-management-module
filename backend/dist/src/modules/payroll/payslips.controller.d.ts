@@ -5,17 +5,17 @@ export declare class PayslipsController {
     list(payrollRunId?: string, employeeId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         components: {
             id: string;
             name: string;
             type: import(".prisma/client").$Enums.SalaryComponentType;
             salaryComponentId: string | null;
-            amount: number;
             payslipId: string;
+            amount: number;
         }[];
     } & {
         id: string;
@@ -32,17 +32,17 @@ export declare class PayslipsController {
     findOne(id: string): Promise<{
         employee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         };
         components: {
             id: string;
             name: string;
             type: import(".prisma/client").$Enums.SalaryComponentType;
             salaryComponentId: string | null;
-            amount: number;
             payslipId: string;
+            amount: number;
         }[];
     } & {
         id: string;

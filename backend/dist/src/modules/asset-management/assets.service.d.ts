@@ -22,19 +22,20 @@ export declare class AssetsService {
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        notes: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -51,7 +52,6 @@ export declare class AssetsService {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -74,20 +74,20 @@ export declare class AssetsService {
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
         allocations: ({
             employee: {
                 id: string;
-                employeeCode: string;
                 firstName: string;
                 lastName: string;
+                employeeCode: string;
             };
         } & {
-            location: string | null;
             id: string;
+            location: string | null;
             remarks: string | null;
             employeeId: string;
             assetId: string;
@@ -103,11 +103,11 @@ export declare class AssetsService {
         })[];
         maintenanceLogs: {
             id: string;
+            notes: string | null;
             createdAt: Date;
             priority: string | null;
             startDate: Date;
             vendor: string | null;
-            notes: string | null;
             endDate: Date | null;
             assetId: string;
             workOrderNumber: string | null;
@@ -122,13 +122,14 @@ export declare class AssetsService {
         }[];
     } & {
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        notes: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -145,7 +146,6 @@ export declare class AssetsService {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -169,19 +169,20 @@ export declare class AssetsService {
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        notes: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -198,7 +199,6 @@ export declare class AssetsService {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -221,19 +221,20 @@ export declare class AssetsService {
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        notes: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -250,7 +251,6 @@ export declare class AssetsService {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -276,19 +276,20 @@ export declare class AssetsService {
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        notes: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -305,7 +306,6 @@ export declare class AssetsService {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;
@@ -328,19 +328,20 @@ export declare class AssetsService {
         } | null;
         currentEmployee: {
             id: string;
-            employeeCode: string;
             firstName: string;
             lastName: string;
+            employeeCode: string;
         } | null;
     } & {
         id: string;
-        companyId: string;
-        branchId: string | null;
-        departmentId: string | null;
         status: import(".prisma/client").$Enums.AssetStatus;
+        notes: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
+        branchId: string | null;
+        departmentId: string | null;
         remarks: string | null;
         category: string;
         assetTag: string;
@@ -357,7 +358,6 @@ export declare class AssetsService {
         value: number | null;
         condition: string | null;
         usefulLife: string | null;
-        notes: string | null;
         photoUrl: string | null;
         currentEmployeeId: string | null;
         purchaseDate: Date | null;

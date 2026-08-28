@@ -14,12 +14,12 @@ export declare class DesignationsController {
         } | null;
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         title: string;
         description: string | null;
         code: string;
@@ -41,12 +41,12 @@ export declare class DesignationsController {
         } | null;
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         title: string;
         description: string | null;
         code: string;
@@ -59,12 +59,12 @@ export declare class DesignationsController {
     }>;
     create(dto: CreateDesignationDto): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         title: string;
         description: string | null;
         code: string;
@@ -77,12 +77,12 @@ export declare class DesignationsController {
     }>;
     update(id: string, dto: UpdateDesignationDto): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         departmentId: string | null;
         employmentType: string | null;
         grade: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         title: string;
         description: string | null;
         code: string;

@@ -20,10 +20,10 @@ export declare class RolesController {
         })[];
     } & {
         id: string;
-        companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string | null;
         description: string | null;
         isSystem: boolean;
     })[]>;
@@ -50,10 +50,10 @@ export declare class RolesController {
         })[];
     } & {
         id: string;
-        companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string | null;
         description: string | null;
         isSystem: boolean;
     }>;
@@ -73,10 +73,10 @@ export declare class RolesController {
         })[];
     } & {
         id: string;
-        companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string | null;
         description: string | null;
         isSystem: boolean;
     }>;
@@ -96,10 +96,10 @@ export declare class RolesController {
         })[];
     } & {
         id: string;
-        companyId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string | null;
         description: string | null;
         isSystem: boolean;
     }>;

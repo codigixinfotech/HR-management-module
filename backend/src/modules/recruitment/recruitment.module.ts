@@ -13,6 +13,8 @@ import { OffersController } from './offers.controller';
 import { OfferEmailService } from './offer-email.service';
 import { AtsModule } from './ats/ats.module';
 import { TeamsInterviewService } from './teams/teams-interview.service';
+import { TeamsChatService } from './teams/teams-chat.service';
+import { TeamsChatController } from './teams/teams-chat.controller';
 
 @Module({
   imports: [AtsModule],
@@ -23,6 +25,7 @@ import { TeamsInterviewService } from './teams/teams-interview.service';
     ManpowerRequisitionsController,
     InterviewsController,
     OffersController,
+    TeamsChatController,
   ],
   providers: [
     JobOpeningsService,
@@ -32,6 +35,7 @@ import { TeamsInterviewService } from './teams/teams-interview.service';
     InterviewsService,
     OfferEmailService,
     TeamsInterviewService,
+    TeamsChatService,
   ],
   exports: [
     JobOpeningsService,
@@ -41,6 +45,7 @@ import { TeamsInterviewService } from './teams/teams-interview.service';
     InterviewsService,
     OfferEmailService,
     TeamsInterviewService,
+    TeamsChatService,
     AtsModule,
   ],
 })

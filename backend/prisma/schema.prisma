@@ -877,45 +877,70 @@ model JobOpening {
   manpowerRequisition ManpowerRequisition? @relation(fields: [manpowerRequisitionId], references: [id], onDelete: SetNull)
   candidates          Candidate[]
   interviews          CandidateInterview[]
+  atsAnalyses         AtsAnalysis[]
 
   @@index([companyId])
   @@map("job_openings")
 }
 
 model Candidate {
-  id                String         @id @default(cuid())
-  jobOpeningId      String
-  firstName         String
-  lastName          String
-  email             String
-  phone             String?
-  resumePath        String?        @db.Text
-  candidateType     String?        @default("FRESHER") // FRESHER, EXPERIENCED
-  qualification     String?
-  graduationYear    String?
-  internshipDetails String?        @db.Text
-  experience        String?
-  currentCompany    String?
-  currentLocation   String?
-  skills            String?
-  currentCtc        Float?
-  expectedCtc       Float?
-  noticePeriod      String?
-  coverLetter       String?        @db.Text
-  source            String?        @default("CAREERS_PORTAL")
-  stage             CandidateStage @default(APPLIED)
-  aiMatchScore      Float?
-  notes             String?        @db.Text
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                   String         @id @default(cuid())
+  jobOpeningId         String
+  firstName            String
+  lastName             String
+  email                String
+  phone                String?
+  resumePath           String?        @db.Text
+  candidateType        String?        @default("FRESHER") // FRESHER, EXPERIENCED
+  qualification        String?
+  graduationYear       String?
+  internshipDetails    String?        @db.Text
+  experience           String?
+  currentCompany       String?
+  currentLocation      String?
+  skills               String?
+  currentCtc           Float?
+  expectedCtc          Float?
+  noticePeriod         String?
+  coverLetter          String?        @db.Text
+  source               String?        @default("CAREERS_PORTAL")
+  stage                CandidateStage @default(APPLIED)
+  aiMatchScore         Float?
+  notes                String?        @db.Text
+  microsoftTeamsUserId String?
+  teamsChatId          String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
-  jobOpening JobOpening           @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
-  screenings CandidateScreening[]
-  interviews CandidateInterview[]
+  jobOpening           JobOpening                     @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
+  screenings           CandidateScreening[]
+  interviews           CandidateInterview[]
   interviewEvaluations CandidateInterviewEvaluation[]
+  atsAnalysis          AtsAnalysis?
+  teamsMessages        CandidateTeamsMessage[]
 
   @@index([jobOpeningId])
   @@map("candidates")
+}
+
+model CandidateTeamsMessage {
+  id             String   @id @default(cuid())
+  candidateId    String
+  teamsChatId    String?
+  teamsMessageId String?
+  senderType     String   @default("recruiter") // recruiter, candidate, system
+  senderName     String
+  content        String   @db.Text
+  status         String   @default("SENT") // SENT, DELIVERED, READ, FAILED
+  deliveryStatus String   @default("SENT_TO_TEAMS") // SENT_TO_TEAMS, ERP_ONLY, FAILED
+  eventType      String?  // TEAMS_INVITE, ASSESSMENT_LINK, INTERVIEW_DETAILS, SCHEDULED, RESCHEDULED, CANCELLED
+  meta           Json?
+  sentAt         DateTime @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@map("candidate_teams_messages")
 }
 
 model CandidateScreening {
@@ -951,6 +976,30 @@ model CandidateScreening {
 
   @@index([candidateId])
   @@map("candidate_screenings")
+}
+
+model AtsAnalysis {
+  id                 String   @id @default(cuid())
+  candidateId        String   @unique
+  jobOpeningId       String
+  matchScore         Float
+  skillsMatched      Json?
+  skillsMissing      Json?
+  experienceMatch    Json?
+  qualificationMatch Json?
+  extractedData      Json?
+  rawResumeText      String?  @db.Text
+  status             String   @default("COMPLETED")
+  analyzedAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  candidate  Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobOpening JobOpening @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([jobOpeningId])
+  @@map("ats_analyses")
 }
 
 model ManpowerPlan {

@@ -53,6 +53,7 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
     onSuccess: (updatedData) => {
       queryClient.setQueryData(['candidate-ats-analysis', candidateId], updatedData);
       queryClient.invalidateQueries({ queryKey: ['candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['jobOpenings'] });
       toast.success(`ATS Re-analysis complete for ${candidateName}! Match Score: ${updatedData.matchScore}%`);
       if (onAnalysisLoaded) onAnalysisLoaded(updatedData);
     },

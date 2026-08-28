@@ -642,4 +642,4 @@ export function ScheduleInterviewModal({
     </Dialog>
   );
 }
-}
+

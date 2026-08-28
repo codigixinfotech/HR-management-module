@@ -5,10 +5,10 @@ export declare class ShiftTypesService {
     constructor(prisma: PrismaService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         isActive: boolean;
         startTime: string;
@@ -18,10 +18,10 @@ export declare class ShiftTypesService {
     }[]>;
     findById(id: string): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         isActive: boolean;
         startTime: string;
@@ -31,10 +31,10 @@ export declare class ShiftTypesService {
     }>;
     create(dto: CreateShiftTypeDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         isActive: boolean;
         startTime: string;
@@ -44,10 +44,10 @@ export declare class ShiftTypesService {
     }>;
     update(id: string, dto: UpdateShiftTypeDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         isActive: boolean;
         startTime: string;

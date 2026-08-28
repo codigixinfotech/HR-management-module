@@ -5,10 +5,10 @@ export declare class SalaryComponentsController {
     constructor(salaryComponentsService: SalaryComponentsService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         type: import(".prisma/client").$Enums.SalaryComponentType;
         isActive: boolean;
@@ -16,10 +16,10 @@ export declare class SalaryComponentsController {
     }[]>;
     findOne(id: string): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         type: import(".prisma/client").$Enums.SalaryComponentType;
         isActive: boolean;
@@ -27,10 +27,10 @@ export declare class SalaryComponentsController {
     }>;
     create(dto: CreateSalaryComponentDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         type: import(".prisma/client").$Enums.SalaryComponentType;
         isActive: boolean;
@@ -38,10 +38,10 @@ export declare class SalaryComponentsController {
     }>;
     update(id: string, dto: UpdateSalaryComponentDto): Promise<{
         id: string;
-        companyId: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        companyId: string;
         code: string;
         type: import(".prisma/client").$Enums.SalaryComponentType;
         isActive: boolean;

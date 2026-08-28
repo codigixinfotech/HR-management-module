@@ -8,10 +8,10 @@ export declare class HrPoliciesService implements OnModuleInit {
     private seedDefaultPolicies;
     findAll(search?: string, category?: string, status?: string, companyId?: string): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -37,10 +37,10 @@ export declare class HrPoliciesService implements OnModuleInit {
     findOne(id: string): Promise<{
         versionHistory: {
             id: string;
-            companyId: string | null;
             status: string;
             createdAt: Date;
             updatedAt: Date;
+            companyId: string | null;
             title: string;
             description: string | null;
             category: string;
@@ -57,10 +57,10 @@ export declare class HrPoliciesService implements OnModuleInit {
             updatedBy: string | null;
         }[];
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -78,10 +78,10 @@ export declare class HrPoliciesService implements OnModuleInit {
     }>;
     create(dto: CreateHrPolicyDto): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -99,10 +99,10 @@ export declare class HrPoliciesService implements OnModuleInit {
     }>;
     update(id: string, dto: UpdateHrPolicyDto): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -120,10 +120,10 @@ export declare class HrPoliciesService implements OnModuleInit {
     }>;
     createVersion(id: string, dto: CreatePolicyVersionDto): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -148,10 +148,10 @@ export declare class HrPoliciesService implements OnModuleInit {
     }>;
     remove(id: string): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;

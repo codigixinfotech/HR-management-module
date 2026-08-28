@@ -41,7 +41,10 @@ let JobOpeningsService = class JobOpeningsService {
                 department: { select: { id: true, name: true } },
                 designation: { select: { id: true, title: true } },
                 manpowerRequisition: true,
-                candidates: { orderBy: { createdAt: 'desc' } },
+                candidates: {
+                    include: { atsAnalysis: true },
+                    orderBy: { createdAt: 'desc' },
+                },
                 _count: { select: { candidates: true } },
             },
             orderBy: { createdAt: 'desc' },
@@ -54,7 +57,10 @@ let JobOpeningsService = class JobOpeningsService {
                 department: { select: { id: true, name: true } },
                 designation: { select: { id: true, title: true } },
                 manpowerRequisition: true,
-                candidates: { orderBy: { createdAt: 'desc' } },
+                candidates: {
+                    include: { atsAnalysis: true },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
         if (!opening)

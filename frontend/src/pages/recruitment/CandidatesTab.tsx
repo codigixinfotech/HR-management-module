@@ -217,7 +217,7 @@ export function CandidatesTab() {
             jobId: job.id,
             stage: (c.stage as CandidateStage) || 'APPLIED',
             rating: c.screenings?.[0]?.overallScreeningScore ? `${c.screenings[0].overallScreeningScore}/5` : '4.0/5',
-            score: c.aiMatchScore ? `${c.aiMatchScore}%` : '88%',
+            score: c.atsAnalysis?.matchScore !== undefined ? `${c.atsAnalysis.matchScore}%` : (c.aiMatchScore !== null && c.aiMatchScore !== undefined ? `${c.aiMatchScore}%` : 'N/A'),
             source: c.source || 'Careers Portal',
             candidateType: c.candidateType || (c.experience?.toLowerCase().includes('fresher') || c.experience === '0 Years' || !c.experience ? 'FRESHER' : 'EXPERIENCED'),
             experience: c.experience || '6 Years',
@@ -1089,7 +1089,7 @@ export function CandidatesTab() {
                     <span className="text-[11px] text-muted-foreground block font-medium">AI Match Score</span>
                     <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[11px] font-mono font-bold">
                       <Sparkles className="h-3 w-3 mr-1 text-emerald-600" />
-                      {screeningCandidate.score || '88% Match'}
+                      {screeningCandidate.score && screeningCandidate.score !== '88%' ? screeningCandidate.score : 'N/A'}
                     </Badge>
                   </div>
                   <div>
@@ -1115,6 +1115,11 @@ export function CandidatesTab() {
                 candidateName={screeningCandidate.name}
                 jobTitle={screeningCandidate.role}
                 resumePath={screeningCandidate.resumePath}
+                onAnalysisLoaded={(atsData) => {
+                  if (atsData && atsData.matchScore !== undefined) {
+                    setScreeningCandidate((prev: any) => prev ? { ...prev, score: `${atsData.matchScore}%` } : null);
+                  }
+                }}
               />
 
               {/* CANDIDATE INTERVIEW HISTORY */}

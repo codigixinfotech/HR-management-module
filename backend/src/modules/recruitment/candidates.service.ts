@@ -21,7 +21,7 @@ export class CandidatesService {
         jobOpening: true,
         screenings: { orderBy: { createdAt: 'desc' }, take: 1 },
         atsAnalysis: true,
-      } as any,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -46,7 +46,7 @@ export class CandidatesService {
         },
         screenings: { orderBy: { createdAt: 'desc' } },
         atsAnalysis: true,
-      } as any,
+      },
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
     return candidate;

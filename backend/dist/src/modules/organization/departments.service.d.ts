@@ -9,13 +9,13 @@ export declare class DepartmentsService {
             name: string;
         } | null;
     } & {
-        costCenter: string | null;
         id: string;
-        companyId: string;
-        branchId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        costCenter: string | null;
+        companyId: string;
+        branchId: string | null;
         description: string | null;
         code: string;
         type: string;
@@ -32,13 +32,13 @@ export declare class DepartmentsService {
             name: string;
         } | null;
         childDepartments: {
-            costCenter: string | null;
             id: string;
-            companyId: string;
-            branchId: string | null;
             createdAt: Date;
             updatedAt: Date;
             name: string;
+            costCenter: string | null;
+            companyId: string;
+            branchId: string | null;
             description: string | null;
             code: string;
             type: string;
@@ -50,13 +50,13 @@ export declare class DepartmentsService {
             isActive: boolean;
         }[];
     } & {
-        costCenter: string | null;
         id: string;
-        companyId: string;
-        branchId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        costCenter: string | null;
+        companyId: string;
+        branchId: string | null;
         description: string | null;
         code: string;
         type: string;
@@ -68,13 +68,13 @@ export declare class DepartmentsService {
         isActive: boolean;
     }>;
     create(dto: CreateDepartmentDto): Promise<{
-        costCenter: string | null;
         id: string;
-        companyId: string;
-        branchId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        costCenter: string | null;
+        companyId: string;
+        branchId: string | null;
         description: string | null;
         code: string;
         type: string;
@@ -86,13 +86,13 @@ export declare class DepartmentsService {
         isActive: boolean;
     }>;
     update(id: string, dto: UpdateDepartmentDto): Promise<{
-        costCenter: string | null;
         id: string;
-        companyId: string;
-        branchId: string | null;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        costCenter: string | null;
+        companyId: string;
+        branchId: string | null;
         description: string | null;
         code: string;
         type: string;

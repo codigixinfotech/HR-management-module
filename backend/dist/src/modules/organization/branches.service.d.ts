@@ -5,9 +5,15 @@ export declare class BranchesService {
     constructor(prisma: PrismaService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         employees: {
+            id: string;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            firstName: string;
+            lastName: string;
+            phone: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             location: string | null;
             costCenter: string | null;
-            id: string;
             employeeCode: string;
             companyId: string;
             branchId: string | null;
@@ -15,19 +21,15 @@ export declare class BranchesService {
             designationId: string | null;
             userId: string | null;
             reportingManagerId: string | null;
-            firstName: string;
             middleName: string | null;
-            lastName: string;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
-            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
             employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
             grade: string | null;
@@ -100,20 +102,18 @@ export declare class BranchesService {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         }[];
         locations: {
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            name: string;
             branchId: string;
             shift: string | null;
             city: string | null;
             state: string | null;
             country: string | null;
             pincode: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-            name: string;
             code: string;
             isActive: boolean;
             buildingName: string | null;
@@ -126,8 +126,12 @@ export declare class BranchesService {
         }[];
     } & {
         id: string;
-        companyId: string;
+        email: string | null;
         phone: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        companyId: string;
         businessUnit: string | null;
         addressLine1: string | null;
         addressLine2: string | null;
@@ -135,13 +139,9 @@ export declare class BranchesService {
         state: string | null;
         country: string | null;
         pincode: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         code: string;
         manager: string | null;
         isActive: boolean;
-        email: string | null;
         timezone: string | null;
         branchType: string | null;
         workingCalendar: string | null;
@@ -150,9 +150,15 @@ export declare class BranchesService {
     })[]>;
     findById(id: string): Promise<{
         employees: {
+            id: string;
+            status: import(".prisma/client").$Enums.EmployeeStatus;
+            firstName: string;
+            lastName: string;
+            phone: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             location: string | null;
             costCenter: string | null;
-            id: string;
             employeeCode: string;
             companyId: string;
             branchId: string | null;
@@ -160,19 +166,15 @@ export declare class BranchesService {
             designationId: string | null;
             userId: string | null;
             reportingManagerId: string | null;
-            firstName: string;
             middleName: string | null;
-            lastName: string;
             gender: import(".prisma/client").$Enums.Gender | null;
             dateOfBirth: Date | null;
             personalEmail: string | null;
             workEmail: string | null;
-            phone: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
             dateOfJoining: Date | null;
             employmentType: import(".prisma/client").$Enums.EmploymentType;
-            status: import(".prisma/client").$Enums.EmployeeStatus;
             dateOfExit: Date | null;
             businessUnit: string | null;
             grade: string | null;
@@ -245,20 +247,18 @@ export declare class BranchesService {
             facePhoto: string | null;
             faceRegisteredAt: Date | null;
             faceRegisteredBy: string | null;
-            createdAt: Date;
-            updatedAt: Date;
         }[];
         locations: {
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            name: string;
             branchId: string;
             shift: string | null;
             city: string | null;
             state: string | null;
             country: string | null;
             pincode: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-            name: string;
             code: string;
             isActive: boolean;
             buildingName: string | null;
@@ -271,8 +271,12 @@ export declare class BranchesService {
         }[];
     } & {
         id: string;
-        companyId: string;
+        email: string | null;
         phone: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        companyId: string;
         businessUnit: string | null;
         addressLine1: string | null;
         addressLine2: string | null;
@@ -280,13 +284,9 @@ export declare class BranchesService {
         state: string | null;
         country: string | null;
         pincode: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         code: string;
         manager: string | null;
         isActive: boolean;
-        email: string | null;
         timezone: string | null;
         branchType: string | null;
         workingCalendar: string | null;
@@ -295,8 +295,12 @@ export declare class BranchesService {
     }>;
     create(dto: CreateBranchDto): Promise<{
         id: string;
-        companyId: string;
+        email: string | null;
         phone: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        companyId: string;
         businessUnit: string | null;
         addressLine1: string | null;
         addressLine2: string | null;
@@ -304,13 +308,9 @@ export declare class BranchesService {
         state: string | null;
         country: string | null;
         pincode: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         code: string;
         manager: string | null;
         isActive: boolean;
-        email: string | null;
         timezone: string | null;
         branchType: string | null;
         workingCalendar: string | null;
@@ -319,8 +319,12 @@ export declare class BranchesService {
     }>;
     update(id: string, dto: UpdateBranchDto): Promise<{
         id: string;
-        companyId: string;
+        email: string | null;
         phone: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        companyId: string;
         businessUnit: string | null;
         addressLine1: string | null;
         addressLine2: string | null;
@@ -328,13 +332,9 @@ export declare class BranchesService {
         state: string | null;
         country: string | null;
         pincode: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         code: string;
         manager: string | null;
         isActive: boolean;
-        email: string | null;
         timezone: string | null;
         branchType: string | null;
         workingCalendar: string | null;
@@ -346,15 +346,15 @@ export declare class BranchesService {
     }>;
     listLocations(branchId: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         branchId: string;
         shift: string | null;
         city: string | null;
         state: string | null;
         country: string | null;
         pincode: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         code: string;
         isActive: boolean;
         buildingName: string | null;
@@ -367,15 +367,15 @@ export declare class BranchesService {
     }[]>;
     findLocationById(id: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         branchId: string;
         shift: string | null;
         city: string | null;
         state: string | null;
         country: string | null;
         pincode: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         code: string;
         isActive: boolean;
         buildingName: string | null;
@@ -388,15 +388,15 @@ export declare class BranchesService {
     }>;
     createLocation(branchId: string, dto: any): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         branchId: string;
         shift: string | null;
         city: string | null;
         state: string | null;
         country: string | null;
         pincode: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         code: string;
         isActive: boolean;
         buildingName: string | null;
@@ -409,15 +409,15 @@ export declare class BranchesService {
     }>;
     updateLocation(id: string, dto: any): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         branchId: string;
         shift: string | null;
         city: string | null;
         state: string | null;
         country: string | null;
         pincode: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        name: string;
         code: string;
         isActive: boolean;
         buildingName: string | null;

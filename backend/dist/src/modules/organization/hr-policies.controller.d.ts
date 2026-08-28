@@ -13,10 +13,10 @@ export declare class HrPoliciesController {
     }>;
     findAll(search?: string, category?: string, status?: string, companyId?: string): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -42,10 +42,10 @@ export declare class HrPoliciesController {
     findOne(id: string): Promise<{
         versionHistory: {
             id: string;
-            companyId: string | null;
             status: string;
             createdAt: Date;
             updatedAt: Date;
+            companyId: string | null;
             title: string;
             description: string | null;
             category: string;
@@ -62,10 +62,10 @@ export declare class HrPoliciesController {
             updatedBy: string | null;
         }[];
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -83,10 +83,10 @@ export declare class HrPoliciesController {
     }>;
     create(dto: CreateHrPolicyDto): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -104,10 +104,10 @@ export declare class HrPoliciesController {
     }>;
     update(id: string, dto: UpdateHrPolicyDto): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -125,10 +125,10 @@ export declare class HrPoliciesController {
     }>;
     createVersion(id: string, dto: CreatePolicyVersionDto): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;
@@ -153,10 +153,10 @@ export declare class HrPoliciesController {
     }>;
     remove(id: string): Promise<{
         id: string;
-        companyId: string | null;
         status: string;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string | null;
         title: string;
         description: string | null;
         category: string;

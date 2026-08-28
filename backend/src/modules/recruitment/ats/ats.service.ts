@@ -79,7 +79,7 @@ export class AtsService {
     const finalScore = Math.min(100, Math.max(10, Math.round(weightedScore * 10) / 10));
 
     // 6. Save or Update ATS Analysis Record in Database
-    const atsAnalysis = await (this.prisma as any).atsAnalysis.upsert({
+    const atsAnalysis = await this.prisma.atsAnalysis.upsert({
       where: { candidateId: candidate.id },
       update: {
         jobOpeningId: jobOpening.id,
@@ -120,7 +120,7 @@ export class AtsService {
    * Retrieves stored ATS analysis for a candidate
    */
   async getAnalysisByCandidateId(candidateId: string) {
-    const analysis = await (this.prisma as any).atsAnalysis.findUnique({
+    const analysis = await this.prisma.atsAnalysis.findUnique({
       where: { candidateId },
     });
 

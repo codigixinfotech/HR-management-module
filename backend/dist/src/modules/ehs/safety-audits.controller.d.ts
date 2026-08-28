@@ -4,20 +4,20 @@ export declare class SafetyAuditsController {
     private readonly safetyAuditsService;
     constructor(safetyAuditsService: SafetyAuditsService);
     list(companyId?: string): import(".prisma/client").Prisma.PrismaPromise<{
-        location: string;
         id: string;
-        companyId: string;
         createdAt: Date;
+        location: string;
+        companyId: string;
         auditDate: Date;
         score: number;
         auditor: string;
         findings: string | null;
     }[]>;
     create(dto: CreateSafetyAuditDto): import(".prisma/client").Prisma.Prisma__SafetyAuditClient<{
-        location: string;
         id: string;
-        companyId: string;
         createdAt: Date;
+        location: string;
+        companyId: string;
         auditDate: Date;
         score: number;
         auditor: string;

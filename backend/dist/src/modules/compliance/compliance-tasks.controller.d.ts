@@ -19,10 +19,10 @@ export declare class ComplianceTasksController {
             } | null;
         } & {
             id: string;
-            companyId: string;
             status: import(".prisma/client").$Enums.ComplianceStatus;
             createdAt: Date;
             updatedAt: Date;
+            companyId: string;
             dueDate: Date;
             remarks: string | null;
             complianceTypeId: string;
@@ -49,10 +49,10 @@ export declare class ComplianceTasksController {
         } | null;
     } & {
         id: string;
-        companyId: string;
         status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string;
         dueDate: Date;
         remarks: string | null;
         complianceTypeId: string;
@@ -75,10 +75,10 @@ export declare class ComplianceTasksController {
         } | null;
     } & {
         id: string;
-        companyId: string;
         status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string;
         dueDate: Date;
         remarks: string | null;
         complianceTypeId: string;
@@ -101,10 +101,10 @@ export declare class ComplianceTasksController {
         } | null;
     } & {
         id: string;
-        companyId: string;
         status: import(".prisma/client").$Enums.ComplianceStatus;
         createdAt: Date;
         updatedAt: Date;
+        companyId: string;
         dueDate: Date;
         remarks: string | null;
         complianceTypeId: string;
