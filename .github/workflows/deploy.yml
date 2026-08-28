@@ -1,0 +1,50 @@
+name: Deploy EHCM Platform to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            echo "🚀 Starting Automated Production Deployment..."
+            
+            # 1. Navigate to Project Root
+            cd /var/www/HR-management-module
+
+            # 2. Pull Latest Code from main branch
+            git pull origin main 
+            
+            # 3. Build & Migrate Backend
+            echo "⚙️ Deploying Backend..."
+            cd backend
+            npm ci
+            npx prisma generate
+            npx prisma migrate deploy
+            npm run build
+            pm2 restart hr-backend || pm2 start dist/src/main.js --name hr-backend
+
+            # 4. Build Frontend
+            echo "🌐 Deploying Frontend..."
+            cd ../frontend
+            npm ci
+            npm run build
+
+            # 5. Reload Nginx
+            sudo systemctl reload nginx
+
+            echo "🎉 Deployment Completed Successfully!"

@@ -240,7 +240,7 @@ export default function LoginPage() {
                 <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                   {activeTab === 'signin' ? 'Welcome back' : 'Create Enterprise Account'}
                 </h2>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 bg-red-500">
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 ">
                   {activeTab === 'signin'
                     ? 'Sign in to access your EHCM workspace'
                     : 'Join your organization workspace with assigned RBAC'}
@@ -263,8 +263,8 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setActiveTab('signin')}
                   className={`relative z-10 flex-1 py-2 text-xs font-semibold transition-colors cursor-pointer ${activeTab === 'signin'
-                      ? 'text-primary dark:text-white'
-                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                    ? 'text-primary dark:text-white'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                     }`}
                 >
                   Sign In
@@ -275,8 +275,8 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setActiveTab('signup')}
                   className={`relative z-10 flex-1 py-2 text-xs font-semibold transition-colors cursor-pointer ${activeTab === 'signup'
-                      ? 'text-primary dark:text-white'
-                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                    ? 'text-primary dark:text-white'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                     }`}
                 >
                   Sign Up
