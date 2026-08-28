@@ -29,13 +29,12 @@ jobs:
 
             # 2. Pull Latest Code from main branch
             git pull origin main 
-            
+
             # 3. Build & Migrate Backend
             echo "⚙️ Deploying Backend..."
             cd backend
             npm ci
             npx prisma generate
-            npx prisma migrate deploy
             npm run build
             pm2 restart hr-backend || pm2 start dist/src/main.js --name hr-backend
 
