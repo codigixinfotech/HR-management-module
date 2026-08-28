@@ -29,7 +29,7 @@ import { InterviewDetailsModal } from './InterviewDetailsModal';
 import { useAuthStore } from '@/stores/auth-store';
 
 import { InterviewReminderNotifier, InterviewReminderBanner } from '@/components/recruitment/InterviewReminderNotifier';
-import { Pagination } from '@/components/common/Pagination';
+import { toast } from 'sonner';
 
 export function InterviewsTab() {
   const navigate = useNavigate();
