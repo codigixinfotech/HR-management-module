@@ -66,10 +66,14 @@ export function CandidateCommunicationTab() {
 
   // Modals State
   const [isTeamsInviteModalOpen, setIsTeamsInviteModalOpen] = useState(false);
+  const [isTeamsGuestModalOpen, setIsTeamsGuestModalOpen] = useState(false);
   const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
   const [isInterviewDetailsModalOpen, setIsInterviewDetailsModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
+
+  // Teams Account Guest Connection State per Candidate
+  const [teamsAccountStatusMap, setTeamsAccountStatusMap] = useState<Record<string, 'NOT_CONNECTED' | 'INVITATION_SENT' | 'CONNECTED'>>({});
 
   // Send Assessment Form State
   const [selectedAssessmentTitle, setSelectedAssessmentTitle] = useState('Full Stack Software Developer Technical Assessment');
@@ -79,6 +83,7 @@ export function CandidateCommunicationTab() {
 
   // Teams Invitation Custom Notes
   const [teamsInviteNotes, setTeamsInviteNotes] = useState('Looking forward to speaking with you! Please click the Teams join link at the scheduled time.');
+  const [teamsGuestNotes, setTeamsGuestNotes] = useState('Hello, you have been invited to join Codigix / EHCM Microsoft Teams as a guest for recruitment communication and your upcoming interview.');
 
   // Fetch Job Openings & Candidates
   const { data: openings, isLoading: isJobsLoading, refetch: refetchJobs } = useQuery({
@@ -301,6 +306,19 @@ export function CandidateCommunicationTab() {
     return defaultIntro;
   }, [activeCandidate, dbMessages]);
 
+  // Compute Microsoft Teams Account Connection status dynamically
+  const currentTeamsAccountStatus = useMemo(() => {
+    if (!activeCandidate) return 'NOT_CONNECTED';
+    if (activeCandidate.teamsChatId || activeCandidate.microsoftTeamsUserId) return 'CONNECTED';
+    if (
+      teamsAccountStatusMap[activeCandidate.id] === 'INVITATION_SENT' ||
+      dbMessages?.some((m) => m.eventType === 'TEAMS_GUEST_INVITE')
+    ) {
+      return 'INVITATION_SENT';
+    }
+    return teamsAccountStatusMap[activeCandidate.id] || 'NOT_CONNECTED';
+  }, [activeCandidate, teamsAccountStatusMap, dbMessages]);
+
   // Send recruiter chat message
   const handleSendMessage = () => {
     if (!messageText.trim() || !activeCandidate) return;
@@ -308,6 +326,23 @@ export function CandidateCommunicationTab() {
   };
 
   // Quick Action Handlers
+  const handleSendTeamsGuestInvite = async () => {
+    if (!activeCandidate) return;
+
+    try {
+      await teamsChatApi.sendGuestInvitation(activeCandidate.id, teamsGuestNotes);
+      setTeamsAccountStatusMap((prev) => ({
+        ...prev,
+        [activeCandidate.id]: 'INVITATION_SENT',
+      }));
+      queryClient.invalidateQueries({ queryKey: ['candidate-messages', activeCandidate.id] });
+      setIsTeamsGuestModalOpen(false);
+      toast.success(`Microsoft Teams Guest invitation sent to ${activeCandidate.name} (${activeCandidate.email})!`);
+    } catch (err: any) {
+      toast.error(`Unable to send Microsoft Teams guest invitation: ${err.message}`);
+    }
+  };
+
   const handleSendTeamsInvite = () => {
     if (!activeCandidate) return;
 
@@ -749,7 +784,68 @@ export function CandidateCommunicationTab() {
                 </div>
               </div>
 
-              {/* 2. Microsoft Teams Interview Card */}
+              {/* 2. Microsoft Teams Account Connection Card */}
+              <div className="bg-slate-50 dark:bg-slate-800/40 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-indigo-600" /> Microsoft Teams Account
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-bold ${
+                      currentTeamsAccountStatus === 'CONNECTED'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : currentTeamsAccountStatus === 'INVITATION_SENT'
+                        ? 'bg-amber-100 text-amber-800 border-amber-300'
+                        : 'bg-slate-100 text-slate-600 border-slate-300'
+                    }`}
+                  >
+                    {currentTeamsAccountStatus === 'CONNECTED'
+                      ? '🟢 Connected ✓'
+                      : currentTeamsAccountStatus === 'INVITATION_SENT'
+                      ? '🟡 Invitation Sent'
+                      : '⚪ Not Connected'}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1 text-slate-600 dark:text-slate-300 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Email:</span>
+                    <span className="font-mono text-indigo-600 dark:text-indigo-400">{activeCandidate.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Teams Guest Identity:</span>
+                    <span className="font-mono text-[10px] text-slate-500 truncate max-w-[170px]">
+                      {activeCandidate.email.replace('@', '_')}#EXT#
+                    </span>
+                  </div>
+                </div>
+
+                {currentTeamsAccountStatus === 'CONNECTED' ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full h-8 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" /> Open Teams Chat
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsTeamsGuestModalOpen(true)}
+                    className="w-full h-8 text-xs font-semibold gap-1.5 border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50 dark:bg-slate-900 dark:text-indigo-300"
+                  >
+                    <UserCheck className="h-3.5 w-3.5 text-indigo-600" />
+                    {currentTeamsAccountStatus === 'INVITATION_SENT'
+                      ? 'Resend Teams Guest Invitation'
+                      : 'Invite Candidate to Microsoft Teams'}
+                  </Button>
+                )}
+              </div>
+
+              {/* 3. Microsoft Teams Interview Card */}
               <div className="bg-indigo-50/50 dark:bg-indigo-950/20 p-3.5 rounded-xl border border-indigo-200/80 dark:border-indigo-900/60 space-y-2.5">
                 <div className="flex items-center justify-between border-b border-indigo-200/80 dark:border-indigo-900/60 pb-2">
                   <span className="font-bold text-xs text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
@@ -905,11 +1001,54 @@ export function CandidateCommunicationTab() {
         </div>
       </div>
 
+      {/* MODAL 0: INVITE CANDIDATE TO MICROSOFT TEAMS GUEST */}
+      {activeCandidate && (
+        <Dialog open={isTeamsGuestModalOpen} onOpenChange={setIsTeamsGuestModalOpen}>
+          <DialogContent className="max-w-md w-full max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <DialogHeader className="p-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-indigo-600" />
+                Invite Candidate to Microsoft Teams
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Invite candidate as a Microsoft Teams guest user for communication & interview access.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 text-xs custom-scrollbar">
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                <p><strong>Candidate Name:</strong> {activeCandidate.name}</p>
+                <p><strong>Email Address:</strong> <span className="font-mono text-indigo-600">{activeCandidate.email}</span></p>
+                <p><strong>Organization:</strong> Codigix / EHCM</p>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Invitation Message Preview</Label>
+                <Textarea
+                  value={teamsGuestNotes}
+                  onChange={(e) => setTeamsGuestNotes(e.target.value)}
+                  className="text-xs min-h-[90px]"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-900/50 flex flex-row items-center justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsTeamsGuestModalOpen(false)} className="h-9 text-xs">
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleSendTeamsGuestInvite} className="h-9 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
+                <Send className="h-3.5 w-3.5" /> Send Invitation
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* MODAL 1: SEND TEAMS INVITATION */}
       {activeCandidate && (
         <Dialog open={isTeamsInviteModalOpen} onOpenChange={setIsTeamsInviteModalOpen}>
-          <DialogContent className="max-w-md rounded-2xl p-5 border border-slate-200 dark:border-slate-800">
-            <DialogHeader>
+          <DialogContent className="max-w-md w-full max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <DialogHeader className="p-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <DialogTitle className="text-base font-bold flex items-center gap-2">
                 <Video className="h-5 w-5 text-indigo-600" />
                 Send Microsoft Teams Invitation
@@ -919,15 +1058,18 @@ export function CandidateCommunicationTab() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-2 text-xs">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 text-xs custom-scrollbar">
               <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
                 <p><strong>Candidate:</strong> {activeCandidate.name} ({activeCandidate.email})</p>
                 <p><strong>Position:</strong> {activeCandidate.role}</p>
                 <p><strong>Date & Time:</strong> {activeCandidate.interviewDate} at {activeCandidate.interviewTime}</p>
                 <p><strong>Interviewer Panel:</strong> {activeCandidate.interviewer}</p>
-                <p className="text-[11px] text-indigo-600 font-mono truncate">
-                  <strong>Teams Link:</strong> {activeCandidate.teamsJoinUrl}
-                </p>
+                <div className="pt-1">
+                  <span className="block font-semibold text-slate-700 dark:text-slate-300">Teams Link:</span>
+                  <p className="text-[11px] text-indigo-600 font-mono break-all bg-slate-100 dark:bg-slate-800 p-2 rounded mt-1 border border-slate-200/60 dark:border-slate-700">
+                    {activeCandidate.teamsJoinUrl}
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -940,7 +1082,7 @@ export function CandidateCommunicationTab() {
               </div>
             </div>
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-900/50 flex flex-row items-center justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setIsTeamsInviteModalOpen(false)} className="h-9 text-xs">
                 Cancel
               </Button>
@@ -955,8 +1097,8 @@ export function CandidateCommunicationTab() {
       {/* MODAL 2: SEND ASSESSMENT LINK */}
       {activeCandidate && (
         <Dialog open={isAssessmentModalOpen} onOpenChange={setIsAssessmentModalOpen}>
-          <DialogContent className="max-w-md rounded-2xl p-5 border border-slate-200 dark:border-slate-800">
-            <DialogHeader>
+          <DialogContent className="max-w-md w-full max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <DialogHeader className="p-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <DialogTitle className="text-base font-bold flex items-center gap-2">
                 <Award className="h-5 w-5 text-indigo-600" />
                 Send Online Skill Assessment Link
@@ -966,7 +1108,7 @@ export function CandidateCommunicationTab() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-2 text-xs">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 text-xs custom-scrollbar">
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Select Assessment Template</Label>
                 <Select value={selectedAssessmentTitle} onValueChange={setSelectedAssessmentTitle}>
@@ -1004,7 +1146,7 @@ export function CandidateCommunicationTab() {
               </div>
             </div>
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-900/50 flex flex-row items-center justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setIsAssessmentModalOpen(false)} className="h-9 text-xs">
                 Cancel
               </Button>
@@ -1019,8 +1161,8 @@ export function CandidateCommunicationTab() {
       {/* MODAL 3: SEND INTERVIEW DETAILS */}
       {activeCandidate && (
         <Dialog open={isInterviewDetailsModalOpen} onOpenChange={setIsInterviewDetailsModalOpen}>
-          <DialogContent className="max-w-md rounded-2xl p-5 border border-slate-200 dark:border-slate-800">
-            <DialogHeader>
+          <DialogContent className="max-w-md w-full max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <DialogHeader className="p-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <DialogTitle className="text-base font-bold flex items-center gap-2">
                 <Mail className="h-5 w-5 text-indigo-600" />
                 Send Interview Details & Instructions
@@ -1030,17 +1172,24 @@ export function CandidateCommunicationTab() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-2 text-xs bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-              <p><strong>Candidate:</strong> {activeCandidate.name} ({activeCandidate.email})</p>
-              <p><strong>Position:</strong> {activeCandidate.role}</p>
-              <p><strong>Interview Date:</strong> {activeCandidate.interviewDate}</p>
-              <p><strong>Time:</strong> {activeCandidate.interviewTime}</p>
-              <p><strong>Interviewer:</strong> {activeCandidate.interviewer}</p>
-              <p><strong>Format:</strong> Microsoft Teams</p>
-              <p className="font-mono text-indigo-600 text-[11px] truncate"><strong>Meeting Link:</strong> {activeCandidate.teamsJoinUrl}</p>
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 text-xs custom-scrollbar">
+              <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                <p><strong>Candidate:</strong> {activeCandidate.name} ({activeCandidate.email})</p>
+                <p><strong>Position:</strong> {activeCandidate.role}</p>
+                <p><strong>Interview Date:</strong> {activeCandidate.interviewDate}</p>
+                <p><strong>Time:</strong> {activeCandidate.interviewTime}</p>
+                <p><strong>Interviewer:</strong> {activeCandidate.interviewer}</p>
+                <p><strong>Format:</strong> Microsoft Teams</p>
+                <div className="pt-1">
+                  <span className="block font-semibold text-slate-700 dark:text-slate-300">Meeting Link:</span>
+                  <p className="text-[11px] text-indigo-600 font-mono break-all bg-slate-100 dark:bg-slate-800 p-2 rounded mt-1 border border-slate-200/60 dark:border-slate-700">
+                    {activeCandidate.teamsJoinUrl}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-900/50 flex flex-row items-center justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setIsInterviewDetailsModalOpen(false)} className="h-9 text-xs">
                 Cancel
               </Button>
