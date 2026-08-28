@@ -51,6 +51,7 @@ import { interviewsApi } from '@/api/interviews';
 import { teamsChatApi, type CandidateTeamsMessage } from '@/api/teams-chat';
 import { ResumeViewerModal } from '@/components/recruitment/ResumeViewerModal';
 import { ScheduleInterviewModal } from './ScheduleInterviewModal';
+import { SendAssessmentModal } from './SendAssessmentModal';
 
 export function CandidateCommunicationTab() {
   const queryClient = useQueryClient();
@@ -1231,6 +1232,17 @@ export function CandidateCommunicationTab() {
           score={`${activeCandidate.aiMatchScore}%`}
         />
       )}
+
+      {/* MODAL 6: SEND ASSESSMENT MODAL */}
+      <SendAssessmentModal
+        isOpen={isAssessmentModalOpen}
+        onClose={() => setIsAssessmentModalOpen(false)}
+        candidate={activeCandidate}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+          setIsAssessmentModalOpen(false);
+        }}
+      />
     </div>
   );
 }

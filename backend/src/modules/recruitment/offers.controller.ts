@@ -8,8 +8,17 @@ export class OffersController {
 
   @Post('send-email')
   @Permissions('recruitment.write')
-  async sendOfferEmail(@Body() dto: SendOfferEmailDto) {
+  async sendOfferEmail(@Body() dto: any) {
+    if (dto.testUrl || dto.assessmentName) {
+      return this.offerEmailService.sendAssessmentEmail(dto);
+    }
     return this.offerEmailService.sendOfferEmail(dto);
+  }
+
+  @Post('send-assessment-email')
+  @Permissions('recruitment.write')
+  async sendAssessmentEmail(@Body() dto: any) {
+    return this.offerEmailService.sendAssessmentEmail(dto);
   }
 
   @Post('test-smtp')

@@ -32,6 +32,8 @@ import WorkflowAutomationPage from '@/pages/workflow-automation/WorkflowAutomati
 import IntegrationsPage from '@/pages/integrations/IntegrationsPage';
 import AdministrationPage from '@/pages/administration/AdministrationPage';
 
+import CandidateAssessmentPage from '@/pages/recruitment/CandidateAssessmentPage';
+
 import { CompanyProvider } from '@/context/CompanyContext';
 
 const queryClient = new QueryClient({
@@ -48,6 +50,7 @@ export default function App() {
           <Route path="/careers" element={<CareersPage />} />
           <Route path="/careers/*" element={<CareersPage />} />
           <Route path="/careers/job/:id" element={<CareersJobDetailPage />} />
+          <Route path="/candidate-assessment/:token" element={<CandidateAssessmentPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>

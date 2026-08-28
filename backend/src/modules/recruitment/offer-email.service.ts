@@ -51,6 +51,25 @@ export class OfferEmailService {
     this.initTransporter();
   }
 
+  private getTransporter(): nodemailer.Transporter {
+    const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
+    const port = parseInt(this.configService.get<string>('SMTP_PORT', '587'), 10);
+    const user = this.configService.get<string>('SMTP_USER', 'reactjscodigix@gmail.com');
+    const passRaw = this.configService.get<string>('SMTP_PASSWORD', 'sano ezdn gqta tkfv');
+    const pass = passRaw ? passRaw.replace(/\s+/g, '') : 'sanoezdngqtatkfv';
+    const secure = this.configService.get<string>('SMTP_SECURE', 'false') === 'true';
+
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+  }
+
   private initTransporter() {
     const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
     const port = parseInt(this.configService.get<string>('SMTP_PORT', '587'), 10);
@@ -440,6 +459,89 @@ Codigix Infotech Pvt. Ltd.`;
       }
     } catch (err: any) {
       this.logger.error(`Failed to send application confirmation email to ${dto.candidateEmail}: ${err.message}`);
+    }
+  }
+
+  async sendAssessmentEmail(dto: {
+    candidateName: string;
+    candidateEmail: string;
+    jobPosition: string;
+    assessmentName: string;
+    scheduledDate: string;
+    scheduledStartTime: string;
+    durationMins: number;
+    questionCount: number;
+    passingPercentage: number;
+    expiryDate: string;
+    testUrl: string;
+    emailSendingMode: 'IMMEDIATE' | 'SCHEDULED';
+    subject?: string;
+    bodyText?: string;
+  }) {
+    if (!dto.candidateEmail || !this.validateEmail(dto.candidateEmail)) {
+      throw new BadRequestException(`Invalid candidate recipient email address: '${dto.candidateEmail}'`);
+    }
+
+    const fromName = this.configService.get<string>('SMTP_FROM_NAME', 'Codigix HR Recruitment');
+    const fromEmail = this.configService.get<string>('SMTP_FROM_EMAIL', 'reactjscodigix@gmail.com');
+
+    const subject = dto.subject || `Technical Assessment Invitation – ${dto.assessmentName}`;
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+        <div style="background: #4f46e5; padding: 24px; text-align: center; color: white;">
+          <h2 style="margin: 0; font-size: 20px;">Technical Skill Assessment Invitation</h2>
+          <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 13px;">Codigix ERP Recruitment System</p>
+        </div>
+        <div style="padding: 24px; color: #1e293b;">
+          <p style="font-size: 15px; font-weight: bold; margin-top: 0;">Dear ${dto.candidateName},</p>
+          <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+            You have been invited to complete the technical assessment for the <strong>${dto.jobPosition}</strong> position.
+          </p>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+              <tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Assessment:</td><td style="font-weight: bold; color: #4f46e5;">${dto.assessmentName}</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Scheduled Date:</td><td style="font-weight: 600;">${dto.scheduledDate}</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Start Time:</td><td style="font-weight: 600;">${dto.scheduledStartTime} AM</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Duration:</td><td style="font-weight: 600;">${dto.durationMins} Minutes</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Questions:</td><td style="font-weight: 600;">${dto.questionCount} Questions</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Passing Cutoff:</td><td style="font-weight: 600;">${dto.passingPercentage}%</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Expiry Date:</td><td style="font-weight: 600; color: #ef4444;">${dto.expiryDate}</td></tr>
+            </table>
+          </div>
+
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${dto.testUrl}" target="_blank" style="background: #4f46e5; color: white; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+              Start Technical Assessment →
+            </a>
+          </div>
+
+          <p style="font-size: 12px; color: #64748b; text-align: center;">
+            Direct Test URL: <a href="${dto.testUrl}" style="color: #4f46e5;">${dto.testUrl}</a>
+          </p>
+
+          <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+          <p style="margin: 0; color: #475569; font-weight: 600;">Best regards,</p>
+          <p style="margin: 2px 0 0 0; color: #64748b;">Recruitment Team<br /><strong>Codigix Infotech Pvt. Ltd.</strong></p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const transporter = this.getTransporter();
+      const info = await transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: dto.candidateEmail,
+        subject,
+        text: dto.bodyText || subject,
+        html: htmlContent,
+      });
+      this.logger.log(`Assessment invitation email sent to ${dto.candidateEmail} via SMTP! MessageId: ${info.messageId}`);
+      return { success: true, message: `Email sent successfully to ${dto.candidateEmail}` };
+    } catch (err: any) {
+      this.logger.error(`Failed to send assessment email to ${dto.candidateEmail}: ${err.message}`);
+      return { success: false, message: `Gmail SMTP Error: ${err.message}`, error: err.message };
     }
   }
 }
