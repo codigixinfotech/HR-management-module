@@ -256,7 +256,18 @@ export class TeamsInterviewService {
     );
 
     const tenantId = this.config.get<string>('MS_TENANT_ID') || 'd6ce9ff8-5916-4cc2-912f-6451cbd2ebb1';
-    const organizerUserId = '9c263d40-92ed-4c64-b2fd-cec976280e67'; // Resolved Entra ID organizer ID
+    
+    // Sanika Mote Entra ID object ID for motesanika@gmail.com
+    const sanikaMoteId = '4084917e-a128-443c-832e-2cad1b47d433';
+    let organizerUserId = sanikaMoteId;
+
+    if (token) {
+      const resolvedUser = await this.resolveOrganizerUserId(token);
+      if (resolvedUser?.id) {
+        organizerUserId = resolvedUser.id;
+      }
+    }
+
     const meetingId = `19%3ameeting_${Date.now()}${Math.random().toString(36).substring(2, 7)}%40thread.v2`;
     const joinUrl = `https://teams.microsoft.com/l/meetup-join/${meetingId}/0?context=%7b%22Tid%22%3a%22${tenantId}%22%2c%22Oid%22%3a%22${organizerUserId}%22%7d`;
 
