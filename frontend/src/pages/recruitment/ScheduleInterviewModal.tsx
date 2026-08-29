@@ -271,7 +271,7 @@ export function ScheduleInterviewModal({
         candidateName: cand ? `${cand.firstName} ${cand.lastName}` : 'Sanika Shelke',
         candidateEmail: candidateEmail || cand?.email || 'motesanika@gmail.com',
         position: position || cand?.jobOpening?.title || 'Senior Fullstack Engineer',
-        teamsJoinUrl: data.teamsJoinUrl || data.meetingLink || 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_ehcm',
+        teamsJoinUrl: data.teamsJoinUrl || data.meetingLink || '',
       });
       
       toast.success(`Microsoft Teams Interview scheduled & email invitation sent to ${candidateEmail || 'candidate'}!`);

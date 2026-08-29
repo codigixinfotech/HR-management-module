@@ -178,7 +178,7 @@ export function CandidateCommunicationTab() {
             interviewTime: matchInt?.startTime || '11:00 AM',
             interviewer: matchInt?.panelMembers?.[0]?.interviewerName || 'Aishwarya Roy (Director HR)',
             teamsStatus: matchInt?.invitationStatus === 'SENT' ? 'Invitation Sent' : matchInt?.teamsJoinUrl ? 'Created' : 'Not Created',
-            teamsJoinUrl: matchInt?.teamsJoinUrl || matchInt?.meetingLink || `https://teams.microsoft.com/l/meetup-join/19%3ameeting_${c.id}%40thread.v2/0?context=%7b%22Tid%22%3a%22d6ce9ff8-5916-4cc2-912f-6451cbd2ebb1%22%7d`,
+            teamsJoinUrl: matchInt?.teamsJoinUrl || matchInt?.meetingLink || '',
             // Assessment Status
             assessmentStatus: c.stage === 'ASSESSMENT_PASSED' ? 'Completed' : c.stage === 'ASSESSMENT_ASSIGNED' ? 'Sent' : 'Not Sent',
             assessmentName: `${job.title} Technical Assessment`,
