@@ -1882,8 +1882,12 @@ model CandidateInterview {
   interviewDate   DateTime
   startTime       String
   endTime         String?
-  interviewFormat String   @default("Google Meet") // Google Meet, On-site, Phone, Microsoft Teams
+  durationMinutes Int?     @default(60)
+  interviewFormat String   @default("Microsoft Teams") // Google Meet, On-site, Phone, Microsoft Teams
+  meetingProvider String?  @default("Microsoft Teams")
   meetingLink     String?  @db.Text
+  teamsMeetingId  String?
+  teamsJoinUrl    String?  @db.Text
   notes           String?  @db.Text
 
   status          String   @default("SCHEDULED") // READY_TO_SCHEDULE, SCHEDULED, IN_PROGRESS, COMPLETED, EVALUATION_PENDING, EVALUATED, CANCELLED, RESCHEDULED

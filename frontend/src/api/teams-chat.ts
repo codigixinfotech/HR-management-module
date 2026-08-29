@@ -36,4 +36,12 @@ export const teamsChatApi = {
     const res = await apiClient.post(`/recruitment/candidates/${candidateId}/messages/system`, payload);
     return res.data;
   },
+
+  sendGuestInvitation: async (
+    candidateId: string,
+    notes?: string,
+  ): Promise<CandidateTeamsMessage> => {
+    const res = await apiClient.post(`/recruitment/candidates/${candidateId}/teams-guest-invite`, { notes });
+    return res.data;
+  },
 };

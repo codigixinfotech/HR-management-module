@@ -414,4 +414,40 @@ export class TeamsChatService {
       },
     });
   }
+
+  /**
+   * Dispatches Microsoft Teams Guest Account Invitation to candidate
+   */
+  async sendTeamsGuestInvitation(candidateId: string, customNotes?: string) {
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { id: candidateId },
+    });
+
+    if (!candidate) {
+      throw new NotFoundException(`Candidate with ID ${candidateId} not found`);
+    }
+
+    const eventContent = `Microsoft Teams Guest Invitation Sent to ${candidate.firstName} ${candidate.lastName} (${candidate.email}). Status: Invitation Sent. ${customNotes ? `Notes: ${customNotes}` : ''}`;
+
+    const messageRecord = await this.prisma.candidateTeamsMessage.create({
+      data: {
+        candidateId,
+        teamsChatId: candidate.teamsChatId,
+        senderType: 'system',
+        senderName: 'Microsoft Teams Guest Manager',
+        content: eventContent,
+        status: 'SENT',
+        deliveryStatus: 'ERP_SYSTEM_EVENT',
+        eventType: 'TEAMS_GUEST_INVITE',
+        meta: {
+          email: candidate.email,
+          invitedAt: new Date().toISOString(),
+          notes: customNotes || null,
+        },
+      },
+    });
+
+    this.logger.log(`[TeamsChatService] Dispatched Microsoft Teams Guest invitation for candidate ${candidate.email}`);
+    return messageRecord;
+  }
 }

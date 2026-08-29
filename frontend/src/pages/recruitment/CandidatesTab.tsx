@@ -47,6 +47,7 @@ import { ScheduleInterviewModal } from './ScheduleInterviewModal';
 import { interviewsApi } from '@/api/interviews';
 import { AssignAssessmentModal } from './AssignAssessmentModal';
 import { ViewAssessmentModal } from './ViewAssessmentModal';
+import { SendAssessmentModal } from './SendAssessmentModal';
 import { Pagination } from '@/components/common/Pagination';
 import { CandidateFullFormModal } from '@/components/recruitment/CandidateFullFormModal';
 import { CandidateDetailsModal } from '@/components/recruitment/CandidateDetailsModal';
@@ -82,6 +83,8 @@ export function CandidatesTab() {
   // Modal State: Assign & View Assessment Overview
   const [isAssignAssessmentOpen, setIsAssignAssessmentOpen] = useState(false);
   const [assignAssessmentCandidate, setAssignAssessmentCandidate] = useState<any>(null);
+  const [isSendAssessmentModalOpen, setIsSendAssessmentModalOpen] = useState(false);
+  const [sendAssessmentCandidate, setSendAssessmentCandidate] = useState<any>(null);
   const [isViewAssessmentOpen, setIsViewAssessmentOpen] = useState(false);
   const [viewAssessmentCandidate, setViewAssessmentCandidate] = useState<any>(null);
   const [viewAssessmentAssignment, setViewAssessmentAssignment] = useState<AssessmentAssignment | null>(null);
@@ -892,16 +895,16 @@ export function CandidatesTab() {
                         </Button>
 
                         {/* STAGE-SPECIFIC ASSESSMENT & INTERVIEW ACTIONS */}
-                        {c.stage === 'SHORTLISTED' && (
+                        {(c.stage === 'SHORTLISTED' || c.stage === 'SCREENING' || c.stage === 'APPLIED') && (
                           <Button
                             size="sm"
-                            className="h-7 text-[10.5px] px-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1 shadow-2xs"
+                            className="h-7 text-[10.5px] px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1 shadow-2xs"
                             onClick={() => {
-                              setAssignAssessmentCandidate(c);
-                              setIsAssignAssessmentOpen(true);
+                              setSendAssessmentCandidate(c);
+                              setIsSendAssessmentModalOpen(true);
                             }}
                           >
-                            <Brain className="h-3.5 w-3.5" /> Assign Assessment
+                            <Brain className="h-3.5 w-3.5" /> Send Assessment
                           </Button>
                         )}
 
@@ -1721,6 +1724,19 @@ export function CandidatesTab() {
           score={resumeViewerCandidate.score}
         />
       )}
+
+      {/* SEND ASSESSMENT INVITATION MODAL */}
+      <SendAssessmentModal
+        isOpen={isSendAssessmentModalOpen}
+        onClose={() => {
+          setIsSendAssessmentModalOpen(false);
+          setSendAssessmentCandidate(null);
+        }}
+        candidate={sendAssessmentCandidate}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+        }}
+      />
     </div>
   );
 }

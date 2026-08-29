@@ -138,7 +138,7 @@ export function ScheduleNextRoundModal({
     if (fmt === 'Google Meet') {
       setMeetingLink('https://meet.google.com/ehcm-next-round');
     } else if (fmt === 'Microsoft Teams') {
-      setMeetingLink('https://teams.microsoft.com/l/meetup-join/ehcm-next-round');
+      setMeetingLink('');
     } else if (fmt === 'In Person') {
       setMeetingLink('Pune HQ - Executive Boardroom 401');
     } else if (fmt === 'Phone') {

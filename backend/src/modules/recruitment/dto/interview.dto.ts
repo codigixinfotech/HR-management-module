@@ -60,6 +60,20 @@ export class CreateInterviewDto {
 
   @IsString()
   @IsOptional()
+  candidateEmail?: string;
+
+  @IsNumber()
+  @IsOptional()
+  durationMinutes?: number;
+
+  @IsOptional()
+  createTeamsMeeting?: boolean;
+
+  @IsOptional()
+  sendCalendarInvite?: boolean;
+
+  @IsString()
+  @IsOptional()
   createdById?: string;
 
   @IsString()
@@ -68,6 +82,20 @@ export class CreateInterviewDto {
 }
 
 export class UpdateInterviewScheduleDto {
+  @IsString()
+  @IsOptional()
+  candidateEmail?: string;
+
+  @IsNumber()
+  @IsOptional()
+  durationMinutes?: number;
+
+  @IsOptional()
+  createTeamsMeeting?: boolean;
+
+  @IsOptional()
+  sendCalendarInvite?: boolean;
+
   @IsString()
   @IsOptional()
   interviewDate?: string;

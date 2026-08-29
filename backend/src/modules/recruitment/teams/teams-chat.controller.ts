@@ -31,4 +31,12 @@ export class TeamsChatController {
       body.meta,
     );
   }
+
+  @Post(':id/teams-guest-invite')
+  sendGuestInvitation(
+    @Param('id') candidateId: string,
+    @Body() body: { notes?: string },
+  ) {
+    return this.teamsChatService.sendTeamsGuestInvitation(candidateId, body.notes);
+  }
 }

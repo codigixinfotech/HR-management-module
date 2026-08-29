@@ -126,54 +126,92 @@ export function ScheduleInterviewModal({
   // Populate candidate data when initialCandidate is passed or candidateId changes
   useEffect(() => {
     if (initialCandidate) {
-      setCandidateId(initialCandidate.id);
+      setCandidateId(initialCandidate.id || 'cand-demo-1');
       setCandidateEmail(initialCandidate.email || 'motesanika@gmail.com');
-      setPosition(initialCandidate.jobOpening?.title || 'Senior Fullstack Engineer');
-      setRequisitionCode(initialCandidate.jobOpening?.requisitionCode || 'JR-2026-001');
+      setPosition(initialCandidate.jobOpening?.title || initialCandidate.role || 'Senior Software Engineer');
+      setRequisitionCode(initialCandidate.jobOpening?.requisitionCode || initialCandidate.reqCode || 'JR-2026-019');
       setJobOpeningId(initialCandidate.jobOpeningId);
     } else if (initialCandidateId) {
       const found = availableCandidates.find((c) => c.id === initialCandidateId);
       if (found) {
         setCandidateId(found.id);
         setCandidateEmail(found.email || 'motesanika@gmail.com');
-        setPosition(found.jobOpening?.title || 'Senior Fullstack Engineer');
-        setRequisitionCode(found.jobOpening?.requisitionCode || 'JR-2026-001');
+        setPosition(found.jobOpening?.title || 'Senior Software Engineer');
+        setRequisitionCode(found.jobOpening?.requisitionCode || 'JR-2026-019');
         setJobOpeningId(found.jobOpeningId);
+      } else {
+        setCandidateId(initialCandidateId);
+        setCandidateEmail('motesanika@gmail.com');
+        setPosition('Senior Software Engineer');
+        setRequisitionCode('JR-2026-019');
       }
     } else if (availableCandidates.length > 0 && !candidateId) {
       const first = availableCandidates[0];
       setCandidateId(first.id);
       setCandidateEmail(first.email || 'motesanika@gmail.com');
-      setPosition(first.jobOpening?.title || 'Senior Fullstack Engineer');
-      setRequisitionCode(first.jobOpening?.requisitionCode || 'JR-2026-001');
+      setPosition(first.jobOpening?.title || 'Senior Software Engineer');
+      setRequisitionCode(first.jobOpening?.requisitionCode || 'JR-2026-019');
       setJobOpeningId(first.jobOpeningId);
+    } else if (!candidateId) {
+      setCandidateId('cand-demo-1');
+      setCandidateEmail('motesanika@gmail.com');
+      setPosition('Senior Software Engineer');
+      setRequisitionCode('JR-2026-019');
     }
   }, [initialCandidate, initialCandidateId, availableCandidates]);
 
   // Set default panel members (Rajesh Sharma CTO & Priya Mehta HR Manager) if available
   useEffect(() => {
-    if (employeesList.length > 0 && selectedPanel.length === 0) {
-      const defaults: PanelSelectionItem[] = [];
-      const rajesh = employeesList.find(
-        (e) => e.firstName.toLowerCase().includes('rajesh') || e.employeeCode === 'EMP-8265',
-      );
-      const priya = employeesList.find(
-        (e) => e.firstName.toLowerCase().includes('priya') || e.firstName.toLowerCase().includes('aishwarya'),
-      );
+    if (selectedPanel.length === 0) {
+      if (employeesList.length > 0) {
+        const defaults: PanelSelectionItem[] = [];
+        const rajesh = employeesList.find(
+          (e) => e.firstName.toLowerCase().includes('rajesh') || e.employeeCode === 'EMP-8265',
+        );
+        const priya = employeesList.find(
+          (e) => e.firstName.toLowerCase().includes('priya') || e.firstName.toLowerCase().includes('aishwarya'),
+        );
 
-      if (rajesh) {
-        defaults.push({ employee: rajesh, role: 'Technical Interviewer' });
+        if (rajesh) {
+          defaults.push({ employee: rajesh, role: 'Technical Interviewer' });
+        }
+        if (priya && priya.id !== rajesh?.id) {
+          defaults.push({ employee: priya, role: 'Hiring Manager' });
+        } else if (employeesList.length > 1 && !rajesh) {
+          defaults.push({ employee: employeesList[0], role: 'Technical Interviewer' });
+          defaults.push({ employee: employeesList[1], role: 'Hiring Manager' });
+        } else if (employeesList.length > 0 && defaults.length === 0) {
+          defaults.push({ employee: employeesList[0], role: 'Technical Interviewer' });
+        }
+        setSelectedPanel(defaults);
+      } else {
+        setSelectedPanel([
+          {
+            employee: {
+              id: 'emp-demo-1',
+              employeeCode: 'EMP-8265',
+              firstName: 'Rajesh',
+              lastName: 'Kumar',
+              email: 'rajesh@codigixinfotech.com',
+              department: { id: 'd1', name: 'Engineering' },
+              designation: { id: 'ds1', title: 'Technical Interviewer' },
+            } as any,
+            role: 'Technical Interviewer',
+          },
+          {
+            employee: {
+              id: 'emp-demo-2',
+              employeeCode: 'EMP-8266',
+              firstName: 'Priya',
+              lastName: 'Nair',
+              email: 'priya@codigixinfotech.com',
+              department: { id: 'd2', name: 'Sales & Marketing' },
+              designation: { id: 'ds2', title: 'Hiring Manager' },
+            } as any,
+            role: 'Hiring Manager',
+          },
+        ]);
       }
-      if (priya && priya.id !== rajesh?.id) {
-        defaults.push({ employee: priya, role: 'Hiring Manager' });
-      } else if (employeesList.length > 1 && !rajesh) {
-        defaults.push({ employee: employeesList[0], role: 'Technical Interviewer' });
-        defaults.push({ employee: employeesList[1], role: 'Hiring Manager' });
-      } else if (employeesList.length > 0 && defaults.length === 0) {
-        defaults.push({ employee: employeesList[0], role: 'Technical Interviewer' });
-      }
-
-      setSelectedPanel(defaults);
     }
   }, [employeesList]);
 
@@ -233,15 +271,16 @@ export function ScheduleInterviewModal({
         candidateName: cand ? `${cand.firstName} ${cand.lastName}` : 'Sanika Shelke',
         candidateEmail: candidateEmail || cand?.email || 'motesanika@gmail.com',
         position: position || cand?.jobOpening?.title || 'Senior Fullstack Engineer',
-        teamsJoinUrl: data.teamsJoinUrl || data.meetingLink || 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_ehcm',
+        teamsJoinUrl: data.teamsJoinUrl || data.meetingLink || '',
       });
       
-      toast.success('Microsoft Teams Interview scheduled successfully! Calendar invitation sent.');
+      toast.success(`Microsoft Teams Interview scheduled & email invitation sent to ${candidateEmail || 'candidate'}!`);
       onSuccess?.();
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.message;
-      toast.error(typeof msg === 'string' ? msg : 'Failed to schedule interview.');
+      const rawMsg = err?.response?.data?.message || err?.message;
+      const msg = Array.isArray(rawMsg) ? rawMsg.join(', ') : typeof rawMsg === 'string' ? rawMsg : 'Failed to schedule interview.';
+      toast.error(msg);
     },
   });
 
@@ -630,9 +669,9 @@ export function ScheduleInterviewModal({
                 <Button
                   type="submit"
                   disabled={createInterviewMutation.isPending}
-                  className="h-9 text-xs gap-1.5 font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
+                  className="h-9 text-xs gap-1.5 font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
                 >
-                  <CheckCircle2 className="h-4 w-4" /> Schedule Interview
+                  <CheckCircle2 className="h-4 w-4" /> Schedule & Send Email Now
                 </Button>
               </DialogFooter>
             </form>

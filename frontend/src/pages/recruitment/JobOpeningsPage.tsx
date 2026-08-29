@@ -70,6 +70,10 @@ export default function JobOpeningsPage() {
     return <PortalConfigurationPage />;
   }
 
+  if (activeTab === 'communication') {
+    return <CandidateCommunicationTab />;
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -132,8 +136,6 @@ export default function JobOpeningsPage() {
       {activeTab === 'portal' && <CareersPortalTab />}
 
       {activeTab === 'candidates' && <CandidatesTab />}
-
-      {activeTab === 'communication' && <CandidateCommunicationTab />}
 
       {activeTab === 'interviews' && <InterviewsTab />}
 
