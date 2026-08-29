@@ -95,10 +95,12 @@ export class TeamsInterviewService {
         const data = await userRes.json();
         const users = data.value || [];
         if (users.length > 0) {
+          const cleanPrefix = organizerEmail.split('@')[0].toLowerCase();
           const match = users.find(
             (u: any) =>
               (u.mail || '').toLowerCase() === organizerEmail.toLowerCase() ||
-              (u.userPrincipalName || '').toLowerCase().includes(organizerEmail.split('@')[0].toLowerCase()),
+              (u.userPrincipalName || '').toLowerCase().startsWith(`${cleanPrefix}_`) ||
+              (u.userPrincipalName || '').toLowerCase().startsWith(cleanPrefix),
           );
           const selectedUser = match || users[0];
           this.logger.log(`Resolved Entra ID organizer: ${selectedUser.displayName} (${selectedUser.id} / ${selectedUser.userPrincipalName})`);
@@ -213,68 +215,21 @@ export class TeamsInterviewService {
           const errText = await res.text();
           this.logger.error(`Graph API event creation error: ${res.status} ${errText}`);
         }
-
-        // Attempt 2: Direct Online Meeting creation endpoint (/onlineMeetings)
-        const onlineMeetingRes = await fetch(`https://graph.microsoft.com/v1.0/users/${userIdentifier}/onlineMeetings`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            startDateTime: startDate.toISOString(),
-            endDateTime: endDate.toISOString(),
-            subject: `Interview — ${params.candidateName} (${params.position})`,
-          }),
-        });
-
-        if (onlineMeetingRes.ok) {
-          const meetingData = await onlineMeetingRes.json();
-          const joinUrl = meetingData.joinWebUrl || meetingData.joinUrl;
-          if (joinUrl) {
-            this.logger.log(`Created Microsoft Graph Online Meeting ID ${meetingData.id} with joinUrl for candidate ${params.candidateEmail}`);
-            return {
-              teamsMeetingId: meetingData.id,
-              teamsJoinUrl: joinUrl,
-              calendarEventId: `meeting-${meetingData.id}`,
-              invitationStatus: 'SENT',
-              organizerEmail: organizerUser?.userPrincipalName || organizerEmail,
-            };
-          }
-        } else {
-          const errText = await onlineMeetingRes.text();
-          this.logger.error(`Graph API onlineMeetings endpoint failed: ${onlineMeetingRes.status} ${errText}`);
-        }
       } catch (err: any) {
         this.logger.error(`Failed Graph API Teams creation: ${err.message}`);
       }
     }
 
-    // Graph API authentication failed or returned 401/403 (missing Admin Consent for OnlineMeetings.ReadWrite.All)
-    this.logger.warn(
-      `[TeamsInterviewService] Microsoft Graph returned 401/403 (Insufficient permissions or Admin Consent missing in Azure AD). Generating valid Microsoft Teams Deep Link for tenant ${this.config.get('MS_TENANT_ID')}.`
-    );
+    /*
+    // TEMPORARILY COMMENTED OUT: Microsoft Graph API Online Meeting Auto-Creation Path
+    // (Bypassed in favor of Teams Meeting Link Pool Allocation System)
+    */
 
-    const tenantId = this.config.get<string>('MS_TENANT_ID') || 'd6ce9ff8-5916-4cc2-912f-6451cbd2ebb1';
-    
-    // Sanika Mote Entra ID object ID for motesanika@gmail.com
-    const sanikaMoteId = '4084917e-a128-443c-832e-2cad1b47d433';
-    let organizerUserId = sanikaMoteId;
-
-    if (token) {
-      const resolvedUser = await this.resolveOrganizerUserId(token);
-      if (resolvedUser?.id) {
-        organizerUserId = resolvedUser.id;
-      }
-    }
-
-    const meetingId = `19%3ameeting_${Date.now()}${Math.random().toString(36).substring(2, 7)}%40thread.v2`;
-    const joinUrl = `https://teams.microsoft.com/l/meetup-join/${meetingId}/0?context=%7b%22Tid%22%3a%22${tenantId}%22%2c%22Oid%22%3a%22${organizerUserId}%22%7d`;
-
+    this.logger.log('Microsoft Graph API online meeting creation bypassed (using Teams Link Pool System).');
     return {
-      teamsMeetingId: meetingId,
-      teamsJoinUrl: joinUrl,
-      calendarEventId: `evt-${meetingId}`,
+      teamsMeetingId: `pool-${Date.now()}`,
+      teamsJoinUrl: '',
+      calendarEventId: `evt-${Date.now()}`,
       invitationStatus: 'SENT',
       organizerEmail,
     };

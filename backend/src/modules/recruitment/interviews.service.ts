@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { TeamsInterviewService } from './teams/teams-interview.service';
+import { TeamsLinkPoolService } from './teams/teams-link-pool.service';
 import { OfferEmailService } from './offer-email.service';
 import {
   CreateInterviewDto,
@@ -14,6 +15,7 @@ export class InterviewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly teamsInterviewService: TeamsInterviewService,
+    private readonly teamsLinkPoolService: TeamsLinkPoolService,
     private readonly offerEmailService: OfferEmailService,
   ) {}
 
@@ -70,26 +72,21 @@ export class InterviewsService {
     const candName = candidate ? `${candidate.firstName} ${candidate.lastName}` : (dto as any).candidateName || 'Sanuu Mote';
     const format = dto.interviewFormat || 'Microsoft Teams';
 
-    let teamsDetails: any = null;
+    let allocatedLinkId: string | null = null;
+    let meetingLink: string | null = null;
 
-    if (format === 'Microsoft Teams' || (dto as any).createTeamsMeeting !== false) {
-      const positionName = dto.position || candidate?.jobOpening?.title || 'Senior Software Engineer';
-      teamsDetails = await this.teamsInterviewService.createTeamsInterview({
-        candidateName: candName,
-        candidateEmail: candEmail,
-        position: positionName,
+    if (dto.meetingLink && dto.meetingLink.trim().length > 0) {
+      meetingLink = dto.meetingLink.trim();
+    } else if (format === 'Microsoft Teams' || (dto as any).createTeamsMeeting !== false) {
+      // Allocate link from Teams Meeting Link Pool based on non-overlapping time slot
+      const allocated = await this.teamsLinkPoolService.allocateLinkForSlot({
         interviewDate: dto.interviewDate,
         startTime: dto.startTime,
         durationMinutes: (dto as any).durationMinutes || 60,
-        notes: dto.notes || undefined,
-        attendees: panelEmployees.map((e) => ({
-          name: `${e.firstName} ${e.lastName}`,
-          email: (e as any).email || `${e.firstName.toLowerCase()}@codigixinfotech.com`,
-        })),
       });
+      allocatedLinkId = allocated.id;
+      meetingLink = allocated.meetingUrl;
     }
-
-    const meetingLink = teamsDetails?.teamsJoinUrl || dto.meetingLink || null;
 
     // Check valid DB relations
     let validJobOpeningId: string | null = dto.jobOpeningId || candidate?.jobOpeningId || null;
@@ -120,8 +117,9 @@ export class InterviewsService {
         interviewFormat: format,
         meetingProvider: format,
         meetingLink,
-        teamsMeetingId: teamsDetails?.teamsMeetingId || null,
-        teamsJoinUrl: teamsDetails?.teamsJoinUrl || meetingLink,
+        teamsMeetingLinkId: allocatedLinkId,
+        teamsMeetingId: allocatedLinkId,
+        teamsJoinUrl: meetingLink,
         notes: dto.notes || null,
         status: 'SCHEDULED',
         createdById: dto.createdById || null,

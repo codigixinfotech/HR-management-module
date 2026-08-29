@@ -61,10 +61,26 @@ export function ScheduleInterviewModal({
   const [startTime, setStartTime] = useState<string>('11:00 AM');
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
   const [interviewFormat, setInterviewFormat] = useState<string>('Microsoft Teams');
+  const [linkAllocationMode, setLinkAllocationMode] = useState<'AUTO_POOL' | 'CUSTOM'>('AUTO_POOL');
   const [meetingLink, setMeetingLink] = useState<string>('');
   const [createTeamsMeeting, setCreateTeamsMeeting] = useState<boolean>(true);
   const [sendCalendarInvite, setSendCalendarInvite] = useState<boolean>(true);
   const [notes, setNotes] = useState<string>('');
+
+  // Query Preview Assigned Teams Link from Pool
+  const { data: previewPoolLink } = useQuery({
+    queryKey: ['preview-pool-allocation', interviewDate, startTime, durationMinutes],
+    queryFn: async () => {
+      const res = await fetch('/api/recruitment/teams-links/preview-allocation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interviewDate, startTime, durationMinutes }),
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: Boolean(interviewDate && startTime && linkAllocationMode === 'AUTO_POOL' && interviewFormat === 'Microsoft Teams'),
+  });
 
   // Scheduled Result Modal State
   const [scheduledSuccessResult, setScheduledSuccessResult] = useState<any>(null);
@@ -624,32 +640,94 @@ export function ScheduleInterviewModal({
               </div>
 
               {/* Microsoft Teams Options */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="chk-teams-meeting"
-                    checked={createTeamsMeeting}
-                    onChange={(e) => setCreateTeamsMeeting(e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                  />
-                  <label htmlFor="chk-teams-meeting" className="text-xs font-semibold text-slate-900 dark:text-slate-200 cursor-pointer">
-                    Create Teams meeting automatically
-                  </label>
+              {interviewFormat === 'Microsoft Teams' && (
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-900 dark:text-slate-200">
+                      Teams Meeting Link Assignment
+                    </Label>
+                    <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900">
+                      Link Pool Active
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="linkMode"
+                        checked={linkAllocationMode === 'AUTO_POOL'}
+                        onChange={() => {
+                          setLinkAllocationMode('AUTO_POOL');
+                          setMeetingLink('');
+                          setCreateTeamsMeeting(true);
+                        }}
+                        className="text-indigo-600 h-3.5 w-3.5"
+                      />
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
+                        Automatically assign an available Teams meeting link from pool
+                      </span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="linkMode"
+                        checked={linkAllocationMode === 'CUSTOM'}
+                        onChange={() => setLinkAllocationMode('CUSTOM')}
+                        className="text-indigo-600 h-3.5 w-3.5"
+                      />
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
+                        Custom Teams / Room URL
+                      </span>
+                    </label>
+                  </div>
+
+                  {linkAllocationMode === 'AUTO_POOL' ? (
+                    <div className="space-y-1 pt-1">
+                      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Assigned Teams Meeting Link (Auto-selected from Pool)
+                      </Label>
+                      <Input
+                        type="text"
+                        readOnly
+                        value={
+                          previewPoolLink?.meetingUrl
+                            ? `${previewPoolLink.title}: ${previewPoolLink.meetingUrl}`
+                            : 'Checking pool availability...'
+                        }
+                        className="h-8 text-xs font-mono bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-medium"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-1 pt-1">
+                      <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Custom Teams Meeting Link / URL
+                      </Label>
+                      <Input
+                        type="text"
+                        value={meetingLink}
+                        onChange={(e) => setMeetingLink(e.target.value)}
+                        placeholder="Paste custom Teams meeting URL..."
+                        className="h-8 text-xs font-mono bg-background"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <input
+                      type="checkbox"
+                      id="chk-calendar-invite"
+                      checked={sendCalendarInvite}
+                      onChange={(e) => setSendCalendarInvite(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                    />
+                    <label htmlFor="chk-calendar-invite" className="text-xs font-semibold text-slate-900 dark:text-slate-200 cursor-pointer">
+                      Send calendar invitation to Candidate & Panel
+                    </label>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="chk-calendar-invite"
-                    checked={sendCalendarInvite}
-                    onChange={(e) => setSendCalendarInvite(e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                  />
-                  <label htmlFor="chk-calendar-invite" className="text-xs font-semibold text-slate-900 dark:text-slate-200 cursor-pointer">
-                    Send calendar invitation to Candidate & Panel
-                  </label>
-                </div>
-              </div>
+              )}
 
               {/* Guidelines / Notes */}
               <div className="space-y-1">

@@ -52,6 +52,7 @@ import { teamsChatApi, type CandidateTeamsMessage } from '@/api/teams-chat';
 import { ResumeViewerModal } from '@/components/recruitment/ResumeViewerModal';
 import { ScheduleInterviewModal } from './ScheduleInterviewModal';
 import { SendAssessmentModal } from './SendAssessmentModal';
+import { TeamsLinkPoolManagementModal } from '@/components/recruitment/TeamsLinkPoolManagementModal';
 
 export function CandidateCommunicationTab() {
   const queryClient = useQueryClient();
@@ -71,6 +72,7 @@ export function CandidateCommunicationTab() {
   const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
   const [isInterviewDetailsModalOpen, setIsInterviewDetailsModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isPoolModalOpen, setIsPoolModalOpen] = useState(false);
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
   const [isRescheduleMode, setIsRescheduleMode] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
@@ -84,7 +86,8 @@ export function CandidateCommunicationTab() {
   const [assessmentDueDate, setAssessmentDueDate] = useState(new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]);
   const [assessmentNotes, setAssessmentNotes] = useState('Please complete the timed coding assessment before the due date.');
 
-  // Teams Invitation Custom Notes
+  // Teams Invitation Custom Link & Notes
+  const [teamsInviteLink, setTeamsInviteLink] = useState('');
   const [teamsInviteNotes, setTeamsInviteNotes] = useState('Looking forward to speaking with you! Please click the Teams join link at the scheduled time.');
   const [teamsGuestNotes, setTeamsGuestNotes] = useState('Hello, you have been invited to join Codigix / EHCM Microsoft Teams as a guest for recruitment communication and your upcoming interview.');
 
@@ -152,8 +155,18 @@ export function CandidateCommunicationTab() {
     openings.forEach((job) => {
       if (job.candidates && job.candidates.length > 0) {
         job.candidates.forEach((c: any) => {
-          // Find matching interview if scheduled
-          const matchInt = (interviewsList || []).find((i: any) => i.candidateId === c.id || i.candidateEmail === c.email);
+          // Find matching LATEST interview if scheduled
+          const candidateInts = (interviewsList || [])
+            .filter(
+              (i: any) =>
+                i.candidateId === c.id ||
+                (i.candidateEmail && i.candidateEmail.toLowerCase() === (c.email || '').toLowerCase()),
+            )
+            .sort(
+              (a: any, b: any) =>
+                new Date(b.createdAt || b.interviewDate).getTime() - new Date(a.createdAt || a.interviewDate).getTime(),
+            );
+          const matchInt = candidateInts[0] || null;
 
           list.push({
             id: c.id,
@@ -325,15 +338,27 @@ export function CandidateCommunicationTab() {
   // Compute Active Scheduled Interview for Selected Candidate
   const activeInterview = useMemo(() => {
     if (!activeCandidate || !interviewsList) return null;
-    return (
-      interviewsList.find(
+    const candidateInts = interviewsList
+      .filter(
         (int: any) =>
           (int.candidateId === activeCandidate.id ||
             (int.candidateEmail && int.candidateEmail.toLowerCase() === activeCandidate.email?.toLowerCase())) &&
           int.status !== 'CANCELLED',
-      ) || null
-    );
+      )
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.createdAt || b.interviewDate).getTime() - new Date(a.createdAt || a.interviewDate).getTime(),
+      );
+
+    return candidateInts[0] || null;
   }, [activeCandidate, interviewsList]);
+
+  // Synchronize Teams Invite Link state when Teams Invite modal opens
+  useEffect(() => {
+    if (isTeamsInviteModalOpen && activeCandidate) {
+      setTeamsInviteLink(activeInterview?.meetingLink || activeCandidate.teamsJoinUrl || '');
+    }
+  }, [isTeamsInviteModalOpen, activeCandidate, activeInterview]);
 
   // Send recruiter chat message
   const handleSendMessage = () => {
@@ -362,12 +387,17 @@ export function CandidateCommunicationTab() {
   const handleSendTeamsInvite = () => {
     if (!activeCandidate) return;
 
+    const linkToSend = teamsInviteLink || activeCandidate.teamsJoinUrl || '';
+
     postSystemEventMutation.mutate({
       senderName: 'Microsoft Teams Integration',
-      content: `Teams Guest Invitation Sent to ${activeCandidate.name} (${activeCandidate.email}). Candidate can join Teams guest workspace.`,
+      content: `Teams Meeting Link Dispatched: ${linkToSend}. Note: "${teamsInviteNotes}". Sent to ${activeCandidate.name} (${activeCandidate.email}).`,
       eventType: 'TEAMS_INVITE',
     });
 
+    if (linkToSend) {
+      activeCandidate.teamsJoinUrl = linkToSend;
+    }
     activeCandidate.teamsStatus = 'Invitation Sent';
     setIsTeamsInviteModalOpen(false);
     toast.success(`Microsoft Teams invitation sent to ${activeCandidate.name} (${activeCandidate.email})!`);
@@ -513,6 +543,15 @@ export function CandidateCommunicationTab() {
               <SelectItem value="COMPLETED">Completed</SelectItem>
             </SelectContent>
           </Select>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsPoolModalOpen(true)}
+            className="h-8 text-xs font-bold gap-1.5 border-indigo-200 dark:border-indigo-900 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300"
+          >
+            <Video className="h-3.5 w-3.5 text-indigo-600" /> Teams Links Pool
+          </Button>
 
           <Button
             variant="outline"
@@ -1136,11 +1175,17 @@ export function CandidateCommunicationTab() {
                 <p><strong>Position:</strong> {activeCandidate.role}</p>
                 <p><strong>Date & Time:</strong> {activeCandidate.interviewDate} at {activeCandidate.interviewTime}</p>
                 <p><strong>Interviewer Panel:</strong> {activeCandidate.interviewer}</p>
-                <div className="pt-1">
-                  <span className="block font-semibold text-slate-700 dark:text-slate-300">Teams Link:</span>
-                  <p className="text-[11px] text-indigo-600 font-mono break-all bg-slate-100 dark:bg-slate-800 p-2 rounded mt-1 border border-slate-200/60 dark:border-slate-700">
-                    {activeCandidate.teamsJoinUrl}
-                  </p>
+                <div className="pt-1 space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Teams Meeting Link (Editable / Custom)
+                  </Label>
+                  <Input
+                    type="text"
+                    value={teamsInviteLink}
+                    onChange={(e) => setTeamsInviteLink(e.target.value)}
+                    placeholder="Paste Teams meeting URL..."
+                    className="h-8 text-xs font-mono bg-background"
+                  />
                 </div>
               </div>
 
@@ -1335,7 +1380,13 @@ export function CandidateCommunicationTab() {
         />
       )}
 
-      {/* MODAL 6: SEND ASSESSMENT MODAL */}
+      {/* MODAL 6: TEAMS LINK POOL MANAGEMENT MODAL */}
+      <TeamsLinkPoolManagementModal
+        isOpen={isPoolModalOpen}
+        onClose={() => setIsPoolModalOpen(false)}
+      />
+
+      {/* MODAL 7: SEND ASSESSMENT MODAL */}
       <SendAssessmentModal
         isOpen={isAssessmentModalOpen}
         onClose={() => setIsAssessmentModalOpen(false)}

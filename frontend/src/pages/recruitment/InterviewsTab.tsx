@@ -26,9 +26,11 @@ import { employeesApi } from '@/api/employees';
 import { interviewsApi } from '@/api/interviews';
 import { ScheduleInterviewModal } from './ScheduleInterviewModal';
 import { InterviewDetailsModal } from './InterviewDetailsModal';
+import { TeamsLinkPoolManagementModal } from '@/components/recruitment/TeamsLinkPoolManagementModal';
 import { useAuthStore } from '@/stores/auth-store';
 
 import { InterviewReminderNotifier, InterviewReminderBanner } from '@/components/recruitment/InterviewReminderNotifier';
+import { Pagination } from '@/components/common/Pagination';
 import { toast } from 'sonner';
 
 export function InterviewsTab() {
@@ -49,6 +51,7 @@ export function InterviewsTab() {
 
   // Modals state
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [isPoolModalOpen, setIsPoolModalOpen] = useState(false);
   const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -222,6 +225,14 @@ export function InterviewsTab() {
               </SelectContent>
             </Select>
           </div>
+
+          <Button
+            variant="outline"
+            onClick={() => setIsPoolModalOpen(true)}
+            className="h-9 text-xs font-bold gap-1.5 border-indigo-200 dark:border-indigo-900 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300"
+          >
+            <Video className="h-4 w-4 text-indigo-600" /> Teams Links Pool
+          </Button>
 
           <Button
             onClick={() => setIsScheduleOpen(true)}
@@ -646,6 +657,12 @@ export function InterviewsTab() {
             setIsDetailsOpen(true);
           }, 250);
         }}
+      />
+
+      {/* TEAMS LINK POOL MANAGEMENT MODAL */}
+      <TeamsLinkPoolManagementModal
+        isOpen={isPoolModalOpen}
+        onClose={() => setIsPoolModalOpen(false)}
       />
     </div>
   );

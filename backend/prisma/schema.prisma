@@ -1872,41 +1872,57 @@ model TaskNotification {
 // ---------------------------------------------------------------------------
 
 model CandidateInterview {
-  id              String   @id @default(cuid())
-  interviewCode   String   @unique
-  candidateId     String
-  jobOpeningId    String?
-  position        String
-  requisitionCode String?
+  id                   String   @id @default(cuid())
+  interviewCode        String   @unique
+  candidateId          String
+  jobOpeningId         String?
+  position             String
+  requisitionCode      String?
 
-  interviewDate   DateTime
-  startTime       String
-  endTime         String?
-  durationMinutes Int?     @default(60)
-  interviewFormat String   @default("Microsoft Teams") // Google Meet, On-site, Phone, Microsoft Teams
-  meetingProvider String?  @default("Microsoft Teams")
-  meetingLink     String?  @db.Text
-  teamsMeetingId  String?
-  teamsJoinUrl    String?  @db.Text
-  notes           String?  @db.Text
+  interviewDate        DateTime
+  startTime            String
+  endTime              String?
+  durationMinutes      Int?     @default(60)
+  interviewFormat      String   @default("Microsoft Teams") // Google Meet, On-site, Phone, Microsoft Teams
+  meetingProvider      String?  @default("Microsoft Teams")
+  meetingLink          String?  @db.Text
+  teamsMeetingId       String?
+  teamsJoinUrl         String?  @db.Text
+  teamsMeetingLinkId   String?
+  notes                String?  @db.Text
 
-  status          String   @default("SCHEDULED") // READY_TO_SCHEDULE, SCHEDULED, IN_PROGRESS, COMPLETED, EVALUATION_PENDING, EVALUATED, CANCELLED, RESCHEDULED
+  status               String   @default("SCHEDULED") // READY_TO_SCHEDULE, SCHEDULED, IN_PROGRESS, COMPLETED, EVALUATION_PENDING, EVALUATED, CANCELLED, RESCHEDULED
 
-  createdById     String?
-  createdByName   String?  @default("HR Administrator")
+  createdById          String?
+  createdByName        String?  @default("HR Administrator")
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  candidate    Candidate                      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  jobOpening   JobOpening?                    @relation(fields: [jobOpeningId], references: [id], onDelete: SetNull)
-  panelMembers CandidateInterviewPanel[]
-  evaluations  CandidateInterviewEvaluation[]
+  candidate            Candidate                      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobOpening           JobOpening?                    @relation(fields: [jobOpeningId], references: [id], onDelete: SetNull)
+  teamsMeetingLinkPool TeamsMeetingLinkPool?          @relation(fields: [teamsMeetingLinkId], references: [id], onDelete: SetNull)
+  panelMembers         CandidateInterviewPanel[]
+  evaluations          CandidateInterviewEvaluation[]
 
   @@index([candidateId])
   @@index([jobOpeningId])
+  @@index([teamsMeetingLinkId])
   @@index([status])
   @@map("candidate_interviews")
+}
+
+model TeamsMeetingLinkPool {
+  id          String               @id @default(cuid())
+  title       String?              // e.g. "Teams Room 1"
+  meetingUrl  String               @unique @db.VarChar(500)
+  active      Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  interviews  CandidateInterview[]
+
+  @@map("teams_meeting_link_pool")
 }
 
 model CandidateInterviewPanel {
