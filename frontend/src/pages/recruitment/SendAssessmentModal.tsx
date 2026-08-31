@@ -67,11 +67,13 @@ export function SendAssessmentModal({ isOpen, onClose, candidate, onSuccess }: S
       const list = assessmentStore.getAssessments().filter((a) => a.status === 'Published' || a.status === 'Ready');
       setAssessments(list);
 
-      const matched = list.find(
-        (a) =>
-          a.jobPosition.toLowerCase().includes(jobPosition.toLowerCase()) ||
-          jobPosition.toLowerCase().includes(a.technology.toLowerCase())
-      ) || list[0];
+      const targetPositionLower = (jobPosition || '').toLowerCase();
+      const matched =
+        list.find(
+          (a) =>
+            (a.jobPosition && (a.jobPosition || '').toLowerCase().includes(targetPositionLower)) ||
+            (a.technology && targetPositionLower.includes((a.technology || '').toLowerCase()))
+        ) || list[0];
 
       if (matched) {
         setSelectedAssessmentId(matched.id);

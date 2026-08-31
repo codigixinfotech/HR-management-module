@@ -64,12 +64,13 @@ export function AssignAssessmentModal({
   const selectedTemplate = ASSESSMENT_TEMPLATES.find((t) => t.id === selectedTemplateId) || ASSESSMENT_TEMPLATES[0];
 
   useEffect(() => {
-    if (candidate?.jobTitle) {
-      if (candidate.jobTitle.toLowerCase().includes('design')) {
+    const titleLower = (candidate?.jobTitle || '').toLowerCase();
+    if (titleLower) {
+      if (titleLower.includes('design')) {
         setSelectedTemplateId('TST-203');
-      } else if (candidate.jobTitle.toLowerCase().includes('devops') || candidate.jobTitle.toLowerCase().includes('kubernetes')) {
+      } else if (titleLower.includes('devops') || titleLower.includes('kubernetes')) {
         setSelectedTemplateId('TST-202');
-      } else if (candidate.jobTitle.toLowerCase().includes('hr') || candidate.jobTitle.toLowerCase().includes('compliance')) {
+      } else if (titleLower.includes('hr') || titleLower.includes('compliance')) {
         setSelectedTemplateId('TST-204');
       } else {
         setSelectedTemplateId('TST-201');

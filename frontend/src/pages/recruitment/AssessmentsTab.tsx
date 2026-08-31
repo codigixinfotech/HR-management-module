@@ -85,8 +85,8 @@ function SearchableSelectInput({
   }, []);
 
   const filteredOptions = useMemo(() => {
-    if (!searchTerm) return options;
-    return options.filter((opt) => opt.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (!searchTerm) return options || [];
+    return (options || []).filter((opt) => opt && typeof opt === 'string' && opt.toLowerCase().includes((searchTerm || '').toLowerCase()));
   }, [options, searchTerm]);
 
   return (
@@ -352,29 +352,38 @@ export function AssessmentsTab() {
 
   // ── Section-wise Question Availability & Auto Selection Engine ──
   const getMatchingQuestionsForSection = (sec: AssessmentSection) => {
+    if (!sec) return [];
+    const secTech = (sec.technology || '').toLowerCase();
+    const secTopic = (sec.topic || '').toLowerCase();
+
     // Tier 1: Match Tech + QuestionType + Topic (if topic set)
-    let matching = questions.filter((q) => {
-      if (q.status !== 'Active') return false;
+    let matching = (questions || []).filter((q) => {
+      if (!q || q.status !== 'Active') return false;
+      const qTech = (q.technology || '').toLowerCase();
+      const qTopic = (q.topic || '').toLowerCase();
+
       const techMatch =
-        q.technology.toLowerCase() === sec.technology.toLowerCase() ||
-        (sec.technology === 'General' && (q.technology === 'General' || q.technology === 'Aptitude')) ||
-        (sec.technology === 'Reasoning' && (q.technology === 'Reasoning' || q.technology === 'Logic')) ||
-        (sec.technology === 'Programming' && (q.technology === 'Programming' || q.questionType === 'Coding'));
+        qTech === secTech ||
+        (sec.technology === 'General' && (qTech === 'general' || qTech === 'aptitude')) ||
+        (sec.technology === 'Reasoning' && (qTech === 'reasoning' || qTech === 'logic')) ||
+        (sec.technology === 'Programming' && (qTech === 'programming' || q.questionType === 'Coding'));
 
       const typeMatch = sec.questionType ? q.questionType === sec.questionType : true;
-      const topicMatch = sec.topic ? q.topic.toLowerCase().includes(sec.topic.toLowerCase()) : true;
+      const topicMatch = secTopic ? qTopic.includes(secTopic) : true;
       return techMatch && typeMatch && topicMatch;
     });
 
     // Tier 2 Fallback: If topic filter returned fewer than required, search across all topics in that tech & type
-    if (matching.length < sec.questionCount) {
-      matching = questions.filter((q) => {
-        if (q.status !== 'Active') return false;
+    if (matching.length < (sec.questionCount || 0)) {
+      matching = (questions || []).filter((q) => {
+        if (!q || q.status !== 'Active') return false;
+        const qTech = (q.technology || '').toLowerCase();
+
         const techMatch =
-          q.technology.toLowerCase() === sec.technology.toLowerCase() ||
-          (sec.technology === 'General' && (q.technology === 'General' || q.technology === 'Aptitude')) ||
-          (sec.technology === 'Reasoning' && (q.technology === 'Reasoning' || q.technology === 'Logic')) ||
-          (sec.technology === 'Programming' && (q.technology === 'Programming' || q.questionType === 'Coding'));
+          qTech === secTech ||
+          (sec.technology === 'General' && (qTech === 'general' || qTech === 'aptitude')) ||
+          (sec.technology === 'Reasoning' && (qTech === 'reasoning' || qTech === 'logic')) ||
+          (sec.technology === 'Programming' && (qTech === 'programming' || q.questionType === 'Coding'));
 
         const typeMatch = sec.questionType ? q.questionType === sec.questionType : true;
         return techMatch && typeMatch;
@@ -382,14 +391,15 @@ export function AssessmentsTab() {
     }
 
     // Tier 3 Fallback: If still fewer, search across all active questions in that technology
-    if (matching.length < sec.questionCount) {
-      matching = questions.filter((q) => {
-        if (q.status !== 'Active') return false;
+    if (matching.length < (sec.questionCount || 0)) {
+      matching = (questions || []).filter((q) => {
+        if (!q || q.status !== 'Active') return false;
+        const qTech = (q.technology || '').toLowerCase();
         return (
-          q.technology.toLowerCase() === sec.technology.toLowerCase() ||
-          (sec.technology === 'General' && (q.technology === 'General' || q.technology === 'Aptitude')) ||
-          (sec.technology === 'Reasoning' && (q.technology === 'Reasoning' || q.technology === 'Logic')) ||
-          (sec.technology === 'Programming' && (q.technology === 'Programming' || q.questionType === 'Coding'))
+          qTech === secTech ||
+          (sec.technology === 'General' && (qTech === 'general' || qTech === 'aptitude')) ||
+          (sec.technology === 'Reasoning' && (qTech === 'reasoning' || qTech === 'logic')) ||
+          (sec.technology === 'Programming' && (qTech === 'programming' || q.questionType === 'Coding'))
         );
       });
     }
@@ -572,14 +582,17 @@ export function AssessmentsTab() {
   }, [questions]);
 
   const filteredQuestions = useMemo(() => {
-    return questions.filter((q) => {
+    const searchLower = (qbSearch || '').toLowerCase();
+    return (questions || []).filter((q) => {
+      if (!q) return false;
       const matchTech = qbTechFilter === 'ALL' || q.technology === qbTechFilter;
       const matchDiff = qbDiffFilter === 'ALL' || q.difficulty === qbDiffFilter;
       const matchType = qbTypeFilter === 'ALL' || q.questionType === qbTypeFilter;
       const matchSearch =
-        q.questionText.toLowerCase().includes(qbSearch.toLowerCase()) ||
-        q.topic.toLowerCase().includes(qbSearch.toLowerCase()) ||
-        q.technology.toLowerCase().includes(qbSearch.toLowerCase());
+        !searchLower ||
+        (q.questionText || '').toLowerCase().includes(searchLower) ||
+        (q.topic || '').toLowerCase().includes(searchLower) ||
+        (q.technology || '').toLowerCase().includes(searchLower);
       return matchTech && matchDiff && matchType && matchSearch;
     });
   }, [questions, qbTechFilter, qbDiffFilter, qbTypeFilter, qbSearch]);
@@ -751,10 +764,10 @@ export function AssessmentsTab() {
 
     const enrichedList = list.map((cand) => {
       const candidateId = cand.id;
-      const candidateEmail = cand.email?.toLowerCase();
+      const candidateEmail = cand.email ? (cand.email || '').toLowerCase() : '';
 
-      const matchingAttempt = attempts.find(
-        (att) => att.candidateId === candidateId || (att.candidateEmail && att.candidateEmail.toLowerCase() === candidateEmail)
+      const matchingAttempt = (attempts || []).find(
+        (att) => att.candidateId === candidateId || (att.candidateEmail && candidateEmail && (att.candidateEmail || '').toLowerCase() === candidateEmail)
       );
 
       let effectiveStage = cand.stage || 'SHORTLISTED';
@@ -801,12 +814,13 @@ export function AssessmentsTab() {
         matchStage = true;
       }
 
-      const candidateName = cand.name || `${cand.firstName || ''} ${cand.lastName || ''}`;
+      const searchLower = (candSearch || '').toLowerCase().trim();
+      const candidateName = cand.name || `${cand.firstName || ''} ${cand.lastName || ''}`.trim();
       const matchSearch =
-        !candSearch ||
-        candidateName.toLowerCase().includes(candSearch.toLowerCase()) ||
-        cand.email?.toLowerCase().includes(candSearch.toLowerCase()) ||
-        cand.jobTitle?.toLowerCase().includes(candSearch.toLowerCase());
+        !searchLower ||
+        (candidateName || '').toLowerCase().includes(searchLower) ||
+        (cand.email || '').toLowerCase().includes(searchLower) ||
+        (cand.jobTitle || '').toLowerCase().includes(searchLower);
 
       return matchStage && matchSearch;
     });
