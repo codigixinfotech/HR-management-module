@@ -145,7 +145,7 @@ export function LandingPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleBookDemoSubmit = (e: React.FormEvent) => {
+  const handleBookDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!demoClientName || !demoEmail || !demoCompanyName) {
       toast.error('Please fill in your name, email, and company name.');
@@ -153,7 +153,32 @@ export function LandingPage() {
     }
 
     setIsSubmittingDemo(true);
-    setTimeout(() => {
+    try {
+      const apiUrl = import.meta.env.PROD 
+        ? 'https://codigixinfotech.com/api/inquiries' 
+        : 'http://localhost:5173/api/inquiries';
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: demoClientName,
+          email: demoEmail,
+          company: demoCompanyName,
+          phone: demoPhone,
+          employees: demoEmployeeCount,
+          preferredDate: demoPreferredDate,
+          message: demoMessage,
+          type: 'ERP Demo Request'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit demo request');
+      }
+
       setIsSubmittingDemo(false);
       setIsBookDemoModalOpen(false);
       toast.success(`Demo Request Submitted! Our HR Solutions Specialist will contact ${demoEmail} shortly.`, {
@@ -164,7 +189,11 @@ export function LandingPage() {
       setDemoEmail('');
       setDemoPhone('');
       setDemoMessage('');
-    }, 1200);
+    } catch (error) {
+      console.error('Error submitting demo request:', error);
+      toast.error('Failed to submit request. Please try again later.');
+      setIsSubmittingDemo(false);
+    }
   };
 
   return (
