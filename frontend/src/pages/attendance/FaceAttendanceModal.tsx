@@ -47,7 +47,7 @@ import {
 interface FaceAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  employees: any[];
+  employees?: any[];
   onPunchSuccess?: (punchRecord: any) => void;
 }
 
@@ -61,7 +61,7 @@ type FaceVerificationState =
 export function FaceAttendanceModal({
   isOpen,
   onClose,
-  employees,
+  employees = [],
   onPunchSuccess,
 }: FaceAttendanceModalProps) {
   const queryClient = useQueryClient();
@@ -706,7 +706,7 @@ export function FaceAttendanceModal({
                     <SelectValue placeholder="Select Employee" />
                   </SelectTrigger>
                   <SelectContent className="max-h-56">
-                    {employees.map((emp) => (
+                    {(employees || []).map((emp) => (
                       <SelectItem key={emp.id} value={emp.id} className="text-xs">
                         {emp.firstName} {emp.lastName} ({emp.employeeCode})
                       </SelectItem>

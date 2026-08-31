@@ -13,6 +13,8 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const isHrOrAdmin = isHrOrAdminUser(user);
 
+  const isLandingPage = location.pathname.startsWith('/landing');
+
   const handleCloseMobile = useCallback(() => {
     setIsMobileMenuOpen(false);
   }, []);
@@ -39,49 +41,56 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen w-full bg-background relative overflow-hidden">
-      <Sidebar
-        isOpenOnMobile={isMobileMenuOpen}
-        onCloseMobile={handleCloseMobile}
-      />
+      {!isLandingPage && (
+        <Sidebar
+          isOpenOnMobile={isMobileMenuOpen}
+          onCloseMobile={handleCloseMobile}
+        />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
-        <Topbar onToggleMobileMenu={handleToggleMobileMenu} />
+        {!isLandingPage && <Topbar onToggleMobileMenu={handleToggleMobileMenu} />}
 
-        <main className="flex-1 min-h-0 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
-          <div className="mx-auto max-w-[1600px] w-full">
+        <main className={cn(
+          "flex-1 min-h-0 overflow-y-auto bg-background pb-24 md:pb-8",
+          isLandingPage ? "p-2 sm:p-3 lg:p-4" : "p-4 sm:p-6 lg:p-8"
+        )}>
+          <div className={cn("mx-auto w-full", isLandingPage ? "max-w-full" : "max-w-[1600px]")}>
             <Outlet />
           </div>
         </main>
       </div>
 
       {/* Mobile Bottom Navigation Bar (PWA Mobile Experience) */}
-      <nav className="fixed bottom-0 inset-x-0 h-16 bg-card/95 border-t border-border/80 backdrop-blur-lg z-40 flex items-center justify-around md:hidden px-2">
-        {bottomNavItems.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            location.pathname === item.path ||
-            (item.path !== '/dashboard' && location.pathname.startsWith(item.path.split('?')[0]));
+      {!isLandingPage && (
+        <nav className="fixed bottom-0 inset-x-0 h-16 bg-card/95 border-t border-border/80 backdrop-blur-lg z-40 flex items-center justify-around md:hidden px-2">
+          {bottomNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              location.pathname === item.path ||
+              (item.path !== '/dashboard' && location.pathname.startsWith(item.path.split('?')[0]));
 
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={cn(
-                'flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-semibold transition-colors cursor-pointer',
-                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Icon className={cn('h-5 w-5 mb-0.5 transition-transform', isActive && 'scale-110')} />
-              <span className="truncate max-w-[64px] text-center">{item.label}</span>
-            </NavLink>
-          );
-        })}
-      </nav>
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={cn(
+                  'flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-semibold transition-colors cursor-pointer',
+                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Icon className={cn('h-5 w-5 mb-0.5 transition-transform', isActive && 'scale-110')} />
+                <span className="truncate max-w-[64px] text-center">{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }

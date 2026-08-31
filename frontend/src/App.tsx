@@ -33,6 +33,7 @@ import IntegrationsPage from '@/pages/integrations/IntegrationsPage';
 import AdministrationPage from '@/pages/administration/AdministrationPage';
 
 import CandidateAssessmentPage from '@/pages/recruitment/CandidateAssessmentPage';
+import { LandingPage } from '@/pages/landing/LandingPage';
 
 import { CompanyProvider } from '@/context/CompanyContext';
 
@@ -148,6 +149,10 @@ export default function App() {
               {/* Administration Settings Routes */}
               <Route path="/administration" element={<AdministrationPage />} />
               <Route path="/administration/:tab" element={<AdministrationPage />} />
+
+              {/* Landing Page & Product Showcase Routes */}
+              <Route path="/landing" element={<LandingPage />} />
+              <Route path="/landing/:tab" element={<LandingPage />} />
             </Route>
           </Route>
 

@@ -92,14 +92,25 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
           <Menu className="h-5 w-5 stroke-[2.2]" />
         </button>
 
-        <span className="text-muted-foreground truncate max-w-[110px] sm:max-w-none">{breadcrumb.moduleLabel}</span>
-        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-        <span className="font-semibold text-foreground truncate max-w-[120px] sm:max-w-none">{breadcrumb.subLabel}</span>
+        {location.pathname.startsWith('/landing') ? (
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            ← Back to Dashboard
+          </button>
+        ) : (
+          <>
+            <span className="text-muted-foreground truncate max-w-[110px] sm:max-w-none">{breadcrumb.moduleLabel}</span>
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+            <span className="font-semibold text-foreground truncate max-w-[120px] sm:max-w-none">{breadcrumb.subLabel}</span>
+          </>
+        )}
       </div>
 
       {/* Right Actions & Profile */}
       <div className="flex items-center gap-4">
-        {/* System Health Badge */}
         <Badge
           variant="outline"
           className="hidden items-center gap-1.5 border-success/20 bg-success/10 px-2.5 py-1 text-xs font-normal text-success sm:flex"
