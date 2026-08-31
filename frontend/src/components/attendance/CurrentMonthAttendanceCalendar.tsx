@@ -62,7 +62,10 @@ export function CurrentMonthAttendanceCalendar({
   // 1. Fetch DB attendance records dynamically for the selected month/year
   const { data: dbAttendanceRecords = [], isLoading: isAttendanceLoading } = useQuery({
     queryKey: ['attendance-records-calendar', employeeId, currentYear, currentMonth],
-    queryFn: () => attendanceApi.list({ employeeId, from: fromDateStr, to: toDateStr }),
+    queryFn: () =>
+      employeeId
+        ? attendanceApi.list({ employeeId, from: fromDateStr, to: toDateStr })
+        : attendanceApi.getMy({ from: fromDateStr, to: toDateStr }),
   });
 
   // 2. Fetch holidays for current year
@@ -133,14 +136,24 @@ export function CurrentMonthAttendanceCalendar({
 
       // Priority 1: Check DB Record
       if (dbRecord) {
-        status = dbRecord.status === 'PRESENT' ? 'PRESENT' : dbRecord.status === 'LATE' ? 'LATE' : dbRecord.status === 'ON_LEAVE' ? 'ON_LEAVE' : dbRecord.status === 'ABSENT' ? 'ABSENT' : 'PRESENT';
-        checkIn = dbRecord.checkIn ? formatTime(dbRecord.checkIn) : '09:02 AM';
-        checkOut = dbRecord.checkOut ? formatTime(dbRecord.checkOut) : '06:41 PM';
-        workHours = dbRecord.workHours || '9h 39m';
-        hasFaceId = true;
-        hasGps = true;
-        faceMatchScore = dbRecord.faceMatchScore || (status === 'PRESENT' ? 96.7 : 91.5);
-        distanceMeters = dbRecord.distanceMeters || 42;
+        status = dbRecord.status === 'PRESENT' || dbRecord.status === 'LATE_ARRIVING' ? 'PRESENT' : dbRecord.status === 'LATE' ? 'LATE' : dbRecord.status === 'ON_LEAVE' ? 'ON_LEAVE' : dbRecord.status === 'ABSENT' ? 'ABSENT' : 'PRESENT';
+        checkIn = dbRecord.checkIn ? formatTime(dbRecord.checkIn) : '—';
+        checkOut = dbRecord.checkOut ? formatTime(dbRecord.checkOut) : '—';
+        if (dbRecord.workedMinutes) {
+          const h = Math.floor(dbRecord.workedMinutes / 60);
+          const m = dbRecord.workedMinutes % 60;
+          workHours = `${h}h ${String(m).padStart(2, '0')}m`;
+        } else if (dbRecord.checkIn && dbRecord.checkOut) {
+          const diff = new Date(dbRecord.checkOut).getTime() - new Date(dbRecord.checkIn).getTime();
+          const mins = Math.floor(diff / 60000);
+          workHours = `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+        } else {
+          workHours = '—';
+        }
+        hasFaceId = Boolean(dbRecord.faceVerificationStatus || dbRecord.verificationMethod);
+        hasGps = Boolean(dbRecord.officeLocation || dbRecord.distanceMeters !== undefined);
+        faceMatchScore = dbRecord.faceMatchScore || undefined;
+        distanceMeters = dbRecord.distanceMeters || undefined;
       }
       // Priority 2: Check Holiday
       else if (holidayName) {
@@ -150,35 +163,7 @@ export function CurrentMonthAttendanceCalendar({
       else if (dayOfWeek === 0 || dayOfWeek === 6) {
         status = 'WEEKLY_OFF';
       }
-      // Priority 4: August 2026 Demo Data (only when August 2026 is active)
-      else if (currentYear === 2026 && currentMonth === 7) {
-        if (day === 15) {
-          status = 'HOLIDAY';
-        } else if (day === 19) {
-          status = 'ON_LEAVE';
-        } else if (day === 7) {
-          status = 'LATE';
-          checkIn = '09:42 AM';
-          checkOut = '06:45 PM';
-          workHours = '9h 03m';
-          hasFaceId = true;
-          hasGps = true;
-          faceMatchScore = 91.5;
-          distanceMeters = 42;
-        } else if (day <= 21) {
-          status = 'PRESENT';
-          checkIn = '09:02 AM';
-          checkOut = '06:41 PM';
-          workHours = '9h 39m';
-          hasFaceId = true;
-          hasGps = true;
-          faceMatchScore = 96.7;
-          distanceMeters = 42;
-        } else {
-          status = 'UPCOMING';
-        }
-      }
-      // Priority 5: Other Months with no attendance DB records
+      // Priority 4: Past vs Upcoming Dates without DB records
       else {
         if (dateStr <= todayStr) {
           status = 'ABSENT';
@@ -195,7 +180,7 @@ export function CurrentMonthAttendanceCalendar({
         checkIn,
         checkOut,
         workHours,
-        holidayName: holidayName || (currentYear === 2026 && currentMonth === 7 && day === 15 ? 'Independence Day' : undefined),
+        holidayName: holidayName || undefined,
         hasFaceId,
         hasGps,
         faceMatchScore,
@@ -204,7 +189,7 @@ export function CurrentMonthAttendanceCalendar({
     }
 
     return { firstDayIndex, days };
-  }, [currentYear, currentMonth, daysInSelectedMonth, recordsByDate, holidaysByDate]);
+  }, [currentYear, currentMonth, daysInSelectedMonth, recordsByDate, holidaysByDate, todayStr]);
 
   // Month navigation handlers
   const handlePrevMonth = () => {

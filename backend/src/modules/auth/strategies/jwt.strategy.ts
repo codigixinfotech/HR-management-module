@@ -65,7 +65,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         employeeRecord = matchedEmp;
       } else {
         const company = await this.prisma.company.findFirst();
-        const empCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+        let empCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+        let exists = await this.prisma.employee.findFirst({ where: { employeeCode: empCode } });
+        while (exists) {
+          empCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+          exists = await this.prisma.employee.findFirst({ where: { employeeCode: empCode } });
+        }
         const nameParts = user.email.split('@')[0].split('.');
         const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : 'Employee';
         const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'User';

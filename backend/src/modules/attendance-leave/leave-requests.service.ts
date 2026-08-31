@@ -53,6 +53,20 @@ export class LeaveRequestsService {
     return { items, total, page, pageSize };
   }
 
+  async listMy(user?: any, status?: ApprovalStatus) {
+    const empId = user?.employee?.id;
+    if (!empId) return [];
+
+    return this.prisma.leaveRequest.findMany({
+      where: {
+        employeeId: empId,
+        ...(status ? { status } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      include: this.listInclude,
+    });
+  }
+
   async findById(id: string) {
     const request = await this.prisma.leaveRequest.findUnique({
       where: { id },

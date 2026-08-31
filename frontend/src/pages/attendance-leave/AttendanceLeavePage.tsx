@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { companiesApi } from '@/api/organization';
+import { useAuthStore } from '@/stores/auth-store';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -23,6 +24,15 @@ export default function AttendanceLeavePage() {
   
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
   const [companyId, setCompanyId] = useState<string | undefined>(undefined);
+
+  const user = useAuthStore((s) => s.user);
+
+  const isHrOrAdmin = Boolean(
+    user?.permissions?.includes('*') ||
+      user?.roles?.some((r) => r.toUpperCase().includes('ADMIN') || r.toUpperCase().includes('HR')) ||
+      user?.primaryRole?.toUpperCase().includes('ADMIN') ||
+      user?.primaryRole?.toUpperCase().includes('HR')
+  );
 
   return (
     <div className="space-y-6">
@@ -53,13 +63,15 @@ export default function AttendanceLeavePage() {
         }
       />
 
-      {/* Metrics */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard icon={UserCheck} label="Today's Present Rate" value="94.6%" hint="138 / 146 On Duty" accent="success" />
-        <StatCard icon={Clock} label="On Leave Today" value="6 Employees" hint="4 Casual / 2 Medical" accent="info" />
-        <StatCard icon={AlertCircle} label="Late Arrivals" value="2 Personnel" hint="Grace Period Applied" accent="warning" />
-        <StatCard icon={ShieldCheck} label="Overtime Approved" value="14.5 Hours" hint="Plant Production Line" accent="primary" />
-      </div>
+      {/* Metrics — Only displayed for HR/Admin roles */}
+      {isHrOrAdmin && activeTab !== 'live' && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard icon={UserCheck} label="Today's Present Rate" value="94.6%" hint="138 / 146 On Duty" accent="success" />
+          <StatCard icon={Clock} label="On Leave Today" value="6 Employees" hint="4 Casual / 2 Medical" accent="info" />
+          <StatCard icon={AlertCircle} label="Late Arrivals" value="2 Personnel" hint="Grace Period Applied" accent="warning" />
+          <StatCard icon={ShieldCheck} label="Overtime Approved" value="14.5 Hours" hint="Plant Production Line" accent="primary" />
+        </div>
+      )}
 
       {/* Render Dedicated Subpage based on activeTab */}
       {activeTab === 'register' && <AttendanceRegisterTab />}

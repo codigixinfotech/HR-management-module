@@ -116,6 +116,156 @@ export class AttendanceService {
     });
   }
 
+  async listMyAttendance(
+    user?: CurrentUserPayload,
+    from?: string,
+    to?: string,
+  ) {
+    const empId = user?.employee?.id;
+
+    if (!empId) {
+      return [];
+    }
+
+    const records = await this.prisma.attendanceRecord.findMany({
+      where: {
+        employeeId: empId,
+        ...(from || to
+          ? {
+              date: {
+                ...(from ? { gte: new Date(from) } : {}),
+                ...(to ? { lte: new Date(to) } : {}),
+              },
+            }
+          : {}),
+      },
+      include: this.listInclude,
+      orderBy: { date: 'desc' },
+    });
+
+    return records.map((r) => {
+      if (r.checkIn) {
+        const checkInMins = this.computeCheckInMinsInIst(new Date(r.checkIn));
+        let shiftStartMins = 9 * 60 + 30; // 09:30 AM
+        const sType = r.shiftType as any;
+        if (sType?.startTime) {
+          const parts = sType.startTime.split(':');
+          shiftStartMins = (parseInt(parts[0], 10) || 9) * 60 + (parseInt(parts[1], 10) || 30);
+        }
+        if (checkInMins > shiftStartMins) {
+          return { ...r, status: 'LATE_ARRIVING' };
+        }
+      }
+      return r;
+    });
+  }
+
+  async getMyAttendanceSummary(user?: CurrentUserPayload) {
+    const empId = user?.employee?.id;
+
+    if (!empId) {
+      return {
+        todayStatus: 'NOT_CHECKED_IN',
+        checkInTime: '—',
+        checkOutTime: '—',
+        totalWorkHours: '—',
+        monthlyPresentDays: 0,
+        leaveBalanceAllocated: 18,
+        leaveBalanceRemaining: 18,
+        leaveBalanceDisplay: '0 / 18',
+      };
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+    // Fetch today's record strictly for this employee
+    const todayRecord = await this.prisma.attendanceRecord.findFirst({
+      where: {
+        employeeId: empId,
+        date: startOfToday,
+      },
+      include: this.listInclude,
+    });
+
+    let todayStatus = 'NOT_CHECKED_IN';
+    let checkInTime = '—';
+    let checkOutTime = '—';
+    let totalWorkHours = '—';
+
+    if (todayRecord) {
+      todayStatus = todayRecord.status;
+      if (todayRecord.checkIn) {
+        const cIn = new Date(todayRecord.checkIn);
+        checkInTime = cIn.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const checkInMins = this.computeCheckInMinsInIst(cIn);
+        if (checkInMins > (9 * 60 + 30)) {
+          todayStatus = 'LATE_ARRIVING';
+        } else {
+          todayStatus = 'PRESENT';
+        }
+      }
+      if (todayRecord.checkOut) {
+        const cOut = new Date(todayRecord.checkOut);
+        checkOutTime = cOut.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
+
+      if (todayRecord.checkIn && todayRecord.checkOut) {
+        const diffMs = new Date(todayRecord.checkOut).getTime() - new Date(todayRecord.checkIn).getTime();
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        const hrs = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        totalWorkHours = `${hrs}h ${String(mins).padStart(2, '0')}m`;
+      } else if (todayRecord.checkIn) {
+        totalWorkHours = 'In Progress';
+      }
+    }
+
+    // Monthly present days for current month strictly for this employee
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59));
+
+    const monthlyPresentCount = await this.prisma.attendanceRecord.count({
+      where: {
+        employeeId: empId,
+        date: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+        status: { in: ['PRESENT', 'HALF_DAY'] },
+      },
+    });
+
+    // Fetch leave balances for current year
+    const currentYear = now.getFullYear();
+    const leaveBalances = empId
+      ? await this.prisma.leaveBalance.findMany({
+          where: { employeeId: empId, year: currentYear },
+        })
+      : [];
+
+    let totalAllocated = 18;
+    let totalUsed = 0;
+
+    if (leaveBalances.length > 0) {
+      totalAllocated = leaveBalances.reduce((acc, b) => acc + b.allocated, 0);
+      totalUsed = leaveBalances.reduce((acc, b) => acc + b.used, 0);
+    }
+
+    const remaining = Math.max(0, totalAllocated - totalUsed);
+
+    return {
+      todayStatus,
+      checkInTime,
+      checkOutTime,
+      totalWorkHours,
+      monthlyPresentDays: monthlyPresentCount,
+      leaveBalanceAllocated: totalAllocated,
+      leaveBalanceRemaining: remaining,
+      leaveBalanceDisplay: `${remaining} / ${totalAllocated}`,
+    };
+  }
+
   async findById(id: string, user?: CurrentUserPayload) {
     const record = await this.prisma.attendanceRecord.findUnique({
       where: { id },

@@ -49,82 +49,12 @@ interface AttendanceRequestsState {
   clearAllRequests: () => void;
 }
 
-const DEFAULT_INITIAL_REQUESTS: AttendanceEditRequest[] = [
-  {
-    id: 'ATT-REQ-8823',
-    attendanceRecordId: 'REC-18-AUG-2026-MIA',
-    employeeCode: 'EMP0002',
-    employeeName: 'Mia Vance',
-    department: 'Engineering & Technology',
-    attendanceDate: 'Aug 18, 2026',
-    originalClockIn: '09:01',
-    originalClockOut: '—',
-    requestedClockIn: '09:01',
-    requestedClockOut: '06:43 AM',
-    originalTotalHours: '—',
-    requestedTotalHours: '21h 42m',
-    reason: 'OKK',
-    requestedBy: 'Mia Vance',
-    requestDate: '22 Aug 2026, 12:58 PM',
-    status: 'APPROVED',
-    approvedBy: 'Admin/HR',
-    approvedAt: '22 Aug 2026, 01:02 PM',
-  },
-  {
-    id: 'ATT-REQ-8822',
-    attendanceRecordId: 'REC-22-AUG-2026-DEMO',
-    employeeCode: 'DEMO-EMPL-125',
-    employeeName: 'Employee Demo',
-    department: 'Human Resources',
-    attendanceDate: '22 Aug 2026',
-    originalClockIn: '12:35:55',
-    originalClockOut: '—',
-    requestedClockIn: '09:30 AM',
-    requestedClockOut: '—',
-    originalTotalHours: '—',
-    requestedTotalHours: '—',
-    reason: 'Biometric terminal network delay / Punch time correction',
-    requestedBy: 'Employee Demo',
-    requestDate: '22 Aug 2026, 12:36 PM',
-    status: 'APPROVED',
-    approvedBy: 'Admin/HR',
-    approvedAt: '22 Aug 2026, 12:48 PM',
-  },
-  {
-    id: 'ATT-REQ-8821',
-    attendanceRecordId: 'REC-21-AUG-2026',
-    employeeCode: 'EMP-8265',
-    employeeName: 'Sanika Mote',
-    department: 'Human Resources',
-    attendanceDate: '21 Aug 2026',
-    originalClockIn: '03:00 PM',
-    originalClockOut: '06:30 AM',
-    requestedClockIn: '03:00 PM',
-    requestedClockOut: '09:45 AM',
-    originalTotalHours: '15h 30m',
-    requestedTotalHours: '18h 45m',
-    reason: 'Biometric terminal network delay / Forgot evening punch out',
-    requestedBy: 'Sanika Mote',
-    requestDate: '22 Aug 2026, 11:42 AM',
-    status: 'REJECTED',
-    rejectedBy: 'Admin/HR',
-    rejectedAt: '22 Aug 2026, 12:48 PM',
-  },
-];
+const DEMO_REQUEST_IDS = new Set(['ATT-REQ-8823', 'ATT-REQ-8822', 'ATT-REQ-8821']);
+
+const DEFAULT_INITIAL_REQUESTS: AttendanceEditRequest[] = [];
 
 // Keys are ONLY request IDs — never employee+date combos.
-const INITIAL_APPROVED_CORRECTIONS: Record<string, ApprovedCorrection> = {
-  'ATT-REQ-8823': {
-    clockIn: '09:01',
-    clockOut: '06:43 AM',
-    totalHours: '21h 42m',
-    approvedBy: 'Admin/HR',
-    approvedAt: '22 Aug 2026, 01:02 PM',
-    originalClockIn: '09:01',
-    originalClockOut: '—',
-    originalTotalHours: '—',
-  },
-};
+const INITIAL_APPROVED_CORRECTIONS: Record<string, ApprovedCorrection> = {};
 
 // STABLE key — never version this. Versioning caused cross-tab key mismatches.
 const STABLE_KEY = 'attendance-requests-store';
@@ -265,10 +195,11 @@ export const syncAttendanceStoreFromStorage = () => {
     if (!raw) return;
     const { requests: stored, approvedCorrections: storedAC } = JSON.parse(raw)?.state ?? {};
     if (Array.isArray(stored)) {
+      const cleaned = stored.filter((r: any) => !DEMO_REQUEST_IDS.has(r.id) && r.employeeCode !== 'EMP0002');
       const current = useAttendanceRequestsStore.getState().requests;
-      if (stored.length !== current.length || JSON.stringify(stored) !== JSON.stringify(current)) {
+      if (cleaned.length !== current.length || JSON.stringify(cleaned) !== JSON.stringify(current)) {
         useAttendanceRequestsStore.setState({
-          requests: [...stored],
+          requests: [...cleaned],
           approvedCorrections: { ...(storedAC ?? {}) },
         });
       }

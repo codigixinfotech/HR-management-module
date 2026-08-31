@@ -31,6 +31,8 @@ export const holidaysApi = {
 export const leaveBalancesApi = {
   list: async (employeeId?: string, year?: number) =>
     (await apiClient.get<LeaveBalance[]>('/attendance-leave/leave-balances', { params: { employeeId, year } })).data,
+  listMy: async (year?: number) =>
+    (await apiClient.get<LeaveBalance[]>('/attendance-leave/leave-balances/my', { params: { year } })).data,
   allocate: async (payload: { employeeId: string; leaveTypeId: string; year: number; allocated: number }) =>
     (await apiClient.post<LeaveBalance>('/attendance-leave/leave-balances', payload)).data,
 };
@@ -38,6 +40,8 @@ export const leaveBalancesApi = {
 export const leaveRequestsApi = {
   list: async (params: { page?: number; pageSize?: number; employeeId?: string; status?: ApprovalStatus }) =>
     (await apiClient.get<PaginatedResult<LeaveRequest>>('/attendance-leave/leave-requests', { params })).data,
+  listMy: async (params?: { status?: ApprovalStatus }) =>
+    (await apiClient.get<LeaveRequest[]>('/attendance-leave/leave-requests/my', { params })).data,
   create: async (payload: {
     companyId: string;
     employeeId: string;
@@ -53,6 +57,10 @@ export const leaveRequestsApi = {
 export const attendanceApi = {
   list: async (params: { employeeId?: string; companyId?: string; from?: string; to?: string }) =>
     (await apiClient.get<AttendanceRecord[]>('/attendance-leave/attendance', { params })).data,
+  getMy: async (params?: { from?: string; to?: string }) =>
+    (await apiClient.get<AttendanceRecord[]>('/attendance-leave/attendance/my', { params })).data,
+  getMySummary: async () =>
+    (await apiClient.get<any>('/attendance-leave/attendance/my/summary')).data,
   mark: async (payload: Partial<AttendanceRecord> & { companyId: string; employeeId: string; date: string }) =>
     (await apiClient.post<AttendanceRecord>('/attendance-leave/attendance', payload)).data,
   update: async (id: string, payload: Partial<AttendanceRecord>) =>

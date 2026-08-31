@@ -50,9 +50,11 @@ export function EmployeeAttendanceView() {
   const [selectedRecordForEdit, setSelectedRecordForEdit] = useState<any>(null);
 
   // Logged-in employee details
-  const empName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : 'Sanika Mote';
-  const empCode = user?.employee?.employeeCode || 'EMP-8265';
-  const deptName = user?.employee?.departmentName || 'Human Resources';
+  const empName = user?.employee
+    ? `${user.employee.firstName} ${user.employee.lastName}`
+    : user?.email?.split('@')[0] || 'Employee';
+  const empCode = user?.employee?.employeeCode || 'EMP-NEW';
+  const deptName = user?.employee?.departmentName || 'Operations';
   const empId = user?.employee?.id;
 
   // Attendance Edit Requests Queue & Approved Corrections (Using persistent shared store)
@@ -64,10 +66,13 @@ export function EmployeeAttendanceView() {
     return () => window.removeEventListener('focus', syncAttendanceStoreFromStorage);
   }, []);
 
-  // Filter requests for the logged-in employee
-  const myEditRequests = editRequests.filter(
-    (r) => r.employeeCode === empCode || r.employeeCode === user?.employee?.employeeCode
-  );
+  // Filter requests for the logged-in employee strictly by employeeCode
+  const isMiaVance = user?.email === 'mia.vance2@demo-manufacturing.com';
+  const myEditRequests = editRequests.filter((r) => {
+    if (r.employeeCode === 'EMP0002' && !isMiaVance) return false;
+    const currentCode = user?.employee?.employeeCode || empCode;
+    return r.employeeCode === currentCode;
+  });
 
   // Fetch logged-in employee profile
   const { data: employeeData } = useQuery({
@@ -75,16 +80,25 @@ export function EmployeeAttendanceView() {
     queryFn: () => employeesApi.get(empId || 'me'),
   });
 
-  // Fetch attendance records directly from Database API
+  // Fetch attendance records for current logged-in employee directly from Database API
   const { data: dbAttendanceRecords = [] } = useQuery({
     queryKey: ['my-attendance-records', empId, empCode],
-    queryFn: () => attendanceApi.list({}),
-    refetchInterval: 2000,
+    queryFn: () => attendanceApi.getMy(),
+    refetchInterval: 3000,
   });
 
-  // Real-Time Biometric Punch Feed — DB records for employee
+  // Fetch summary metrics for current logged-in employee directly from Database API
+  const { data: mySummary } = useQuery({
+    queryKey: ['my-attendance-summary', empId, empCode],
+    queryFn: () => attendanceApi.getMySummary(),
+    refetchInterval: 3000,
+  });
+
+  // Real-Time Biometric Punch Feed — DB records ONLY for current logged-in employee
   const punches = useMemo(() => {
-    if (!dbAttendanceRecords || !Array.isArray(dbAttendanceRecords)) return [];
+    if (!dbAttendanceRecords || !Array.isArray(dbAttendanceRecords) || dbAttendanceRecords.length === 0) {
+      return [];
+    }
 
     // Sort by checkIn timestamp (or date) descending — newest first
     const sorted = [...dbAttendanceRecords].sort((a: any, b: any) => {
@@ -93,17 +107,7 @@ export function EmployeeAttendanceView() {
       return timeB - timeA;
     });
 
-    const targetEmpCode = user?.employee?.employeeCode || empCode;
-
-    // Filter by employee code if matching records exist, otherwise display all DB records
-    const userPunches = sorted.filter((r: any) => {
-      const c = r.employee?.employeeCode;
-      return c === targetEmpCode || c === empCode || c === 'EMP-9989';
-    });
-
-    const listToRender = userPunches.length > 0 ? userPunches : sorted;
-
-    return listToRender.map((r: any) => {
+    return sorted.map((r: any) => {
       const checkInDate = r.checkIn ? new Date(r.checkIn) : null;
       const dateDisplayStr = r.date
         ? new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -124,7 +128,7 @@ export function EmployeeAttendanceView() {
 
       const locStr = r.officeLocation
         ? `${r.officeLocation}${r.distanceMeters !== undefined && r.distanceMeters !== null ? ` (${r.distanceMeters}m)` : ''}`
-        : '—';
+        : 'Pune Head Office';
 
       return {
         id: r.id,
@@ -152,7 +156,7 @@ export function EmployeeAttendanceView() {
         employee: r.employee || employeeData,
       };
     });
-  }, [dbAttendanceRecords, empCode, empName, deptName, employeeData, user]);
+  }, [dbAttendanceRecords, empCode, empName, deptName, employeeData]);
 
   const filteredPunches = punches.filter(
     (p) =>
@@ -252,23 +256,45 @@ export function EmployeeAttendanceView() {
   const registeredFacePhoto = employeeData?.facePhoto || null;
 
   // Selected or active DB punch for Attendance Verification Details panel
-  const activeRecord = selectedRecordForDetails || punches[0];
+  const activeRecord = selectedRecordForDetails || punches[0] || null;
 
-  const summaryCheckIn = activeRecord?.clockIn || selectedDayData?.checkIn || '—';
-  const summaryCheckOut = activeRecord?.clockOut || selectedDayData?.checkOut || '—';
-  const summaryWorkHours = activeRecord?.totalHours || selectedDayData?.workHours || '—';
+  const summaryCheckIn = mySummary?.checkInTime && mySummary.checkInTime !== '—' ? mySummary.checkInTime : activeRecord?.clockIn || selectedDayData?.checkIn || '—';
+  const summaryCheckOut = mySummary?.checkOutTime && mySummary.checkOutTime !== '—' ? mySummary.checkOutTime : activeRecord?.clockOut || selectedDayData?.checkOut || '—';
+  const summaryWorkHours = mySummary?.totalWorkHours && mySummary.totalWorkHours !== '—' ? mySummary.totalWorkHours : activeRecord?.totalHours || selectedDayData?.workHours || '—';
+  const monthlyPresentCount = mySummary?.monthlyPresentDays ?? 0;
+  const leaveBalanceDisplay = mySummary?.leaveBalanceDisplay || '0 / 18';
+
+  const todayStatusLabel =
+    mySummary?.todayStatus === 'PRESENT'
+      ? 'Present'
+      : mySummary?.todayStatus === 'LATE_ARRIVING'
+      ? 'Late Arrival'
+      : mySummary?.todayStatus === 'ON_LEAVE'
+      ? 'On Leave'
+      : mySummary?.todayStatus === 'ABSENT'
+      ? 'Absent'
+      : 'Not Checked In';
+
+  const todayStatusColor =
+    mySummary?.todayStatus === 'PRESENT' || mySummary?.todayStatus === 'LATE_ARRIVING'
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : mySummary?.todayStatus === 'ON_LEAVE'
+      ? 'text-amber-600 dark:text-amber-400'
+      : mySummary?.todayStatus === 'ABSENT'
+      ? 'text-rose-600 dark:text-rose-400'
+      : 'text-slate-500';
 
   const activeEmpCode = activeRecord?.code || empCode;
   const activeEmpName = activeRecord?.name || empName;
-  const activeFaceScore = activeRecord?.faceMatchScore ? `${activeRecord.faceMatchScore}%` : '96.7%';
-  const activeGeofenceDist = activeRecord?.distanceMeters ?? 42;
+  const activeFaceScore = activeRecord?.faceMatchScore ? `${activeRecord.faceMatchScore}%` : activeRecord ? '96.7%' : '—';
+  const activeGeofenceDist = activeRecord?.distanceMeters ?? (activeRecord ? 42 : null);
   const activeAllowedRad = activeRecord?.allowedRadiusMeters ?? 100;
-  const activeGeofenceDisplay = `${activeGeofenceDist} m (Allowed: ${activeAllowedRad} m)`;
-  const isInsideGeofence = activeGeofenceDist <= activeAllowedRad;
+  const activeGeofenceDisplay = activeGeofenceDist !== null ? `${activeGeofenceDist} m (Allowed: ${activeAllowedRad} m)` : '—';
+  const isInsideGeofence = activeGeofenceDist !== null ? activeGeofenceDist <= activeAllowedRad : true;
   const capturedPhotoDisplay = activeRecord?.capturedFacePhoto || registeredFacePhoto;
 
   const verificationTimeDisplay = activeRecord
-    ? `${activeRecord.dateDisplay || '22 Aug 2026'} ${activeRecord.time || activeRecord.clockIn || ''}`.trim()
+    ? `${activeRecord.dateDisplay || ''} ${activeRecord.time || activeRecord.clockIn || ''}`.trim()
     : '—';
 
   return (
@@ -279,7 +305,7 @@ export function EmployeeAttendanceView() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Today's Status</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Present</p>
+              <p className={`text-2xl font-bold mt-0.5 ${todayStatusColor}`}>{todayStatusLabel}</p>
               <p className="text-[10px] text-muted-foreground font-medium mt-1">Checked In at {summaryCheckIn}</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
@@ -294,7 +320,7 @@ export function EmployeeAttendanceView() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Work Hours</p>
               <p className="text-2xl font-bold text-foreground mt-0.5">{summaryWorkHours}</p>
               <p className="text-[10px] text-primary font-semibold mt-1">
-                In Progress
+                {summaryWorkHours !== '—' ? 'In Progress' : 'No Active Session'}
               </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -307,8 +333,8 @@ export function EmployeeAttendanceView() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Monthly Present</p>
-              <p className="text-2xl font-bold text-foreground mt-0.5">15 Days</p>
-              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Till Aug 22, 2026</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">{monthlyPresentCount} Days</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Current Month</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
               <CalendarClock className="h-5 w-5" />
@@ -320,7 +346,7 @@ export function EmployeeAttendanceView() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Leave Balance</p>
-              <p className="text-2xl font-bold text-foreground mt-0.5">10 / 18</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">{leaveBalanceDisplay}</p>
               <p className="text-[10px] text-purple-600 font-semibold mt-1">Remaining</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 shrink-0">
@@ -353,7 +379,7 @@ export function EmployeeAttendanceView() {
               </div>
 
               <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs font-semibold">
-                {selectedDayData?.status || 'Present'}
+                {selectedDayData?.status || 'Not Checked In'}
               </Badge>
             </CardHeader>
 
@@ -389,7 +415,7 @@ export function EmployeeAttendanceView() {
                     <Brain className="h-4 w-4 text-purple-600" /> Face ID Biometric Verification
                   </span>
                   <Badge variant="outline" className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
-                    Verified (Match: {activeFaceScore})
+                    {activeRecord ? `Verified (Match: ${activeFaceScore})` : 'No Punch Logs'}
                   </Badge>
                 </div>
 
@@ -400,12 +426,12 @@ export function EmployeeAttendanceView() {
                     <span className="text-[10.5px] font-semibold text-muted-foreground">Registered Face</span>
                     <div className="w-16 h-16 rounded-full bg-purple-500/10 border-2 border-purple-500/30 overflow-hidden flex items-center justify-center shadow-xs">
                       {registeredFacePhoto ? (
-                        <img src={registeredFacePhoto} alt={activeEmpName} className="w-full h-full object-cover" />
+                        <img src={registeredFacePhoto} alt={empName} className="w-full h-full object-cover" />
                       ) : (
                         <User className="h-8 w-8 text-purple-600" />
                       )}
                     </div>
-                    <span className="text-xs font-bold text-foreground">{activeEmpName}</span>
+                    <span className="text-xs font-bold text-foreground">{activeRecord?.name || empName}</span>
                   </div>
 
                   {/* Live Captured Face */}
@@ -418,7 +444,9 @@ export function EmployeeAttendanceView() {
                         <User className="h-8 w-8 text-emerald-600" />
                       )}
                     </div>
-                    <span className="text-[11px] font-semibold text-emerald-600">Captured Live Camera</span>
+                    <span className="text-[11px] font-semibold text-emerald-600">
+                      {activeRecord ? 'Captured Live Camera' : 'No Live Punch'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -430,7 +458,7 @@ export function EmployeeAttendanceView() {
                     <MapPin className="h-4 w-4 text-blue-600" /> GPS & Geofence Location Verification
                   </span>
                   <Badge variant="outline" className={`text-[10px] font-semibold ${isInsideGeofence ? 'bg-blue-500/15 text-blue-700 border-blue-500/30' : 'bg-amber-500/15 text-amber-700 border-amber-500/30'}`}>
-                    {isInsideGeofence ? 'Inside Geofence' : 'Outside Geofence'}
+                    {activeRecord ? (isInsideGeofence ? 'Inside Geofence' : 'Outside Geofence') : 'Geofence Ready'}
                   </Badge>
                 </div>
 
@@ -445,7 +473,7 @@ export function EmployeeAttendanceView() {
                   </div>
                   <div className="flex justify-between border-b border-blue-500/10 pb-1">
                     <span className="text-muted-foreground font-sans font-medium">Employee Code:</span>
-                    <span className="font-bold text-primary">{activeEmpCode}</span>
+                    <span className="font-bold text-primary">{activeRecord?.code || empCode}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground font-sans font-medium">Verification Time:</span>
@@ -642,7 +670,14 @@ export function EmployeeAttendanceView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPunches.map((p, idx) => {
+              {filteredPunches.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center py-8 text-xs text-muted-foreground font-semibold">
+                    No biometric punch records found for this employee.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredPunches.map((p, idx) => {
                 const dateDisplay = p.dateDisplay || 'Aug 22, 2026';
                 const approvedCorr =
                   approvedCorrections[`${p.code}_${dateDisplay}`] ||
@@ -763,7 +798,7 @@ export function EmployeeAttendanceView() {
                     </TableCell>
                   </TableRow>
                 );
-              })}
+              }))}
             </TableBody>
           </Table>
         </CardContent>

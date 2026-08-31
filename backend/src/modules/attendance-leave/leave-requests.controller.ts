@@ -15,6 +15,9 @@ import {
 } from './dto/leave-request.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 
+import { ApprovalStatus } from '@prisma/client';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+
 @Controller('attendance-leave/leave-requests')
 export class LeaveRequestsController {
   constructor(private readonly leaveRequestsService: LeaveRequestsService) {}
@@ -27,6 +30,15 @@ export class LeaveRequestsController {
       query.employeeId,
       query.status,
     );
+  }
+
+  @Get('my')
+  @Permissions('attendance_leave.read')
+  listMy(
+    @Query('status') status?: ApprovalStatus,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.leaveRequestsService.listMy(user, status);
   }
 
   @Get(':id')

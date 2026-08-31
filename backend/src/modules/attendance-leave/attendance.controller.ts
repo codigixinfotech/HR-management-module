@@ -28,6 +28,22 @@ export class AttendanceController {
     return this.attendanceService.list(employeeId, companyId, from, to, user);
   }
 
+  @Get('my')
+  @Permissions('attendance_leave.read')
+  listMy(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.attendanceService.listMyAttendance(user, from, to);
+  }
+
+  @Get('my/summary')
+  @Permissions('attendance_leave.read')
+  getMySummary(@CurrentUser() user?: CurrentUserPayload) {
+    return this.attendanceService.getMyAttendanceSummary(user);
+  }
+
   @Get(':id')
   @Permissions('attendance_leave.read')
   findOne(@Param('id') id: string, @CurrentUser() user?: CurrentUserPayload) {

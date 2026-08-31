@@ -21,6 +21,24 @@ export class LeaveBalancesService {
     });
   }
 
+  listMy(user?: any, year?: number) {
+    const empId = user?.employee?.id;
+    if (!empId) return [];
+
+    return this.prisma.leaveBalance.findMany({
+      where: {
+        employeeId: empId,
+        ...(year ? { year } : {}),
+      },
+      include: {
+        leaveType: {
+          select: { id: true, name: true, code: true, isPaid: true },
+        },
+      },
+      orderBy: { year: 'desc' },
+    });
+  }
+
   allocate(dto: AllocateLeaveBalanceDto) {
     return this.prisma.leaveBalance.upsert({
       where: {
