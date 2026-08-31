@@ -79,7 +79,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
 
 // Imported Banner Artifact Images generated for HR ERP
-import heroWorkflowBackgroundBanner from '@/assets/banners/hollow_erp_workflow_background_banner.jpg';
+import heroWorkflowBackgroundBanner from '@/assets/banners/hr_erp_banner_light.jpg';
 import heroFullBackgroundBanner from '@/assets/banners/hollow_erp_full_background_banner.jpg';
 import heroBannerSeamlessDark from '@/assets/banners/hollow_erp_dark_hero_seamless.jpg';
 import heroBannerHollowLayout from '@/assets/banners/hollow_erp_layout_banner.jpg';
@@ -170,12 +170,11 @@ export function LandingPage() {
   return (
     <div className="min-h-screen w-full overflow-y-auto font-sans text-slate-900 bg-slate-50/70 selection:bg-indigo-500 selection:text-white">
       {/* ── PAGE LAYOUT: 100% FULL-WIDTH STANDALONE PUBLIC LANDING PAGE ── */}
-      <div className="w-full space-y-16 pb-24">
-        <div className="w-full space-y-16">
-          
-          {/* ── 1. HERO SECTION (E-HRM ENTERPRISE ERP PRODUCT BRANDING & WORKFLOW BANNER) ── */}
-          <section id="sec-hero" className="scroll-mt-24 space-y-6">
-            <div className="relative overflow-hidden rounded-3xl bg-white text-slate-900 shadow-2xl border border-slate-200/90">
+      <div className="w-full pb-24">
+        
+        {/* ── 1. HERO SECTION (E-HRM ENTERPRISE ERP PRODUCT BRANDING & WORKFLOW BANNER) ── */}
+        <section id="sec-hero" className="scroll-mt-24 w-full">
+          <div className="relative overflow-hidden bg-white text-slate-900 shadow-xl border-b border-slate-200/90">
               
               {/* FULL-WIDTH E-HRM ERP WORKFLOW BANNER BACKGROUND IMAGE */}
               <div className="relative w-full min-h-[640px] lg:min-h-[700px] flex flex-col justify-between">
@@ -356,11 +355,16 @@ export function LandingPage() {
             </div>
           </section>
 
-          {/* ── 2. RECRUITMENT & ATS — FLAGSHIP FEATURE #1 (LIGHT MODE) ── */}
+          {/* ── MAIN CONTENT CONTAINER (CONSTRAINED WIDTH) ── */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-16 pt-16">
+
+          {/* ── 2. RECRUITMENT & ATS — FLAGSHIP FEATURE #1 (PREMIUM MODE) ── */}
           <section id="sec-recruitment" className="scroll-mt-24 space-y-8">
-            <Card className="border-2 border-purple-200 p-6 sm:p-10 bg-white shadow-xl rounded-3xl space-y-8 relative overflow-hidden">
-              <div className="space-y-3">
-                <Badge className="bg-purple-600 text-white text-xs font-black px-3.5 py-1">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
+              
+              <div className="space-y-4">
+                <Badge className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black px-4 py-1.5 shadow-lg border-0">
                   🌟 FLAGSHIP MODULE #1 — TALENT ACQUISITION & ATS
                 </Badge>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -372,36 +376,24 @@ export function LandingPage() {
               </div>
 
               {/* 16-Step Visual Recruitment Flow Journey Bar */}
-              <div className="space-y-3 p-5 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-white text-slate-900 shadow-md border border-purple-200">
-                <div className="flex items-center justify-between border-b border-purple-200/60 pb-3">
-                  <span className="text-xs font-black text-purple-900 uppercase tracking-wider flex items-center gap-2">
-                    <Workflow className="h-4 w-4 text-purple-600" /> Visual Recruitment Pipeline Journey Flow (16 Steps)
+              <div className="space-y-4 p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-sm backdrop-blur-md relative overflow-hidden">
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-4">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <Workflow className="h-4 w-4 text-purple-600" /> Visual Recruitment Pipeline Journey Flow
                   </span>
-                  <Badge className="bg-emerald-600 text-white font-mono text-[10px]">End-to-End Automation</Badge>
+                  <Badge className="bg-slate-900 text-white font-mono text-[10px] shadow-md px-3 py-1">End-to-End Automation</Badge>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 font-mono text-[10.5px]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 font-mono text-[10.5px]">
                   {[
-                    '01. Manpower Plan',
-                    '02. Requisition',
-                    '03. Approval',
-                    '04. Job Opening',
-                    '05. Career Portal',
-                    '06. Candidate Applies',
-                    '07. Profile Created',
-                    '08. ATS Resume Score',
-                    '09. Question Test',
-                    '10. Question Bank',
-                    '11. Schedule Slot',
-                    '12. Teams Meeting',
-                    '13. Panel Feedback',
-                    '14. Candidate Select',
-                    '15. Offer Letter',
-                    '16. Onboarding',
+                    '01. Manpower Plan', '02. Requisition', '03. Approval', '04. Job Opening',
+                    '05. Career Portal', '06. Candidate Applies', '07. Profile Created', '08. ATS Resume Score',
+                    '09. Question Test', '10. Question Bank', '11. Schedule Slot', '12. Teams Meeting',
+                    '13. Panel Feedback', '14. Candidate Select', '15. Offer Letter', '16. Onboarding',
                   ].map((step) => (
                     <div
                       key={step}
-                      className="p-2 rounded-xl bg-white text-slate-800 text-center font-bold border border-purple-200 shadow-2xs hover:bg-purple-600 hover:text-white transition-colors"
+                      className="p-3 rounded-xl bg-white text-slate-700 text-center font-bold border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_4px_15px_rgb(0,0,0,0.05)] hover:-translate-y-1 hover:border-purple-200 hover:text-purple-700 transition-all duration-300 cursor-default"
                     >
                       {step}
                     </div>
@@ -411,83 +403,37 @@ export function LandingPage() {
 
               {/* 4 Feature Deep Dive Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-5 rounded-2xl bg-purple-50/50 border border-purple-200/80 space-y-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2.5 rounded-xl bg-purple-600 text-white font-bold">
-                      <Globe className="h-5 w-5" />
+                {[
+                  { icon: Globe, bg: 'bg-blue-600', lightBg: 'bg-blue-50/40', border: 'border-blue-100/60', title: 'Career Page & Job Portal', desc: 'Public branded hiring portal for candidate applications', points: ['Public Job Openings List & Filtering', 'Apply Now One-Click Application Form', 'Resume / CV File Upload & Parsing', 'Candidate Application Tracking Portal'] },
+                  { icon: QuestionIcon, bg: 'bg-emerald-600', lightBg: 'bg-emerald-50/40', border: 'border-emerald-100/60', title: 'Assessment & Auto Question Bank', desc: 'Automated MCQ & coding test evaluation engine', points: ['Question Bank Master (Aptitude, Tech)', 'Automatic Question Selection', 'Passing Threshold % & Timed Links', 'Auto Scorecards & Result Reports'] },
+                  { icon: Video, bg: 'bg-indigo-600', lightBg: 'bg-indigo-50/40', border: 'border-indigo-100/60', title: 'Microsoft Teams Interview Management', desc: 'Direct Teams video links & panel scorecards', points: ['Automated MS Teams Meeting Links', 'Panel Assignment & Calendar Sync', 'Live Interview Scorecards & Rubrics', 'Candidate Selection / Rejection Workflow'] },
+                  { icon: Bot, bg: 'bg-purple-600', lightBg: 'bg-purple-50/40', border: 'border-purple-100/60', title: 'Recruitment Automation & Offers', desc: 'Auto email triggers & digital offer letters', points: ['Automatic Email Notifications', 'Interview Reminder Invites for Candidates', 'One-Click Digital Offer Letter Generation', 'Real-time Recruitment Status Updates'] }
+                ].map((feature, i) => (
+                  <div key={i} className={`p-6 rounded-2xl ${feature.lightBg} border ${feature.border} space-y-5 hover:-translate-y-1 hover:shadow-[0_8px_20px_rgb(0,0,0,0.04)] transition-all duration-300 group/card`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3.5 rounded-xl ${feature.bg} text-white shadow-lg group-hover/card:scale-110 transition-transform duration-300`}>
+                        <feature.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">{feature.title}</h4>
+                        <p className="text-[11px] text-slate-500 font-medium">{feature.desc}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">Career Page & Job Portal</h4>
-                      <p className="text-[11px] text-slate-500">Public branded hiring portal for candidate applications</p>
-                    </div>
+                    <ul className="space-y-2.5 text-xs text-slate-600 font-medium pl-1">
+                      {feature.points.map((point, j) => (
+                        <li key={j} className="flex items-center gap-3">
+                          <div className={`h-1.5 w-1.5 rounded-full ${feature.bg}`} /> {point}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-1.5 text-xs text-slate-700">
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Public Job Openings List & Filtering</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Apply Now One-Click Application Form</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Resume / CV File Upload & Parsing</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Candidate Application Tracking Portal</li>
-                  </ul>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2.5 rounded-xl bg-emerald-600 text-white font-bold">
-                      <QuestionIcon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">Assessment & Auto Question Bank</h4>
-                      <p className="text-[11px] text-slate-500">Automated MCQ & coding test evaluation engine</p>
-                    </div>
-                  </div>
-                  <ul className="space-y-1.5 text-xs text-slate-700">
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Question Bank Master (Aptitude, Technical, Logic)</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Automatic Question Selection by Technology</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Passing Threshold % & Timed Online Link</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Auto Scorecards & Candidate Result Reports</li>
-                  </ul>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-indigo-50/50 border border-indigo-200/80 space-y-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2.5 rounded-xl bg-indigo-600 text-white font-bold">
-                      <Video className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">Microsoft Teams Interview Management</h4>
-                      <p className="text-[11px] text-slate-500">Direct Teams video links & panel scorecards</p>
-                    </div>
-                  </div>
-                  <ul className="space-y-1.5 text-xs text-slate-700">
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Automated Microsoft Teams Meeting Links</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Interview Panel Assignment & Calendar Sync</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Live Interview Scorecards & Evaluation Criteria</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Candidate Selection / Rejection Workflow</li>
-                  </ul>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-purple-50/50 border border-purple-200/80 space-y-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2.5 rounded-xl bg-purple-600 text-white font-bold">
-                      <Bot className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">Recruitment Automation & Offers</h4>
-                      <p className="text-[11px] text-slate-500">Auto email triggers & digital offer letters</p>
-                    </div>
-                  </div>
-                  <ul className="space-y-1.5 text-xs text-slate-700">
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Automatic Email Notifications & Test Links</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Interview Reminder Invites for Candidates</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> One-Click Digital Offer Letter Generation</li>
-                    <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Real-time Recruitment Status Updates</li>
-                  </ul>
-                </div>
+                ))}
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-4">
                 <Button
                   onClick={() => navigate('/recruitment')}
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs py-5 px-6 rounded-2xl cursor-pointer gap-2"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-6 px-8 rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 gap-2"
                 >
                   Open Full Recruitment ATS Pipeline <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -495,11 +441,13 @@ export function LandingPage() {
             </Card>
           </section>
 
-          {/* ── 3. ORGANIZATION & EMPLOYEE MANAGEMENT — FLAGSHIP FEATURE #2 (LIGHT MODE) ── */}
+          {/* ── 3. ORGANIZATION & EMPLOYEE MANAGEMENT — FLAGSHIP FEATURE #2 (PREMIUM MODE) ── */}
           <section id="sec-organization" className="scroll-mt-24 space-y-8">
-            <Card className="border-2 border-indigo-200 p-6 sm:p-10 bg-white shadow-xl rounded-3xl space-y-6">
-              <div className="space-y-2">
-                <Badge className="bg-indigo-600 text-white text-xs font-black px-3.5 py-1">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
+              
+              <div className="space-y-4">
+                <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-black px-4 py-1.5 shadow-lg border-0">
                   🌟 FLAGSHIP MODULE #2 — ORG & EMPLOYEE LIFECYCLE
                 </Badge>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -510,42 +458,50 @@ export function LandingPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                <div className="p-5 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-3">
-                  <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-indigo-600" /> Organization Master Architecture
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-                    <div className="p-2 rounded-xl bg-white border border-indigo-100 shadow-2xs">🏢 Company Entities</div>
-                    <div className="p-2 rounded-xl bg-white border border-indigo-100 shadow-2xs">📍 Branch Locations</div>
-                    <div className="p-2 rounded-xl bg-white border border-indigo-100 shadow-2xs">👥 Department Master</div>
-                    <div className="p-2 rounded-xl bg-white border border-indigo-100 shadow-2xs">🎓 Designations & Grades</div>
-                    <div className="p-2 rounded-xl bg-white border border-indigo-100 shadow-2xs">💰 Cost Centers</div>
-                    <div className="p-2 rounded-xl bg-white border border-indigo-100 shadow-2xs">🌳 Reporting Org Structure</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                <div className="p-6 rounded-2xl bg-white/60 border border-slate-200/60 shadow-sm backdrop-blur-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-blue-600 rounded-xl text-white shadow-md">
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900">Organization Master Architecture</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-slate-700">
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] flex items-center gap-2">🏢 Company Entities</div>
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] flex items-center gap-2">📍 Branch Locations</div>
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] flex items-center gap-2">👥 Department Master</div>
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] flex items-center gap-2">🎓 Designations</div>
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] flex items-center gap-2">💰 Cost Centers</div>
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] flex items-center gap-2">🌳 Org Structure</div>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-3">
-                  <h4 className="text-sm font-bold text-sky-900 flex items-center gap-2">
-                    <Users className="h-4 w-4 text-sky-600" /> Employee Lifecycle Records
-                  </h4>
-                  <div className="space-y-1.5 text-xs text-slate-700">
-                    <div className="flex justify-between border-b pb-1"><span>Employee Master Profile:</span><span className="font-bold">Full Personal & Employment Details</span></div>
-                    <div className="flex justify-between border-b pb-1"><span>Document Vault:</span><span className="font-bold">Education, Identity & Contracts</span></div>
-                    <div className="flex justify-between border-b pb-1"><span>Skills & Certifications:</span><span className="font-bold">Technical Matrix & Expiry Log</span></div>
-                    <div className="flex justify-between border-b pb-1"><span>Promotions & Transfers:</span><span className="font-bold">Role & Compensation History</span></div>
-                    <div className="flex justify-between"><span>Exit Clearance:</span><span className="font-bold">Asset Return & F&F Settlement</span></div>
+                <div className="p-6 rounded-2xl bg-white/60 border border-slate-200/60 shadow-sm backdrop-blur-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-cyan-600 rounded-xl text-white shadow-md">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900">Employee Lifecycle Records</h4>
+                  </div>
+                  <div className="space-y-3.5 text-xs text-slate-600">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-2"><span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-500" /> Employee Profile</span><span className="font-bold text-slate-800">Personal & Employment</span></div>
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-2"><span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-500" /> Document Vault</span><span className="font-bold text-slate-800">Education & Identity</span></div>
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-2"><span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-500" /> Skills Matrix</span><span className="font-bold text-slate-800">Technical & Certs</span></div>
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-2"><span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-500" /> Promotions Log</span><span className="font-bold text-slate-800">Role History</span></div>
+                    <div className="flex justify-between items-center"><span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-500" /> Exit Clearance</span><span className="font-bold text-slate-800">F&F Settlement</span></div>
                   </div>
                 </div>
               </div>
             </Card>
           </section>
 
-          {/* ── 4. AI ATTENDANCE — FLAGSHIP FEATURE #3 (LIGHT MODE) ── */}
+          {/* ── 4. AI ATTENDANCE — FLAGSHIP FEATURE #3 (PREMIUM MODE) ── */}
           <section id="sec-attendance" className="scroll-mt-24 space-y-8">
-            <Card className="border-2 border-emerald-200 p-6 sm:p-10 bg-white shadow-xl rounded-3xl space-y-8">
-              <div className="space-y-2">
-                <Badge className="bg-emerald-600 text-white font-black text-xs px-3.5 py-1">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
+              
+              <div className="space-y-4">
+                <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-xs px-4 py-1.5 shadow-lg border-0">
                   🌟 FLAGSHIP MODULE #3 — AI BIOMETRIC ATTENDANCE
                 </Badge>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -557,50 +513,54 @@ export function LandingPage() {
               </div>
 
               {/* Mobile + Laptop Attendance Workflow Diagram */}
-              <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-50 via-indigo-50 to-white text-slate-900 space-y-6 shadow-md border border-emerald-200">
-                <div className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-2">
+              <div className="p-8 rounded-2xl bg-white/60 border border-slate-200/60 shadow-sm backdrop-blur-md space-y-8 relative overflow-hidden">
+                <div className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
                   <Camera className="h-4 w-4 text-emerald-600" /> Automated Check-In & Check-Out Execution Workflow
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-6 gap-3 text-center text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 text-center text-xs relative z-10">
                   {[
-                    '1. Open App / Web',
-                    '2. Camera Activation',
-                    '3. 128-D Face Mesh',
-                    '4. Eye Liveness Check',
-                    '5. 100m Geofence Lock',
-                    '6. Punch Recorded (under 0.3s)',
+                    { title: 'Open App', icon: Smartphone },
+                    { title: 'Camera Active', icon: Video },
+                    { title: 'Face Mesh', icon: UserCheck },
+                    { title: 'Liveness Check', icon: Activity },
+                    { title: '100m Geofence', icon: MapPin },
+                    { title: 'Punch Recorded', icon: CheckCircle2 },
                   ].map((step, idx) => (
-                    <div key={step} className="p-3 rounded-2xl bg-white text-slate-800 border border-emerald-200 font-bold shadow-2xs">
-                      <div className="text-emerald-600 font-mono text-[10px] mb-1">STEP 0{idx + 1}</div>
-                      <div>{step}</div>
+                    <div key={step.title} className="p-4 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 font-bold group/step relative">
+                      <div className="text-emerald-500 font-mono text-[10px] mb-2 font-black tracking-widest">STEP 0{idx + 1}</div>
+                      <step.icon className="h-6 w-6 mx-auto mb-2 text-slate-700 group-hover/step:text-emerald-600 transition-colors" />
+                      <div className="text-slate-800">{step.title}</div>
                     </div>
                   ))}
+                  <div className="hidden sm:block absolute top-1/2 left-0 right-0 h-0.5 bg-slate-100 -z-10 translate-y-1" />
                 </div>
 
                 {/* Laptop & Mobile Device Live Scanner Launcher */}
-                <div className="pt-3 border-t border-emerald-200/60 flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 text-xs text-slate-700">
-                    <Laptop className="h-5 w-5 text-emerald-600" />
-                    <span>Works seamlessly across iOS, Android, and Desktop Web Browsers.</span>
+                <div className="pt-6 border-t border-slate-200/50 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 text-xs text-slate-600 font-medium bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+                    <Laptop className="h-4 w-4 text-emerald-600" />
+                    <span>Works seamlessly across iOS, Android, and Web.</span>
                   </div>
 
                   <Button
                     onClick={() => setIsFaceDemoOpen(true)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-5 px-6 rounded-2xl cursor-pointer shadow-md"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-6 px-8 rounded-2xl cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group/btn"
                   >
-                    <Camera className="h-4 w-4 mr-2" /> Test Live Camera Scanner Now
+                    <Camera className="h-4 w-4 mr-2 group-hover/btn:animate-pulse" /> Test Live Camera Scanner Now
                   </Button>
                 </div>
               </div>
             </Card>
           </section>
 
-          {/* ── 5. AUTOMATED PAYROLL — FLAGSHIP FEATURE #4 (LIGHT MODE) ── */}
+          {/* ── 5. AUTOMATED PAYROLL — FLAGSHIP FEATURE #4 (PREMIUM MODE) ── */}
           <section id="sec-payroll" className="scroll-mt-24 space-y-8">
-            <Card className="border-2 border-indigo-200 p-6 sm:p-10 bg-white shadow-xl rounded-3xl space-y-8">
-              <div className="space-y-2">
-                <Badge className="bg-indigo-600 text-white text-xs font-black px-3.5 py-1">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
+              
+              <div className="space-y-4">
+                <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-black px-4 py-1.5 shadow-lg border-0">
                   🌟 FLAGSHIP MODULE #4 — AUTOMATED PAYROLL
                 </Badge>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -612,210 +572,230 @@ export function LandingPage() {
               </div>
 
               {/* Attendance-to-Payslip Automation Chain */}
-              <div className="p-6 rounded-3xl bg-gradient-to-r from-indigo-50 via-purple-50 to-white text-slate-900 space-y-4 shadow-md border border-indigo-200">
-                <div className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-indigo-600" /> Attendance to Payslip — Automated Execution Chain
+              <div className="p-8 rounded-2xl bg-white/60 border border-slate-200/60 shadow-sm backdrop-blur-md space-y-6">
+                <div className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-amber-500" /> Attendance to Payslip — Automated Execution Chain
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold font-mono">
-                  <span className="p-2.5 rounded-xl bg-white border border-indigo-100 shadow-2xs">Attendance Log</span> ➔
-                  <span className="p-2.5 rounded-xl bg-white border border-indigo-100 shadow-2xs">Working Hours & LWP</span> ➔
-                  <span className="p-2.5 rounded-xl bg-white border border-indigo-100 shadow-2xs">Base Earnings</span> ➔
-                  <span className="p-2.5 rounded-xl bg-white border border-indigo-100 shadow-2xs">PF / ESIC / PT / TDS</span> ➔
-                  <span className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-md">One-Click Payroll</span> ➔
-                  <span className="p-2.5 rounded-xl bg-white border border-indigo-100 shadow-2xs">PDF Payslip & Bank Transfer</span>
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-bold font-mono">
+                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Attendance Log</span> 
+                  <ArrowRight className="h-4 w-4 text-slate-300" />
+                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Hours & LWP</span> 
+                  <ArrowRight className="h-4 w-4 text-slate-300" />
+                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Base Earnings</span> 
+                  <ArrowRight className="h-4 w-4 text-slate-300" />
+                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">PF/ESIC/Tax</span> 
+                  <ArrowRight className="h-4 w-4 text-slate-300" />
+                  <span className="flex-1 p-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg text-center hover:scale-105 transition-transform duration-300 cursor-default">One-Click Payroll</span> 
+                  <ArrowRight className="h-4 w-4 text-slate-300" />
+                  <span className="flex-1 p-4 rounded-xl bg-slate-900 text-white shadow-lg text-center">PDF Payslip</span>
                 </div>
               </div>
             </Card>
           </section>
 
-          {/* ── 6. PERFORMANCE APPRAISALS & PROMOTIONS (LIGHT MODE) ── */}
+          {/* ── 6. PERFORMANCE APPRAISALS & PROMOTIONS (PREMIUM MODE) ── */}
           <section id="sec-performance" className="scroll-mt-24 space-y-6">
-            <Card className="border-slate-200 p-6 sm:p-10 bg-white shadow-md rounded-3xl space-y-6">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
               <div className="space-y-2">
-                <Badge className="bg-purple-50 text-purple-700 border border-purple-200">
+                <Badge className="bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white font-bold border-0 shadow-sm">
                   Performance & Career Growth
                 </Badge>
                 <h3 className="text-2xl font-black text-slate-900">
                   6. Performance Appraisals & Promotion Management
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 max-w-2xl">
                   Align team goals with company objectives using structured KRAs, KPIs, 360° reviews, and automated promotion history tracking.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="p-5 rounded-2xl bg-purple-50/70 border border-purple-200 space-y-3">
-                  <Award className="h-6 w-6 text-purple-600" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                <div className="p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
+                  <div className="p-3 bg-purple-100 text-purple-600 rounded-xl w-max">
+                    <Award className="h-6 w-6" />
+                  </div>
                   <h4 className="text-sm font-bold text-slate-900">Goal & KRA / KPI Tracking</h4>
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
                     Set quarterly OKRs, key result targets, and weighted scoring benchmarks per department.
                   </p>
-                  <div className="pt-2 border-t border-purple-200/60 text-[11px] text-purple-800 font-semibold">
-                    ✓ Quantitative KPI Scorecards
+                  <div className="pt-3 border-t border-slate-100 text-[11px] text-purple-700 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Quantitative KPI Scorecards
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-3">
-                  <Users className="h-6 w-6 text-indigo-600" />
+                <div className="p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
+                  <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl w-max">
+                    <Users className="h-6 w-6" />
+                  </div>
                   <h4 className="text-sm font-bold text-slate-900">360° Feedback & 9-Box Matrix</h4>
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
                     Self-evaluations, peer reviews, manager scorecards, and potential vs performance 9-box mapping.
                   </p>
-                  <div className="pt-2 border-t border-indigo-200/60 text-[11px] text-indigo-800 font-semibold">
-                    ✓ Multi-Rater Peer Review
+                  <div className="pt-3 border-t border-slate-100 text-[11px] text-indigo-700 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Multi-Rater Peer Review
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-3">
-                  <TrendingUp className="h-6 w-6 text-emerald-600" />
+                <div className="p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
+                  <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl w-max">
+                    <TrendingUp className="h-6 w-6" />
+                  </div>
                   <h4 className="text-sm font-bold text-slate-900">Promotion & Revision History</h4>
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
                     Connect review ratings directly to designation promotions, salary revisions, and band upgrades.
                   </p>
-                  <div className="pt-2 border-t border-emerald-200/60 text-[11px] text-emerald-800 font-semibold">
-                    ✓ Salary Revision Log
+                  <div className="pt-3 border-t border-slate-100 text-[11px] text-emerald-700 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Salary Revision Log
                   </div>
                 </div>
               </div>
             </Card>
           </section>
 
-          {/* ── 7. TRAINING & DEVELOPMENT (LMS - LIGHT MODE) ── */}
+          {/* ── 7. TRAINING & DEVELOPMENT (LMS - PREMIUM MODE) ── */}
           <section id="sec-training" className="scroll-mt-24 space-y-6">
-            <Card className="border-slate-200 p-6 sm:p-8 bg-white shadow-sm rounded-3xl space-y-4">
-              <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+              <Badge className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold border-0 shadow-sm">
                 Learning LMS & Skill Development
               </Badge>
               <h3 className="text-2xl font-black text-slate-900">
                 7. Employee Training & Skill Development Portal
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 max-w-2xl">
                 Identify skill gaps, publish internal training courses, track certification completions, and manage course enrollments.
               </p>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center text-xs font-bold pt-2">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                  <GraduationCap className="h-6 w-6 text-indigo-600 mx-auto" />
-                  <div>Internal Course Catalog</div>
-                  <div className="text-[10px] text-slate-500 font-normal">Video & Document Materials</div>
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                  <Award className="h-6 w-6 text-emerald-600 mx-auto" />
-                  <div>Certification Tracker</div>
-                  <div className="text-[10px] text-slate-500 font-normal">Expiry Alerts & Renewals</div>
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                  <Cpu className="h-6 w-6 text-purple-600 mx-auto" />
-                  <div>Skill Matrix & Competencies</div>
-                  <div className="text-[10px] text-slate-500 font-normal">Department Skill Heatmap</div>
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                  <FileCheck className="h-6 w-6 text-sky-600 mx-auto" />
-                  <div>Training Progress Reports</div>
-                  <div className="text-[10px] text-slate-500 font-normal">Automated Assessment Quizzes</div>
-                </div>
+                {[
+                  { title: 'Internal Course Catalog', desc: 'Video & Document Materials', icon: GraduationCap, color: 'text-indigo-600' },
+                  { title: 'Certification Tracker', desc: 'Expiry Alerts & Renewals', icon: Award, color: 'text-emerald-600' },
+                  { title: 'Skill Matrix', desc: 'Department Skill Heatmap', icon: Cpu, color: 'text-purple-600' },
+                  { title: 'Training Progress Reports', desc: 'Automated Quizzes', icon: FileCheck, color: 'text-sky-600' }
+                ].map((item, i) => (
+                  <div key={i} className="p-5 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-2 group/item">
+                    <item.icon className={`h-8 w-8 mx-auto ${item.color} group-hover/item:scale-110 transition-transform duration-300`} />
+                    <div className="text-slate-800">{item.title}</div>
+                    <div className="text-[10px] text-slate-500 font-medium">{item.desc}</div>
+                  </div>
+                ))}
               </div>
             </Card>
           </section>
 
-          {/* ── 8. EMPLOYEE SELF SERVICE (ESS - LIGHT MODE) ── */}
+          {/* ── 8. EMPLOYEE SELF SERVICE (ESS - PREMIUM MODE) ── */}
           <section id="sec-ess" className="scroll-mt-24 space-y-6">
-            <Card className="border-slate-200 p-6 sm:p-10 bg-white shadow-sm rounded-3xl space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                <div className="lg:col-span-7 space-y-4">
-                  <Badge className="bg-sky-50 text-sky-700 border border-sky-200">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+                <div className="lg:col-span-7 space-y-5">
+                  <Badge className="bg-gradient-to-r from-sky-500 to-blue-500 text-white font-bold border-0 shadow-sm">
                     Employee Experience
                   </Badge>
-                  <h3 className="text-2xl font-black text-slate-900">
+                  <h3 className="text-2xl font-black text-slate-900 leading-tight">
                     8. Employee Self-Service (ESS) Web & Mobile PWA
                   </h3>
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-sm text-slate-500 leading-relaxed font-medium">
                     Empower staff with self-service mobile tools to check-in via camera face scan, download PDF payslips, submit leave requests, view performance scorecards, and update document vault records.
                   </p>
 
-                  <div className="grid grid-cols-3 gap-3 text-xs font-semibold pt-1">
-                    <div className="p-3 rounded-xl bg-sky-50 text-sky-800 border border-sky-100 text-center font-bold">📱 Mobile Face Punch</div>
-                    <div className="p-3 rounded-xl bg-sky-50 text-sky-800 border border-sky-100 text-center font-bold">📄 PDF Payslip Download</div>
-                    <div className="p-3 rounded-xl bg-sky-50 text-sky-800 border border-sky-100 text-center font-bold">🏖️ Leave Requests</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs pt-2">
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-sm text-center font-bold text-slate-700 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300 flex items-center justify-center gap-2"><Smartphone className="h-4 w-4 text-sky-500" /> Face Punch</div>
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-sm text-center font-bold text-slate-700 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300 flex items-center justify-center gap-2"><FileText className="h-4 w-4 text-emerald-500" /> PDF Payslip</div>
+                    <div className="p-3 rounded-xl bg-white border border-slate-100 shadow-sm text-center font-bold text-slate-700 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300 flex items-center justify-center gap-2"><Calendar className="h-4 w-4 text-amber-500" /> Leaves</div>
                   </div>
                 </div>
 
                 <div className="lg:col-span-5 flex justify-center">
-                  <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white space-y-3 border border-indigo-200 text-center shadow-xl w-full max-w-xs">
-                    <Smartphone className="h-10 w-10 text-cyan-400 mx-auto" />
-                    <h5 className="text-sm font-bold">PWA Mobile Portal Ready</h5>
-                    <p className="text-[11px] text-slate-300">Accessible on iOS & Android devices</p>
+                  <div className="p-8 rounded-3xl bg-slate-900 text-white space-y-4 shadow-2xl w-full max-w-xs relative overflow-hidden group/mobile hover:shadow-[0_20px_50px_rgb(0,0,0,0.3)] transition-all duration-500">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/20 rounded-full blur-2xl -z-10 translate-x-1/2 -translate-y-1/2" />
+                    <Smartphone className="h-12 w-12 text-cyan-400 mx-auto group-hover/mobile:scale-110 transition-transform duration-500" />
+                    <div className="text-center">
+                      <h5 className="text-base font-black">PWA Mobile Portal Ready</h5>
+                      <p className="text-[11px] text-slate-400 mt-1">Accessible instantly on iOS & Android</p>
+                    </div>
                   </div>
                 </div>
               </div>
             </Card>
           </section>
 
-          {/* ── 9. EXECUTIVE ANALYTICS & BI DASHBOARDS (LIGHT MODE) ── */}
+          {/* ── 9. EXECUTIVE ANALYTICS & BI DASHBOARDS (PREMIUM MODE) ── */}
           <section id="sec-analytics" className="scroll-mt-24 space-y-6">
-            <Card className="border-slate-200 p-6 sm:p-8 bg-white shadow-sm rounded-3xl space-y-6">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
               <div className="space-y-2">
-                <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <Badge className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold border-0 shadow-sm">
                   Business Intelligence Metrics
                 </Badge>
                 <h3 className="text-2xl font-black text-slate-900">
                   9. Executive Analytics & BI Dashboard Visualizations
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 max-w-2xl">
                   Real-time visual dashboards summarizing workforce headcount, attendance punctuality, ATS hiring speed, and monthly payroll budget.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100"><div className="text-2xl font-black font-mono text-indigo-600">1,420</div><div className="text-xs text-slate-600 font-semibold">Headcount</div></div>
-                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100"><div className="text-2xl font-black font-mono text-emerald-600">98.4%</div><div className="text-xs text-slate-600 font-semibold">Avg Attendance</div></div>
-                <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-100"><div className="text-2xl font-black font-mono text-purple-600">14 Days</div><div className="text-xs text-slate-600 font-semibold">Time-to-Hire</div></div>
-                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-100"><div className="text-2xl font-black font-mono text-amber-600">₹45.8L</div><div className="text-xs text-slate-600 font-semibold">Monthly Payroll</div></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
+                {[
+                  { label: 'Total Headcount', value: '1,420', color: 'text-indigo-600', icon: Users },
+                  { label: 'Avg Attendance', value: '98.4%', color: 'text-emerald-600', icon: Activity },
+                  { label: 'Time-to-Hire', value: '14 Days', color: 'text-purple-600', icon: Clock },
+                  { label: 'Monthly Payroll', value: '₹45.8L', color: 'text-amber-600', icon: Wallet }
+                ].map((stat, i) => (
+                  <div key={i} className="p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-xl transition-all duration-300 space-y-3">
+                    <stat.icon className={`h-6 w-6 mx-auto ${stat.color} opacity-80`} />
+                    <div className={`text-3xl font-black font-mono ${stat.color} tracking-tight`}>{stat.value}</div>
+                    <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{stat.label}</div>
+                  </div>
+                ))}
               </div>
             </Card>
           </section>
 
-          {/* ── 10. SUPER ADMIN & MULTI-TENANT GOVERNANCE (LIGHT MODE) ── */}
+          {/* ── 10. SUPER ADMIN & MULTI-TENANT GOVERNANCE (PREMIUM MODE) ── */}
           <section id="sec-superadmin" className="scroll-mt-24 space-y-6">
-            <Card className="border-slate-200 p-6 sm:p-8 bg-white shadow-sm rounded-3xl space-y-6">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
               <div className="space-y-2">
-                <Badge className="bg-slate-900 text-white">
+                <Badge className="bg-slate-900 text-white font-bold border-0 shadow-sm">
                   Super Admin Governance
                 </Badge>
                 <h3 className="text-2xl font-black text-slate-900">
                   10. Super Admin Multi-Tenant Governance & Security Logs
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 max-w-2xl">
                   Control multi-company subsidiaries, cost centers, granular RBAC permissions, and comprehensive timestamped audit trails.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                  <Building2 className="h-6 w-6 text-slate-800" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
+                  <div className="p-3 bg-slate-100 text-slate-800 rounded-xl w-max">
+                    <Building2 className="h-6 w-6" />
+                  </div>
                   <h4 className="text-sm font-bold text-slate-900">Multi-Company Architecture</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">Manage parent companies, sub-tenants, and cost centers from a single portal.</p>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">Manage parent companies, sub-tenants, and cost centers from a single portal.</p>
                 </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                  <ShieldCheck className="h-6 w-6 text-indigo-600" />
+                <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
+                  <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl w-max">
+                    <ShieldCheck className="h-6 w-6" />
+                  </div>
                   <h4 className="text-sm font-bold text-slate-900">Role-Based Access Control</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">Granular permissions for Super Admin, HR Manager, Department Head, and Staff.</p>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">Granular permissions for Super Admin, HR Manager, Department Head, and Staff.</p>
                 </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                  <FileText className="h-6 w-6 text-purple-600" />
+                <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
+                  <div className="p-3 bg-purple-100 text-purple-600 rounded-xl w-max">
+                    <FileText className="h-6 w-6" />
+                  </div>
                   <h4 className="text-sm font-bold text-slate-900">Timestamped Audit Logs</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">Complete security trail tracking every data modification, login, and export.</p>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">Complete security trail tracking every data modification, login, and export.</p>
                 </div>
               </div>
             </Card>
           </section>
 
-          {/* ── 11. COMPLETE EMPLOYEE LIFECYCLE TIMELINE (LIGHT MODE) ── */}
+          {/* ── 11. COMPLETE EMPLOYEE LIFECYCLE TIMELINE (PREMIUM MODE) ── */}
           <section id="sec-lifecycle" className="scroll-mt-24 space-y-6">
-            <Card className="border-slate-200 p-6 sm:p-8 bg-white shadow-sm rounded-3xl space-y-6">
-              <div className="text-center max-w-xl mx-auto space-y-1">
-                <Badge className="bg-purple-50 text-purple-700 border border-purple-200">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+              <div className="text-center max-w-xl mx-auto space-y-2">
+                <Badge className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold border-0 shadow-sm">
                   End-to-End Workflow Timeline
                 </Badge>
                 <h3 className="text-2xl font-black text-slate-900">
@@ -823,7 +803,7 @@ export function LandingPage() {
                 </h3>
               </div>
 
-              <div className="relative border-l-2 border-indigo-500 ml-4 space-y-6 pl-6 pt-2">
+              <div className="relative max-w-2xl mx-auto border-l-2 border-indigo-200 ml-4 sm:ml-auto space-y-8 pl-8 pt-4 pb-4">
                 {[
                   { stage: '1. Sourcing & ATS Requisition', desc: 'Manpower planning request approved, job opening published to portal.' },
                   { stage: '2. Question Bank Test & Teams Interview', desc: 'Auto-selected question bank MCQ test evaluated, Teams video interview link generated.' },
@@ -831,64 +811,76 @@ export function LandingPage() {
                   { stage: '4. Active Employee & Biometrics', desc: 'Employee code generated, Face ID template registered for camera punches.' },
                   { stage: '5. Payroll, Performance & Training', desc: 'Monthly attendance pay processed, 360° reviews completed, LMS certifications.' },
                   { stage: '6. Offboarding & Exit Clearance', desc: 'Resignation workflow, asset return, and F&F settlement generated.' },
-                ].map((step) => (
-                  <div key={step.stage} className="relative">
-                    <div className="absolute -left-[31px] top-0.5 h-4 w-4 rounded-full bg-indigo-600 border-2 border-white shadow-md" />
-                    <h4 className="text-sm font-bold text-slate-900">{step.stage}</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">{step.desc}</p>
+                ].map((step, idx) => (
+                  <div key={step.stage} className="relative group/timeline">
+                    <div className="absolute -left-[41px] top-1 h-5 w-5 rounded-full bg-white border-[3px] border-indigo-400 group-hover/timeline:border-indigo-600 group-hover/timeline:scale-125 transition-all duration-300 shadow-sm" />
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow group-hover/timeline:-translate-y-0.5 duration-300">
+                      <h4 className="text-sm font-bold text-slate-900">{step.stage}</h4>
+                      <p className="text-xs text-slate-500 mt-1 font-medium">{step.desc}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </Card>
           </section>
 
-          {/* ── 12. ENTERPRISE SOFTWARE INTEGRATIONS (LIGHT MODE) ── */}
+          {/* ── 12. ENTERPRISE SOFTWARE INTEGRATIONS (PREMIUM MODE) ── */}
           <section id="sec-integrations" className="scroll-mt-24 space-y-6">
-            <Card className="border-slate-200 p-6 bg-white shadow-sm rounded-3xl space-y-4">
-              <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+              <Badge className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold border-0 shadow-sm">
                 Ecosystem Connectors
               </Badge>
-              <h3 className="text-xl font-bold text-slate-900">
+              <h3 className="text-2xl font-black text-slate-900">
                 12. Enterprise Software Integrations
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-center text-xs font-bold pt-2">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">Microsoft Teams</div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">Email & SMTP</div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">Biometric Hardware</div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">Bank Payout APIs</div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">Push Notifications</div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">Document Storage</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-center text-xs font-bold pt-4">
+                {[
+                  { name: 'Microsoft Teams', icon: Video, color: 'text-[#6264A7]' },
+                  { name: 'Email & SMTP', icon: MailCheck, color: 'text-amber-500' },
+                  { name: 'Biometric HW', icon: ShieldCheck, color: 'text-emerald-500' },
+                  { name: 'Bank Payouts', icon: Wallet, color: 'text-indigo-500' },
+                  { name: 'Push Alerts', icon: Smartphone, color: 'text-sky-500' },
+                  { name: 'Cloud Storage', icon: Server, color: 'text-purple-500' }
+                ].map((intg, i) => (
+                  <div key={i} className="p-4 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-2 group/icon">
+                    <intg.icon className={`h-6 w-6 ${intg.color} group-hover/icon:scale-110 transition-transform`} />
+                    <span className="text-slate-700">{intg.name}</span>
+                  </div>
+                ))}
               </div>
             </Card>
           </section>
 
-          {/* ── 13. WHY E-HRM ERP (LIGHT MODE) ── */}
+          {/* ── 13. WHY E-HRM ERP (PREMIUM MODE) ── */}
           <section id="sec-why" className="scroll-mt-24 space-y-6">
-            <Card className="border-slate-200 p-6 sm:p-8 bg-gradient-to-br from-purple-700 via-indigo-700 to-purple-900 text-white shadow-xl rounded-3xl space-y-6">
-              <div className="text-center space-y-2 max-w-xl mx-auto">
-                <Badge className="bg-white text-purple-900 font-extrabold shadow-sm">
+            <Card className="border border-slate-800 p-6 sm:p-12 bg-slate-950 text-white shadow-[0_20px_50px_rgb(0,0,0,0.3)] rounded-3xl space-y-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
+              <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl -z-10 pointer-events-none -translate-x-1/2 translate-y-1/2" />
+              
+              <div className="text-center space-y-4 max-w-2xl mx-auto">
+                <Badge className="bg-slate-800 text-slate-200 font-extrabold shadow-sm border border-slate-700 px-4 py-1">
                   Why Choose E-HRM ERP
                 </Badge>
-                <h3 className="text-2xl font-black">
+                <h3 className="text-3xl font-black text-white">
                   13. Why Enterprise Leaders Trust E-HRM ERP
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/20 space-y-1.5">
-                  <Zap className="h-5 w-5 text-amber-300" />
-                  <h4 className="font-bold text-sm">AI Biometric Automation</h4>
-                  <p className="text-purple-100">Eliminate manual time theft and card punch delays with Face ID.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+                <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
+                  <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl w-max"><Zap className="h-6 w-6" /></div>
+                  <h4 className="font-bold text-base text-white">AI Biometric Automation</h4>
+                  <p className="text-slate-400 text-sm leading-relaxed font-medium">Eliminate manual time theft and card punch delays with Face ID.</p>
                 </div>
-                <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/20 space-y-1.5">
-                  <Wallet className="h-5 w-5 text-emerald-300" />
-                  <h4 className="font-bold text-sm">Zero Payroll Errors</h4>
-                  <p className="text-purple-100">Automated attendance-linked payroll calculations and tax filing.</p>
+                <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
+                  <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl w-max"><Wallet className="h-6 w-6" /></div>
+                  <h4 className="font-bold text-base text-white">Zero Payroll Errors</h4>
+                  <p className="text-slate-400 text-sm leading-relaxed font-medium">Automated attendance-linked payroll calculations and tax filing.</p>
                 </div>
-                <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/20 space-y-1.5">
-                  <Server className="h-5 w-5 text-purple-300" />
-                  <h4 className="font-bold text-sm">Multi-Tenant Scalability</h4>
-                  <p className="text-purple-100">Seamless support for parent companies and branch subsidiaries.</p>
+                <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
+                  <div className="p-3 bg-purple-500/20 text-purple-400 rounded-xl w-max"><Server className="h-6 w-6" /></div>
+                  <h4 className="font-bold text-base text-white">Multi-Tenant Scalability</h4>
+                  <p className="text-slate-400 text-sm leading-relaxed font-medium">Seamless support for parent companies and branch subsidiaries.</p>
                 </div>
               </div>
             </Card>
@@ -933,30 +925,37 @@ export function LandingPage() {
             </div>
           </section>
 
-          {/* ── 16. FINAL CALL TO ACTION (LIGHT MODE BANNER) ── */}
-          <section id="sec-cta" className="scroll-mt-24 text-center space-y-6 pt-4">
-            <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 text-white shadow-2xl space-y-6">
-              <h2 className="text-3xl sm:text-4xl font-black">
-                16. Transform Your HR Operations with E-HRM ERP
-              </h2>
-              <p className="text-sm sm:text-base text-slate-100 max-w-xl mx-auto font-medium">
-                Schedule a live demonstration with our senior HR solutions architects or launch the live interactive app.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
+          {/* ── 16. FINAL CALL TO ACTION (PREMIUM BANNER) ── */}
+          <section id="sec-cta" className="scroll-mt-24 text-center space-y-6 pt-12 pb-12">
+            <div className="p-10 sm:p-16 rounded-[2rem] bg-slate-900 text-white shadow-[0_20px_50px_rgb(0,0,0,0.2)] space-y-8 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 via-indigo-600/20 to-pink-600/20 mix-blend-overlay" />
+              <div className="absolute -top-40 -right-40 w-96 h-96 bg-purple-500/30 rounded-full blur-[100px] pointer-events-none" />
+              <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/30 rounded-full blur-[100px] pointer-events-none" />
+
+              <div className="relative z-10 space-y-4">
+                <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+                  16. Transform Your HR Operations with E-HRM ERP
+                </h2>
+                <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto font-medium">
+                  Schedule a live demonstration with our senior HR solutions architects or launch the live interactive app instantly.
+                </p>
+              </div>
+
+              <div className="relative z-10 flex flex-wrap items-center justify-center gap-4 pt-4">
                 <Button
                   size="lg"
                   onClick={() => setIsBookDemoModalOpen(true)}
-                  className="bg-white text-slate-900 hover:bg-slate-100 font-extrabold text-sm px-8 py-6 rounded-2xl shadow-xl cursor-pointer"
+                  className="bg-white text-slate-900 hover:bg-slate-100 hover:-translate-y-1 font-black text-sm px-8 py-7 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer"
                 >
-                  <Play className="h-4 w-4 mr-2 fill-slate-900" /> Schedule Live Customer Demo
+                  <Play className="h-5 w-5 mr-2 fill-slate-900" /> Schedule Live Customer Demo
                 </Button>
                 <Button
                   size="lg"
                   variant="outline"
                   onClick={() => navigate('/dashboard')}
-                  className="bg-white/10 text-white border-white/40 hover:bg-white/20 font-bold text-sm px-8 py-6 rounded-2xl cursor-pointer"
+                  className="bg-white/5 text-white border-white/20 hover:bg-white/10 hover:border-white/40 hover:-translate-y-1 font-bold text-sm px-8 py-7 rounded-2xl transition-all duration-300 backdrop-blur-md cursor-pointer"
                 >
-                  Open Live App Dashboard <ArrowRight className="h-4 w-4 ml-2" />
+                  Open Live App Dashboard <ArrowRight className="h-5 w-5 ml-2" />
                 </Button>
               </div>
             </div>
