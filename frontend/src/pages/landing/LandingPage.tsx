@@ -171,198 +171,198 @@ export function LandingPage() {
     <div className="min-h-screen w-full overflow-y-auto font-sans text-slate-900 bg-slate-50/70 selection:bg-indigo-500 selection:text-white">
       {/* ── PAGE LAYOUT: 100% FULL-WIDTH STANDALONE PUBLIC LANDING PAGE ── */}
       <div className="w-full pb-24">
-        
+
         {/* ── 1. HERO SECTION (E-HRM ENTERPRISE ERP PRODUCT BRANDING & WORKFLOW BANNER) ── */}
         <section id="sec-hero" className="scroll-mt-24 w-full">
           <div className="relative overflow-hidden bg-white text-slate-900 shadow-xl border-b border-slate-200/90">
-              
-              {/* FULL-WIDTH E-HRM ERP WORKFLOW BANNER BACKGROUND IMAGE */}
-              <div className="relative w-full min-h-[640px] lg:min-h-[700px] flex flex-col justify-between">
-                <img
-                  src={heroWorkflowBackgroundBanner}
-                  alt="E-HRM Enterprise ERP Workflow Background Banner"
-                  className="absolute inset-0 w-full h-full object-cover object-center"
-                />
 
-                {/* Bottom Center Brand Overlay Badge to seamlessly cover image baked text */}
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-20 px-10 py-2 rounded-t-2xl bg-slate-950 text-white border-t-2 border-x-2 border-purple-500/50 text-xs font-black tracking-widest uppercase shadow-2xl flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-purple-400 font-black">E-HRM</span> Enterprise ERP
-                </div>
+            {/* FULL-WIDTH E-HRM ERP WORKFLOW BANNER BACKGROUND IMAGE */}
+            <div className="relative w-full min-h-[640px] lg:min-h-[700px] flex flex-col justify-between">
+              <img
+                src={heroWorkflowBackgroundBanner}
+                alt="E-HRM Enterprise ERP Workflow Background Banner"
+                className="absolute inset-0 w-full h-full object-cover object-center"
+              />
 
-                {/* Top-right floating action buttons */}
-                <div className="absolute top-4 right-4 z-20 hidden sm:flex items-center gap-2">
-                  {/* Schedule Customer Demo */}
-                  <button
-                    type="button"
-                    onClick={() => setIsBookDemoModalOpen(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white text-purple-700 border border-purple-300/60 font-extrabold text-xs shadow-lg transition-all cursor-pointer"
-                  >
-                    ▶ Schedule Demo
-                  </button>
-
-                  {/* Billing Now */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const el = document.getElementById('sec-pricing');
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-extrabold text-xs shadow-lg hover:shadow-purple-400/40 transition-all cursor-pointer"
-                  >
-                    💳 Billing Now
-                  </button>
-                </div>
-
-                {/* OVERLAID CONTENT CONTAINER (Positioned directly over the background banner image) */}
-                <div className="relative z-10 p-6 sm:p-10 flex flex-col justify-between min-h-[640px] lg:min-h-[700px] space-y-8">
-                  
-                  {/* TOP / MAIN OVERLAID CONTENT GRID */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start my-auto">
-                    
-                    {/* Left Side Overlaid Content (E-HRM ERP Real Product Metrics & Specs) */}
-                    <div className="lg:col-span-7 space-y-5 text-left max-w-2xl bg-white/70 lg:bg-transparent backdrop-blur-xs lg:backdrop-blur-none p-4 sm:p-0 rounded-2xl">
-                      
-                      {/* Top Pill Badge */}
-                      <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-100/90 border border-purple-200 text-xs font-black text-purple-800 uppercase tracking-wide shadow-2xs">
-                        <Sparkles className="h-3.5 w-3.5 text-purple-600" />
-                        <span>E-HRM ERP • AI-POWERED HR INTELLIGENCE</span>
-                      </div>
-
-                      {/* Main Headline for E-HRM Enterprise ERP */}
-                      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.12] text-slate-950">
-                        Transform Your Workforce{' '}
-                        <span className="text-purple-600 block mt-1">with AI-Powered HR Intelligence</span>
-                      </h1>
-
-                      {/* Real E-HRM ERP Product Description */}
-                      <p className="text-xs sm:text-sm text-slate-700 font-semibold leading-relaxed">
-                        E-HRM ERP is an all-in-one enterprise platform uniting Complete Recruitment Automation, Employee & Org Management, AI Face + Location Attendance, and Attendance-to-Payslip Automated Payroll.
-                      </p>
-
-                      {/* Action Buttons */}
-                      <div className="flex flex-wrap items-center gap-3 pt-1">
-                        <Button
-                          size="lg"
-                          onClick={() => setIsBookDemoModalOpen(true)}
-                          className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-6 py-5 rounded-xl shadow-lg cursor-pointer transition-all gap-2"
-                        >
-                          <Play className="h-4 w-4 fill-white" /> Schedule Customer Demo
-                        </Button>
-
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          onClick={() => setIsFaceDemoOpen(true)}
-                          className="bg-white/90 hover:bg-white text-slate-800 border-slate-300 font-bold text-xs px-5 py-5 rounded-xl shadow-2xs cursor-pointer gap-2 backdrop-blur-xs"
-                        >
-                          <Camera className="h-4 w-4 text-purple-600" /> Test AI Face Scanner
-                        </Button>
-
-                        <Button
-                          size="lg"
-                          variant="ghost"
-                          onClick={() => navigate('/attendance-leave/live')}
-                          className="text-slate-800 hover:text-slate-950 font-bold text-xs px-3 py-5 rounded-xl gap-1"
-                        >
-                          Open App Dashboard <ArrowRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-
-                      {/* 6 Real E-HRM Enterprise ERP Metadata Specification Cards */}
-                      <div className="pt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-left">
-                        <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
-                          <Building2 className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">DEPLOYMENT</span>
-                            <h5 className="text-xs font-black text-slate-900 leading-tight">Multi-Tenant ERP</h5>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
-                          <Camera className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">BIOMETRIC SCAN</span>
-                            <h5 className="text-xs font-black text-slate-900 leading-tight">&lt;0.3s Face Match Rate</h5>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
-                          <MapPin className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">GEOFENCE</span>
-                            <h5 className="text-xs font-black text-slate-900 leading-tight">100m GPS Radius Lock</h5>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
-                          <UserSearch className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">RECRUITMENT</span>
-                            <h5 className="text-xs font-black text-slate-900 leading-tight">16-Step ATS & Teams</h5>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
-                          <Code className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">TECH STACK</span>
-                            <h5 className="text-xs font-black text-slate-900 leading-tight">React, Node.js, AI</h5>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2 p-2.5 rounded-xl bg-purple-50/95 border border-purple-200 backdrop-blur-xs shadow-2xs">
-                          <Globe className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="text-[9.5px] font-extrabold text-purple-600 uppercase tracking-wider block">LIVE DEMO</span>
-                            <button
-                              type="button"
-                              onClick={() => navigate('/attendance-leave/live')}
-                              className="text-xs font-black text-purple-700 hover:underline flex items-center gap-1 cursor-pointer"
-                            >
-                              Open Link <ExternalLink className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-
-                    {/* Right Side Space (Leaves background product workflow visual clear) */}
-                    <div className="hidden lg:block lg:col-span-5" />
-
-                  </div>
-
-                  {/* OVERLAID BOTTOM DARK STATISTICS BAR */}
-                  <div className="p-3.5 rounded-2xl bg-slate-900/90 backdrop-blur-md text-white flex flex-wrap items-center justify-between text-xs font-medium px-6 gap-4 border border-white/10 shadow-xl">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                      <span>99.99% Enterprise Uptime SLA</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-cyan-400" />
-                      <span>100% Tax & Statutory Compliance (PF/ESIC/PT/TDS)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Workflow className="h-4 w-4 text-purple-400" />
-                      <span>End-to-End Automation from Hiring to Retirement</span>
-                    </div>
-                  </div>
-
-                </div>
+              {/* Bottom Center Brand Overlay Badge to seamlessly cover image baked text */}
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-20 px-10 py-2 rounded-t-2xl bg-slate-950 text-white border-t-2 border-x-2 border-purple-500/50 text-xs font-black tracking-widest uppercase shadow-2xl flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-purple-400 font-black">E-HRM</span> Enterprise ERP
               </div>
 
-            </div>
-          </section>
+              {/* Top-right floating action buttons */}
+              <div className="absolute top-4 right-4 z-20 hidden sm:flex items-center gap-2">
+                {/* Schedule Customer Demo */}
+                <button
+                  type="button"
+                  onClick={() => setIsBookDemoModalOpen(true)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white text-purple-700 border border-purple-300/60 font-extrabold text-xs shadow-lg transition-all cursor-pointer"
+                >
+                  ▶ Schedule Demo
+                </button>
 
-          {/* ── MAIN CONTENT CONTAINER (CONSTRAINED WIDTH) ── */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-16 pt-16">
+                {/* Billing Now */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('sec-pricing');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-extrabold text-xs shadow-lg hover:shadow-purple-400/40 transition-all cursor-pointer"
+                >
+                  💳 Billing Now
+                </button>
+              </div>
+
+              {/* OVERLAID CONTENT CONTAINER (Positioned directly over the background banner image) */}
+              <div className="relative z-10 p-6 sm:p-4 flex flex-col justify-between min-h-[640px] lg:min-h-[700px] space-y-8">
+
+                {/* TOP / MAIN OVERLAID CONTENT GRID */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 items-start my-auto">
+
+                  {/* Left Side Overlaid Content (E-HRM ERP Real Product Metrics & Specs) */}
+                  <div className="lg:col-span-7 space-y-5 text-left max-w-2xl bg-white/70 lg:bg-transparent backdrop-blur-xs lg:backdrop-blur-none p-4 sm:p-0 rounded-2xl">
+
+                    {/* Top Pill Badge */}
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-100/90 border border-purple-200 text-xs font-black text-purple-800 uppercase tracking-wide shadow-2xs">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+                      <span>E-HRM ERP • AI-POWERED HR INTELLIGENCE</span>
+                    </div>
+
+                    {/* Main Headline for E-HRM Enterprise ERP */}
+                    <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.12] text-slate-950">
+                      Transform Your Workforce{' '}
+                      <span className="text-purple-600 block mt-1">with AI-Powered HR Intelligence</span>
+                    </h1>
+
+                    {/* Real E-HRM ERP Product Description */}
+                    <p className="text-xs sm:text-sm text-slate-700 font-semibold leading-relaxed">
+                      E-HRM ERP is an all-in-one enterprise platform uniting Complete Recruitment Automation, Employee & Org Management, AI Face + Location Attendance, and Attendance-to-Payslip Automated Payroll.
+                    </p>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      <Button
+                        size="lg"
+                        onClick={() => setIsBookDemoModalOpen(true)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-6 py-5 rounded-xl shadow-lg cursor-pointer transition-all gap-2"
+                      >
+                        <Play className="h-4 w-4 fill-white" /> Schedule Customer Demo
+                      </Button>
+
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        onClick={() => setIsFaceDemoOpen(true)}
+                        className="bg-white/90 hover:bg-white text-slate-800 border-slate-300 font-bold text-xs px-5 py-5 rounded-xl shadow-2xs cursor-pointer gap-2 backdrop-blur-xs"
+                      >
+                        <Camera className="h-4 w-4 text-purple-600" /> Test AI Face Scanner
+                      </Button>
+
+                      <Button
+                        size="lg"
+                        variant="ghost"
+                        onClick={() => navigate('/attendance-leave/live')}
+                        className="text-slate-800 hover:text-slate-950 font-bold text-xs px-3 py-5 rounded-xl gap-1"
+                      >
+                        Open App Dashboard <ArrowRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* 6 Real E-HRM Enterprise ERP Metadata Specification Cards */}
+                    <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-left">
+                      <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
+                        <Building2 className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">DEPLOYMENT</span>
+                          <h5 className="text-xs font-black text-slate-900 leading-tight">Multi-Tenant ERP</h5>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
+                        <Camera className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">BIOMETRIC SCAN</span>
+                          <h5 className="text-xs font-black text-slate-900 leading-tight">&lt;0.3s Face Match Rate</h5>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
+                        <MapPin className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">GEOFENCE</span>
+                          <h5 className="text-xs font-black text-slate-900 leading-tight">100m GPS Radius Lock</h5>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
+                        <UserSearch className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">RECRUITMENT</span>
+                          <h5 className="text-xs font-black text-slate-900 leading-tight">16-Step ATS & Teams</h5>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 p-2.5 rounded-xl bg-white/95 border border-slate-200/90 backdrop-blur-xs shadow-2xs">
+                        <Code className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider block">TECH STACK</span>
+                          <h5 className="text-xs font-black text-slate-900 leading-tight">React, Node.js, AI</h5>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 p-2.5 rounded-xl bg-purple-50/95 border border-purple-200 backdrop-blur-xs shadow-2xs">
+                        <Globe className="h-4.5 w-4.5 text-purple-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[9.5px] font-extrabold text-purple-600 uppercase tracking-wider block">LIVE DEMO</span>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/attendance-leave/live')}
+                            className="text-xs font-black text-purple-700 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            Open Link <ExternalLink className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Right Side Space (Leaves background product workflow visual clear) */}
+                  <div className="hidden lg:block lg:col-span-5" />
+
+                </div>
+
+                {/* OVERLAID BOTTOM DARK STATISTICS BAR */}
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 backdrop-blur-md text-white flex flex-wrap items-center justify-between text-xs font-medium px-6 gap-4 border border-white/10 shadow-xl">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <span>99.99% Enterprise Uptime SLA</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-cyan-400" />
+                    <span>100% Tax & Statutory Compliance (PF/ESIC/PT/TDS)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Workflow className="h-4 w-4 text-purple-400" />
+                    <span>End-to-End Automation from Hiring to Retirement</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        {/* ── MAIN CONTENT CONTAINER (CONSTRAINED WIDTH) ── */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-10 sm:space-y-16 pt-10 sm:pt-16">
 
           {/* ── 2. RECRUITMENT & ATS — FLAGSHIP FEATURE #1 (PREMIUM MODE) ── */}
           <section id="sec-recruitment" className="scroll-mt-24 space-y-8">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-5 sm:space-y-8 overflow-hidden">
               <div className="absolute top-0 right-0 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
-              
+
               <div className="space-y-4">
                 <Badge className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black px-4 py-1.5 shadow-lg border-0">
                   🌟 FLAGSHIP MODULE #1 — TALENT ACQUISITION & ATS
@@ -376,7 +376,7 @@ export function LandingPage() {
               </div>
 
               {/* 16-Step Visual Recruitment Flow Journey Bar */}
-              <div className="space-y-4 p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-sm backdrop-blur-md relative overflow-hidden">
+              <div className="space-y-4 p-4 sm:p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-sm backdrop-blur-md relative overflow-hidden">
                 <div className="flex items-center justify-between border-b border-slate-200/60 pb-4">
                   <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
                     <Workflow className="h-4 w-4 text-purple-600" /> Visual Recruitment Pipeline Journey Flow
@@ -402,7 +402,7 @@ export function LandingPage() {
               </div>
 
               {/* 4 Feature Deep Dive Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {[
                   { icon: Globe, bg: 'bg-blue-600', lightBg: 'bg-blue-50/40', border: 'border-blue-100/60', title: 'Career Page & Job Portal', desc: 'Public branded hiring portal for candidate applications', points: ['Public Job Openings List & Filtering', 'Apply Now One-Click Application Form', 'Resume / CV File Upload & Parsing', 'Candidate Application Tracking Portal'] },
                   { icon: QuestionIcon, bg: 'bg-emerald-600', lightBg: 'bg-emerald-50/40', border: 'border-emerald-100/60', title: 'Assessment & Auto Question Bank', desc: 'Automated MCQ & coding test evaluation engine', points: ['Question Bank Master (Aptitude, Tech)', 'Automatic Question Selection', 'Passing Threshold % & Timed Links', 'Auto Scorecards & Result Reports'] },
@@ -443,9 +443,9 @@ export function LandingPage() {
 
           {/* ── 3. ORGANIZATION & EMPLOYEE MANAGEMENT — FLAGSHIP FEATURE #2 (PREMIUM MODE) ── */}
           <section id="sec-organization" className="scroll-mt-24 space-y-8">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-4 sm:space-y-6 overflow-hidden">
               <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
-              
+
               <div className="space-y-4">
                 <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-black px-4 py-1.5 shadow-lg border-0">
                   🌟 FLAGSHIP MODULE #2 — ORG & EMPLOYEE LIFECYCLE
@@ -458,8 +458,8 @@ export function LandingPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                <div className="p-6 rounded-2xl bg-white/60 border border-slate-200/60 shadow-sm backdrop-blur-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pt-4">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white/60 border border-slate-200/60 shadow-sm backdrop-blur-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-5">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-blue-600 rounded-xl text-white shadow-md">
                       <Building2 className="h-5 w-5" />
@@ -476,7 +476,7 @@ export function LandingPage() {
                   </div>
                 </div>
 
-                <div className="p-6 rounded-2xl bg-white/60 border border-slate-200/60 shadow-sm backdrop-blur-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-5">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white/60 border border-slate-200/60 shadow-sm backdrop-blur-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-5">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-cyan-600 rounded-xl text-white shadow-md">
                       <Users className="h-5 w-5" />
@@ -497,9 +497,9 @@ export function LandingPage() {
 
           {/* ── 4. AI ATTENDANCE — FLAGSHIP FEATURE #3 (PREMIUM MODE) ── */}
           <section id="sec-attendance" className="scroll-mt-24 space-y-8">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-5 sm:space-y-8 overflow-hidden">
               <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
-              
+
               <div className="space-y-4">
                 <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-xs px-4 py-1.5 shadow-lg border-0">
                   🌟 FLAGSHIP MODULE #3 — AI BIOMETRIC ATTENDANCE
@@ -518,7 +518,7 @@ export function LandingPage() {
                   <Camera className="h-4 w-4 text-emerald-600" /> Automated Check-In & Check-Out Execution Workflow
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 text-center text-xs relative z-10">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 text-center text-xs relative z-10">
                   {[
                     { title: 'Open App', icon: Smartphone },
                     { title: 'Camera Active', icon: Video },
@@ -556,9 +556,9 @@ export function LandingPage() {
 
           {/* ── 5. AUTOMATED PAYROLL — FLAGSHIP FEATURE #4 (PREMIUM MODE) ── */}
           <section id="sec-payroll" className="scroll-mt-24 space-y-8">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-5 sm:space-y-8 overflow-hidden">
               <div className="absolute top-0 right-0 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
-              
+
               <div className="space-y-4">
                 <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-black px-4 py-1.5 shadow-lg border-0">
                   🌟 FLAGSHIP MODULE #4 — AUTOMATED PAYROLL
@@ -578,15 +578,15 @@ export function LandingPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-bold font-mono">
-                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Attendance Log</span> 
+                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Attendance Log</span>
                   <ArrowRight className="h-4 w-4 text-slate-300" />
-                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Hours & LWP</span> 
+                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Hours & LWP</span>
                   <ArrowRight className="h-4 w-4 text-slate-300" />
-                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Base Earnings</span> 
+                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">Base Earnings</span>
                   <ArrowRight className="h-4 w-4 text-slate-300" />
-                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">PF/ESIC/Tax</span> 
+                  <span className="flex-1 p-4 rounded-xl bg-white border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] text-center text-slate-700">PF/ESIC/Tax</span>
                   <ArrowRight className="h-4 w-4 text-slate-300" />
-                  <span className="flex-1 p-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg text-center hover:scale-105 transition-transform duration-300 cursor-default">One-Click Payroll</span> 
+                  <span className="flex-1 p-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg text-center hover:scale-105 transition-transform duration-300 cursor-default">One-Click Payroll</span>
                   <ArrowRight className="h-4 w-4 text-slate-300" />
                   <span className="flex-1 p-4 rounded-xl bg-slate-900 text-white shadow-lg text-center">PDF Payslip</span>
                 </div>
@@ -596,12 +596,12 @@ export function LandingPage() {
 
           {/* ── 6. PERFORMANCE APPRAISALS & PROMOTIONS (PREMIUM MODE) ── */}
           <section id="sec-performance" className="scroll-mt-24 space-y-6">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-4 sm:space-y-6 overflow-hidden">
               <div className="space-y-2">
                 <Badge className="bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white font-bold border-0 shadow-sm">
                   Performance & Career Growth
                 </Badge>
-                <h3 className="text-2xl font-black text-slate-900">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                   6. Performance Appraisals & Promotion Management
                 </h3>
                 <p className="text-xs text-slate-500 max-w-2xl">
@@ -609,8 +609,8 @@ export function LandingPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                <div className="p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 pt-2">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
                   <div className="p-3 bg-purple-100 text-purple-600 rounded-xl w-max">
                     <Award className="h-6 w-6" />
                   </div>
@@ -623,7 +623,7 @@ export function LandingPage() {
                   </div>
                 </div>
 
-                <div className="p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
                   <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl w-max">
                     <Users className="h-6 w-6" />
                   </div>
@@ -636,7 +636,7 @@ export function LandingPage() {
                   </div>
                 </div>
 
-                <div className="p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white/60 border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.03)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-4">
                   <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl w-max">
                     <TrendingUp className="h-6 w-6" />
                   </div>
@@ -654,11 +654,11 @@ export function LandingPage() {
 
           {/* ── 7. TRAINING & DEVELOPMENT (LMS - PREMIUM MODE) ── */}
           <section id="sec-training" className="scroll-mt-24 space-y-6">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-4 sm:space-y-6 overflow-hidden">
               <Badge className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold border-0 shadow-sm">
                 Learning LMS & Skill Development
               </Badge>
-              <h3 className="text-2xl font-black text-slate-900">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                 7. Employee Training & Skill Development Portal
               </h3>
               <p className="text-xs text-slate-500 max-w-2xl">
@@ -684,13 +684,13 @@ export function LandingPage() {
 
           {/* ── 8. EMPLOYEE SELF SERVICE (ESS - PREMIUM MODE) ── */}
           <section id="sec-ess" className="scroll-mt-24 space-y-6">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-4 sm:space-y-6 overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-center">
                 <div className="lg:col-span-7 space-y-5">
                   <Badge className="bg-gradient-to-r from-sky-500 to-blue-500 text-white font-bold border-0 shadow-sm">
                     Employee Experience
                   </Badge>
-                  <h3 className="text-2xl font-black text-slate-900 leading-tight">
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
                     8. Employee Self-Service (ESS) Web & Mobile PWA
                   </h3>
                   <p className="text-sm text-slate-500 leading-relaxed font-medium">
@@ -720,12 +720,12 @@ export function LandingPage() {
 
           {/* ── 9. EXECUTIVE ANALYTICS & BI DASHBOARDS (PREMIUM MODE) ── */}
           <section id="sec-analytics" className="scroll-mt-24 space-y-6">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-5 sm:space-y-8 overflow-hidden">
               <div className="space-y-2">
                 <Badge className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold border-0 shadow-sm">
                   Business Intelligence Metrics
                 </Badge>
-                <h3 className="text-2xl font-black text-slate-900">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                   9. Executive Analytics & BI Dashboard Visualizations
                 </h3>
                 <p className="text-xs text-slate-500 max-w-2xl">
@@ -733,14 +733,14 @@ export function LandingPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 text-center">
                 {[
                   { label: 'Total Headcount', value: '1,420', color: 'text-indigo-600', icon: Users },
                   { label: 'Avg Attendance', value: '98.4%', color: 'text-emerald-600', icon: Activity },
                   { label: 'Time-to-Hire', value: '14 Days', color: 'text-purple-600', icon: Clock },
                   { label: 'Monthly Payroll', value: '₹45.8L', color: 'text-amber-600', icon: Wallet }
                 ].map((stat, i) => (
-                  <div key={i} className="p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-xl transition-all duration-300 space-y-3">
+                  <div key={i} className="p-4 sm:p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-xl transition-all duration-300 space-y-3">
                     <stat.icon className={`h-6 w-6 mx-auto ${stat.color} opacity-80`} />
                     <div className={`text-3xl font-black font-mono ${stat.color} tracking-tight`}>{stat.value}</div>
                     <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{stat.label}</div>
@@ -752,12 +752,12 @@ export function LandingPage() {
 
           {/* ── 10. SUPER ADMIN & MULTI-TENANT GOVERNANCE (PREMIUM MODE) ── */}
           <section id="sec-superadmin" className="scroll-mt-24 space-y-6">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-4 sm:space-y-6 overflow-hidden">
               <div className="space-y-2">
                 <Badge className="bg-slate-900 text-white font-bold border-0 shadow-sm">
                   Super Admin Governance
                 </Badge>
-                <h3 className="text-2xl font-black text-slate-900">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                   10. Super Admin Multi-Tenant Governance & Security Logs
                 </h3>
                 <p className="text-xs text-slate-500 max-w-2xl">
@@ -765,22 +765,22 @@ export function LandingPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 pt-2">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
                   <div className="p-3 bg-slate-100 text-slate-800 rounded-xl w-max">
                     <Building2 className="h-6 w-6" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-900">Multi-Company Architecture</h4>
                   <p className="text-xs text-slate-500 leading-relaxed font-medium">Manage parent companies, sub-tenants, and cost centers from a single portal.</p>
                 </div>
-                <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
                   <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl w-max">
                     <ShieldCheck className="h-6 w-6" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-900">Role-Based Access Control</h4>
                   <p className="text-xs text-slate-500 leading-relaxed font-medium">Granular permissions for Super Admin, HR Manager, Department Head, and Staff.</p>
                 </div>
-                <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 space-y-3">
                   <div className="p-3 bg-purple-100 text-purple-600 rounded-xl w-max">
                     <FileText className="h-6 w-6" />
                   </div>
@@ -793,12 +793,12 @@ export function LandingPage() {
 
           {/* ── 11. COMPLETE EMPLOYEE LIFECYCLE TIMELINE (PREMIUM MODE) ── */}
           <section id="sec-lifecycle" className="scroll-mt-24 space-y-6">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-8 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-5 sm:space-y-8 overflow-hidden">
               <div className="text-center max-w-xl mx-auto space-y-2">
                 <Badge className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold border-0 shadow-sm">
                   End-to-End Workflow Timeline
                 </Badge>
-                <h3 className="text-2xl font-black text-slate-900">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                   11. Complete Employee Lifecycle Journey (Hiring to Retirement)
                 </h3>
               </div>
@@ -826,11 +826,11 @@ export function LandingPage() {
 
           {/* ── 12. ENTERPRISE SOFTWARE INTEGRATIONS (PREMIUM MODE) ── */}
           <section id="sec-integrations" className="scroll-mt-24 space-y-6">
-            <Card className="group relative border border-slate-200/60 p-6 sm:p-10 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-6 overflow-hidden">
+            <Card className="group relative border border-slate-200/60 p-6 sm:p-4 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 rounded-3xl space-y-4 sm:space-y-6 overflow-hidden">
               <Badge className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold border-0 shadow-sm">
                 Ecosystem Connectors
               </Badge>
-              <h3 className="text-2xl font-black text-slate-900">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                 12. Enterprise Software Integrations
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-center text-xs font-bold pt-4">
@@ -853,10 +853,10 @@ export function LandingPage() {
 
           {/* ── 13. WHY E-HRM ERP (PREMIUM MODE) ── */}
           <section id="sec-why" className="scroll-mt-24 space-y-6">
-            <Card className="border border-slate-800 p-6 sm:p-12 bg-slate-950 text-white shadow-[0_20px_50px_rgb(0,0,0,0.3)] rounded-3xl space-y-8 relative overflow-hidden">
+            <Card className="border border-slate-800 p-4 sm:p-12 bg-slate-950 text-white shadow-[0_20px_50px_rgb(0,0,0,0.3)] rounded-3xl space-y-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
               <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl -z-10 pointer-events-none -translate-x-1/2 translate-y-1/2" />
-              
+
               <div className="text-center space-y-4 max-w-2xl mx-auto">
                 <Badge className="bg-slate-800 text-slate-200 font-extrabold shadow-sm border border-slate-700 px-4 py-1">
                   Why Choose E-HRM ERP
@@ -866,18 +866,18 @@ export function LandingPage() {
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
-                <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 text-xs">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
                   <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl w-max"><Zap className="h-6 w-6" /></div>
                   <h4 className="font-bold text-base text-white">AI Biometric Automation</h4>
                   <p className="text-slate-400 text-sm leading-relaxed font-medium">Eliminate manual time theft and card punch delays with Face ID.</p>
                 </div>
-                <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
                   <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl w-max"><Wallet className="h-6 w-6" /></div>
                   <h4 className="font-bold text-base text-white">Zero Payroll Errors</h4>
                   <p className="text-slate-400 text-sm leading-relaxed font-medium">Automated attendance-linked payroll calculations and tax filing.</p>
                 </div>
-                <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
+                <div className="p-4 sm:p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:-translate-y-1 transition-all duration-300 space-y-3 shadow-lg">
                   <div className="p-3 bg-purple-500/20 text-purple-400 rounded-xl w-max"><Server className="h-6 w-6" /></div>
                   <h4 className="font-bold text-base text-white">Multi-Tenant Scalability</h4>
                   <p className="text-slate-400 text-sm leading-relaxed font-medium">Seamless support for parent companies and branch subsidiaries.</p>
@@ -927,13 +927,13 @@ export function LandingPage() {
 
           {/* ── 16. FINAL CALL TO ACTION (PREMIUM BANNER) ── */}
           <section id="sec-cta" className="scroll-mt-24 text-center space-y-6 pt-12 pb-12">
-            <div className="p-10 sm:p-16 rounded-[2rem] bg-slate-900 text-white shadow-[0_20px_50px_rgb(0,0,0,0.2)] space-y-8 relative overflow-hidden">
+            <div className="p-6 sm:p-16 rounded-[2rem] bg-slate-900 text-white shadow-[0_20px_50px_rgb(0,0,0,0.2)] space-y-8 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 via-indigo-600/20 to-pink-600/20 mix-blend-overlay" />
               <div className="absolute -top-40 -right-40 w-96 h-96 bg-purple-500/30 rounded-full blur-[100px] pointer-events-none" />
               <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/30 rounded-full blur-[100px] pointer-events-none" />
 
               <div className="relative z-10 space-y-4">
-                <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+                <h2 className="text-2xl sm:text-5xl font-black tracking-tight text-white">
                   16. Transform Your HR Operations with E-HRM ERP
                 </h2>
                 <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto font-medium">
@@ -1176,7 +1176,7 @@ function PricingSection({ onBookDemo }: { onBookDemo: () => void }) {
     );
 
   return (
-    <Card className="border-slate-200 p-6 sm:p-10 bg-white shadow-xl rounded-3xl space-y-8 overflow-hidden relative">
+    <Card className="border-slate-200 p-6 sm:p-4 bg-white shadow-xl rounded-3xl space-y-5 sm:space-y-8 overflow-hidden relative">
       {/* Header */}
       <div className="text-center space-y-2">
         <Badge className="bg-purple-50 text-purple-700 border border-purple-200 font-bold">Transparent Pricing</Badge>
@@ -1195,18 +1195,16 @@ function PricingSection({ onBookDemo }: { onBookDemo: () => void }) {
           <button
             type="button"
             onClick={() => setIsYearly(false)}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              !isYearly ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'
-            }`}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${!isYearly ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'
+              }`}
           >
             Monthly
           </button>
           <button
             type="button"
             onClick={() => setIsYearly(true)}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              isYearly ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'
-            }`}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${isYearly ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'
+              }`}
           >
             Yearly
             <span className="bg-emerald-100 text-emerald-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">Save 15%</span>
@@ -1222,11 +1220,10 @@ function PricingSection({ onBookDemo }: { onBookDemo: () => void }) {
                 key={c}
                 type="button"
                 onClick={() => setEmpCount(c)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
-                  empCount === c
-                    ? 'bg-purple-600 text-white border-purple-600 shadow-md'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${empCount === c
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-md'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300'
+                  }`}
               >
                 {c}
               </button>
@@ -1270,7 +1267,7 @@ function PricingSection({ onBookDemo }: { onBookDemo: () => void }) {
       </div>
 
       {/* 3-Column Plan Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 items-stretch">
 
         {/* STARTER */}
         <div className="flex flex-col border-2 border-slate-200 rounded-2xl p-6 bg-white space-y-5">
