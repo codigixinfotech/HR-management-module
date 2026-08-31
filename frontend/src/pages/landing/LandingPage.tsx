@@ -109,11 +109,8 @@ export function LandingPage() {
   const [demoMessage, setDemoMessage] = useState('');
   const [isSubmittingDemo, setIsSubmittingDemo] = useState(false);
 
-  // Scroll spy on the <main> container
+  // Scroll spy on window (public standalone page — no AppLayout <main>)
   useEffect(() => {
-    const mainEl = document.querySelector('main');
-    if (!mainEl) return;
-
     const allIds = [
       'sec-hero',
       'sec-recruitment',
@@ -134,7 +131,7 @@ export function LandingPage() {
     ];
 
     const handleScroll = () => {
-      const scrollPosition = mainEl.scrollTop + 220;
+      const scrollPosition = window.scrollY + 220;
       for (let i = allIds.length - 1; i >= 0; i--) {
         const el = document.getElementById(allIds[i]);
         if (el && el.offsetTop <= scrollPosition) {
@@ -144,8 +141,8 @@ export function LandingPage() {
       }
     };
 
-    mainEl.addEventListener('scroll', handleScroll, { passive: true });
-    return () => mainEl.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const handleBookDemoSubmit = (e: React.FormEvent) => {
@@ -171,10 +168,10 @@ export function LandingPage() {
   };
 
   return (
-    <div className="space-y-12 pb-24 font-sans text-slate-900 bg-slate-50/70 selection:bg-indigo-500 selection:text-white">
-      {/* ── PAGE LAYOUT: 100% FULL-WIDTH STANDALONE LANDING PAGE ── */}
-      <div className="w-full space-y-16">
-        <main className="w-full space-y-16">
+    <div className="min-h-screen w-full overflow-y-auto font-sans text-slate-900 bg-slate-50/70 selection:bg-indigo-500 selection:text-white">
+      {/* ── PAGE LAYOUT: 100% FULL-WIDTH STANDALONE PUBLIC LANDING PAGE ── */}
+      <div className="w-full space-y-16 pb-24">
+        <div className="w-full space-y-16">
           
           {/* ── 1. HERO SECTION (E-HRM ENTERPRISE ERP PRODUCT BRANDING & WORKFLOW BANNER) ── */}
           <section id="sec-hero" className="scroll-mt-24 space-y-6">
@@ -965,7 +962,7 @@ export function LandingPage() {
             </div>
           </section>
 
-        </main>
+        </div>
       </div>
 
       {/* ── CUSTOMER DEMO REQUEST MODAL ── */}
