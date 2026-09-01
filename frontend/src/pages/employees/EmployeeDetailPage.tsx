@@ -745,8 +745,15 @@ export default function EmployeeDetailPage() {
             {/* 9. SALARY */}
             <TabsContent value="salary" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Compensation Salary Structure</CardTitle>
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <span>Compensation Salary Structure</span>
+                    {(employee.annualCtc || employee.basicSalary) && (
+                      <Badge className="bg-purple-600 text-white font-bold text-[10px]">
+                        Synced from Payroll
+                      </Badge>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-3">
                   {employee.annualCtc || employee.basicSalary ? (
@@ -810,7 +817,12 @@ export default function EmployeeDetailPage() {
                       </div>
                     </>
                   ) : (
-                    <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
+                    <div className="text-center py-8 space-y-2">
+                      <p className="text-xs font-bold text-muted-foreground">No salary structure assigned</p>
+                      <Button size="sm" variant="outline" className="text-xs font-bold border-purple-500/30 text-purple-600">
+                        Select Salary Structure
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>

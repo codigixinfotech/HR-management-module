@@ -62,7 +62,7 @@ const employeeSchema = z.object({
   middleName: z.string().optional(),
   lastName: z.string().min(1, 'Last name is required'),
   dateOfBirth: z.string().min(1, 'Date of birth is required'),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).or(z.string()).optional().default('MALE'),
   maritalStatus: z.string().optional(),
   nationality: z.string().optional(),
   bloodGroup: z.string().optional(),
@@ -74,8 +74,8 @@ const employeeSchema = z.object({
   employeeCode: z.string().min(1, 'Employee code is required'),
   dateOfJoining: z.string().min(1, 'Date of joining is required'),
   employeeCategory: z.string().min(1, 'Employee category is required'),
-  employmentType: z.enum(['PERMANENT', 'CONTRACT', 'INTERN', 'CONSULTANT', 'PART_TIME']),
-  status: z.enum(['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED', 'PROBATION', 'NOTICE_PERIOD']),
+  employmentType: z.enum(['PERMANENT', 'CONTRACT', 'INTERN', 'CONSULTANT', 'PART_TIME']).or(z.string()).optional().default('PERMANENT'),
+  status: z.enum(['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED', 'PROBATION', 'NOTICE_PERIOD', 'EXITED']).or(z.string()).optional().default('ACTIVE'),
   departmentId: z.string().min(1, 'Department is required'),
   designationId: z.string().min(1, 'Designation is required'),
   reportingManagerId: z.string().optional(),
@@ -418,6 +418,29 @@ export function EmployeeMasterTab() {
   const watchedFirstName = form.watch('firstName');
   const watchedLastName = form.watch('lastName');
 
+  const watchBasic = form.watch('basicSalary');
+  const watchHra = form.watch('hra');
+  const watchConveyance = form.watch('conveyance');
+  const watchSpecial = form.watch('specialAllowance');
+  const watchOther = form.watch('otherAllowances');
+
+  // Auto-calculate Gross Salary (Basic + HRA + Conveyance + Special + Other) and Annual CTC (Gross * 12) per Requirement 3
+  useEffect(() => {
+    const b = Number(watchBasic) || 0;
+    const h = Number(watchHra) || 0;
+    const c = Number(watchConveyance) || 0;
+    const s = Number(watchSpecial) || 0;
+    const o = Number(watchOther) || 0;
+
+    const computedGross = b + h + c + s + o;
+    const computedCtc = computedGross * 12;
+
+    if (b > 0 || h > 0 || c > 0 || s > 0 || o > 0) {
+      form.setValue('grossSalary', computedGross);
+      form.setValue('annualCtc', computedCtc);
+    }
+  }, [watchBasic, watchHra, watchConveyance, watchSpecial, watchOther, form]);
+
   // Auto-fill workEmail if empty when firstName and lastName are provided
   useEffect(() => {
     if (!isEditing && watchedFirstName && watchedLastName && !form.getValues('workEmail')) {
@@ -596,7 +619,7 @@ export function EmployeeMasterTab() {
         middleName: editEmployee.middleName ?? '',
         lastName: editEmployee.lastName ?? '',
         dateOfBirth: editEmployee.dateOfBirth ? new Date(editEmployee.dateOfBirth).toISOString().split('T')[0] : '1995-01-01',
-        gender: editEmployee.gender ?? 'MALE',
+        gender: editEmployee.gender ? String(editEmployee.gender).toUpperCase() : 'MALE',
         maritalStatus: editEmployee.maritalStatus ?? '',
         nationality: editEmployee.nationality ?? '',
         bloodGroup: editEmployee.bloodGroup ?? '',
@@ -606,8 +629,8 @@ export function EmployeeMasterTab() {
         employeeCode: editEmployee.employeeCode ?? '',
         dateOfJoining: editEmployee.dateOfJoining ? new Date(editEmployee.dateOfJoining).toISOString().split('T')[0] : '',
         employeeCategory: editEmployee.employeeCategory ?? 'Executive',
-        employmentType: editEmployee.employmentType ?? 'PERMANENT',
-        status: editEmployee.status ?? 'ACTIVE',
+        employmentType: editEmployee.employmentType ? String(editEmployee.employmentType).toUpperCase() : 'PERMANENT',
+        status: editEmployee.status ? String(editEmployee.status).toUpperCase() : 'ACTIVE',
         departmentId: editEmployee.departmentId ?? '',
         designationId: editEmployee.designationId ?? '',
         reportingManagerId: editEmployee.reportingManagerId ?? '',
@@ -1391,7 +1414,7 @@ export function EmployeeMasterTab() {
                         </div>
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Employment Status *</Label>
-                          <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v as any)}>
+                          <Select value={form.watch('status') || 'ACTIVE'} onValueChange={(v) => form.setValue('status', v as any, { shouldValidate: true })}>
                             <SelectTrigger className="h-9 text-xs">
                               <SelectValue placeholder="Select status" />
                             </SelectTrigger>
@@ -1401,6 +1424,9 @@ export function EmployeeMasterTab() {
                               <SelectItem value="NOTICE_PERIOD" className="text-xs">Notice Period</SelectItem>
                               <SelectItem value="ON_LEAVE" className="text-xs">On Leave</SelectItem>
                               <SelectItem value="SUSPENDED" className="text-xs">Suspended</SelectItem>
+                              <SelectItem value="RESIGNED" className="text-xs">Resigned</SelectItem>
+                              <SelectItem value="TERMINATED" className="text-xs">Terminated</SelectItem>
+                              <SelectItem value="EXITED" className="text-xs">Exited</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1954,6 +1980,17 @@ export function EmployeeMasterTab() {
                   {/* Step 11: Salary Structure */}
                   {activeStep === 10 && (
                     <div className="space-y-3">
+                      <div className="flex items-center justify-between p-2.5 rounded-xl border border-purple-500/30 bg-purple-500/5">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-purple-600 text-white font-bold text-[10px]">
+                            Synced from Payroll
+                          </Badge>
+                          <span className="text-xs text-muted-foreground font-medium">
+                            Gross Salary and Annual CTC are auto-calculated from components
+                          </span>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Salary Grade</Label>
@@ -1966,12 +2003,12 @@ export function EmployeeMasterTab() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
-                          <Label>Basic Salary (Monthly)</Label>
+                          <Label>Basic Salary (Monthly) *</Label>
                           <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 30000" {...form.register('basicSalary')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>HRA (Monthly)</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 15000" {...form.register('hra')} />
+                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 1500" {...form.register('hra')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Conveyance (Monthly)</Label>
@@ -1980,22 +2017,22 @@ export function EmployeeMasterTab() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
-                          <Label>Special Allowance</Label>
+                          <Label>Special Allowance (Monthly)</Label>
                           <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 12000" {...form.register('specialAllowance')} />
                         </div>
                         <div className="space-y-1.5">
-                          <Label>Other Allowances</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 0" {...form.register('otherAllowances')} />
+                          <Label>Other Allowances (Monthly)</Label>
+                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 13500" {...form.register('otherAllowances')} />
                         </div>
                         <div className="space-y-1.5">
-                          <Label>Gross Salary</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 60000" {...form.register('grossSalary')} />
+                          <Label className="text-emerald-600 font-bold">Gross Salary [Auto-Calculated]</Label>
+                          <Input type="number" readOnly className="h-9 text-xs font-mono font-extrabold bg-muted/60 text-emerald-700 cursor-not-allowed" placeholder="Auto-calculated" {...form.register('grossSalary')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label>Annual CTC</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 720000" {...form.register('annualCtc')} />
+                          <Label className="text-purple-600 font-bold">Annual CTC [Gross × 12]</Label>
+                          <Input type="number" readOnly className="h-9 text-xs font-mono font-extrabold bg-muted/60 text-purple-700 cursor-not-allowed" placeholder="Auto-calculated" {...form.register('annualCtc')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Effective From</Label>

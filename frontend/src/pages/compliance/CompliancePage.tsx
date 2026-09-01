@@ -7,7 +7,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ComplianceTypesCard } from './ComplianceTypesCard';
 import { ComplianceCalendarTab } from './ComplianceCalendarTab';
-import { ComplianceReportsTab } from './ComplianceReportsTab';
+import { PfModule } from './pf/PfModule';
 
 export default function CompliancePage() {
   const { tab: routeTab } = useParams();
@@ -52,14 +52,7 @@ export default function CompliancePage() {
         </div>
       )}
 
-      {activeTab === 'pf' && (
-        <ComplianceCalendarTab
-          companyId={companyId}
-          title="Provident Fund"
-          description="PF monthly returns and filings"
-          filter={(t) => t.complianceType?.code === 'PF_RETURN'}
-        />
-      )}
+      {activeTab === 'pf' && <PfModule companyId={companyId} companies={companies} />}
 
       {activeTab === 'esic' && (
         <ComplianceCalendarTab
