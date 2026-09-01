@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -66,9 +67,19 @@ export function FaceAttendanceModal({
 }: FaceAttendanceModalProps) {
   const queryClient = useQueryClient();
   const authUser = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const scanIntervalRef = useRef<any>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const isOpenRef = useRef<boolean>(isOpen);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+    if (!isOpen) {
+      stopCamera();
+    }
+  }, [isOpen]);
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [punchType, setPunchType] = useState<'CHECK_IN' | 'CHECK_OUT'>('CHECK_IN');
@@ -78,15 +89,56 @@ export function FaceAttendanceModal({
   const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
+  // Configurable Match Cutoff Threshold
+  const MATCH_THRESHOLD = 70.0;
+
   // Real Biometric Verification States — Auto Capture Workflow
   const [workflowStep, setWorkflowStep] = useState<'SCAN' | 'COMPARE' | 'VERIFIED'>('SCAN');
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [capturedDescriptor, setCapturedDescriptor] = useState<number[] | null>(null);
   const [isScanning, setIsScanning] = useState(true);
   const [detectedFacesCount, setDetectedFacesCount] = useState<number>(0);
   const [verificationState, setVerificationState] = useState<FaceVerificationState>('NO_FACE_DETECTED');
   const [calculatedDistance, setCalculatedDistance] = useState<number | null>(null);
   const [calculatedSimilarity, setCalculatedSimilarity] = useState<number | null>(null);
-  const [isFaceMatched, setIsFaceMatched] = useState<boolean>(false);
+  const [isFaceMatchedState, setIsFaceMatchedState] = useState<boolean>(false);
+  const [verifiedEmployeeId, setVerifiedEmployeeId] = useState<string | null>(null);
+  const [verifiedTimestamp, setVerifiedTimestamp] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+
+  const validate128dVector = (vec: any): number[] | null => {
+    if (!vec) return null;
+    let arr = vec;
+    if (typeof vec === 'string') {
+      try {
+        arr = JSON.parse(vec);
+      } catch {
+        return null;
+      }
+    }
+    if (!Array.isArray(arr) || arr.length !== 128) return null;
+    if (arr.some((v: any) => typeof v !== 'number' || !isFinite(v))) return null;
+    return arr;
+  };
+
+  // 1-second interval tick for 45-second verification expiry check
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const isVerificationExpired = Boolean(
+    verifiedTimestamp && nowTick - verifiedTimestamp > 45000
+  );
+
+  const isFaceMatched = Boolean(
+    isFaceMatchedState &&
+    calculatedSimilarity !== null &&
+    calculatedSimilarity >= MATCH_THRESHOLD &&
+    verifiedEmployeeId &&
+    verifiedEmployeeId === selectedEmployeeId &&
+    !isVerificationExpired
+  );
   const isFaceVerified = isFaceMatched;
 
   // Real Geolocation & Network Telemetry
@@ -133,10 +185,17 @@ export function FaceAttendanceModal({
         .then((records) => {
           if (Array.isArray(records)) {
             const todayStr = new Date().toISOString().split('T')[0];
-            const foundToday = records.find((r) => r.date === todayStr);
+            const isRecordForToday = (r: any) => {
+              const dateVal = r.date || r.checkIn;
+              if (!dateVal) return false;
+              const str = typeof dateVal === 'string' ? dateVal.split('T')[0] : new Date(dateVal).toISOString().split('T')[0];
+              return str === todayStr;
+            };
+
+            const foundToday = records.find(isRecordForToday);
             setTodayRecord(foundToday || null);
 
-            const past = records.filter((r) => r.date !== todayStr);
+            const past = records.filter((r) => !isRecordForToday(r));
             setPastRecords(past);
 
             // Auto toggle to CHECK_OUT if already checked in today without checking out
@@ -152,6 +211,7 @@ export function FaceAttendanceModal({
   }, [selectedEmployeeId, employees]);
 
   useEffect(() => {
+    isOpenRef.current = isOpen;
     if (isOpen) {
       resetWorkflowAndStartCamera();
       acquireRealGpsLocation();
@@ -159,15 +219,16 @@ export function FaceAttendanceModal({
     } else {
       stopCamera();
     }
-    return () => {
-      stopCamera();
-    };
   }, [isOpen]);
 
   useEffect(() => {
     if (stream && videoRef.current && workflowStep === 'SCAN') {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch((err) => console.log('Video play catch:', err));
+      const vid = videoRef.current;
+      vid.srcObject = stream;
+      vid.onloadedmetadata = () => {
+        vid.play().catch((err) => console.log('Video play catch:', err));
+      };
+      vid.play().catch((err) => console.log('Video play catch:', err));
     }
   }, [stream, workflowStep]);
 
@@ -184,16 +245,6 @@ export function FaceAttendanceModal({
       if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
     };
   }, [isOpen, isCameraActive, workflowStep, selectedEmployee]);
-
-  const resetWorkflowAndStartCamera = () => {
-    setWorkflowStep('SCAN');
-    setCapturedPhoto(null);
-    setIsFaceMatched(false);
-    setVerificationState('NO_FACE_DETECTED');
-    setCalculatedDistance(null);
-    setCalculatedSimilarity(null);
-    startCamera();
-  };
 
   const startCamera = async () => {
     setCameraError(null);
@@ -217,9 +268,21 @@ export function FaceAttendanceModal({
 
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
+
+      // If modal was closed while getUserMedia was resolving in background:
+      if (!isOpenRef.current) {
+        mediaStream.getTracks().forEach((track) => {
+          track.stop();
+          track.enabled = false;
+        });
+        setIsCameraLoading(false);
+        return;
+      }
+
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       setIsCameraActive(true);
       setIsCameraLoading(false);
@@ -243,13 +306,40 @@ export function FaceAttendanceModal({
   };
 
   const stopCamera = () => {
-    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        track.enabled = false;
+      });
+      streamRef.current = null;
+    }
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach((track) => {
+        track.stop();
+        track.enabled = false;
+      });
       setStream(null);
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      const srcStream = videoRef.current.srcObject as MediaStream;
+      srcStream.getTracks().forEach((track) => {
+        track.stop();
+        track.enabled = false;
+      });
+      videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
     setIsScanning(false);
+  };
+
+  const handleCloseModal = () => {
+    isOpenRef.current = false;
+    stopCamera();
+    onClose();
   };
 
   const acquireRealGpsLocation = () => {
@@ -281,15 +371,15 @@ export function FaceAttendanceModal({
           }
         },
         () => {
-          setGpsVerified(true);
-          setGpsDistanceMeters(42);
-          setGpsLocationMsg('42m from Codigix Office (Inside Geofence)');
+          setGpsVerified(false);
+          setGpsDistanceMeters(null);
+          setGpsLocationMsg('GPS Geofence Unverified (Location Access Required)');
         }
       );
     } else {
-      setGpsVerified(true);
-      setGpsDistanceMeters(42);
-      setGpsLocationMsg('42m from Codigix Office (Inside Geofence)');
+      setGpsVerified(false);
+      setGpsDistanceMeters(null);
+      setGpsLocationMsg('GPS Geolocation unsupported');
     }
   };
 
@@ -301,12 +391,12 @@ export function FaceAttendanceModal({
         setPublicIp(data.ip);
         setIpVerified(true);
       } else {
-        setPublicIp('182.73.12.98');
-        setIpVerified(true);
+        setPublicIp('Network IP Unavailable');
+        setIpVerified(false);
       }
     } catch {
-      setPublicIp('182.73.12.98');
-      setIpVerified(true);
+      setPublicIp('Network IP Unavailable');
+      setIpVerified(false);
     }
   };
 
@@ -327,15 +417,23 @@ export function FaceAttendanceModal({
     }
 
     if (facesCount > 1) {
+      if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+      stopCamera();
+      setIsScanning(false);
       setVerificationState('MULTIPLE_FACES_BLOCKED');
+      setIsFaceMatchedState(false);
+      setVerifiedEmployeeId(null);
+      setVerifiedTimestamp(null);
+      setCalculatedDistance(null);
+      setCalculatedSimilarity(null);
+      setWorkflowStep('VERIFIED');
       return;
     }
 
-    // Single face detected! Perform Auto Capture of ONE snapshot frame & freeze image
+    // Exactly one face detected! Perform snapshot capture & run biometric comparison against SELECTED employee
     if (facesCount === 1 && detection.descriptor) {
       if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
       
-      // Capture single photo from video canvas
       try {
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           canvas.width = video.videoWidth;
@@ -354,71 +452,149 @@ export function FaceAttendanceModal({
       setIsScanning(false);
       stopCamera();
 
-      // Proceed to Step 2: Compare against registered employee photo
+      // Proceed to Step 2 & 3: Compare against selected employee profile
       runFaceComparisonPipeline(detection.descriptor);
     }
   };
 
-  const runFaceComparisonPipeline = (liveDescriptor: number[]) => {
-    setWorkflowStep('COMPARE');
-
-    // Simulate short network & comparison step (600ms) to display "Employee Face Fetched ✓"
-    setTimeout(() => {
-      if (!selectedEmployee || !selectedEmployee.faceTemplate) {
-        setVerificationState('NO_REGISTERED_TEMPLATE');
-        setCalculatedDistance(null);
-        setCalculatedSimilarity(null);
-        setIsFaceMatched(false);
-        setWorkflowStep('VERIFIED');
-        return;
-      }
-
-      try {
-        const registeredDescriptor = JSON.parse(selectedEmployee.faceTemplate);
-        if (!Array.isArray(registeredDescriptor)) {
-          setVerificationState('NO_REGISTERED_TEMPLATE');
-          setCalculatedDistance(null);
-          setCalculatedSimilarity(null);
-          setIsFaceMatched(false);
-          setWorkflowStep('VERIFIED');
-          return;
+  const extractDescriptorFromImage = (imgSrc: string): Promise<number[] | null> => {
+    return new Promise((resolve) => {
+      let resolved = false;
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          console.warn('[Biometric Extraction] Image loading timed out after 1200ms');
+          resolve(null);
         }
+      }, 1200);
 
+      const img = new Image();
+      if (imgSrc && !imgSrc.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => {
+        if (resolved) return;
+        clearTimeout(timeoutId);
+        resolved = true;
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 640;
+          canvas.height = 480;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, 640, 480);
+            const res = extractFacialLandmarkDescriptor(canvas);
+            if (res && res.descriptor && res.descriptor.length > 0) {
+              resolve(res.descriptor);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('Image descriptor extraction catch:', e);
+        }
+        resolve(null);
+      };
+      img.onerror = () => {
+        if (resolved) return;
+        clearTimeout(timeoutId);
+        resolved = true;
+        resolve(null);
+      };
+      img.src = imgSrc;
+    });
+  };
+
+  const resetWorkflowAndStartCamera = () => {
+    setWorkflowStep('SCAN');
+    setCapturedPhoto(null);
+    setCapturedDescriptor(null);
+    setVerificationState('NO_FACE_DETECTED');
+    setCalculatedDistance(null);
+    setCalculatedSimilarity(null);
+    setIsFaceMatchedState(false);
+    setVerifiedEmployeeId(null);
+    setVerifiedTimestamp(null);
+    startCamera();
+  };
+
+  const runFaceComparisonPipeline = async (liveDescriptor: number[]) => {
+    setWorkflowStep('COMPARE');
+    setCapturedDescriptor(liveDescriptor);
+
+    const targetEmp = selectedEmployee || employees.find((e) => e.id === selectedEmployeeId || e.id === authUser?.employee?.id);
+    let registeredDescriptor: number[] | null = null;
+
+    // 1. Primary Source: Validate pre-computed stored faceTemplate JSON (128-D vector)
+    if (targetEmp?.faceTemplate) {
+      registeredDescriptor = validate128dVector(targetEmp.faceTemplate);
+    }
+
+    // 2. Fallback Source: Extract 128-D descriptor from enrolled photo if template missing/invalid
+    if (!registeredDescriptor && targetEmp?.facePhoto) {
+      try {
+        const extracted = await extractDescriptorFromImage(targetEmp.facePhoto);
+        registeredDescriptor = validate128dVector(extracted);
+      } catch (err) {
+        console.error('Error extracting descriptor from facePhoto:', err);
+      }
+    }
+
+    setTimeout(() => {
+      // 3. Biometric Feature Vector Distance & Cosine Similarity Calculation
+      if (registeredDescriptor && targetEmp) {
         const distance = calculateEuclideanDistance(liveDescriptor, registeredDescriptor);
         const rawSimilarity = calculateSimilarityPercentage(liveDescriptor, registeredDescriptor);
 
-        console.log(`[Biometric Pipeline] Distance: ${distance}, Raw Similarity: ${rawSimilarity}%`);
+        console.log(`[Biometric Comparison] Target Employee: ${targetEmp.firstName} ${targetEmp.lastName} (${targetEmp.id})`);
+        console.log(`[Biometric Comparison] Vector Distance: ${distance}, Actual Similarity: ${rawSimilarity}%, Threshold: ${MATCH_THRESHOLD}%`);
 
-        // Biometric Match Cutoff: Live camera facial landmark similarity >= 40.0% OR distance <= 0.85
-        const isMatch = rawSimilarity >= 40.0 || distance <= 0.85;
+        // STRICT BIOMETRIC MATCH CRITERIA: Similarity >= 70.0%
+        const isMatch = rawSimilarity >= MATCH_THRESHOLD;
+
+        setCalculatedDistance(distance);
+        setCalculatedSimilarity(rawSimilarity);
 
         if (isMatch) {
-          // Map valid face match (raw 40%-100%) to user-friendly confidence score (91.2% - 98.8%)
-          const confidenceScore = parseFloat(
-            Math.min(98.8, Math.max(91.2, 91.2 + ((rawSimilarity - 40.0) / 60.0) * 7.6)).toFixed(1)
-          );
-
-          setCalculatedDistance(distance);
-          setCalculatedSimilarity(confidenceScore);
           setVerificationState('SINGLE_FACE_MATCHED');
-          setIsFaceMatched(true);
+          setIsFaceMatchedState(true);
+          setVerifiedEmployeeId(targetEmp.id);
+          setVerifiedTimestamp(Date.now());
+          toast.success(`Face Matched ✓ Similarity: ${rawSimilarity}% for ${targetEmp.firstName} ${targetEmp.lastName}`);
         } else {
-          setCalculatedDistance(distance);
-          setCalculatedSimilarity(rawSimilarity);
           setVerificationState('FACE_MISMATCH');
-          setIsFaceMatched(false);
+          setIsFaceMatchedState(false);
+          setVerifiedEmployeeId(null);
+          setVerifiedTimestamp(null);
+          console.warn(`[Biometric Mismatch] Scanned face does not match selected employee ${targetEmp.firstName} ${targetEmp.lastName}. Score: ${rawSimilarity}%`);
         }
-      } catch (e) {
-        console.error('Biometric verification error:', e);
+      } else {
+        // Selected employee has no registered face template or photo in DB
+        console.warn(`[Biometric Failure] No enrolled face photo or template found for selected employee ${targetEmp?.firstName || 'Unknown'}`);
         setVerificationState('NO_REGISTERED_TEMPLATE');
-        setIsFaceMatched(false);
+        setIsFaceMatchedState(false);
+        setVerifiedEmployeeId(null);
+        setVerifiedTimestamp(null);
+        setCalculatedDistance(null);
+        setCalculatedSimilarity(null);
       }
+
       setWorkflowStep('VERIFIED');
-    }, 700);
+    }, 200);
   };
 
   const handleConfirmPunch = async () => {
-    if (!isFaceMatched || workflowStep !== 'VERIFIED') return;
+    if (
+      !isFaceMatched ||
+      workflowStep !== 'VERIFIED' ||
+      !verifiedEmployeeId ||
+      verifiedEmployeeId !== selectedEmployeeId ||
+      calculatedSimilarity === null ||
+      calculatedSimilarity < MATCH_THRESHOLD ||
+      isVerificationExpired
+    ) {
+      toast.error('Valid biometric face verification required before marking attendance.');
+      return;
+    }
     setIsSubmitting(true);
 
     const nowIso = new Date().toISOString();
@@ -455,14 +631,14 @@ export function FaceAttendanceModal({
       department: targetEmp?.department?.name || authUser?.employee?.departmentName || 'Quality',
       date: todayDateStr,
       time: timestamp,
-      checkIn: punchType === 'CHECK_IN' ? nowIso : undefined,
+      checkIn: punchType === 'CHECK_IN' ? nowIso : todayRecord?.checkIn || undefined,
       checkOut: punchType === 'CHECK_OUT' ? nowIso : undefined,
       punchType,
       status: 'PRESENT' as const,
       source: 'FACE_ID',
       verificationMethod: 'Biometric Face ID',
       faceVerificationStatus: 'VERIFIED',
-      faceMatchScore: calculatedSimilarity ?? 96.8,
+      faceMatchScore: calculatedSimilarity!,
       capturedFacePhoto: capturedPhoto || undefined,
       locationVerificationStatus: gpsVerified ? 'INSIDE_GEOFENCE' : 'OUTSIDE_GEOFENCE',
       officeLocation: 'Pune Head Office',
@@ -490,6 +666,7 @@ export function FaceAttendanceModal({
         status: punchRecord.status,
         faceVerificationStatus: punchRecord.faceVerificationStatus,
         faceMatchScore: punchRecord.faceMatchScore,
+        liveFaceDescriptor: capturedDescriptor || undefined,
         capturedFacePhoto: punchRecord.capturedFacePhoto,
         locationVerificationStatus: punchRecord.locationVerificationStatus,
         officeLocation: punchRecord.officeLocation,
@@ -543,7 +720,7 @@ export function FaceAttendanceModal({
   const empPhoto = selectedEmployee?.facePhoto || authUser?.employee?.facePhoto;
 
   const currentHour = new Date().getHours();
-  const timeGreeting = currentHour < 12 ? 'Good Morning! 👋' : currentHour < 17 ? 'Good Afternoon! 👋' : 'Good Evening! 👋';
+  const timeGreeting = currentHour < 12 ? 'Good Morning! 👋' : currentHour < 16 ? 'Good Afternoon! 👋' : 'Good Evening! 👋';
 
   const formattedDateStr = useMemo(() => {
     const d = new Date();
@@ -554,38 +731,47 @@ export function FaceAttendanceModal({
 
   const checkInFormatted = useMemo(() => {
     if (todayRecord?.checkIn) {
-      return new Date(todayRecord.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const d = new Date(todayRecord.checkIn);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
     }
-    return todayRecord?.time || '--:--';
+    return '—';
   }, [todayRecord]);
 
   const checkOutFormatted = useMemo(() => {
     if (todayRecord?.checkOut) {
-      return new Date(todayRecord.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const d = new Date(todayRecord.checkOut);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
     }
-    return '--:--';
+    return '—';
   }, [todayRecord]);
 
   const totalHoursFormatted = useMemo(() => {
-    if (todayRecord?.checkIn) {
-      const start = new Date(todayRecord.checkIn).getTime();
-      const end = todayRecord.checkOut ? new Date(todayRecord.checkOut).getTime() : new Date().getTime();
-      const diffMs = end - start;
-      const hours = Math.floor(diffMs / (1000 * 60 * 60));
-      const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-      return `${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m`;
-    }
-    return '00h 00m';
+    if (!todayRecord?.checkIn) return '—';
+    if (!todayRecord?.checkOut) return 'In Progress';
+    const start = new Date(todayRecord.checkIn).getTime();
+    const end = new Date(todayRecord.checkOut).getTime();
+    if (isNaN(start) || isNaN(end) || end < start) return '—';
+    const diffMs = end - start;
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${String(mins).padStart(2, '0')}m`;
   }, [todayRecord]);
 
   const statusFormatted = useMemo(() => {
-    if (todayRecord?.checkOut) return 'Completed';
-    if (todayRecord?.checkIn) return 'In Progress';
-    return '--';
+    if (todayRecord?.checkIn && todayRecord?.checkOut) return 'Completed';
+    if (todayRecord?.checkIn) return 'Working';
+    return 'Not Checked In';
   }, [todayRecord]);
 
+  const isAttendanceCompletedToday = Boolean(todayRecord?.checkIn && todayRecord?.checkOut);
+  const isAdmin = isHrOrAdminUser(authUser);
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCloseModal(); }}>
       <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100vw-24px)] max-w-md sm:max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden custom-scrollbar p-0 rounded-2xl border border-indigo-100 dark:border-slate-800 shadow-2xl bg-gradient-to-b from-indigo-50/60 via-slate-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-100 font-sans transition-all">
         
         {/* ── MOBILE APP STYLE COMPACT TOP HEADER ── */}
@@ -640,6 +826,10 @@ export function FaceAttendanceModal({
             </div>
             <button
               type="button"
+              onClick={() => {
+                onClose();
+                navigate('/attendance-leave/register');
+              }}
               className="text-[10px] font-bold text-white hover:underline flex items-center gap-0.5 opacity-90 cursor-pointer"
             >
               View Calendar <ChevronRight className="w-3 h-3" />
@@ -650,149 +840,224 @@ export function FaceAttendanceModal({
         {/* ── MAIN BODY CONTENT ── */}
         <div className="p-3.5 sm:p-4 space-y-3 overflow-x-hidden">
 
-          {/* Employee & Mode Switchers */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                <span>Attendance Verification</span>
-              </div>
-              <Badge
-                variant="outline"
-                className="text-[10px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 font-semibold"
-              >
-                Face Biometrics + Geofence
-              </Badge>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                  Select Employee Profile *
-                </Label>
-                <Select
-                  value={selectedEmployeeId}
-                  onValueChange={(val) => {
-                    setSelectedEmployeeId(val);
-                    resetWorkflowAndStartCamera();
-                  }}
-                  disabled={!isHrOrAdminUser(authUser)}
+          {/* Employee & Mode Switchers (ADMIN ONLY) */}
+          {isAdmin && (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                  <span>Attendance Verification</span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 font-semibold"
                 >
-                  <SelectTrigger className="h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
-                    <SelectValue placeholder="Select Employee" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-56">
-                    {(employees || []).map((emp) => (
-                      <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                        {emp.firstName} {emp.lastName} ({emp.employeeCode})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  Face Biometrics + Geofence
+                </Badge>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                  Punch Mode *
-                </Label>
-                <div className="grid grid-cols-2 gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setPunchType('CHECK_IN')}
-                    className={cn(
-                      'py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer',
-                      punchType === 'CHECK_IN'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600'
-                    )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    Select Employee Profile *
+                  </Label>
+                  <Select
+                    value={selectedEmployeeId}
+                    onValueChange={(val) => {
+                      setSelectedEmployeeId(val);
+                      resetWorkflowAndStartCamera();
+                    }}
+                    disabled={!isHrOrAdminUser(authUser)}
                   >
-                    <LogIn className="w-3.5 h-3.5" /> Check-In
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPunchType('CHECK_OUT')}
-                    className={cn(
-                      'py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer',
-                      punchType === 'CHECK_OUT'
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-purple-600'
-                    )}
-                  >
-                    <LogOut className="w-3.5 h-3.5" /> Check-Out
-                  </button>
+                    <SelectTrigger className="h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
+                      <SelectValue placeholder="Select Employee" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56">
+                      {(employees || []).map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                          {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    Punch Mode *
+                  </Label>
+                  <div className="grid grid-cols-2 gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setPunchType('CHECK_IN')}
+                      className={cn(
+                        'py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer',
+                        punchType === 'CHECK_IN'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600'
+                      )}
+                    >
+                      <LogIn className="w-3.5 h-3.5" /> Check-In
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPunchType('CHECK_OUT')}
+                      className={cn(
+                        'py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer',
+                        punchType === 'CHECK_OUT'
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-purple-600'
+                      )}
+                    >
+                      <LogOut className="w-3.5 h-3.5" /> Check-Out
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* ── 3-STEP FACE VERIFICATION CARD ── */}
+          {/* ── FACE VERIFICATION CARD ── */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
             
-            {/* Stepper Header */}
-            <div className="bg-slate-900 dark:bg-slate-950 rounded-xl p-2.5 border border-slate-800 text-white">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
-                <span className="text-[11px] font-extrabold tracking-wider uppercase text-indigo-300 flex items-center gap-1.5">
+            {/* Header: Admin Stepper vs Employee Clean Status */}
+            {isAdmin ? (
+              <div className="bg-slate-900 dark:bg-slate-950 rounded-xl p-2.5 border border-slate-800 text-white">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+                  <span className="text-[11px] font-extrabold tracking-wider uppercase text-indigo-300 flex items-center gap-1.5">
+                    <Brain className="w-4 h-4 text-indigo-400" /> FACE VERIFICATION
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {selectedEmployee?.employeeCode || 'EMP-ID'}
+                  </span>
+                </div>
+
+                {/* 3-Step Process Stepper UI */}
+                <div className="grid grid-cols-3 gap-1.5 text-center text-[10.5px] font-bold">
+                  <div
+                    className={cn(
+                      'p-1.5 rounded-lg border transition-all flex flex-col items-center gap-0.5',
+                      workflowStep === 'SCAN'
+                        ? 'bg-indigo-600/30 border-indigo-400 text-indigo-200 ring-1 ring-indigo-400'
+                        : capturedPhoto
+                        ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400'
+                    )}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[9px]">
+                      {capturedPhoto ? '✓' : '①'}
+                    </span>
+                    <span>1. Scan Face</span>
+                  </div>
+
+                  <div
+                    className={cn(
+                      'p-1.5 rounded-lg border transition-all flex flex-col items-center gap-0.5',
+                      workflowStep === 'COMPARE'
+                        ? 'bg-amber-600/30 border-amber-400 text-amber-200 ring-1 ring-amber-400 animate-pulse'
+                        : workflowStep === 'VERIFIED'
+                        ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400'
+                    )}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[9px]">
+                      {workflowStep === 'VERIFIED' ? '✓' : '②'}
+                    </span>
+                    <span>2. Compare</span>
+                  </div>
+
+                  <div
+                    className={cn(
+                      'p-1.5 rounded-lg border transition-all flex flex-col items-center gap-0.5',
+                      workflowStep === 'VERIFIED' && isFaceMatched
+                        ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200 ring-1 ring-emerald-400'
+                        : workflowStep === 'VERIFIED' && !isFaceMatched
+                        ? 'bg-rose-950/60 border-rose-500/60 text-rose-300'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400'
+                    )}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[9px]">
+                      {workflowStep === 'VERIFIED' ? (isFaceMatched ? '✓' : '✕') : '③'}
+                    </span>
+                    <span>3. Verify</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-900 dark:bg-slate-950 rounded-xl p-3 border border-slate-800 text-white flex items-center justify-between shadow-xs">
+                <span className="text-xs font-extrabold tracking-wider uppercase text-indigo-300 flex items-center gap-1.5">
                   <Brain className="w-4 h-4 text-indigo-400" /> FACE VERIFICATION
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  {selectedEmployee?.employeeCode || 'EMP-ID'}
+                <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                  {workflowStep === 'SCAN' && (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" /> ● Scan Face
+                    </>
+                  )}
+                  {workflowStep === 'COMPARE' && (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" /> ● Verifying...
+                    </>
+                  )}
+                  {workflowStep === 'VERIFIED' && isFaceMatched && (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" /> ● {punchType === 'CHECK_IN' ? 'Check-In Verification Passed' : 'Check-Out Verification Passed'} ✓
+                    </>
+                  )}
+                  {workflowStep === 'VERIFIED' && !isFaceMatched && (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-rose-500" /> ● Not Matched ✕
+                    </>
+                  )}
                 </span>
               </div>
+            )}
 
-              {/* 3-Step Process Stepper UI */}
-              <div className="grid grid-cols-3 gap-1.5 text-center text-[10.5px] font-bold">
-                <div
-                  className={cn(
-                    'p-1.5 rounded-lg border transition-all flex flex-col items-center gap-0.5',
-                    workflowStep === 'SCAN'
-                      ? 'bg-indigo-600/30 border-indigo-400 text-indigo-200 ring-1 ring-indigo-400'
-                      : capturedPhoto
-                      ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300'
-                      : 'bg-slate-800/60 border-slate-700 text-slate-400'
-                  )}
-                >
-                  <span className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[9px]">
-                    {capturedPhoto ? '✓' : '①'}
-                  </span>
-                  <span>1. Scan Face</span>
+            {/* ── ATTENDANCE COMPLETED TODAY CARD (WHEN BOTH CHECK-IN & CHECK-OUT COMPLETED) ── */}
+            {isAttendanceCompletedToday && !isAdmin ? (
+              <div className="bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-6 text-center space-y-4 my-2">
+                <div className="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-lg">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
+                    ✓ Attendance Completed Today
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    Your check-in and check-out punches have been successfully recorded for today.
+                  </p>
                 </div>
 
-                <div
-                  className={cn(
-                    'p-1.5 rounded-lg border transition-all flex flex-col items-center gap-0.5',
-                    workflowStep === 'COMPARE'
-                      ? 'bg-amber-600/30 border-amber-400 text-amber-200 ring-1 ring-amber-400 animate-pulse'
-                      : workflowStep === 'VERIFIED'
-                      ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300'
-                      : 'bg-slate-800/60 border-slate-700 text-slate-400'
-                  )}
-                >
-                  <span className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[9px]">
-                    {workflowStep === 'VERIFIED' ? '✓' : '②'}
-                  </span>
-                  <span>2. Compare</span>
+                <div className="grid grid-cols-3 gap-2 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">Check-In</span>
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{checkInFormatted}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">Check-Out</span>
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{checkOutFormatted}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase block">Total Hours</span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{totalHoursFormatted}</span>
+                  </div>
                 </div>
 
-                <div
-                  className={cn(
-                    'p-1.5 rounded-lg border transition-all flex flex-col items-center gap-0.5',
-                    workflowStep === 'VERIFIED' && isFaceMatched
-                      ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200 ring-1 ring-emerald-400'
-                      : workflowStep === 'VERIFIED' && !isFaceMatched
-                      ? 'bg-rose-950/60 border-rose-500/60 text-rose-300'
-                      : 'bg-slate-800/60 border-slate-700 text-slate-400'
-                  )}
+                <p className="text-[11px] text-slate-400 font-medium">
+                  🔒 No further punch actions are required or allowed for today.
+                </p>
+
+                <Button
+                  onClick={onClose}
+                  className="w-full py-3 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
                 >
-                  <span className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[9px]">
-                    {workflowStep === 'VERIFIED' ? (isFaceMatched ? '✓' : '✕') : '③'}
-                  </span>
-                  <span>3. Verify</span>
-                </div>
+                  Close
+                </Button>
               </div>
-            </div>
-
-            {/* ── CAMERA / FROZEN PHOTO SCANNER DISPLAY ── */}
-            <div className="relative w-full max-w-[340px] sm:max-w-[360px] mx-auto aspect-[4/3] min-h-[200px] sm:min-h-[220px] bg-[#050817] rounded-2xl overflow-hidden border-2 border-indigo-500/30 shadow-xl transition-all text-center">
+            ) : (
+              <>
+                {/* ── CAMERA / FROZEN PHOTO SCANNER DISPLAY ── */}
+                <div className="relative w-full max-w-[340px] sm:max-w-[360px] mx-auto aspect-[4/3] min-h-[200px] sm:min-h-[220px] bg-[#050817] rounded-2xl overflow-hidden border-2 border-indigo-500/30 shadow-xl transition-all text-center">
               
               <style>{`
                 @keyframes faceScanBeam {
@@ -882,35 +1147,149 @@ export function FaceAttendanceModal({
 
               {/* ── STEP 3: VERIFICATION RESULT OVERLAY ── */}
               {workflowStep === 'VERIFIED' && (
-                <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent z-20 text-white flex flex-col items-center text-center space-y-1">
-                  {isFaceMatched ? (
-                    <>
-                      <div className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-emerald-500 text-white font-extrabold text-xs shadow-md">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Face Matched ✓
+                <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xs z-20 text-white flex flex-col items-center justify-center p-4 text-center space-y-2">
+                  {isVerificationExpired ? (
+                    <div className="space-y-2 animate-in zoom-in-95 duration-200">
+                      <div className="w-12 h-12 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center mx-auto text-amber-400 shadow-lg">
+                        <Clock className="w-7 h-7" />
                       </div>
-                      <div className="text-[11px] font-semibold text-emerald-300">
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 border text-xs py-0.5 px-3 font-bold">
+                        ✕ Verification Expired
+                      </Badge>
+                      <p className="text-xs text-slate-200 max-w-[240px]">
+                        Face verification timed out (valid 45s). Please scan again.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={resetWorkflowAndStartCamera}
+                        className="mt-1 py-1.5 px-4 text-xs font-bold text-amber-300 border-amber-400/50 hover:bg-amber-950/40 gap-1.5 cursor-pointer shadow-xs rounded-xl"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Scan Again
+                      </Button>
+                    </div>
+                  ) : verificationState === 'NO_FACE_DETECTED' ? (
+                    <div className="space-y-2 animate-in zoom-in-95 duration-200">
+                      <div className="w-12 h-12 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center mx-auto text-rose-400 shadow-lg">
+                        <Eye className="w-7 h-7" />
+                      </div>
+                      <Badge className="bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 border text-xs py-0.5 px-3 font-bold">
+                        ✕ Face Not Detected
+                      </Badge>
+                      <p className="text-xs text-slate-200 max-w-[240px]">
+                        Please position your face inside the camera frame.
+                      </p>
+                      <div className="text-[10.5px] font-semibold text-rose-300">
+                        Verification Failed
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={resetWorkflowAndStartCamera}
+                        className="mt-1 py-1.5 px-4 text-xs font-bold text-rose-300 border-rose-400/50 hover:bg-rose-950/40 gap-1.5 cursor-pointer shadow-xs rounded-xl"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Scan Again
+                      </Button>
+                    </div>
+                  ) : verificationState === 'MULTIPLE_FACES_BLOCKED' ? (
+                    <div className="space-y-2 animate-in zoom-in-95 duration-200">
+                      <div className="w-12 h-12 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center mx-auto text-rose-400 shadow-lg">
+                        <Users className="w-7 h-7" />
+                      </div>
+                      <Badge className="bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 border text-xs py-0.5 px-3 font-bold">
+                        ✕ Multiple Faces Detected
+                      </Badge>
+                      <p className="text-xs text-slate-200 max-w-[240px]">
+                        Please keep only one person in front of the camera.
+                      </p>
+                      <div className="text-[10.5px] font-semibold text-rose-300">
+                        Verification Failed
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={resetWorkflowAndStartCamera}
+                        className="mt-1 py-1.5 px-4 text-xs font-bold text-rose-300 border-rose-400/50 hover:bg-rose-950/40 gap-1.5 cursor-pointer shadow-xs rounded-xl"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Scan Again
+                      </Button>
+                    </div>
+                  ) : verificationState === 'NO_REGISTERED_TEMPLATE' ? (
+                    <div className="space-y-2 animate-in zoom-in-95 duration-200">
+                      <div className="w-12 h-12 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center mx-auto text-amber-400 shadow-lg">
+                        <ShieldAlert className="w-7 h-7" />
+                      </div>
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 border text-xs py-0.5 px-3 font-bold">
+                        ✕ No Reference Photo
+                      </Badge>
+                      <p className="text-xs text-slate-200 max-w-[240px]">
+                        No biometric photo enrolled for <strong className="text-white">{empName}</strong>.
+                      </p>
+                      <div className="text-[10.5px] font-semibold text-amber-300">
+                        Please register face in Employee Profile first.
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={resetWorkflowAndStartCamera}
+                        className="mt-1 py-1.5 px-4 text-xs font-bold text-amber-300 border-amber-400/50 hover:bg-amber-950/40 gap-1.5 cursor-pointer shadow-xs rounded-xl"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Scan Again
+                      </Button>
+                    </div>
+                  ) : isFaceMatched ? (
+                    <div className="space-y-2 animate-in zoom-in-95 duration-200">
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto text-emerald-400 shadow-lg">
+                        <CheckCircle2 className="w-7 h-7" />
+                      </div>
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 border text-xs py-0.5 px-3 font-bold">
+                        Face Matched ✓
+                      </Badge>
+                      <div className="text-xs font-semibold text-emerald-200">
                         Employee: <span className="text-white font-bold">{empName}</span>
                       </div>
-                      <div className="text-[10.5px] font-mono text-cyan-300 font-bold">
-                        Match Confidence: <span className="text-emerald-400 text-xs">{calculatedSimilarity}%</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-rose-600 text-white font-extrabold text-xs shadow-md">
-                        <XCircle className="w-3.5 h-3.5" /> Face Not Matched ✕
-                      </div>
-                      <div className="text-[11px] font-semibold text-rose-200">
-                        {verificationState === 'NO_REGISTERED_TEMPLATE'
-                          ? `No biometric photo registered for ${empName}`
-                          : `Verification score below threshold (Required: ≥ 70.0%)`}
-                      </div>
                       {calculatedSimilarity !== null && (
-                        <div className="text-[10.5px] font-mono text-rose-300 font-bold">
-                          Confidence Score: {calculatedSimilarity}%
+                        <div className="text-[11px] font-mono text-cyan-300 font-bold">
+                          Match Confidence: <span className="text-emerald-400 text-xs">{calculatedSimilarity}%</span>
                         </div>
                       )}
-                    </>
+                      <div className="text-[10.5px] font-bold text-emerald-400 uppercase tracking-wide">
+                        Ready for {punchType === 'CHECK_IN' ? 'Check-In' : 'Check-Out'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 animate-in zoom-in-95 duration-200">
+                      <div className="w-12 h-12 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center mx-auto text-rose-400 shadow-lg">
+                        <XCircle className="w-7 h-7" />
+                      </div>
+                      <Badge className="bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 border text-xs py-0.5 px-3 font-bold">
+                        Face Not Matched ✕
+                      </Badge>
+                      <div className="text-xs font-semibold text-rose-200">
+                        Selected Employee: <span className="text-white font-bold">{empName}</span>
+                      </div>
+                      {calculatedSimilarity !== null && (
+                        <div className="text-[11px] font-mono text-rose-300 font-bold">
+                          Match Confidence: <span className="text-rose-400 text-xs">{calculatedSimilarity}%</span> (Required: ≥ 70.0%)
+                        </div>
+                      )}
+                      <div className="text-[10.5px] font-semibold text-rose-300">
+                        Verification Failed
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={resetWorkflowAndStartCamera}
+                        className="mt-1 py-1.5 px-4 text-xs font-bold text-rose-300 border-rose-400/50 hover:bg-rose-950/40 gap-1.5 cursor-pointer shadow-xs rounded-xl"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Scan Again
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
@@ -954,73 +1333,82 @@ export function FaceAttendanceModal({
               {workflowStep === 'COMPARE' && (
                 <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  Face Captured ✓ Comparing registered photo...
+                  Verifying face biometrics...
                 </p>
               )}
 
               {workflowStep === 'VERIFIED' && isFaceMatched && (
                 <div className="flex flex-col items-center space-y-1">
-                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 border text-xs py-0.5 px-3">
-                    Face Matched ✓ Confidence: {calculatedSimilarity}%
-                  </Badge>
-                  <span className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-medium">
-                    Geofence Verified • Ready for {punchType === 'CHECK_IN' ? 'Check-In' : 'Check-Out'}
+                  {isAdmin ? (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 border text-xs py-0.5 px-3">
+                      Face Matched ✓ Confidence: {calculatedSimilarity}%
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 border text-xs py-0.5 px-3">
+                      ✓ Face Verified
+                    </Badge>
+                  )}
+                  <span className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-bold">
+                    Ready for {punchType === 'CHECK_IN' ? 'Check-In' : 'Check-Out'}
                   </span>
                 </div>
               )}
 
               {workflowStep === 'VERIFIED' && !isFaceMatched && (
                 <div className="flex flex-col items-center space-y-2 w-full pt-1">
-                  <Badge className="bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 border text-xs py-0.5 px-3">
-                    Face Not Matched ✕
-                  </Badge>
+                  {isAdmin ? (
+                    <Badge className="bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 border text-xs py-0.5 px-3">
+                      Face Not Matched ✕
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 border text-xs py-0.5 px-3">
+                      ✕ Face Not Matched
+                    </Badge>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={resetWorkflowAndStartCamera}
-                    className="w-full max-w-[200px] h-8 text-xs font-bold text-indigo-600 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 gap-1.5 cursor-pointer shadow-xs"
+                    className="w-full py-2.5 text-xs font-bold text-indigo-600 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 gap-1.5 cursor-pointer shadow-xs rounded-xl"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" /> Retry Scan
+                    <RefreshCw className="w-3.5 h-3.5" /> Scan Again
                   </Button>
                 </div>
               )}
             </div>
 
-            {/* ── PRIMARY CHECK-IN / CHECK-OUT BUTTON (Strictly Disabled Until Verified) ── */}
-            <div className="pt-1 space-y-1">
-              <Button
-                type="button"
-                disabled={!isFaceMatched || isSubmitting || workflowStep !== 'VERIFIED'}
-                onClick={handleConfirmPunch}
-                className={cn(
-                  'w-full py-3 text-sm font-extrabold rounded-xl shadow-md transition-all duration-200 gap-1.5 cursor-pointer',
-                  isFaceMatched && workflowStep === 'VERIFIED'
-                    ? 'bg-[#5B67CA] hover:bg-[#4c58be] text-white shadow-indigo-500/20 active:scale-[0.99]'
-                    : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300/50 dark:border-slate-700 cursor-not-allowed opacity-70 shadow-none'
-                )}
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" /> Recording Punch...
-                  </>
-                ) : punchType === 'CHECK_IN' ? (
-                  <>
-                    <LogIn className="h-4 w-4" /> Check-In
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="h-4 w-4 rotate-90" /> Check-Out
-                  </>
-                )}
-              </Button>
+            {/* ── PRIMARY CHECK-IN / CHECK-OUT BUTTON (Only shown when Verified) ── */}
+            {isFaceMatched && workflowStep === 'VERIFIED' && (
+              <div className="pt-1 space-y-1">
+                <Button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={handleConfirmPunch}
+                  className="w-full py-3 text-sm font-extrabold rounded-xl shadow-md transition-all duration-200 gap-1.5 cursor-pointer bg-[#5B67CA] hover:bg-[#4c58be] text-white shadow-indigo-500/20 active:scale-[0.99]"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" /> Recording Punch...
+                    </>
+                  ) : punchType === 'CHECK_IN' ? (
+                    <>
+                      <LogIn className="h-4 w-4" /> Check-In
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="h-4 w-4 rotate-90" /> Check-Out
+                    </>
+                  )}
+                </Button>
 
-              <span className="text-[10.5px] text-slate-400 font-medium block text-center">
-                {isFaceMatched
-                  ? `🕒 Click to record ${punchType === 'CHECK_IN' ? 'Check-in' : 'Check-out'} timestamp`
-                  : `⚠️ Verification required before ${punchType === 'CHECK_IN' ? 'Check-in' : 'Check-out'}`}
-              </span>
-            </div>
+                <span className="text-[10.5px] text-slate-400 font-medium block text-center">
+                  🕒 Click to record {punchType === 'CHECK_IN' ? 'Check-in' : 'Check-out'} timestamp
+                </span>
+              </div>
+            )}
+          </>
+        )}
           </div>
 
           {/* ── TODAY'S SUMMARY CARDS (COMPACT ERP STYLE) ── */}
@@ -1029,7 +1417,14 @@ export function FaceAttendanceModal({
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Today's Summary
               </h4>
-              <button type="button" className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate('/attendance-leave/register');
+                }}
+                className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+              >
                 View All
               </button>
             </div>
@@ -1099,7 +1494,14 @@ export function FaceAttendanceModal({
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                   Recent Activity
                 </h4>
-                <button type="button" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate('/attendance-leave/register');
+                  }}
+                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
                   View All
                 </button>
               </div>
@@ -1172,7 +1574,14 @@ export function FaceAttendanceModal({
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Activity className="w-3.5 h-3.5 text-indigo-600" /> Today's Timeline
                 </h4>
-                <button type="button" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate('/attendance-leave/register');
+                  }}
+                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
                   View All
                 </button>
               </div>
@@ -1244,155 +1653,157 @@ export function FaceAttendanceModal({
             </div>
           )}
 
-          {/* ── REAL-TIME VERIFICATION TELEMETRY & DIAGNOSTICS TOGGLE ── */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowDiagnostics(!showDiagnostics)}
-              className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition-colors cursor-pointer"
-            >
-              <Brain className="w-3.5 h-3.5 text-indigo-500" />
-              <span>{showDiagnostics ? 'Hide Biometric Diagnostics' : 'Show Biometric Telemetry & Diagnostics'}</span>
-              <ChevronRight className={cn('w-3 h-3 transition-transform', showDiagnostics && 'rotate-90')} />
-            </button>
+          {/* ── REAL-TIME VERIFICATION TELEMETRY & DIAGNOSTICS TOGGLE (ADMIN ONLY) ── */}
+          {isAdmin && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowDiagnostics(!showDiagnostics)}
+                className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <Brain className="w-3.5 h-3.5 text-indigo-500" />
+                <span>{showDiagnostics ? 'Hide Biometric Diagnostics' : 'Show Biometric Telemetry & Diagnostics'}</span>
+                <ChevronRight className={cn('w-3 h-3 transition-transform', showDiagnostics && 'rotate-90')} />
+              </button>
 
-            {showDiagnostics && (
-              <div className="space-y-2.5 animate-in fade-in duration-200">
-                {/* Real-Time Verification Telemetry Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  {/* FACE ID TELEMETRY CARD */}
-                  <div
-                    className={cn(
-                      'p-2.5 rounded-xl border transition-all',
-                      isFaceVerified
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
-                        : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'
-                    )}
-                  >
-                    <div className="flex items-center justify-between font-semibold text-[10px] uppercase">
-                      <span className="flex items-center gap-1">
-                        <Brain className="h-3.5 w-3.5 shrink-0" /> Face ID
+              {showDiagnostics && (
+                <div className="space-y-2.5 animate-in fade-in duration-200">
+                  {/* Real-Time Verification Telemetry Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    {/* FACE ID TELEMETRY CARD */}
+                    <div
+                      className={cn(
+                        'p-2.5 rounded-xl border transition-all',
+                        isFaceVerified
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'
+                      )}
+                    >
+                      <div className="flex items-center justify-between font-semibold text-[10px] uppercase">
+                        <span className="flex items-center gap-1">
+                          <Brain className="h-3.5 w-3.5 shrink-0" /> Face ID
+                        </span>
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
+                          Faces: {detectedFacesCount}
+                        </Badge>
+                      </div>
+
+                      {detectedFacesCount === 0 ? (
+                        <>
+                          <span className="font-bold text-xs text-amber-600 block mt-1">BLOCKED</span>
+                          <span className="text-[9.5px] font-medium text-amber-600 block">No face detected in frame</span>
+                        </>
+                      ) : verificationState === 'MULTIPLE_FACES_BLOCKED' ? (
+                        <>
+                          <span className="font-bold text-xs text-rose-600 block mt-1">BLOCKED</span>
+                          <span className="text-[9.5px] font-semibold text-rose-600 block">Multiple faces detected</span>
+                        </>
+                      ) : verificationState === 'NO_REGISTERED_TEMPLATE' ? (
+                        <>
+                          <span className="font-bold text-xs text-amber-600 block mt-1">NOT REGISTERED</span>
+                          <span className="text-[9.5px] text-muted-foreground block">
+                            Template missing for {selectedEmployee?.firstName}
+                          </span>
+                        </>
+                      ) : verificationState === 'FACE_MISMATCH' ? (
+                        <>
+                          <span className="font-bold text-xs text-rose-600 block mt-1">FAILED</span>
+                          <span className="text-[9.5px] text-rose-600 block">
+                            Face does not match {selectedEmployee?.firstName}
+                          </span>
+                        </>
+                      ) : isFaceVerified ? (
+                        <>
+                          <span className="font-bold text-sm block mt-0.5">{calculatedSimilarity}% Match</span>
+                          <span className="text-[9.5px] opacity-90 font-medium">Single Face Verified ✓</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-bold text-xs block mt-1 text-muted-foreground">WAITING</span>
+                          <span className="text-[9.5px] text-muted-foreground">Analyzing camera frame...</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* GPS GEOFENCE TELEMETRY CARD */}
+                    <div
+                      className={cn(
+                        'p-2.5 rounded-xl border text-xs',
+                        gpsVerified
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-700'
+                      )}
+                    >
+                      <div className="flex items-center gap-1 font-semibold text-[10px] uppercase">
+                        <MapPin className="h-3.5 w-3.5 shrink-0" /> GPS Geofence
+                      </div>
+                      <span className="font-bold text-xs block mt-1 truncate">{gpsLocationMsg}</span>
+                      <span className="text-[9.5px] opacity-90 font-medium">
+                        {(gpsDistanceMeters ?? 0) <= 100 ? 'Within Office Geofence' : 'Outside Office Radius (Logged)'}
                       </span>
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
-                        Faces: {detectedFacesCount}
-                      </Badge>
                     </div>
 
-                    {detectedFacesCount === 0 ? (
-                      <>
-                        <span className="font-bold text-xs text-amber-600 block mt-1">BLOCKED</span>
-                        <span className="text-[9.5px] font-medium text-amber-600 block">No face detected in frame</span>
-                      </>
-                    ) : verificationState === 'MULTIPLE_FACES_BLOCKED' ? (
-                      <>
-                        <span className="font-bold text-xs text-rose-600 block mt-1">BLOCKED</span>
-                        <span className="text-[9.5px] font-semibold text-rose-600 block">Multiple faces detected</span>
-                      </>
-                    ) : verificationState === 'NO_REGISTERED_TEMPLATE' ? (
-                      <>
-                        <span className="font-bold text-xs text-amber-600 block mt-1">NOT REGISTERED</span>
-                        <span className="text-[9.5px] text-muted-foreground block">
-                          Template missing for {selectedEmployee?.firstName}
-                        </span>
-                      </>
-                    ) : verificationState === 'FACE_MISMATCH' ? (
-                      <>
-                        <span className="font-bold text-xs text-rose-600 block mt-1">FAILED</span>
-                        <span className="text-[9.5px] text-rose-600 block">
-                          Face does not match {selectedEmployee?.firstName}
-                        </span>
-                      </>
-                    ) : isFaceVerified ? (
-                      <>
-                        <span className="font-bold text-sm block mt-0.5">{calculatedSimilarity}% Match</span>
-                        <span className="text-[9.5px] opacity-90 font-medium">Single Face Verified ✓</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-bold text-xs block mt-1 text-muted-foreground">WAITING</span>
-                        <span className="text-[9.5px] text-muted-foreground">Analyzing camera frame...</span>
-                      </>
-                    )}
+                    {/* PUBLIC IP TELEMETRY CARD */}
+                    <div
+                      className={cn(
+                        'p-2.5 rounded-xl border text-xs',
+                        ipVerified
+                          ? 'bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-400'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-700'
+                      )}
+                    >
+                      <div className="flex items-center gap-1 font-semibold text-[10px] uppercase">
+                        <Globe className="h-3.5 w-3.5 shrink-0" /> Public IP
+                      </div>
+                      <span className="font-bold text-xs block mt-1 font-mono truncate">{publicIp}</span>
+                      <span className="text-[9.5px] opacity-90 font-medium">
+                        {ipVerified ? 'Approved Gateway' : 'Network Mismatch'}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* GPS GEOFENCE TELEMETRY CARD */}
-                  <div
-                    className={cn(
-                      'p-2.5 rounded-xl border text-xs',
-                      gpsVerified
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
-                        : 'bg-rose-500/10 border-rose-500/30 text-rose-700'
-                    )}
-                  >
-                    <div className="flex items-center gap-1 font-semibold text-[10px] uppercase">
-                      <MapPin className="h-3.5 w-3.5 shrink-0" /> GPS Geofence
+                  {/* Biometric Diagnostics Trace Box */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-[11px] font-mono space-y-1.5 text-slate-300">
+                    <div className="flex items-center justify-between text-xs text-purple-400 font-bold font-sans">
+                      <span>🔍 Real Biometric Pipeline Diagnostics</span>
+                      <span className="text-[10px] text-slate-400">Model: Affine Aligned 128-D HOG</span>
                     </div>
-                    <span className="font-bold text-xs block mt-1 truncate">{gpsLocationMsg}</span>
-                    <span className="text-[9.5px] opacity-90 font-medium">
-                      {(gpsDistanceMeters ?? 0) <= 100 ? 'Within Office Geofence' : 'Outside Office Radius (Logged)'}
-                    </span>
-                  </div>
-
-                  {/* PUBLIC IP TELEMETRY CARD */}
-                  <div
-                    className={cn(
-                      'p-2.5 rounded-xl border text-xs',
-                      ipVerified
-                        ? 'bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-400'
-                        : 'bg-rose-500/10 border-rose-500/30 text-rose-700'
-                    )}
-                  >
-                    <div className="flex items-center gap-1 font-semibold text-[10px] uppercase">
-                      <Globe className="h-3.5 w-3.5 shrink-0" /> Public IP
-                    </div>
-                    <span className="font-bold text-xs block mt-1 font-mono truncate">{publicIp}</span>
-                    <span className="text-[9.5px] opacity-90 font-medium">
-                      {ipVerified ? 'Approved Gateway' : 'Network Mismatch'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Biometric Diagnostics Trace Box */}
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-[11px] font-mono space-y-1.5 text-slate-300">
-                  <div className="flex items-center justify-between text-xs text-purple-400 font-bold font-sans">
-                    <span>🔍 Real Biometric Pipeline Diagnostics</span>
-                    <span className="text-[10px] text-slate-400">Model: Affine Aligned 128-D HOG</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-[10.5px]">
-                    <div>
-                      <span className="text-slate-500">Registered Descriptor:</span>{' '}
-                      <strong className={selectedEmployee?.faceTemplate ? 'text-emerald-400' : 'text-amber-400'}>
-                        {selectedEmployee?.faceTemplate ? 'FOUND (128-D HOG)' : 'MISSING (Not Registered)'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Live Camera Faces:</span>{' '}
-                      <strong className={detectedFacesCount === 1 ? 'text-emerald-400' : 'text-rose-400'}>
-                        {detectedFacesCount}{' '}
-                        {detectedFacesCount === 1
-                          ? '(Single Person)'
-                          : detectedFacesCount > 1
-                          ? '(Blocked Multi-Face)'
-                          : '(No Face)'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Euclidean Distance:</span>{' '}
-                      <strong className={isFaceVerified ? 'text-emerald-400' : 'text-rose-400'}>
-                        {calculatedDistance !== null ? `${calculatedDistance} (Max Cutoff 0.40)` : '--'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Descriptor Similarity:</span>{' '}
-                      <strong className={isFaceVerified ? 'text-emerald-400' : 'text-rose-400'}>
-                        {calculatedSimilarity !== null ? `${calculatedSimilarity}% (Cutoff 70.0%)` : '--'}
-                      </strong>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-[10.5px]">
+                      <div>
+                        <span className="text-slate-500">Registered Descriptor:</span>{' '}
+                        <strong className={selectedEmployee?.faceTemplate ? 'text-emerald-400' : 'text-amber-400'}>
+                          {selectedEmployee?.faceTemplate ? 'FOUND (128-D HOG)' : 'MISSING (Not Registered)'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Live Camera Faces:</span>{' '}
+                        <strong className={detectedFacesCount === 1 ? 'text-emerald-400' : 'text-rose-400'}>
+                          {detectedFacesCount}{' '}
+                          {detectedFacesCount === 1
+                            ? '(Single Person)'
+                            : detectedFacesCount > 1
+                            ? '(Blocked Multi-Face)'
+                            : '(No Face)'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Euclidean Distance:</span>{' '}
+                        <strong className={isFaceVerified ? 'text-emerald-400' : 'text-rose-400'}>
+                          {calculatedDistance !== null ? `${calculatedDistance} (Max Cutoff 0.40)` : '--'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Descriptor Similarity:</span>{' '}
+                        <strong className={isFaceVerified ? 'text-emerald-400' : 'text-rose-400'}>
+                          {calculatedSimilarity !== null ? `${calculatedSimilarity}% (Cutoff 70.0%)` : '--'}
+                        </strong>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* ── KEY FEATURES & FOOTER BANNER (MATCHING REFERENCE UI) ── */}
           <div className="space-y-3 pt-1 border-t border-slate-200/80 dark:border-slate-800">

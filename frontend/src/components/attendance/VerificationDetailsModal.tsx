@@ -1,33 +1,47 @@
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
   Brain,
   CheckCircle2,
   XCircle,
   MapPin,
-  Globe,
   Clock,
-  ShieldCheck,
   ShieldAlert,
   User,
   Building2,
   Monitor,
-  Navigation,
   FileCheck,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
 
 export interface VerificationDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  attendanceRecord: any | null;
+  attendanceRecord?: any | null;
+  record?: any | null;
 }
 
 export function VerificationDetailsModal({
   isOpen,
   onClose,
-  attendanceRecord,
+  attendanceRecord: rawAttendanceRecord,
+  record: rawRecord,
 }: VerificationDetailsModalProps) {
+  const attendanceRecord = rawAttendanceRecord || rawRecord;
+  const [activeTab, setActiveTab] = useState<'CHECK_IN' | 'CHECK_OUT' | 'SUMMARY'>('CHECK_IN');
+
+  useEffect(() => {
+    if (attendanceRecord?.punchType === 'CHECK_OUT' || (attendanceRecord?.checkOut && !attendanceRecord?.checkIn)) {
+      setActiveTab('CHECK_OUT');
+    } else {
+      setActiveTab('CHECK_IN');
+    }
+  }, [attendanceRecord]);
+
   if (!attendanceRecord) return null;
 
   const {
@@ -36,16 +50,15 @@ export function VerificationDetailsModal({
     checkIn,
     checkOut,
     punchType = 'CHECK_IN',
-    status = 'PRESENT',
     faceVerificationStatus = 'VERIFIED',
     faceMatchScore = 96.7,
     capturedFacePhoto,
     locationVerificationStatus = 'VERIFIED',
-    officeLocation = 'Codigix HQ - Brahma Sky Uzuri',
+    officeLocation = 'Pune Head Office',
     distanceMeters = 42,
     allowedRadiusMeters = 100,
-    latitude = 18.6268,
-    longitude = 73.8044,
+    latitude = 18.5204,
+    longitude = 73.8567,
     ipAddress = '165.99.175.245',
     ipVerificationStatus = 'Approved Gateway',
     verificationMethod = 'Biometric Face ID',
@@ -56,9 +69,9 @@ export function VerificationDetailsModal({
   // Determine Employee Info
   const empName = employee
     ? `${employee.firstName} ${employee.lastName}`
-    : attendanceRecord.name || attendanceRecord.employeeName || 'Sanika Mote';
-  const empCode = employee?.employeeCode || attendanceRecord.code || attendanceRecord.employeeCode || 'EMP-8265';
-  const deptName = employee?.department?.name || attendanceRecord.dept || attendanceRecord.department || 'Human Resources';
+    : attendanceRecord.name || attendanceRecord.employeeName || 'Employee';
+  const empCode = employee?.employeeCode || attendanceRecord.code || attendanceRecord.employeeCode || 'EMP-001';
+  const deptName = employee?.department?.name || attendanceRecord.dept || attendanceRecord.department || 'General';
   const regFacePhoto = employee?.facePhoto || null;
 
   // Face verification logic
@@ -76,14 +89,24 @@ export function VerificationDetailsModal({
     String(locationVerificationStatus).toLowerCase().includes('verified') ||
     String(locationVerificationStatus).toLowerCase().includes('inside');
 
-  // Time & Punch format
-  const rawTimestamp = checkIn || checkOut || attendanceRecord.time;
-  let formattedDateTime = '—';
-  try {
-    if (rawTimestamp) {
-      const parsedDate = new Date(rawTimestamp);
-      if (!isNaN(parsedDate.getTime())) {
-        formattedDateTime = parsedDate.toLocaleString('en-GB', {
+  // Format Timestamps
+  const formatTimeStr = (isoStr?: string | null) => {
+    if (!isoStr) return '—';
+    try {
+      const d = new Date(isoStr);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+      }
+    } catch {}
+    return String(isoStr);
+  };
+
+  const formatDateTimeStr = (isoStr?: string | null) => {
+    if (!isoStr) return '—';
+    try {
+      const d = new Date(isoStr);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleString('en-GB', {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
@@ -92,17 +115,27 @@ export function VerificationDetailsModal({
           second: '2-digit',
           hour12: true,
         });
-      } else {
-        formattedDateTime = `${attendanceRecord.dateDisplay || date || '22 Aug 2026'} ${attendanceRecord.time || attendanceRecord.clockIn || ''}`.trim();
       }
-    } else {
-      formattedDateTime = `${attendanceRecord.dateDisplay || date || '22 Aug 2026'} ${attendanceRecord.time || attendanceRecord.clockIn || ''}`.trim();
-    }
-  } catch {
-    formattedDateTime = `${attendanceRecord.dateDisplay || date || '22 Aug 2026'} ${attendanceRecord.time || attendanceRecord.clockIn || ''}`.trim();
-  }
+    } catch {}
+    return String(isoStr);
+  };
 
-  const isCheckIn = punchType === 'CHECK_IN' || (!checkOut && checkIn) || attendanceRecord.time;
+  const checkInFormatted = formatTimeStr(checkIn);
+  const checkOutFormatted = formatTimeStr(checkOut);
+
+  // Total Hours calculation
+  const calculateTotalWorkingHours = () => {
+    if (!checkIn || !checkOut) return null;
+    const start = new Date(checkIn).getTime();
+    const end = new Date(checkOut).getTime();
+    if (isNaN(start) || isNaN(end) || end < start) return null;
+    const diffMs = end - start;
+    const hrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${String(hrs).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m`;
+  };
+
+  const totalHoursStr = calculateTotalWorkingHours();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -133,7 +166,16 @@ export function VerificationDetailsModal({
             >
               {isFaceVerified && isGpsVerified ? (
                 <span className="flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> All Checks Passed
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {activeTab === 'CHECK_IN'
+                    ? 'Check-In Verification Passed'
+                    : activeTab === 'CHECK_OUT'
+                    ? checkOut
+                      ? 'Check-Out Verification Passed'
+                      : 'Check-Out Pending'
+                    : checkOut
+                    ? 'Check-Out Recorded'
+                    : 'Check-In Recorded'}
                 </span>
               ) : (
                 <span className="flex items-center gap-1">
@@ -144,8 +186,50 @@ export function VerificationDetailsModal({
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-          {/* Employee & Punch Overview Header Card */}
+        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+          {/* Tab Navigation Bar: Check-In | Check-Out | Summary */}
+          <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-xl border border-border/60 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setActiveTab('CHECK_IN')}
+              className={cn(
+                'flex-1 py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer',
+                activeTab === 'CHECK_IN'
+                  ? 'bg-background text-emerald-600 dark:text-emerald-400 shadow-xs border border-border/80 font-extrabold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <LogIn className="w-3.5 h-3.5" /> Check-In Audit
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('CHECK_OUT')}
+              className={cn(
+                'flex-1 py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer',
+                activeTab === 'CHECK_OUT'
+                  ? 'bg-background text-amber-600 dark:text-amber-400 shadow-xs border border-border/80 font-extrabold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <LogOut className="w-3.5 h-3.5" /> Check-Out Audit
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('SUMMARY')}
+              className={cn(
+                'flex-1 py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer',
+                activeTab === 'SUMMARY'
+                  ? 'bg-background text-indigo-600 dark:text-indigo-400 shadow-xs border border-border/80 font-extrabold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <FileCheck className="w-3.5 h-3.5" /> Summary & Telemetry
+            </button>
+          </div>
+
+          {/* Employee Info Header Card */}
           <div className="p-4 rounded-xl border border-border/80 bg-muted/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary font-bold text-base flex items-center justify-center border border-primary/20 shrink-0">
@@ -165,12 +249,25 @@ export function VerificationDetailsModal({
             <div className="flex flex-col sm:items-end border-t sm:border-t-0 pt-3 sm:pt-0 border-border/60">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Punch Details</p>
               <div className="flex items-center gap-2 mt-0.5">
-                <Badge className={isCheckIn ? 'bg-emerald-600 text-white font-bold text-xs' : 'bg-blue-600 text-white font-bold text-xs'}>
-                  {isCheckIn ? 'Check In' : 'Check Out'}
+                <Badge
+                  className={
+                    activeTab === 'CHECK_IN'
+                      ? 'bg-emerald-600 text-white font-bold text-xs'
+                      : activeTab === 'CHECK_OUT'
+                      ? 'bg-amber-600 text-white font-bold text-xs'
+                      : 'bg-indigo-600 text-white font-bold text-xs'
+                  }
+                >
+                  {activeTab === 'CHECK_IN' ? 'Check In' : activeTab === 'CHECK_OUT' ? 'Check Out' : 'Attendance Summary'}
                 </Badge>
               </div>
               <p className="text-xs font-mono font-semibold text-foreground mt-1 flex items-center gap-1">
-                <Clock className="h-3 w-3 text-muted-foreground" /> {formattedDateTime}
+                <Clock className="h-3 w-3 text-muted-foreground" />
+                {activeTab === 'CHECK_IN'
+                  ? formatDateTimeStr(checkIn || date)
+                  : activeTab === 'CHECK_OUT'
+                  ? formatDateTimeStr(checkOut || (punchType === 'CHECK_OUT' ? date : null))
+                  : `${formatDateTimeStr(checkIn || date)} ${checkOut ? `→ ${formatTimeStr(checkOut)}` : ''}`}
               </p>
             </div>
           </div>
@@ -200,200 +297,274 @@ export function VerificationDetailsModal({
             </div>
           )}
 
-          {/* Face Verification Section */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-border/60 pb-2">
-              <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-purple-600" />
-                <h4 className="text-sm font-bold text-foreground">Face Verification</h4>
-              </div>
-              <Badge variant="outline" className={`font-mono text-xs px-2.5 py-0.5 ${
-                isFaceVerified
-                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-semibold'
-                  : 'bg-rose-500/10 text-rose-600 border-rose-500/30 font-semibold'
-              }`}>
-                {isFaceVerified ? `✓ Face Verified (Match: ${faceMatchScore}%)` : `✕ Face Not Verified (Match: ${faceMatchScore}%)`}
-              </Badge>
-            </div>
-
-            {/* Side by Side Images */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* 1. Registered Employee Face */}
-              <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 flex flex-col items-center space-y-2.5">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground w-full justify-between">
-                  <span className="flex items-center gap-1">
-                    <User className="h-3.5 w-3.5 text-primary" /> Registered Face
-                  </span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Database Template</Badge>
+          {/* ── TAB 1 & TAB 2: AUDIT VIEWS (CHECK-IN / CHECK-OUT) ── */}
+          {(activeTab === 'CHECK_IN' || activeTab === 'CHECK_OUT') && (
+            <>
+              {activeTab === 'CHECK_OUT' && !checkOut && punchType !== 'CHECK_OUT' ? (
+                <div className="p-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-center space-y-3">
+                  <Clock className="w-10 h-10 text-amber-500 mx-auto animate-pulse" />
+                  <h4 className="font-extrabold text-sm text-amber-800 dark:text-amber-300">
+                    Check-Out Pending
+                  </h4>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    {empName} completed Check-In at <strong>{checkInFormatted}</strong>. Check-out face telemetry will be recorded upon end-of-day punch.
+                  </p>
                 </div>
-                <div className="w-36 h-36 rounded-2xl overflow-hidden border-2 border-primary/20 bg-slate-900 flex items-center justify-center shadow-md relative group">
-                  {regFacePhoto ? (
-                    <img src={regFacePhoto} alt="Registered Face" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
-                      <User className="h-10 w-10 text-slate-500 mb-1" />
-                      <span className="text-[10px] font-semibold text-slate-300">Registered Profile</span>
-                      <span className="text-[9px] text-slate-500 mt-0.5">128-D Vector Stored</span>
+              ) : (
+                <>
+                  {/* Face Verification Section */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Brain className="h-4 w-4 text-purple-600" />
+                        <h4 className="text-sm font-bold text-foreground">
+                          {activeTab === 'CHECK_IN' ? 'Check-In Face Verification' : 'Check-Out Face Verification'}
+                        </h4>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`font-mono text-xs px-2.5 py-0.5 ${
+                          isFaceVerified
+                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-semibold'
+                            : 'bg-rose-500/10 text-rose-600 border-rose-500/30 font-semibold'
+                        }`}
+                      >
+                        {isFaceVerified ? `✓ Face Verified (Match: ${faceMatchScore}%)` : `✕ Face Not Verified (${faceMatchScore}%)`}
+                      </Badge>
                     </div>
-                  )}
-                  <div className="absolute inset-x-0 bottom-0 bg-slate-950/80 backdrop-blur-xs py-1 text-center text-[9.5px] font-mono text-emerald-400 font-semibold">
-                    128-D HOG Template OK
+
+                    {/* Side by Side Images */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* 1. Registered Employee Face */}
+                      <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 flex flex-col items-center space-y-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground w-full justify-between">
+                          <span className="flex items-center gap-1">
+                            <User className="h-3.5 w-3.5 text-primary" /> Registered Face
+                          </span>
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Database Template</Badge>
+                        </div>
+                        <div className="w-36 h-36 rounded-2xl overflow-hidden border-2 border-primary/20 bg-slate-900 flex items-center justify-center shadow-md relative group">
+                          {regFacePhoto ? (
+                            <img src={regFacePhoto} alt="Registered Face" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
+                              <User className="h-10 w-10 text-slate-500 mb-1" />
+                              <span className="text-[10px] font-semibold text-slate-300">Registered Profile</span>
+                              <span className="text-[9px] text-slate-500 mt-0.5">128-D Vector Stored</span>
+                            </div>
+                          )}
+                          <div className="absolute inset-x-0 bottom-0 bg-slate-950/80 backdrop-blur-xs py-1 text-center text-[9.5px] font-mono text-emerald-400 font-semibold">
+                            128-D HOG Template OK
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2. Live Captured Face */}
+                      <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 flex flex-col items-center space-y-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground w-full justify-between">
+                          <span className="flex items-center gap-1">
+                            <Brain className="h-3.5 w-3.5 text-purple-600" /> Live Captured Face
+                          </span>
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {activeTab === 'CHECK_IN' ? 'Check-In Snapshot' : 'Check-Out Snapshot'}
+                          </Badge>
+                        </div>
+                        <div className="w-36 h-36 rounded-2xl overflow-hidden border-2 border-purple-500/30 bg-slate-900 flex items-center justify-center shadow-md relative group">
+                          {capturedFacePhoto ? (
+                            <img src={capturedFacePhoto} alt="Live Captured Face" className="w-full h-full object-cover scale-x-[-1]" />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
+                              <Brain className="h-10 w-10 text-purple-400 mb-1" />
+                              <span className="text-[10px] font-semibold text-purple-300">Camera Live Frame</span>
+                              <span className="text-[9px] text-slate-500 mt-0.5">Captured at Punch</span>
+                            </div>
+                          )}
+                          <div className={`absolute inset-x-0 bottom-0 py-1 text-center text-[9.5px] font-mono font-semibold backdrop-blur-xs ${
+                            isFaceVerified ? 'bg-emerald-950/80 text-emerald-400' : 'bg-rose-950/80 text-rose-400'
+                          }`}>
+                            {isFaceVerified ? `Match: ${faceMatchScore}%` : `Mismatch (${faceMatchScore}%)`}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* GPS Verification Section */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-emerald-600" />
+                        <h4 className="text-sm font-bold text-foreground">
+                          {activeTab === 'CHECK_IN' ? 'Check-In GPS Telemetry' : 'Check-Out GPS Telemetry'}
+                        </h4>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`font-mono text-xs px-2.5 py-0.5 ${
+                          isGpsVerified
+                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-semibold'
+                            : 'bg-rose-500/10 text-rose-600 border-rose-500/30 font-semibold'
+                        }`}
+                      >
+                        {isGpsVerified ? '✓ Inside Geofence' : '✕ Outside Geofence'}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      <div className="p-3 rounded-xl border border-border/80 bg-muted/20">
+                        <p className="text-[10.5px] font-semibold text-muted-foreground uppercase">Office Location</p>
+                        <p className="font-bold text-sm text-foreground mt-0.5 flex items-center gap-1">
+                          <Building2 className="h-3.5 w-3.5 text-primary shrink-0" /> {officeLocation}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl border border-border/80 bg-muted/20">
+                        <p className="text-[10.5px] font-semibold text-muted-foreground uppercase">Distance from Office</p>
+                        <p className={`font-bold text-sm mt-0.5 ${isGpsVerified ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {distanceMeters} m
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl border border-border/80 bg-muted/20">
+                        <p className="text-[10.5px] font-semibold text-muted-foreground uppercase">Allowed Radius</p>
+                        <p className="font-bold text-sm text-foreground mt-0.5">
+                          {allowedRadiusMeters || 100} m
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── TAB 3: SUMMARY & DETAILED SECURITY TELEMETRY GRID ── */}
+          {activeTab === 'SUMMARY' && (
+            <div className="space-y-4">
+              {/* Attendance Summary Header Card */}
+              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Today's Attendance Summary
+                  </span>
+                  <Badge className={checkOut ? 'bg-emerald-600 text-white font-extrabold text-[10.5px]' : 'bg-amber-600 text-white font-extrabold text-[10.5px]'}>
+                    {checkOut ? 'Completed' : 'Working / In Progress'}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className="p-2.5 rounded-lg bg-background/70 border border-emerald-500/20">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase block">Check-In</span>
+                    <span className="font-mono font-bold text-foreground">{checkInFormatted}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-background/70 border border-emerald-500/20">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase block">Check-Out</span>
+                    <span className="font-mono font-bold text-foreground">{checkOutFormatted}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-background/70 border border-emerald-500/20">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase block">Total Hours</span>
+                    <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
+                      {totalHoursStr || 'In Progress'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-background/70 border border-emerald-500/20">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase block">Status</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {checkOut ? 'Completed' : 'In Progress'}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* 2. Live Captured Face */}
-              <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 flex flex-col items-center space-y-2.5">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground w-full justify-between">
-                  <span className="flex items-center gap-1">
-                    <Brain className="h-3.5 w-3.5 text-purple-600" /> Live Captured Face
-                  </span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Punch Snapshot</Badge>
+              {/* Complete Telemetry & Security Audit Grid */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+                  <FileCheck className="h-4 w-4 text-blue-600" />
+                  <h4 className="text-sm font-bold text-foreground">Detailed Telemetry & Security Audit</h4>
                 </div>
-                <div className="w-36 h-36 rounded-2xl overflow-hidden border-2 border-purple-500/30 bg-slate-900 flex items-center justify-center shadow-md relative group">
-                  {capturedFacePhoto ? (
-                    <img src={capturedFacePhoto} alt="Live Captured Face" className="w-full h-full object-cover scale-x-[-1]" />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
-                      <Brain className="h-10 w-10 text-purple-400 mb-1" />
-                      <span className="text-[10px] font-semibold text-purple-300">Camera Live Frame</span>
-                      <span className="text-[9px] text-slate-500 mt-0.5">Captured at Punch</span>
-                    </div>
-                  )}
-                  <div className={`absolute inset-x-0 bottom-0 py-1 text-center text-[9.5px] font-mono font-semibold backdrop-blur-xs ${
-                    isFaceVerified ? 'bg-emerald-950/80 text-emerald-400' : 'bg-rose-950/80 text-rose-400'
-                  }`}>
-                    {isFaceVerified ? `Match: ${faceMatchScore}%` : `Mismatch (${faceMatchScore}%)`}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Employee ID:</span>
+                    <span className="font-mono font-bold text-foreground">{empCode}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Department:</span>
+                    <span className="font-semibold text-foreground">{deptName}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Check-In Timestamp:</span>
+                    <span className="font-mono font-bold text-foreground">{formatDateTimeStr(checkIn)}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Check-Out Timestamp:</span>
+                    <span className="font-mono font-bold text-foreground">{formatDateTimeStr(checkOut)}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Face Verification Status:</span>
+                    <span className={`font-bold ${isFaceVerified ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {isFaceVerified ? 'Verified ✓' : 'Failed ✕'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Face Match Score:</span>
+                    <span className="font-mono font-bold text-purple-600">{faceMatchScore}%</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">GPS Status:</span>
+                    <span className={`font-bold ${isGpsVerified ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {isGpsVerified ? 'Inside Geofence ✓' : 'Outside Geofence ✕'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Latitude / Longitude:</span>
+                    <span className="font-mono font-bold text-foreground">{latitude}° N, {longitude}° E</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Office Location:</span>
+                    <span className="font-semibold text-foreground">{officeLocation}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Distance / Allowed:</span>
+                    <span className="font-mono font-bold text-foreground">{distanceMeters} m / {allowedRadiusMeters || 100} m</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Public IP / Network:</span>
+                    <span className="font-mono font-bold text-purple-600">{ipAddress} ({ipVerificationStatus})</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold">Verification Method:</span>
+                    <span className="font-semibold text-foreground">{verificationMethod}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center col-span-1 sm:col-span-2">
+                    <span className="text-muted-foreground font-semibold flex items-center gap-1">
+                      <Monitor className="h-3.5 w-3.5" /> Terminal / Device Info:
+                    </span>
+                    <span className="font-mono text-xs text-foreground truncate max-w-xs">{deviceType}</span>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* GPS Verification Section */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between border-b border-border/60 pb-2">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-emerald-600" />
-                <h4 className="text-sm font-bold text-foreground">GPS Verification</h4>
-              </div>
-              <Badge variant="outline" className={`font-mono text-xs px-2.5 py-0.5 ${
-                isGpsVerified
-                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-semibold'
-                  : 'bg-rose-500/10 text-rose-600 border-rose-500/30 font-semibold'
-              }`}>
-                {isGpsVerified ? '✓ Inside Geofence' : '✕ Outside Geofence'}
-              </Badge>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 rounded-xl border border-border/80 bg-muted/20">
-                <p className="text-[10.5px] font-semibold text-muted-foreground uppercase">Office Location</p>
-                <p className="font-bold text-sm text-foreground mt-0.5 flex items-center gap-1">
-                  <Building2 className="h-3.5 w-3.5 text-primary shrink-0" /> {officeLocation}
-                </p>
-              </div>
-
-              <div className="p-3 rounded-xl border border-border/80 bg-muted/20">
-                <p className="text-[10.5px] font-semibold text-muted-foreground uppercase">Distance from Office</p>
-                <p className={`font-bold text-sm mt-0.5 ${isGpsVerified ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {distanceMeters} m
-                </p>
-              </div>
-
-              <div className="p-3 rounded-xl border border-border/80 bg-muted/20">
-                <p className="text-[10.5px] font-semibold text-muted-foreground uppercase">Allowed Radius</p>
-                <p className="font-bold text-sm text-foreground mt-0.5">
-                  {allowedRadiusMeters || 100} m
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Complete Telemetry & Verification Grid */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-2 border-b border-border/60 pb-2">
-              <FileCheck className="h-4 w-4 text-blue-600" />
-              <h4 className="text-sm font-bold text-foreground">Detailed Telemetry & Security Audit</h4>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Employee ID:</span>
-                <span className="font-mono font-bold text-foreground">{empCode}</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Department:</span>
-                <span className="font-semibold text-foreground">{deptName}</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Punch Timestamp:</span>
-                <span className="font-mono font-bold text-foreground">{formattedDateTime}</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Punch Type:</span>
-                <span className="font-bold text-emerald-600">{isCheckIn ? 'Check In' : 'Check Out'}</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Face Status:</span>
-                <span className={`font-bold ${isFaceVerified ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {isFaceVerified ? 'Verified ✓' : 'Failed ✕'}
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Face Match Score:</span>
-                <span className="font-mono font-bold text-purple-600">{faceMatchScore}%</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">GPS Status:</span>
-                <span className={`font-bold ${isGpsVerified ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {isGpsVerified ? 'Inside Geofence ✓' : 'Outside Geofence ✕'}
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Latitude / Longitude:</span>
-                <span className="font-mono font-bold text-foreground">{latitude}° N, {longitude}° E</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Office Location:</span>
-                <span className="font-semibold text-foreground">{officeLocation}</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Distance / Allowed:</span>
-                <span className="font-mono font-bold text-foreground">{distanceMeters} m / {allowedRadiusMeters || 100} m</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Public IP / Network:</span>
-                <span className="font-mono font-bold text-purple-600">{ipAddress} ({ipVerificationStatus})</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold">Verification Method:</span>
-                <span className="font-semibold text-foreground">{verificationMethod}</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex justify-between items-center col-span-1 sm:col-span-2">
-                <span className="text-muted-foreground font-semibold flex items-center gap-1">
-                  <Monitor className="h-3.5 w-3.5" /> Terminal / Device Info:
-                </span>
-                <span className="font-mono text-xs text-foreground truncate max-w-xs">{deviceType}</span>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         <DialogFooter className="p-4 border-t border-border/60 bg-muted/20 flex justify-end">
-          <Button variant="outline" size="sm" onClick={onClose} className="font-semibold">
+          <Button variant="outline" size="sm" onClick={onClose} className="font-semibold cursor-pointer">
             Close Details
           </Button>
         </DialogFooter>

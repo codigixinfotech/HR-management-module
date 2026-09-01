@@ -238,8 +238,8 @@ export function EmployeeAttendanceView() {
       const inMins = parseTime(clockInStr);
       let outMins = parseTime(clockOutStr);
 
-      // Support overnight / cross-midnight shifts (e.g. 3:00 PM to 6:30 AM)
-      if (outMins <= inMins) {
+      // Support overnight / cross-midnight shifts (e.g. 10:00 PM to 6:30 AM)
+      if (outMins < inMins) {
         outMins += 24 * 60;
       }
 
@@ -686,9 +686,9 @@ export function EmployeeAttendanceView() {
                   approvedCorrections['21 Aug 2026'] ||
                   approvedCorrections['Aug 21, 2026'];
 
-                const clockInDisplay = approvedCorr?.clockIn || p.clockIn || (idx === 0 ? '09:59 AM' : '03:00 PM');
-                const clockOutDisplay = approvedCorr?.clockOut || (p.clockOut !== undefined && p.clockOut !== '—' ? p.clockOut : (idx === 1 ? '06:30 AM' : '—'));
-                const totalHoursDisplay = approvedCorr?.totalHours || p.totalHours || calculateTotalHours(clockInDisplay, clockOutDisplay);
+                const clockInDisplay = approvedCorr?.clockIn || (p.clockIn && p.clockIn !== '—' ? p.clockIn : '—');
+                const clockOutDisplay = approvedCorr?.clockOut || (p.clockOut && p.clockOut !== '—' ? p.clockOut : '—');
+                const totalHoursDisplay = approvedCorr?.totalHours || calculateTotalHours(clockInDisplay, clockOutDisplay);
 
                 return (
                   <TableRow

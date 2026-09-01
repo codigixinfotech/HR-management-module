@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { AttendanceStatus } from '@prisma/client';
-import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
+import { Allow, IsDateString, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class MarkAttendanceDto {
   @IsString()
@@ -45,7 +45,12 @@ export class MarkAttendanceDto {
   faceVerificationStatus?: string;
 
   @IsOptional()
+  @IsNumber()
   faceMatchScore?: number;
+
+  @IsOptional()
+  @Allow()
+  liveFaceDescriptor?: number[] | string;
 
   @IsOptional()
   @IsString()
@@ -56,9 +61,11 @@ export class MarkAttendanceDto {
   ipVerificationStatus?: string;
 
   @IsOptional()
+  @IsNumber()
   latitude?: number;
 
   @IsOptional()
+  @IsNumber()
   longitude?: number;
 
   @IsOptional()
@@ -78,9 +85,11 @@ export class MarkAttendanceDto {
   officeLocation?: string;
 
   @IsOptional()
+  @IsNumber()
   distanceMeters?: number;
 
   @IsOptional()
+  @IsNumber()
   allowedRadiusMeters?: number;
 
   @IsOptional()

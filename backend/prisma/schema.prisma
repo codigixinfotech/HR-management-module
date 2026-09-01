@@ -293,8 +293,10 @@ model Company {
   holidays   Holiday[]
   leaveTypes LeaveType[]
 
-  salaryComponents SalaryComponent[]
-  payrollRuns      PayrollRun[]
+  salaryComponents        SalaryComponent[]
+  salaryStructureTemplates SalaryStructureTemplate[]
+  salaryAssignments       EmployeeSalaryAssignment[]
+  payrollRuns             PayrollRun[]
   complianceTypes  ComplianceType[]
   complianceTasks  ComplianceTask[]
 
@@ -682,6 +684,7 @@ model Employee {
   leaveRequestsApproved LeaveRequest[]     @relation("LeaveRequestApprover")
 
   salaryComponents     EmployeeSalaryComponent[]
+  salaryAssignments    EmployeeSalaryAssignment[]
   payslips             Payslip[]
   filedComplianceTasks ComplianceTask[]
 
@@ -1251,23 +1254,123 @@ model AttendanceRecord {
 // Module: Payroll
 // ---------------------------------------------------------------------------
 
-model SalaryComponent {
-  id          String              @id @default(cuid())
-  companyId   String
-  code        String
-  name        String
-  type        SalaryComponentType
-  isStatutory Boolean             @default(false)
-  isActive    Boolean             @default(true)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+// ---------------------------------------------------------------------------
+// Module: Payroll
+// ---------------------------------------------------------------------------
 
-  company           Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  assignments       EmployeeSalaryComponent[]
-  payslipComponents PayslipComponent[]
+model SalaryComponent {
+  id                        String              @id @default(cuid())
+  companyId                 String
+  code                      String
+  name                      String
+  type                      SalaryComponentType
+  category                  String?             // Basic, HRA, Allowance, Statutory, Tax
+  description               String?
+  calculationType           String              @default("FIXED") // FIXED, PERCENTAGE, FORMULA, SLAB
+  calculationValue          Float               @default(0)
+  calculationBase           String?             // BASIC, GROSS, CTC
+  isStatutory               Boolean             @default(false)
+  isTaxable                 Boolean             @default(true)
+  includeInGross            Boolean             @default(true)
+  includeInCtc              Boolean             @default(true)
+  isPfApplicable            Boolean             @default(false)
+  isEsiApplicable           Boolean             @default(false)
+  isPtApplicable            Boolean             @default(false)
+  isTdsApplicable           Boolean             @default(false)
+  showOnPayslip             Boolean             @default(true)
+  isActive                  Boolean             @default(true)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  company                   Company                             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignments               EmployeeSalaryComponent[]
+  payslipComponents         PayslipComponent[]
+  templateItems             SalaryStructureTemplateItem[]
+  assignmentDetails         EmployeeSalaryComponentDetail[]
 
   @@unique([companyId, code])
   @@map("salary_components")
+}
+
+model SalaryStructureTemplate {
+  id              String   @id @default(cuid())
+  companyId       String
+  name            String
+  code            String
+  description     String?
+  currency        String   @default("INR")
+  payFrequency    String   @default("MONTHLY")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company         Company                             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items           SalaryStructureTemplateItem[]
+  assignments     EmployeeSalaryAssignment[]
+
+  @@unique([companyId, code])
+  @@map("salary_structure_templates")
+}
+
+model SalaryStructureTemplateItem {
+  id                String   @id @default(cuid())
+  templateId        String
+  salaryComponentId String
+  calculationType   String   @default("FIXED") // FIXED, PERCENTAGE
+  calculationValue  Float    @default(0)
+  calculationBase   String?  // BASIC, GROSS, CTC
+  monthlyAmount     Float    @default(0)
+  annualAmount      Float    @default(0)
+  order             Int      @default(0)
+
+  template          SalaryStructureTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  salaryComponent   SalaryComponent         @relation(fields: [salaryComponentId], references: [id], onDelete: Cascade)
+
+  @@map("salary_structure_template_items")
+}
+
+model EmployeeSalaryAssignment {
+  id                 String    @id @default(cuid())
+  companyId          String
+  employeeId         String
+  templateId         String?
+  annualCtc          Float
+  monthlyCtc         Float
+  grossSalary        Float     @default(0)
+  netSalary          Float     @default(0)
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  status             String    @default("ACTIVE") // DRAFT, SUBMITTED, APPROVED, ACTIVE, HISTORICAL
+  revisionReason     String?
+  previousCtc        Float?
+  newCtc             Float?
+  increasePercentage Float?
+  approvedBy         String?
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company            Company                         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee           Employee                        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  template           SalaryStructureTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  details            EmployeeSalaryComponentDetail[]
+
+  @@map("employee_salary_assignments")
+}
+
+model EmployeeSalaryComponentDetail {
+  id                String   @id @default(cuid())
+  assignmentId      String
+  salaryComponentId String
+  monthlyAmount     Float
+  annualAmount      Float
+  calculationType   String   @default("FIXED")
+  calculationValue  Float    @default(0)
+
+  assignment        EmployeeSalaryAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  salaryComponent   SalaryComponent          @relation(fields: [salaryComponentId], references: [id], onDelete: Cascade)
+
+  @@map("employee_salary_component_details")
 }
 
 model EmployeeSalaryComponent {

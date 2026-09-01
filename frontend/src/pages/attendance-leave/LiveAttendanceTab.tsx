@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { employeesApi } from '@/api/employees';
 import { attendanceApi } from '@/api/attendance-leave';
 import { useAuthStore } from '@/stores/auth-store';
@@ -28,6 +28,10 @@ import { EmployeeAttendanceView } from '@/components/attendance/EmployeeAttendan
 
 interface LivePunch {
   id: string;
+  dateDisplay: string;
+  clockIn: string;
+  clockOut: string;
+  totalHours: string;
   time: string;
   code: string;
   name: string;
@@ -58,10 +62,11 @@ export function LiveAttendanceTab() {
   const [searchParams] = useSearchParams();
   const isDetailsMe = searchParams.get('details') === 'me';
 
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFaceAttendanceOpen, setIsFaceAttendanceOpen] = useState(false);
   const [isVerificationDetailsOpen, setIsVerificationDetailsOpen] = useState(false);
-  const [selectedRecordForDetails, setSelectedRecordForDetails] = useState<any>(null);
+  const [selectedRecordForDetails, setSelectedRecordForDetails] = useState<LivePunch | null>(null);
 
   // Check if logged-in user is Admin or HR
   const isHrOrAdmin = useMemo(() => {
@@ -81,21 +86,22 @@ export function LiveAttendanceTab() {
     return <EmployeeAttendanceView />;
   }
 
-  const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, ''],
+  // Fetch employees list for dropdown filter inside Face Modal
+  const { data: rawEmployees } = useQuery({
+    queryKey: ['employees-list'],
     queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
   });
 
-  // DB-DRIVEN ONLY: Fetch all attendance records directly from Database API
+  const employeeItems = useMemo(() => {
+    return rawEmployees?.items || [];
+  }, [rawEmployees]);
+
+  // Real-Time Biometric Punch Feed — Fetch all database attendance records directly
   const { data: dbAttendanceRecords = [] } = useQuery({
     queryKey: ['attendance-live-records'],
     queryFn: () => attendanceApi.list({}),
-    refetchInterval: 2000,
+    refetchInterval: 3000,
   });
-
-  const employeeItems = useMemo(() => {
-    return employeesData?.items || [];
-  }, [employeesData]);
 
   // Transform Database Records directly into LivePunch table objects
   const punches = useMemo(() => {
@@ -110,6 +116,32 @@ export function LiveAttendanceTab() {
 
     return sorted.map((r: any): LivePunch => {
       const checkInDate = r.checkIn ? new Date(r.checkIn) : null;
+      const checkOutDate = r.checkOut ? new Date(r.checkOut) : null;
+
+      const dateDisplayStr = r.date
+        ? new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : checkInDate
+        ? checkInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '—';
+
+      const clockInStr = checkInDate
+        ? checkInDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '—';
+
+      const clockOutStr = checkOutDate
+        ? checkOutDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '—';
+
+      let totalHoursStr = '—';
+      if (checkInDate && checkOutDate) {
+        const diffMs = checkOutDate.getTime() - checkInDate.getTime();
+        if (diffMs >= 0) {
+          const hrs = Math.floor(diffMs / (1000 * 60 * 60));
+          const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+          totalHoursStr = `${hrs}h ${String(mins).padStart(2, '0')}m`;
+        }
+      }
+
       const timeStr = checkInDate
         ? checkInDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
         : '—';
@@ -124,6 +156,10 @@ export function LiveAttendanceTab() {
 
       return {
         id: r.id,
+        dateDisplay: dateDisplayStr,
+        clockIn: clockInStr,
+        clockOut: clockOutStr,
+        totalHours: totalHoursStr,
         time: timeStr,
         code: empCode,
         name: empName,
@@ -183,25 +219,12 @@ export function LiveAttendanceTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Today's Punches</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">{dbAttendanceRecords.length} Logs</p>
-              <p className="text-[10px] text-primary font-semibold mt-1">Real-time DB sync active</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Face ID Engine</p>
+              <p className="text-2xl font-semibold text-purple-600 mt-0.5">Active</p>
+              <p className="text-[10px] text-muted-foreground mt-1">128-D HOG Biometric Descriptor</p>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
-              <Fingerprint className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-2xs border-border/80">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Face ID Terminals</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">3 Active</p>
-              <p className="text-[10px] text-violet-600 font-semibold mt-1">CCTV integrations OK</p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
-              <Video className="h-5 w-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 shrink-0">
+              <Brain className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
@@ -209,44 +232,58 @@ export function LiveAttendanceTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Sync Latency</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">180 ms</p>
-              <p className="text-[10px] text-amber-600 font-semibold mt-1">Edge computing stream</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Geofence Radius</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">100 Meters</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-1">Pune HQ Office Active</p>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 shrink-0">
-              <Cpu className="h-5 w-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 shrink-0">
+              <MapPin className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-2xs border-border/80">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Today Punches</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{punches.length}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Live Database Records</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 shrink-0">
+              <Radio className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* ── 2. Live Stream Table Section ── */}
-      <Card className="shadow-2xs border-border/80 bg-card">
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
+      {/* ── 2. Real-Time Biometric Punch Feed Header & Actions ── */}
+      <Card className="shadow-xs border-border/80">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
           <div>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Radio className="h-4 w-4 text-emerald-600 animate-pulse" /> Real-Time Biometric Punch Feed
+            <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+              <Radio className="h-4 w-4 text-emerald-600 animate-pulse" />
+              Real-Time Biometric Punch Feed
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-xs text-muted-foreground mt-0.5">
               Click any employee photo or Face ID verification entry to open complete Verification Details.
             </CardDescription>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative w-64">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search live feed..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 text-xs h-9 bg-background/50"
+                className="pl-8 text-xs h-9"
               />
             </div>
             <Button
               onClick={() => setIsFaceAttendanceOpen(true)}
-              className="h-9 gap-2 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-xs"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-sm font-semibold text-xs gap-1.5 h-9"
             >
-              <Brain className="h-4 w-4" /> Face ID Punch
+              <Brain className="h-3.5 w-3.5" /> Face ID Punch
             </Button>
             <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs font-semibold gap-1.5 h-9 px-3">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" /> Live Streaming
@@ -258,7 +295,10 @@ export function LiveAttendanceTab() {
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
-                <TableHead className="text-xs font-bold text-foreground pl-6">Punch Timestamp</TableHead>
+                <TableHead className="text-xs font-bold text-foreground pl-6">Date</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Clock In</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Clock Out</TableHead>
+                <TableHead className="text-xs font-bold text-foreground">Total Hours</TableHead>
                 <TableHead className="text-xs font-bold text-foreground">Employee Code</TableHead>
                 <TableHead className="text-xs font-bold text-foreground">Employee Photo / Name</TableHead>
                 <TableHead className="text-xs font-bold text-foreground">Department</TableHead>
@@ -270,7 +310,7 @@ export function LiveAttendanceTab() {
             <TableBody>
               {filteredPunches.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground text-xs">
+                  <TableCell colSpan={10} className="h-32 text-center text-muted-foreground text-xs font-semibold">
                     No attendance records found in database.
                   </TableCell>
                 </TableRow>
@@ -282,7 +322,22 @@ export function LiveAttendanceTab() {
                     className="hover:bg-accent/40 transition-colors cursor-pointer group"
                   >
                     <TableCell className="font-semibold text-xs whitespace-nowrap pl-6">
-                      {punch.time}
+                      {punch.dateDisplay}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                      {punch.clockIn}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400 whitespace-nowrap">
+                      {punch.clockOut}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-primary whitespace-nowrap">
+                      {punch.totalHours !== '—' ? (
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold">
+                          {punch.totalHours}
+                        </Badge>
+                      ) : (
+                        '—'
+                      )}
                     </TableCell>
                     <TableCell className="font-mono text-xs font-bold text-purple-600">
                       {punch.code}
