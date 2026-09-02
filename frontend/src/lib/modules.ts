@@ -164,6 +164,7 @@ export const HCM_MODULES: HcmModule[] = [
     status: 'active',
     icon: ShieldCheck,
     subItems: [
+      { key: 'setup', label: 'Compliance Setup', path: '/compliance/setup' },
       { key: 'pf', label: 'PF (Provident Fund)', path: '/compliance/pf' },
       { key: 'esic', label: 'ESIC', path: '/compliance/esic' },
       { key: 'ptax', label: 'Professional Tax', path: '/compliance/ptax' },

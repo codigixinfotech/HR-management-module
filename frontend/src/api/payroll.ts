@@ -33,6 +33,10 @@ export const salaryAssignmentsApi = {
     (await apiClient.get<any>(`/payroll/salary-assignments/${id}`)).data,
   assign: async (payload: any) =>
     (await apiClient.post<any>('/payroll/salary-assignments', payload)).data,
+  update: async (id: string, payload: any) =>
+    (await apiClient.put<any>(`/payroll/salary-assignments/${id}`, payload)).data,
+  remove: async (id: string) =>
+    (await apiClient.delete<any>(`/payroll/salary-assignments/${id}`)).data,
 };
 
 export const salaryStructureApi = {

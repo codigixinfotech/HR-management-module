@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { CreateSalaryAssignmentDto } from './dto/salary-assignment.dto';
+import { CreateSalaryAssignmentDto, UpdateSalaryAssignmentDto } from './dto/salary-assignment.dto';
 
 @Injectable()
 export class SalaryAssignmentsService {
@@ -128,7 +128,92 @@ export class SalaryAssignmentsService {
       }
     }
 
+    // Auto-sync to Employee Master model
+    await this.syncToEmployee(dto.employeeId, dto);
+
     return assignment;
+  }
+
+  private async syncToEmployee(employeeId: string, dto: any) {
+    try {
+      let basicSalary = 0;
+      let hra = 0;
+      let conveyance = 0;
+      let specialAllowance = 0;
+      let otherAllowances = 0;
+      let grossSalary = 0;
+      let totalDeductions = 0;
+
+      // Prefer details that already have salaryComponent relation loaded (e.g. from DB fetch)
+      let detailsToProcess = dto.details || [];
+
+      // If details don't have salaryComponent info, fetch from DB assignment's details
+      if (detailsToProcess.length > 0 && !detailsToProcess[0].salaryComponent) {
+        // Fetch all components in one query
+        const componentIds = detailsToProcess
+          .map((d: any) => d.salaryComponentId)
+          .filter(Boolean);
+        const dbComponents = componentIds.length > 0
+          ? await this.prisma.salaryComponent.findMany({ where: { id: { in: componentIds } } })
+          : [];
+        const compMap = new Map(dbComponents.map((c: any) => [c.id, c]));
+        detailsToProcess = detailsToProcess.map((d: any) => ({
+          ...d,
+          salaryComponent: compMap.get(d.salaryComponentId) || null,
+        }));
+      }
+
+      for (const d of detailsToProcess) {
+        const comp = d.salaryComponent;
+        const code = (comp?.code || '').toUpperCase().trim();
+        const name = (comp?.name || d.name || '').toLowerCase().trim();
+        const type = (comp?.type || d.type || 'EARNING').toUpperCase();
+        const amt = Number(d.monthlyAmount) || 0;
+
+        if (type === 'EARNING') {
+          grossSalary += amt;
+          if (code === 'BASIC' || name.includes('basic')) {
+            basicSalary += amt;
+          } else if (code === 'HRA' || name.includes('house rent') || name.includes('hra')) {
+            hra += amt;
+          } else if (code === 'CONVEYANCE' || name.includes('conveyance')) {
+            conveyance += amt;
+          } else if (code === 'SPECIAL' || code === 'SA' || name.includes('special')) {
+            specialAllowance += amt;
+          } else {
+            otherAllowances += amt;
+          }
+        } else if (type === 'DEDUCTION') {
+          totalDeductions += amt;
+        }
+      }
+
+      let templateName: string | undefined;
+      if (dto.templateId) {
+        const tmpl = await this.prisma.salaryStructureTemplate.findUnique({
+          where: { id: dto.templateId },
+        });
+        templateName = tmpl?.name || tmpl?.code;
+      }
+
+      await this.prisma.employee.update({
+        where: { id: employeeId },
+        data: {
+          annualCtc: Number(dto.annualCtc),
+          grossSalary: grossSalary > 0 ? grossSalary : Number(dto.monthlyCtc || 0),
+          basicSalary: basicSalary > 0 ? basicSalary : Math.round(Number(dto.monthlyCtc || 0) * 0.5),
+          hra: hra > 0 ? hra : 0,
+          conveyance: conveyance > 0 ? conveyance : 0,
+          specialAllowance: specialAllowance > 0 ? specialAllowance : 0,
+          otherAllowances: otherAllowances > 0 ? otherAllowances : 0,
+          salaryEffectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : undefined,
+          salaryGrade: templateName || undefined,
+        },
+      });
+    } catch (e) {
+      // Non-blocking sync
+      console.warn('syncToEmployee failed silently:', e);
+    }
   }
 
   async listRevisions(companyId?: string) {
@@ -139,5 +224,80 @@ export class SalaryAssignmentsService {
       include: this.assignmentInclude,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async update(id: string, dto: UpdateSalaryAssignmentDto) {
+    await this.findById(id);
+    const { details, ...data } = dto;
+
+    if (details) {
+      await this.prisma.employeeSalaryComponentDetail.deleteMany({
+        where: { assignmentId: id },
+      });
+    }
+
+    const updated = await this.prisma.employeeSalaryAssignment.update({
+      where: { id },
+      data: {
+        ...(data.annualCtc !== undefined ? { annualCtc: data.annualCtc } : {}),
+        ...(data.monthlyCtc !== undefined ? { monthlyCtc: data.monthlyCtc } : {}),
+        ...(data.grossSalary !== undefined ? { grossSalary: data.grossSalary } : {}),
+        ...(data.netSalary !== undefined ? { netSalary: data.netSalary } : {}),
+        ...(data.templateId !== undefined ? { templateId: data.templateId || null } : {}),
+        ...(data.effectiveFrom ? { effectiveFrom: new Date(data.effectiveFrom) } : {}),
+        ...(data.effectiveTo !== undefined ? { effectiveTo: data.effectiveTo ? new Date(data.effectiveTo) : null } : {}),
+        ...(data.status ? { status: data.status } : {}),
+        ...(data.revisionReason !== undefined ? { revisionReason: data.revisionReason } : {}),
+        ...(data.previousCtc !== undefined ? { previousCtc: data.previousCtc } : {}),
+        ...(data.newCtc !== undefined ? { newCtc: data.newCtc } : {}),
+        ...(data.increasePercentage !== undefined ? { increasePercentage: data.increasePercentage } : {}),
+        details: details
+          ? {
+              create: details.map((d) => ({
+                salaryComponentId: d.salaryComponentId,
+                monthlyAmount: d.monthlyAmount,
+                annualAmount: d.annualAmount || d.monthlyAmount * 12,
+                calculationType: d.calculationType || 'FIXED',
+                calculationValue: d.calculationValue || 0,
+              })),
+            }
+          : undefined,
+      },
+      include: this.assignmentInclude,
+    });
+
+    await this.syncToEmployee(updated.employeeId, { ...updated, details: dto.details });
+
+    return updated;
+  }
+
+  async remove(id: string) {
+    const assignment = await this.findById(id);
+
+    // Delete child detail records first
+    await this.prisma.employeeSalaryComponentDetail.deleteMany({
+      where: { assignmentId: id },
+    });
+
+    // Delete the assignment
+    await this.prisma.employeeSalaryAssignment.delete({
+      where: { id },
+    });
+
+    // If deleted was active, reactivate latest historical assignment if available
+    if (assignment.status === 'ACTIVE') {
+      const latestHistorical = await this.prisma.employeeSalaryAssignment.findFirst({
+        where: { employeeId: assignment.employeeId },
+        orderBy: { effectiveFrom: 'desc' },
+      });
+      if (latestHistorical) {
+        await this.prisma.employeeSalaryAssignment.update({
+          where: { id: latestHistorical.id },
+          data: { status: 'ACTIVE', effectiveTo: null },
+        });
+      }
+    }
+
+    return { success: true, message: 'Salary assignment deleted successfully' };
   }
 }

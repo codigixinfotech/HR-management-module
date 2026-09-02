@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -11,7 +12,8 @@ import {
   FileBarChart,
   Calendar,
   Building2,
-  RefreshCw,
+  Sliders,
+  ShieldCheck,
 } from 'lucide-react';
 
 export type PfTabType =
@@ -35,14 +37,14 @@ export interface PfSubNavProps {
 }
 
 const TABS: { id: PfTabType; label: string; icon: any; badge?: string }[] = [
-  { id: 'dashboard', label: 'PF Dashboard', icon: LayoutDashboard },
-  { id: 'employees', label: 'Employee PF', icon: Users },
-  { id: 'configuration', label: 'Configuration', icon: Settings },
-  { id: 'calculation', label: 'Calculation Engine', icon: Calculator, badge: 'Step 4' },
-  { id: 'ecr', label: 'ECR Return', icon: FileSpreadsheet, badge: 'EPFO' },
-  { id: 'challan', label: 'Challan & Payment', icon: CreditCard },
-  { id: 'reconciliation', label: 'Reconciliation', icon: Scale },
-  { id: 'reports', label: 'PF Reports', icon: FileBarChart },
+  { id: 'dashboard', label: '1. PF Dashboard', icon: LayoutDashboard },
+  { id: 'employees', label: '2. Employee PF', icon: Users },
+  { id: 'configuration', label: '3. PF Configuration', icon: Settings },
+  { id: 'calculation', label: '4. PF Calculation', icon: Calculator },
+  { id: 'ecr', label: '5. ECR Return', icon: FileSpreadsheet, badge: 'EPFO' },
+  { id: 'challan', label: '6. Challan & Payment', icon: CreditCard },
+  { id: 'reconciliation', label: '7. Reconciliation', icon: Scale },
+  { id: 'reports', label: '8. PF Reports', icon: FileBarChart },
 ];
 
 export function PfSubNav({
@@ -54,6 +56,8 @@ export function PfSubNav({
   onCompanyChange,
   companies = [],
 }: PfSubNavProps) {
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-4">
       {/* Top Controls Header */}
@@ -64,19 +68,30 @@ export function PfSubNav({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-extrabold text-foreground">Provident Fund (PF) Compliance Suite</h2>
+              <h2 className="text-lg font-extrabold text-foreground">Provident Fund (PF) Compliance</h2>
               <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                EPFO 2.0 Compliant
+                EPFO Statutory Operational Module
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              End-to-end statutory EPF, EPS & EDLI calculation, ECR generation, TRRN payment & 3-way reconciliation
+              EPFO statutory compliance management • Consumes finalized payroll &amp; calculates EPF, EPS, EDLI &amp; ECR
             </p>
           </div>
         </div>
 
-        {/* Filter Pickers */}
+        {/* Filter Pickers & Master Compliance Link */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Master Setup Link */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/compliance/setup')}
+            className="h-8 text-xs font-semibold border-indigo-200 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 gap-1.5 cursor-pointer"
+          >
+            <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+            Compliance Setup
+          </Button>
+
           {/* Company Selector */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-background border border-border/80 text-xs font-semibold">
             <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
@@ -113,7 +128,7 @@ export function PfSubNav({
         </div>
       </div>
 
-      {/* 8-Tab Sub Navigation Bar */}
+      {/* 8-Tab Operational Navigation Bar */}
       <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-2xl border border-border/80 overflow-x-auto scrollbar-none">
         {TABS.map((tab) => {
           const Icon = tab.icon;

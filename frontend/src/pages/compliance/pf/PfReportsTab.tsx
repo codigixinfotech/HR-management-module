@@ -17,9 +17,10 @@ import {
 
 export interface PfReportsTabProps {
   selectedPeriod: string;
+  selectedCompany?: string;
 }
 
-export function PfReportsTab({ selectedPeriod }: PfReportsTabProps) {
+export function PfReportsTab({ selectedPeriod, selectedCompany }: PfReportsTabProps) {
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
 
   const handleExport = (reportName: string, format: 'CSV' | 'EXCEL' | 'PDF') => {

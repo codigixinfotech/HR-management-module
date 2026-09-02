@@ -82,7 +82,7 @@ export function PfCalculationTab({ selectedPeriod, selectedCompany, onNavigateTa
   const runMetrics = dashboardData?.run || {};
   const employeeRecords: any[] = dashboardData?.employees || runMetrics.employeeRecords || [];
 
-  const totalActiveEmployees = runMetrics.totalActiveEmployees !== undefined ? runMetrics.totalActiveEmployees : Math.max(45, employeeRecords.length);
+  const totalActiveEmployees = runMetrics.totalActiveEmployees !== undefined ? runMetrics.totalActiveEmployees : employeeRecords.length;
   const payrollEmployees = runMetrics.payrollEmployees !== undefined ? runMetrics.payrollEmployees : employeeRecords.length;
   const notInPayrollCount = runMetrics.notInPayrollCount !== undefined ? runMetrics.notInPayrollCount : Math.max(0, totalActiveEmployees - payrollEmployees);
   const eligibleStaff = runMetrics.eligibleStaffCount !== undefined ? runMetrics.eligibleStaffCount : employeeRecords.filter((e) => e.pfApplicable).length;

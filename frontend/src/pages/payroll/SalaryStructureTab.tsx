@@ -8,6 +8,7 @@ import {
   Plus,
   Trash2,
   Edit2,
+  Eye,
   Search,
   CheckCircle2,
   Layers,
@@ -23,8 +24,11 @@ import {
   Filter,
   Check,
   AlertCircle,
+  Sparkles,
+  Award,
 } from 'lucide-react';
 import { salaryComponentsApi, salaryTemplatesApi, salaryAssignmentsApi } from '@/api/payroll';
+import { payGradesApi } from '@/api/cost-grades';
 import { employeesApi } from '@/api/employees';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +65,23 @@ const componentSchema = z.object({
 });
 type ComponentFormValues = z.infer<typeof componentSchema>;
 
+export const generateTemplateCode = (name: string) => {
+  if (!name || !name.trim()) return '';
+  const words = name
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const keywords = words.filter(
+    (w) => !['GRADE', 'STRUCTURE', 'COMPENSATION', 'SALARY', 'TEMPLATE', 'PLAN', 'BAND', 'LEVEL'].includes(w),
+  );
+
+  const core = keywords.length > 0 ? keywords.join('-') : words.join('-');
+  return core.endsWith('-CTC') || core === 'CTC' ? core : `${core}-CTC`;
+};
+
 export function SalaryStructureTab({ companyId }: { companyId?: string }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('components');
@@ -71,8 +92,13 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
 
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [viewingTemplate, setViewingTemplate] = useState<any | null>(null);
+  const [templateDetailsDialogOpen, setTemplateDetailsDialogOpen] = useState(false);
 
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
+  const [viewingAssignment, setViewingAssignment] = useState<any | null>(null);
+  const [assignmentDetailsDialogOpen, setAssignmentDetailsDialogOpen] = useState(false);
 
   // Search and Filter states
   const [componentSearch, setComponentSearch] = useState('');
@@ -111,6 +137,25 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
     enabled: !!companyId,
   });
 
+  const { data: dbPayGrades = [] } = useQuery({
+    queryKey: ['pay-grades', companyId],
+    queryFn: () => payGradesApi.list(companyId),
+    enabled: !!companyId,
+  });
+
+  const DEFAULT_JOB_GRADES = [
+    { id: 'grade-g1', gradeCode: 'G1', gradeName: 'Executive Grade', level: 'L1', category: 'Executive', minSalary: 1500000, maxSalary: 3000000 },
+    { id: 'grade-l6', gradeCode: 'L6', gradeName: 'Associate', level: 'L1', category: 'Professional', minSalary: 200000, maxSalary: 300000 },
+    { id: 'grade-i1', gradeCode: 'i1', gradeName: 'i1', level: 'L1', category: 'Professional', minSalary: 360000, maxSalary: 720000 },
+    { id: 'grade-g2', gradeCode: 'G2', gradeName: 'Managerial Grade', level: 'L2', category: 'Management', minSalary: 800000, maxSalary: 1800000 },
+    { id: 'grade-e2', gradeCode: 'e2', gradeName: 'exct e2', level: 'L2', category: 'Professional', minSalary: 300000, maxSalary: 600000 },
+    { id: 'grade-g3', gradeCode: 'G3', gradeName: 'Senior Professional', level: 'L3', category: 'Professional', minSalary: 500000, maxSalary: 1200000 },
+    { id: 'grade-g4', gradeCode: 'G4', gradeName: 'Professional', level: 'L4', category: 'Professional', minSalary: 300000, maxSalary: 700000 },
+    { id: 'grade-g5', gradeCode: 'G5', gradeName: 'Junior Professional', level: 'L5', category: 'Professional', minSalary: 200000, maxSalary: 400000 },
+  ];
+
+  const allGrades = dbPayGrades.length > 0 ? dbPayGrades : DEFAULT_JOB_GRADES;
+
   const realEmployees = employeesPage?.items || [];
 
   // ── 2. REACT HOOK FORM SETUP ──
@@ -145,6 +190,9 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
     defaultValues: {
       name: '',
       code: '',
+      gradeId: 'grade-g3',
+      gradeCode: 'G3',
+      gradeName: 'Senior Professional',
       description: '',
       currency: 'INR',
       payFrequency: 'MONTHLY',
@@ -220,7 +268,17 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to save template'),
   });
 
-  // Assignment Save / Revise
+  // Template Delete
+  const deleteTemplateMutation = useMutation({
+    mutationFn: (id: string) => salaryTemplatesApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salary-templates'] });
+      toast.success('Salary structure template deleted successfully!');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Cannot delete salary template'),
+  });
+
+  // Assignment Save / Revise / Edit
   const saveAssignmentMutation = useMutation({
     mutationFn: (values: any) => {
       const cleanDetails = values.details?.map((d: any) => ({
@@ -230,22 +288,39 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
         calculationType: d.calculationType || 'FIXED',
         calculationValue: Number(d.calculationValue) || 0,
       }));
-      return salaryAssignmentsApi.assign({
+      const payload = {
         ...values,
         companyId,
         annualCtc: Number(values.annualCtc),
         monthlyCtc: Number(values.monthlyCtc),
         details: cleanDetails,
-      });
+      };
+
+      if (editingAssignment) {
+        return salaryAssignmentsApi.update(editingAssignment.id, payload);
+      }
+      return salaryAssignmentsApi.assign(payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salary-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['salary-revisions'] });
-      toast.success('Employee salary structure assigned and saved to database!');
+      toast.success(editingAssignment ? 'Salary assignment updated successfully!' : 'Employee salary structure assigned and saved to database!');
       setAssignDialogOpen(false);
+      setEditingAssignment(null);
       assignForm.reset();
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to assign salary structure'),
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to save salary assignment'),
+  });
+
+  // Assignment Delete
+  const deleteAssignmentMutation = useMutation({
+    mutationFn: (id: string) => salaryAssignmentsApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salary-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['salary-revisions'] });
+      toast.success('Salary assignment deleted successfully');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Cannot delete salary assignment'),
   });
 
   // ── 4. HANDLERS & COMPUTATIONS ──
@@ -305,6 +380,9 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
     templateForm.reset({
       name: '',
       code: '',
+      gradeId: 'grade-g3',
+      gradeCode: 'G3',
+      gradeName: 'Senior Professional',
       description: '',
       currency: 'INR',
       payFrequency: 'MONTHLY',
@@ -317,52 +395,75 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
     setTemplateDialogOpen(true);
   };
 
+  const handleViewTemplate = (tmpl: any) => {
+    setViewingTemplate(tmpl);
+    setTemplateDetailsDialogOpen(true);
+  };
+
+  const handleEditTemplate = (tmpl: any) => {
+    setEditingTemplate(tmpl);
+    templateForm.reset({
+      name: tmpl.name,
+      code: tmpl.code,
+      gradeId: tmpl.gradeId || 'grade-g3',
+      gradeCode: tmpl.gradeCode || 'G3',
+      gradeName: tmpl.gradeName || 'Senior Professional',
+      description: tmpl.description || '',
+      currency: tmpl.currency || 'INR',
+      payFrequency: tmpl.payFrequency || 'MONTHLY',
+      items:
+        tmpl.items && tmpl.items.length > 0
+          ? tmpl.items.map((i: any) => ({
+              salaryComponentId: i.salaryComponentId,
+              monthlyAmount: i.monthlyAmount || 0,
+              annualAmount: i.annualAmount || (i.monthlyAmount || 0) * 12,
+            }))
+          : components.slice(0, 4).map((c) => ({
+              salaryComponentId: c.id,
+              monthlyAmount: c.code === 'BASIC' ? 25000 : c.code === 'HRA' ? 12500 : 5000,
+              annualAmount: (c.code === 'BASIC' ? 25000 : c.code === 'HRA' ? 12500 : 5000) * 12,
+            })),
+    });
+    setTemplateDialogOpen(true);
+  };
+
+  const handleDeleteTemplate = (tmpl: any) => {
+    if (window.confirm(`Are you sure you want to delete template "${tmpl.name}" (${tmpl.code})?`)) {
+      deleteTemplateMutation.mutate(tmpl.id);
+    }
+  };
+
   const handleSelectTemplateForAssignment = (templateId: string) => {
     const selectedTmpl = templates.find((t: any) => t.id === templateId);
     if (!selectedTmpl) return;
 
-    const annualCtc = assignForm.getValues('annualCtc') || 600000;
-    const monthlyCtc = Math.round(annualCtc / 12);
-    assignForm.setValue('monthlyCtc', monthlyCtc);
-
     if (selectedTmpl.items && selectedTmpl.items.length > 0) {
-      const usedNames = new Set<string>();
-      const standardNames = [
-        'Basic Salary',
-        'House Rent Allowance (HRA)',
-        'Special Allowance',
-        'Employer PF Contribution',
-        'Conveyance Allowance',
-        'Medical Allowance',
-      ];
+      // Calculate total earnings from template items as the template's monthly CTC
+      const templateMonthlyCtc = selectedTmpl.items.reduce((sum: number, it: any) => {
+        const comp = components.find((c: any) => c.id === it.salaryComponentId);
+        const compType = it.salaryComponent?.type || comp?.type || 'EARNING';
+        return compType === 'EARNING' ? sum + (Number(it.monthlyAmount) || 0) : sum;
+      }, 0);
+
+      const templateTotalMonthly = selectedTmpl.items.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0);
+      const monthlyToUse = templateMonthlyCtc > 0 ? templateMonthlyCtc : (templateTotalMonthly > 0 ? templateTotalMonthly : Math.round((assignForm.getValues('annualCtc') || 600000) / 12));
+      const annualToUse = monthlyToUse * 12;
+
+      assignForm.setValue('monthlyCtc', monthlyToUse);
+      assignForm.setValue('annualCtc', annualToUse);
 
       const details = selectedTmpl.items.map((item: any, idx: number) => {
         const comp = components.find((c: any) => c.id === item.salaryComponentId);
-        const compCode = (item.salaryComponent?.code || comp?.code || '').toUpperCase();
+        const compName = item.salaryComponent?.name || comp?.name || `Component ${idx + 1}`;
+        const compType = item.salaryComponent?.type || comp?.type || 'EARNING';
         
-        let compName = item.salaryComponent?.name || comp?.name || '';
-        
-        // Prevent duplicate component names by falling back to distinct standard names
-        if (!compName || compName === 'Salary Component' || usedNames.has(compName.toLowerCase())) {
-          compName = standardNames[idx] || `Salary Component ${idx + 1}`;
-        }
-        usedNames.add(compName.toLowerCase());
-
-        let monthly = item.monthlyAmount || 0;
-        if (compCode === 'BASIC' || (compName.toLowerCase().includes('basic') && idx === 0)) {
-          monthly = Math.round(monthlyCtc * 0.50);
-        } else if (compCode === 'HRA' || compName.toLowerCase().includes('hra') || compName.toLowerCase().includes('house')) {
-          monthly = Math.round(monthlyCtc * 0.25);
-        } else if (compCode === 'SA' || compCode === 'SPECIAL' || compName.toLowerCase().includes('special')) {
-          monthly = Math.round(monthlyCtc * 0.15);
-        } else {
-          monthly = Math.round(monthlyCtc * 0.10);
-        }
+        // Exact monthly amount configured in the structure template!
+        const monthly = Number(item.monthlyAmount) || 0;
 
         return {
           salaryComponentId: item.salaryComponentId,
           name: compName,
-          type: item.salaryComponent?.type || comp?.type || 'EARNING',
+          type: compType,
           monthlyAmount: monthly,
           annualAmount: monthly * 12,
         };
@@ -398,6 +499,38 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
         return { ...d, monthlyAmount: monthly, annualAmount: monthly * 12 };
       });
       assignForm.setValue('details', updatedDetails);
+    }
+  };
+
+  const handleViewAssignment = (asgn: any) => {
+    setViewingAssignment(asgn);
+    setAssignmentDetailsDialogOpen(true);
+  };
+
+  const handleEditAssignment = (asgn: any) => {
+    setEditingAssignment(asgn);
+    assignForm.reset({
+      employeeId: asgn.employeeId,
+      templateId: asgn.templateId || '',
+      annualCtc: asgn.annualCtc,
+      monthlyCtc: asgn.monthlyCtc || Math.round(asgn.annualCtc / 12),
+      effectiveFrom: asgn.effectiveFrom ? new Date(asgn.effectiveFrom).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      revisionReason: asgn.revisionReason || 'Salary Structure Adjustment',
+      details: asgn.details?.map((d: any) => ({
+        salaryComponentId: d.salaryComponentId,
+        name: d.salaryComponent?.name || 'Component',
+        type: d.salaryComponent?.type || 'EARNING',
+        monthlyAmount: d.monthlyAmount,
+        annualAmount: d.annualAmount || d.monthlyAmount * 12,
+      })) || [],
+    });
+    setAssignDialogOpen(true);
+  };
+
+  const handleDeleteAssignment = (asgn: any) => {
+    const empName = asgn.employee ? `${asgn.employee.firstName} ${asgn.employee.lastName}` : asgn.employeeId;
+    if (window.confirm(`Are you sure you want to delete the salary structure assignment for ${empName} (₹${asgn.annualCtc?.toLocaleString('en-IN')} Annual CTC)?`)) {
+      deleteAssignmentMutation.mutate(asgn.id);
     }
   };
 
@@ -613,7 +746,7 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
                         <TableCell className="text-xs font-medium">
                           {comp.calculationType === 'PERCENTAGE'
                             ? `${comp.calculationValue}% of ${comp.calculationBase || 'Basic'}`
-                            : 'Fixed Amount'}
+                            : comp.calculationValue ? `₹${Number(comp.calculationValue).toLocaleString('en-IN')}` : 'Fixed Amount'}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={comp.isTaxable ? 'bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px]' : 'text-[10px]'}>
@@ -690,26 +823,66 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {templates.map((tmpl: any) => (
                     <Card key={tmpl.id} className="border border-border/80 bg-card hover:shadow-md transition-all">
-                      <CardHeader className="p-4 border-b border-border/60 flex flex-row items-center justify-between">
-                        <div>
+                      <CardHeader className="p-4 border-b border-border/60 flex flex-row items-center justify-between gap-2">
+                        <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="bg-purple-500/10 text-purple-600 font-mono text-[10px] font-bold">
                               {tmpl.code}
                             </Badge>
                             <CardTitle className="text-sm font-bold text-foreground">{tmpl.name}</CardTitle>
+                            <Badge variant="outline" className="bg-violet-500/10 text-violet-700 border-violet-300 font-bold text-[10px]">
+                              Grade {tmpl.gradeCode || 'G3'}
+                            </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">{tmpl.description || 'Corporate CTC Structure Template'}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-1">{tmpl.description || 'Corporate CTC Structure Template'}</p>
                         </div>
-                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 text-[10px] font-bold">
-                          {tmpl.payFrequency || 'MONTHLY'}
-                        </Badge>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 text-[10px] font-bold">
+                            {tmpl.payFrequency || 'MONTHLY'}
+                          </Badge>
+                          <div className="flex items-center gap-0.5 border border-border/60 rounded-lg p-0.5 bg-background shadow-xs">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleViewTemplate(tmpl)}
+                              className="h-7 w-7 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
+                              title="View Template Details"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditTemplate(tmpl)}
+                              className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40 cursor-pointer"
+                              title="Edit Template"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteTemplate(tmpl)}
+                              disabled={deleteTemplateMutation.isPending}
+                              className="h-7 w-7 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                              title="Delete Template"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
                       </CardHeader>
                       <CardContent className="p-4 space-y-3 text-xs">
                         <div className="space-y-1.5">
-                          <p className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider">Components in Template:</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider">Components in Template ({tmpl.items?.length || 0}):</p>
+                            <span className="font-mono text-[11px] font-bold text-emerald-600">
+                              Total: ₹{(tmpl.items?.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0) || 0).toLocaleString('en-IN')}/mo
+                            </span>
+                          </div>
                           <div className="flex flex-wrap gap-1.5">
                             {tmpl.items?.map((item: any) => (
-                              <Badge key={item.id} variant="secondary" className="text-[10px] font-semibold">
+                              <Badge key={item.id} variant="secondary" className="text-[10px] font-semibold bg-muted/60">
                                 {item.salaryComponent?.name || 'Component'}: ₹{item.monthlyAmount?.toLocaleString('en-IN') || 0}/mo
                               </Badge>
                             ))}
@@ -808,31 +981,63 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right pr-6">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs font-bold text-indigo-600 hover:bg-indigo-50"
-                            onClick={() => {
-                              assignForm.reset({
-                                employeeId: asgn.employeeId,
-                                templateId: asgn.templateId || '',
-                                annualCtc: asgn.annualCtc * 1.1,
-                                monthlyCtc: Math.round((asgn.annualCtc * 1.1) / 12),
-                                effectiveFrom: new Date().toISOString().slice(0, 10),
-                                revisionReason: 'Annual Compensation Increment & Appraisal',
-                                details: asgn.details?.map((d: any) => ({
-                                  salaryComponentId: d.salaryComponentId,
-                                  name: d.salaryComponent?.name || 'Component',
-                                  type: d.salaryComponent?.type || 'EARNING',
-                                  monthlyAmount: Math.round(d.monthlyAmount * 1.1),
-                                  annualAmount: Math.round(d.monthlyAmount * 1.1 * 12),
-                                })),
-                              });
-                              setAssignDialogOpen(true);
-                            }}
-                          >
-                            <TrendingUp className="h-3.5 w-3.5 mr-1" /> Revise Salary
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleViewAssignment(asgn)}
+                              className="h-7 w-7 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
+                              title="View Salary Assignment Details"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditAssignment(asgn)}
+                              className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40 cursor-pointer"
+                              title="Edit Salary Assignment"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs font-bold text-emerald-600 hover:bg-emerald-50 px-2 cursor-pointer"
+                              onClick={() => {
+                                setEditingAssignment(null);
+                                assignForm.reset({
+                                  employeeId: asgn.employeeId,
+                                  templateId: asgn.templateId || '',
+                                  annualCtc: asgn.annualCtc * 1.1,
+                                  monthlyCtc: Math.round((asgn.annualCtc * 1.1) / 12),
+                                  effectiveFrom: new Date().toISOString().slice(0, 10),
+                                  revisionReason: 'Annual Compensation Increment & Appraisal',
+                                  details: asgn.details?.map((d: any) => ({
+                                    salaryComponentId: d.salaryComponentId,
+                                    name: d.salaryComponent?.name || 'Component',
+                                    type: d.salaryComponent?.type || 'EARNING',
+                                    monthlyAmount: Math.round(d.monthlyAmount * 1.1),
+                                    annualAmount: Math.round(d.monthlyAmount * 1.1 * 12),
+                                  })),
+                                });
+                                setAssignDialogOpen(true);
+                              }}
+                              title="Revise with Increment"
+                            >
+                              <TrendingUp className="h-3 w-3 mr-1" /> Revise
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteAssignment(asgn)}
+                              disabled={deleteAssignmentMutation.isPending}
+                              className="h-7 w-7 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                              title="Delete Salary Assignment"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -990,12 +1195,12 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
             {/* Calculation Rules */}
             <div className="space-y-3 pt-2">
               <h4 className="font-bold text-foreground border-b border-border/60 pb-1 flex items-center gap-1.5">
-                <Brain className="h-3.5 w-3.5 text-purple-600" /> Calculation Rules
+                <Brain className="h-3.5 w-3.5 text-purple-600" /> Calculation Rules &amp; Base
               </h4>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Calculation Type</Label>
+                  <Label className="text-xs font-semibold">Calculation Type *</Label>
                   <Select
                     value={componentForm.watch('calculationType')}
                     onValueChange={(v) => componentForm.setValue('calculationType', v)}
@@ -1006,20 +1211,101 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
                     <SelectContent>
                       <SelectItem value="FIXED">Fixed Amount (₹)</SelectItem>
                       <SelectItem value="PERCENTAGE">Percentage (%)</SelectItem>
+                      <SelectItem value="FORMULA">Custom Formula</SelectItem>
+                      <SelectItem value="SLAB">Statutory Tax Slab</SelectItem>
+                      <SelectItem value="PER_DAY">Per Day Rate (LOP)</SelectItem>
+                      <SelectItem value="FIXED_SCHEDULE">Fixed Schedule (Loan/Advance)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {componentForm.watch('calculationType') === 'PERCENTAGE' && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Calculation Base *</Label>
+                  <Select
+                    value={componentForm.watch('calculationBase') || 'BASIC'}
+                    onValueChange={(v) => componentForm.setValue('calculationBase', v)}
+                  >
+                    <SelectTrigger className="text-xs h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BASIC">Basic Salary</SelectItem>
+                      <SelectItem value="GROSS">Gross Salary</SelectItem>
+                      <SelectItem value="PF_WAGE">PF Wage</SelectItem>
+                      <SelectItem value="ESI_WAGE">ESI Wage</SelectItem>
+                      <SelectItem value="ATTENDANCE">Attendance Days (LOP)</SelectItem>
+                      <SelectItem value="SCHEDULE">Active Loan/Advance Schedule</SelectItem>
+                      <SelectItem value="NONE">Manual / None</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {componentForm.watch('calculationType') === 'PERCENTAGE' ? (
                   <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Percentage Value (%)</Label>
+                    <Label className="text-xs font-semibold">Percentage Value (%) *</Label>
                     <Input
                       type="number"
                       step="0.01"
                       {...componentForm.register('calculationValue')}
-                      placeholder="e.g. 50"
+                      placeholder="e.g. 3.75"
                       className="text-xs font-mono"
                     />
+                  </div>
+                ) : componentForm.watch('calculationType') === 'FIXED' ? (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Fixed Amount (₹) *</Label>
+                    <Input
+                      type="number"
+                      step="1"
+                      {...componentForm.register('calculationValue')}
+                      placeholder="e.g. 3000"
+                      className="text-xs font-mono"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs font-semibold">Formula / Calculation Rule</Label>
+                    <Input
+                      {...componentForm.register('description')}
+                      placeholder="e.g. Salary / Payroll Days * LOP Days or Statutory Tax Slab"
+                      className="text-xs font-mono"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Circular Dependency Warning */}
+              {componentForm.watch('code') &&
+                componentForm.watch('calculationBase') === componentForm.watch('code') && (
+                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 text-xs font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    Invalid circular salary component dependency. Component cannot calculate based on itself.
+                  </div>
+                )}
+
+              {/* Live Calculation Preview Box */}
+              <div className="p-3 rounded-xl border border-purple-500/30 bg-purple-500/5 space-y-1.5">
+                <div className="text-[11px] font-extrabold uppercase text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+                  <Brain className="w-3.5 h-3.5 text-purple-600" /> Live Calculation Preview
+                </div>
+                {componentForm.watch('calculationType') === 'PERCENTAGE' ? (
+                  <div className="text-xs space-y-1 font-mono text-muted-foreground">
+                    <div>Base (Basic Salary) = ₹40,000</div>
+                    <div>Formula = ₹40,000 × {componentForm.watch('calculationValue') || 0}%</div>
+                    <div className="font-bold text-foreground">
+                      Calculated {componentForm.watch('name') || 'Component'} = ₹
+                      {(
+                        (40000 * Number(componentForm.watch('calculationValue') || 0)) /
+                        100
+                      ).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs space-y-1 font-mono text-muted-foreground">
+                    <div>
+                      Fixed {componentForm.watch('name') || 'Component'} = ₹
+                      {Number(componentForm.watch('calculationValue') || 0).toLocaleString('en-IN')}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1101,14 +1387,91 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
           >
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Template Code *</Label>
-                <Input {...templateForm.register('code')} placeholder="e.g. DEV-SENIOR-CTC" className="font-mono uppercase text-xs" />
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Template Code *</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const name = templateForm.getValues('name');
+                      const autoCode = generateTemplateCode(name);
+                      if (autoCode) templateForm.setValue('code', autoCode);
+                    }}
+                    className="text-[10.5px] font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 flex items-center gap-1 cursor-pointer bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800"
+                    title="Auto-generate code from template name"
+                  >
+                    <Sparkles className="w-3 h-3" /> Auto-Generate
+                  </button>
+                </div>
+                <Input
+                  {...templateForm.register('code')}
+                  placeholder="e.g. QA-LEAD-CTC"
+                  className="font-mono uppercase text-xs"
+                />
               </div>
 
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Template Name *</Label>
-                <Input {...templateForm.register('name')} placeholder="e.g. Senior Software Engineer Grade" className="text-xs" />
+                <Input
+                  {...templateForm.register('name')}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    templateForm.setValue('name', newName);
+                    // Automatically generate code like QA-LEAD-CTC as the user types
+                    const currentCode = templateForm.getValues('code');
+                    if (!currentCode || currentCode.endsWith('-CTC') || currentCode.includes('DEV-SENIOR')) {
+                      templateForm.setValue('code', generateTemplateCode(newName));
+                    }
+                  }}
+                  placeholder="e.g. QA Lead Compensation Structure"
+                  className="text-xs"
+                />
               </div>
+            </div>
+
+            {/* Grade Selector Field */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-violet-600" /> Grade *
+                </Label>
+                {(() => {
+                  const selG = allGrades.find(
+                    (g: any) =>
+                      g.id === templateForm.watch('gradeId') ||
+                      g.gradeCode === templateForm.watch('gradeCode'),
+                  );
+                  return selG ? (
+                    <Badge
+                      variant="outline"
+                      className="text-[10.5px] font-mono font-bold text-purple-600 border-purple-300 bg-purple-50 dark:bg-purple-950/40"
+                    >
+                      CTC Range: ₹{(selG.minSalary / 100000).toFixed(0)}L – ₹{(selG.maxSalary / 100000).toFixed(0)}L
+                    </Badge>
+                  ) : null;
+                })()}
+              </div>
+              <Select
+                value={templateForm.watch('gradeId') || templateForm.watch('gradeCode') || 'grade-g3'}
+                onValueChange={(val) => {
+                  templateForm.setValue('gradeId', val);
+                  const g = allGrades.find((gr: any) => gr.id === val || gr.gradeCode === val);
+                  if (g) {
+                    templateForm.setValue('gradeCode', g.gradeCode);
+                    templateForm.setValue('gradeName', g.gradeName);
+                  }
+                }}
+              >
+                <SelectTrigger className="text-xs h-9">
+                  <SelectValue placeholder="Select Job Grade (e.g. G3 - Senior Professional)..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allGrades.map((g: any) => (
+                    <SelectItem key={g.id || g.gradeCode} value={g.id || g.gradeCode} className="text-xs">
+                      <span className="font-bold font-mono text-purple-600 mr-1.5">{g.gradeCode}</span> – {g.gradeName} ({g.level || 'L3'}) • ₹{((g.minSalary || 500000)/100000).toFixed(0)}L – ₹{((g.maxSalary || 1200000)/100000).toFixed(0)}L CTC
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
@@ -1182,6 +1545,137 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
         </DialogContent>
       </Dialog>
 
+      {/* ── MODAL 2B: VIEW SALARY STRUCTURE TEMPLATE DETAILS ── */}
+      <Dialog open={templateDetailsDialogOpen} onOpenChange={setTemplateDetailsDialogOpen}>
+        <DialogContent className="max-w-2xl border-border/80 shadow-2xl p-0 overflow-hidden bg-background">
+          <DialogHeader className="p-5 border-b border-border/60 bg-gradient-to-r from-indigo-950/20 via-background to-purple-950/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-purple-500/10 text-purple-600 font-mono text-[10px] font-bold">
+                      {viewingTemplate?.code}
+                    </Badge>
+                    <DialogTitle className="text-base font-bold text-foreground">
+                      {viewingTemplate?.name}
+                    </DialogTitle>
+                    <Badge variant="outline" className="bg-violet-500/10 text-violet-700 border-violet-300 font-bold text-[10px]">
+                      Grade {viewingTemplate?.gradeCode || 'G3'}
+                    </Badge>
+                  </div>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                    {viewingTemplate?.description || 'Corporate CTC compensation breakdown template'}
+                  </DialogDescription>
+                </div>
+              </div>
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 text-[10px] font-bold">
+                {viewingTemplate?.payFrequency || 'MONTHLY'}
+              </Badge>
+            </div>
+          </DialogHeader>
+
+          <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+            {/* Template Summary Stats */}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl border border-violet-500/30 bg-violet-500/5 space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Job Grade</span>
+                <div className="text-sm font-extrabold text-purple-700 dark:text-purple-300">
+                  {viewingTemplate?.gradeCode || 'G3'} – {viewingTemplate?.gradeName || 'Senior Professional'}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Components</span>
+                <div className="text-lg font-extrabold text-foreground font-mono">
+                  {viewingTemplate?.items?.length || 0}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Monthly CTC</span>
+                <div className="text-lg font-extrabold text-emerald-600 font-mono">
+                  ₹{(viewingTemplate?.items?.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0) || 0).toLocaleString('en-IN')}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Annual CTC</span>
+                <div className="text-lg font-extrabold text-indigo-600 font-mono">
+                  ₹{((viewingTemplate?.items?.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0) || 0) * 12).toLocaleString('en-IN')}
+                </div>
+              </div>
+            </div>
+
+            {/* Components Breakdown Table */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Components Breakdown</h4>
+              <div className="border border-border/60 rounded-xl overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-muted/40 text-[10.5px]">
+                    <TableRow>
+                      <TableHead className="py-2.5 px-3">Component</TableHead>
+                      <TableHead className="py-2.5 px-3">Type</TableHead>
+                      <TableHead className="py-2.5 px-3 text-right">Monthly (₹)</TableHead>
+                      <TableHead className="py-2.5 px-3 text-right">Annual (₹)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="text-xs">
+                    {viewingTemplate?.items?.map((item: any, idx: number) => {
+                      const comp = components.find((c: any) => c.id === item.salaryComponentId);
+                      const compName = item.salaryComponent?.name || comp?.name || 'Salary Component';
+                      const compCode = item.salaryComponent?.code || comp?.code || '';
+                      const compType = item.salaryComponent?.type || comp?.type || 'EARNING';
+                      return (
+                        <TableRow key={idx} className="hover:bg-muted/20">
+                          <TableCell className="py-2.5 px-3 font-semibold text-foreground">
+                            {compName} {compCode && <span className="text-muted-foreground font-mono text-[10px]">({compCode})</span>}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-3">
+                            <Badge variant="outline" className={compType === 'EARNING' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]' : 'bg-rose-500/10 text-rose-600 border-rose-500/30 text-[10px]'}>
+                              {compType}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
+                            ₹{Number(item.monthlyAmount || 0).toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                            ₹{(Number(item.monthlyAmount || 0) * 12).toLocaleString('en-IN')}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 border-t border-border/60 flex items-center justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTemplateDetailsDialogOpen(false);
+                handleEditTemplate(viewingTemplate);
+              }}
+              className="text-xs h-9 gap-1.5 text-purple-600 border-purple-200 hover:bg-purple-50"
+            >
+              <Edit2 className="w-3.5 h-3.5" /> Edit Template
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setTemplateDetailsDialogOpen(false)}
+              className="text-xs h-9"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── MODAL 3: ASSIGN / REVISE EMPLOYEE SALARY STRUCTURE ── */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="max-w-xl border-border/80 shadow-2xl p-0 overflow-hidden bg-background">
@@ -1215,6 +1709,44 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Employee Job Grade Card */}
+            {(() => {
+              const selectedEmp = realEmployees.find((e: any) => e.id === assignForm.watch('employeeId'));
+              if (!selectedEmp) return null;
+              const empGrade =
+                allGrades.find(
+                  (g: any) =>
+                    g.id === (selectedEmp as any)?.payGradeId ||
+                    g.gradeCode === (selectedEmp as any)?.grade ||
+                    g.gradeCode === 'G3',
+                ) || allGrades[0];
+
+              return (
+                <div className="p-3 rounded-xl border border-violet-500/30 bg-violet-500/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-violet-500/10 text-violet-600 border border-violet-500/20">
+                      <Award className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <span>Job Grade:</span>
+                        <span className="text-purple-600 font-extrabold">{empGrade.gradeCode} – {empGrade.gradeName}</span>
+                        <Badge variant="outline" className="text-[10px] font-bold bg-violet-50 dark:bg-violet-950/40 text-violet-700">
+                          {empGrade.level || 'L3'}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        CTC Scale Range: <span className="font-mono font-bold text-foreground">₹{(empGrade.minSalary / 100000).toFixed(0)}L – ₹{(empGrade.maxSalary / 100000).toFixed(0)}L</span> ({empGrade.category || 'Professional'})
+                      </div>
+                    </div>
+                  </div>
+                  <Badge className="bg-purple-600 text-white font-mono text-[10.5px] font-extrabold">
+                    {empGrade.gradeCode}
+                  </Badge>
+                </div>
+              );
+            })()}
 
             {/* CTC Inputs */}
             <div className="grid grid-cols-2 gap-3">
@@ -1255,6 +1787,82 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
               </div>
             </div>
 
+            {/* Grade CTC Range Validation Alert */}
+            {(() => {
+              const selectedEmp = realEmployees.find((e: any) => e.id === assignForm.watch('employeeId'));
+              if (!selectedEmp) return null;
+              const empGrade =
+                allGrades.find(
+                  (g: any) =>
+                    g.id === (selectedEmp as any)?.payGradeId ||
+                    g.gradeCode === (selectedEmp as any)?.grade ||
+                    g.gradeCode === 'G3',
+                ) || allGrades[0];
+
+              const annualCtc = Number(assignForm.watch('annualCtc')) || 0;
+              const minSalary = empGrade.minSalary || 500000;
+              const maxSalary = empGrade.maxSalary || 1200000;
+              const isWithinRange = annualCtc >= minSalary && annualCtc <= maxSalary;
+              const isAboveRange = annualCtc > maxSalary;
+              const isBelowRange = annualCtc > 0 && annualCtc < minSalary;
+
+              if (isAboveRange) {
+                return (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-semibold flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <div className="text-amber-800 dark:text-amber-300">
+                        <span className="font-bold">⚠ Salary exceeds {empGrade.gradeCode} CTC range</span>
+                        <div className="text-[11px] text-muted-foreground">
+                          Assigned ₹{(annualCtc / 100000).toFixed(2)}L vs Grade Band ₹{(minSalary / 100000).toFixed(0)}L – ₹{(maxSalary / 100000).toFixed(0)}L
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold cursor-pointer">
+                        Request Approval
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAnnualCtcChange(maxSalary)}
+                        className="h-6 text-[10px] px-2 text-amber-700 border-amber-300 hover:bg-amber-50"
+                      >
+                        Cap at Max
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (isWithinRange && annualCtc > 0) {
+                return (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>✓ Annual CTC is Within {empGrade.gradeCode} Grade Range (₹{(minSalary / 100000).toFixed(0)}L – ₹{(maxSalary / 100000).toFixed(0)}L)</span>
+                    </div>
+                    <Badge className="bg-emerald-600 text-white text-[10px] font-bold">✓ Within Range</Badge>
+                  </div>
+                );
+              }
+
+              if (isBelowRange) {
+                return (
+                  <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-700 dark:text-blue-300 text-xs font-semibold flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Info className="w-4 h-4 text-blue-600" />
+                      <span>Annual CTC is below {empGrade.gradeCode} minimum standard (₹{(minSalary / 100000).toFixed(0)}L)</span>
+                    </div>
+                    <Badge variant="outline" className="text-blue-600 border-blue-300 text-[10px]">Below Min</Badge>
+                  </div>
+                );
+              }
+
+              return null;
+            })()}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Structure Template</Label>
@@ -1271,7 +1879,7 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
                   <SelectContent>
                     {templates.map((t: any) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.name} ({t.code})
+                        {t.name} ({t.code}) {t.gradeCode ? `— Grade ${t.gradeCode}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1311,14 +1919,154 @@ export function SalaryStructureTab({ companyId }: { companyId?: string }) {
             </div>
 
             <DialogFooter className="pt-4 border-t border-border/60">
-              <Button type="button" variant="outline" onClick={() => setAssignDialogOpen(false)} className="text-xs h-9">
+              <Button type="button" variant="outline" onClick={() => {
+                setAssignDialogOpen(false);
+                setEditingAssignment(null);
+              }} className="text-xs h-9">
                 Cancel
               </Button>
               <Button type="submit" disabled={saveAssignmentMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9">
-                {saveAssignmentMutation.isPending ? 'Saving to Database...' : 'Save & Activate Salary Structure'}
+                {saveAssignmentMutation.isPending ? 'Saving to Database...' : editingAssignment ? 'Update Salary Assignment' : 'Save & Activate Salary Structure'}
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── MODAL 4: VIEW EMPLOYEE SALARY ASSIGNMENT DETAILS ── */}
+      <Dialog open={assignmentDetailsDialogOpen} onOpenChange={setAssignmentDetailsDialogOpen}>
+        <DialogContent className="max-w-2xl border-border/80 shadow-2xl p-0 overflow-hidden bg-background">
+          <DialogHeader className="p-5 border-b border-border/60 bg-gradient-to-r from-emerald-950/20 via-background to-indigo-950/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                  <IndianRupee className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <DialogTitle className="text-base font-bold text-foreground">
+                      {viewingAssignment?.employee ? `${viewingAssignment.employee.firstName} ${viewingAssignment.employee.lastName}` : 'Employee'}
+                    </DialogTitle>
+                    <Badge variant="outline" className="bg-purple-500/10 text-purple-600 font-mono text-[10px] font-bold">
+                      {viewingAssignment?.employee?.employeeCode || 'EMP'}
+                    </Badge>
+                    <Badge variant="outline" className={viewingAssignment?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold' : 'bg-slate-500/10 text-slate-600 text-[10px] font-bold'}>
+                      {viewingAssignment?.status || 'ACTIVE'}
+                    </Badge>
+                  </div>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                    {viewingAssignment?.employee?.department?.name || 'Department'} • Effective from {viewingAssignment?.effectiveFrom ? new Date(viewingAssignment.effectiveFrom).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  </DialogDescription>
+                </div>
+              </div>
+              {viewingAssignment?.template && (
+                <Badge variant="outline" className="bg-violet-500/10 text-violet-700 border-violet-300 text-[10px] font-bold">
+                  {viewingAssignment.template.name || viewingAssignment.template.code}
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+            {/* Compensation Summary Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Annual CTC</span>
+                <div className="text-lg font-extrabold text-primary font-mono">
+                  ₹{Number(viewingAssignment?.annualCtc || 0).toLocaleString('en-IN')}
+                </div>
+                <span className="text-[10px] font-semibold text-purple-600">
+                  {((Number(viewingAssignment?.annualCtc || 0)) / 100000).toFixed(2)} LPA
+                </span>
+              </div>
+              <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Monthly CTC</span>
+                <div className="text-lg font-extrabold text-emerald-600 font-mono">
+                  ₹{Number(viewingAssignment?.monthlyCtc || Math.round((viewingAssignment?.annualCtc || 0) / 12)).toLocaleString('en-IN')}
+                </div>
+                <span className="text-[10px] text-muted-foreground">Standard monthly payout</span>
+              </div>
+              <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Revision Reason</span>
+                <div className="text-xs font-bold text-foreground line-clamp-1 mt-1">
+                  {viewingAssignment?.revisionReason || 'Initial Compensation Structure Assignment'}
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {viewingAssignment?.previousCtc ? `Prev: ₹${Number(viewingAssignment.previousCtc).toLocaleString('en-IN')}` : 'Base Structure'}
+                </span>
+              </div>
+            </div>
+
+            {/* Component Breakdown Table */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Salary Components Breakdown ({viewingAssignment?.details?.length || 0})
+                </h4>
+              </div>
+              <div className="border border-border/60 rounded-xl overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-muted/40 text-[10.5px]">
+                    <TableRow>
+                      <TableHead className="py-2.5 px-3">Component</TableHead>
+                      <TableHead className="py-2.5 px-3">Type</TableHead>
+                      <TableHead className="py-2.5 px-3 text-right">Monthly (₹)</TableHead>
+                      <TableHead className="py-2.5 px-3 text-right">Annual (₹)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="text-xs">
+                    {viewingAssignment?.details?.map((item: any, idx: number) => {
+                      const compName = item.salaryComponent?.name || item.name || 'Component';
+                      const compCode = item.salaryComponent?.code || '';
+                      const compType = item.salaryComponent?.type || item.type || 'EARNING';
+                      return (
+                        <TableRow key={idx} className="hover:bg-muted/20">
+                          <TableCell className="py-2.5 px-3 font-semibold text-foreground">
+                            {compName} {compCode && <span className="text-muted-foreground font-mono text-[10px]">({compCode})</span>}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-3">
+                            <Badge variant="outline" className={compType === 'EARNING' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]' : 'bg-rose-500/10 text-rose-600 border-rose-500/30 text-[10px]'}>
+                              {compType}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
+                            ₹{Number(item.monthlyAmount || 0).toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                            ₹{(Number(item.annualAmount) || Number(item.monthlyAmount || 0) * 12).toLocaleString('en-IN')}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 border-t border-border/60 flex items-center justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAssignmentDetailsDialogOpen(false);
+                handleEditAssignment(viewingAssignment);
+              }}
+              className="text-xs h-9 gap-1.5 text-purple-600 border-purple-200 hover:bg-purple-50 cursor-pointer"
+            >
+              <Edit2 className="w-3.5 h-3.5" /> Edit / Revise Salary
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAssignmentDetailsDialogOpen(false)}
+              className="text-xs h-9 cursor-pointer"
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

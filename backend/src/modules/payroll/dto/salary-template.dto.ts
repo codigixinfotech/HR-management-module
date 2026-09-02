@@ -42,6 +42,18 @@ export class CreateSalaryTemplateDto {
 
   @IsOptional()
   @IsString()
+  gradeId?: string;
+
+  @IsOptional()
+  @IsString()
+  gradeCode?: string;
+
+  @IsOptional()
+  @IsString()
+  gradeName?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @IsOptional()
@@ -71,6 +83,18 @@ export class UpdateSalaryTemplateDto {
   @IsOptional()
   @IsString()
   code?: string;
+
+  @IsOptional()
+  @IsString()
+  gradeId?: string;
+
+  @IsOptional()
+  @IsString()
+  gradeCode?: string;
+
+  @IsOptional()
+  @IsString()
+  gradeName?: string;
 
   @IsOptional()
   @IsString()

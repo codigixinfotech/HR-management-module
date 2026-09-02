@@ -1,5 +1,6 @@
 import { IsArray, IsDateString, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PartialType } from '@nestjs/mapped-types';
 
 export class SalaryAssignmentItemDto {
   @IsString()
@@ -87,3 +88,5 @@ export class CreateSalaryAssignmentDto {
   @Type(() => SalaryAssignmentItemDto)
   details?: SalaryAssignmentItemDto[];
 }
+
+export class UpdateSalaryAssignmentDto extends PartialType(CreateSalaryAssignmentDto) {}

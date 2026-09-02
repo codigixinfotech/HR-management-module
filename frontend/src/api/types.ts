@@ -921,6 +921,35 @@ export interface ComplianceTask {
   filedBy?: { id: string; firstName: string; lastName: string } | null;
 }
 
+export interface ComplianceSetupRecord {
+  id: string;
+  companyId: string;
+  entityId?: string | null;
+  state: string;
+  establishmentType: string;
+  financialYear: string;
+  effectiveFrom: string;
+  version: string;
+  status: 'Active' | 'Draft' | 'Archived' | string;
+
+  pfApplicable: boolean;
+  esicApplicable: boolean;
+  ptApplicable: boolean;
+  tdsApplicable: boolean;
+  labourComplianceApplicable: boolean;
+
+  payrollComplianceFrequency: 'Monthly' | 'Quarterly' | 'Annual' | string;
+  complianceCalendarEnabled: boolean;
+  dueDateNotificationsEnabled: boolean;
+  complianceValidationEnabled: boolean;
+  requireComplianceBeforePayroll: boolean;
+
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type AssetStatus = 'IN_STOCK' | 'AVAILABLE' | 'ALLOCATED' | 'UNDER_MAINTENANCE' | 'RETIRED' | 'DISPOSED' | string;
 
 export interface Asset {

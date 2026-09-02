@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { SalaryAssignmentsService } from './salary-assignments.service';
-import { CreateSalaryAssignmentDto } from './dto/salary-assignment.dto';
+import { CreateSalaryAssignmentDto, UpdateSalaryAssignmentDto } from './dto/salary-assignment.dto';
 
 @Controller('payroll/salary-assignments')
 export class SalaryAssignmentsController {
@@ -28,5 +28,15 @@ export class SalaryAssignmentsController {
   @Post()
   assign(@Body() dto: CreateSalaryAssignmentDto) {
     return this.service.assign(dto);
+  }
+
+  @Put(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateSalaryAssignmentDto) {
+    return this.service.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
   }
 }

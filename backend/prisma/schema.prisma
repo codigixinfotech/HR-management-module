@@ -314,6 +314,7 @@ model Company {
   expenseClaims        ExpenseClaim[]
   pfConfiguration      PfConfiguration?
   pfMonthlyRuns        PfMonthlyRun[]
+  complianceSetups     ComplianceSetup[]
 
   @@map("companies")
 }
@@ -2434,5 +2435,40 @@ model PfAuditLog {
 
   @@index([pfRunId])
   @@map("pf_audit_logs")
+}
+
+model ComplianceSetup {
+  id                             String   @id @default(cuid())
+  companyId                      String
+  entityId                       String?
+  state                          String   @default("Maharashtra")
+  establishmentType              String   @default("Commercial Establishment")
+  financialYear                  String   @default("2026-2027")
+  effectiveFrom                  DateTime @default(now())
+  version                        String   @default("COMPLIANCE-2026-V1")
+  status                         String   @default("Active")
+
+  pfApplicable                   Boolean  @default(true)
+  esicApplicable                 Boolean  @default(true)
+  ptApplicable                   Boolean  @default(true)
+  tdsApplicable                  Boolean  @default(true)
+  labourComplianceApplicable     Boolean  @default(true)
+
+  payrollComplianceFrequency     String   @default("Monthly")
+  complianceCalendarEnabled     Boolean  @default(true)
+  dueDateNotificationsEnabled    Boolean  @default(true)
+  complianceValidationEnabled    Boolean  @default(true)
+  requireComplianceBeforePayroll Boolean  @default(true)
+
+  createdBy                      String   @default("Admin User")
+  updatedBy                      String   @default("Admin User")
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([version])
+  @@map("compliance_setups")
 }
 

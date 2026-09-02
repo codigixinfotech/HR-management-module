@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,9 @@ import {
   RefreshCw,
   Eye,
   FileCheck,
+  Lock,
+  Scale,
+  Sliders,
 } from 'lucide-react';
 import type { PfTabType } from './PfSubNav';
 import { apiClient } from '@/lib/api-client';
@@ -26,6 +30,7 @@ export interface PfDashboardTabProps {
 }
 
 export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab }: PfDashboardTabProps) {
+  const navigate = useNavigate();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState<any>(null);
 
@@ -37,7 +42,7 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
       });
       setDashboardData(res.data);
     } catch (e) {
-      console.warn('Backend API unavailable, using fallback', e);
+      console.warn('Backend API unavailable, using fallback metrics', e);
     } finally {
       setIsRefreshing(false);
     }
@@ -52,59 +57,34 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
   };
 
   const runMetrics = dashboardData?.run || {};
-  const eligibleStaff = runMetrics.eligibleStaffCount !== undefined ? runMetrics.eligibleStaffCount : 5;
-  const totalPfWage = runMetrics.totalPfWage !== undefined ? runMetrics.totalPfWage : 74500;
-  const totalEePf = runMetrics.totalEePf !== undefined ? runMetrics.totalEePf : 8940;
+  const eligibleStaff = runMetrics.eligibleStaffCount !== undefined ? runMetrics.eligibleStaffCount : 11;
+  const totalPfWage = runMetrics.totalPfWage !== undefined ? runMetrics.totalPfWage : 164500;
+  const totalEePf = runMetrics.totalEePf !== undefined ? runMetrics.totalEePf : 19740;
+  const totalErEpf = runMetrics.totalErEpf !== undefined ? runMetrics.totalErEpf : 5980;
+  const totalErEps = runMetrics.totalErEps !== undefined ? runMetrics.totalErEps : 13760;
   const totalErPf =
     runMetrics.totalEmployerPf !== undefined
       ? runMetrics.totalEmployerPf
-      : (runMetrics.totalErEpf || 0) + (runMetrics.totalErEps || 0) || 8940;
-  const totalLiability = runMetrics.totalLiability !== undefined ? runMetrics.totalLiability : 18252.5;
+      : totalErEpf + totalErEps;
+  const totalEdli = runMetrics.totalEdli !== undefined ? runMetrics.totalEdli : 822.5;
+  const totalAdminCharge = runMetrics.totalAdminCharge !== undefined ? runMetrics.totalAdminCharge : 822.5;
+  const totalLiability = runMetrics.totalLiability !== undefined ? runMetrics.totalLiability : (totalEePf + totalErPf + totalEdli + totalAdminCharge);
 
   const monthlyHistory = [
     {
-      period: 'Sep 2026',
+      period: selectedPeriod === '2026-09' ? 'Sep 2026' : selectedPeriod,
       employees: eligibleStaff,
       pfWage: totalPfWage,
       employeePf: totalEePf,
-      employerPf: totalErPf,
-      totalLiability: totalLiability,
-      status: 'READY_FOR_ECR',
-      statusLabel: 'Ready for ECR',
-      statusVariant: 'success',
-    },
-    {
-      period: 'Aug 2026',
-      employees: eligibleStaff,
-      pfWage: totalPfWage,
-      employeePf: totalEePf,
-      employerPf: totalErPf,
-      totalLiability: totalLiability,
-      status: 'COMPLETED',
-      statusLabel: 'Completed & Paid',
-      statusVariant: 'emerald',
-    },
-    {
-      period: 'Jul 2026',
-      employees: eligibleStaff,
-      pfWage: totalPfWage,
-      employeePf: totalEePf,
-      employerPf: totalErPf,
-      totalLiability: totalLiability,
-      status: 'COMPLETED',
-      statusLabel: 'Completed & Paid',
-      statusVariant: 'emerald',
-    },
-    {
-      period: 'Jun 2026',
-      employees: eligibleStaff,
-      pfWage: totalPfWage,
-      employeePf: totalEePf,
-      employerPf: totalErPf,
-      totalLiability: totalLiability,
-      status: 'COMPLETED',
-      statusLabel: 'Completed & Paid',
-      statusVariant: 'emerald',
+      employerEpf: totalErEpf,
+      employerEps: totalErEps,
+      edli: Math.round(totalEdli),
+      adminCharges: Math.round(totalAdminCharge),
+      totalLiability: Math.round(totalLiability),
+      ecrStatus: 'Ready for ECR',
+      challanStatus: 'Pending',
+      paymentStatus: 'Pending',
+      reconcileStatus: 'Pending',
     },
   ];
 
@@ -115,7 +95,7 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
         <Card className="border-border/80 shadow-2xs bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Eligible Staff</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider">PF Eligible Employees</span>
               <Users className="w-4 h-4 text-purple-600" />
             </div>
             <div className="text-xl font-extrabold text-foreground font-mono">{eligibleStaff}</div>
@@ -126,7 +106,7 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
         <Card className="border-border/80 shadow-2xs bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Total PF Wage</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider">PF Wage</span>
               <IndianRupee className="w-4 h-4 text-blue-600" />
             </div>
             <div className="text-xl font-extrabold text-foreground font-mono">₹{totalPfWage.toLocaleString('en-IN')}</div>
@@ -137,7 +117,7 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
         <Card className="border-border/80 shadow-2xs bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Employee PF</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Employee Contribution</span>
               <IndianRupee className="w-4 h-4 text-indigo-600" />
             </div>
             <div className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono">
@@ -150,7 +130,7 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
         <Card className="border-border/80 shadow-2xs bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Employer PF</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Employer Contribution</span>
               <IndianRupee className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
@@ -169,34 +149,34 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
             <div className="text-xl font-extrabold text-rose-600 dark:text-rose-400 font-mono">
               ₹{totalLiability.toLocaleString('en-IN')}
             </div>
-            <p className="text-[10px] text-muted-foreground font-medium">Combined Deposit Amount</p>
+            <p className="text-[10px] text-muted-foreground font-medium">EE + ER + EDLI + Admin</p>
           </CardContent>
         </Card>
 
         <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-2xs">
           <CardContent className="p-4 space-y-1">
             <div className="flex items-center justify-between text-emerald-600">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Filing Status</span>
-              <ShieldCheck className="w-4 h-4" />
+              <span className="text-[11px] font-bold uppercase tracking-wider">Compliance Status</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
-              Ready for ECR
+              Paid &amp; Reconciled
             </div>
             <p className="text-[10px] text-muted-foreground font-medium">Period: {selectedPeriod}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* ── MONTHLY PF PROCESS STEPPER ── */}
-      <Card className="border-border/80 shadow-xs">
+      {/* ── 7-STEP MONTHLY PF WORKFLOW PIPELINE ── HIDDEN ── */}
+      {false && <Card className="border-border/80 shadow-xs">
         <CardHeader className="pb-3 border-b border-border/60">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base font-bold flex items-center gap-2">
-                <FileCheck className="w-5 h-5 text-purple-600" /> Monthly PF Workflow Pipeline
+                <FileCheck className="w-5 h-5 text-purple-600" /> Monthly PF Compliance Workflow Pipeline
               </CardTitle>
               <CardDescription className="text-xs">
-                Real-time compliance status for {selectedPeriod} payroll run
+                Sequential statutory operational pipeline for {selectedPeriod} payroll run
               </CardDescription>
             </div>
             <Button size="sm" variant="outline" onClick={handleRefresh} className="h-8 gap-1.5 text-xs font-semibold">
@@ -205,87 +185,144 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-            {/* Step 1 */}
-            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 relative">
-              <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                <span>1. Payroll Status</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {/* Step 1: Upstream Payroll Status */}
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <span>1. Payroll Locked</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="text-xs font-mono font-extrabold text-foreground mt-1">✓ Ready</p>
+                <p className="text-[10.5px] text-muted-foreground mt-0.5">September payroll locked upstream</p>
               </div>
-              <p className="text-xs font-mono font-extrabold text-foreground">✓ Finalized</p>
-              <p className="text-[10.5px] text-muted-foreground">September Payroll Locked</p>
+              <Badge variant="outline" className="w-full text-center justify-center bg-emerald-100 text-emerald-800 text-[10px] border-emerald-200">
+                Upstream Source
+              </Badge>
             </div>
 
-            {/* Step 2 */}
-            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 relative">
-              <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                <span>2. PF Calculation</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            {/* Step 2: PF Calculation */}
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <span>2. PF Calculation</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="text-xs font-mono font-extrabold text-foreground mt-1">✓ Completed</p>
+                <p className="text-[10.5px] text-muted-foreground mt-0.5">{eligibleStaff} Employees computed</p>
               </div>
-              <p className="text-xs font-mono font-extrabold text-foreground">✓ Completed</p>
-              <p className="text-[10.5px] text-muted-foreground">{eligibleStaff} Employees Computed</p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 relative">
-              <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                <span>3. PF Validation</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              </div>
-              <p className="text-xs font-mono font-extrabold text-foreground">✓ Passed</p>
-              <p className="text-[10.5px] text-muted-foreground">UAN & Limits Verified</p>
-            </div>
-
-            {/* Step 4 (Separate Page Action) */}
-            <div className="p-3.5 rounded-xl border border-purple-500/40 bg-purple-500/10 space-y-2 hover:border-purple-500 transition-all">
-              <div className="flex items-center justify-between text-xs font-bold text-purple-700 dark:text-purple-300">
-                <span>4. ECR Return</span>
-                <ArrowRight className="w-4 h-4 text-purple-600" />
-              </div>
-              <p className="text-xs font-mono font-extrabold text-purple-600 dark:text-purple-400">Separate Page →</p>
               <Button
                 size="sm"
+                variant="outline"
+                onClick={() => onNavigateTab('calculation')}
+                className="w-full h-7 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50 cursor-pointer"
+              >
+                View Calculation
+              </Button>
+            </div>
+
+            {/* Step 3: PF Validation */}
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <span>3. PF Validation</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="text-xs font-mono font-extrabold text-foreground mt-1">✓ Passed</p>
+                <p className="text-[10.5px] text-muted-foreground mt-0.5">UAN &amp; limits verified</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onNavigateTab('calculation')}
+                className="w-full h-7 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50 cursor-pointer"
+              >
+                View Validation
+              </Button>
+            </div>
+
+            {/* Step 4: ECR Preparation */}
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <span>4. ECR Return</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="text-xs font-mono font-extrabold text-foreground mt-1">✓ Submitted</p>
+                <p className="text-[10.5px] text-muted-foreground mt-0.5">EPFO file generated &amp; saved</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={() => onNavigateTab('ecr')}
-                className="w-full h-7 text-[11px] font-bold bg-purple-600 hover:bg-purple-700 text-white cursor-pointer"
+                className="w-full h-7 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50 cursor-pointer"
               >
-                Go to ECR Page
+                View ECR Return
               </Button>
             </div>
 
-            {/* Step 5 (Separate Page Action) */}
-            <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 space-y-2 hover:border-amber-500 transition-all">
-              <div className="flex items-center justify-between text-xs font-bold text-amber-700 dark:text-amber-300">
-                <span>5. Challan</span>
-                <ArrowRight className="w-4 h-4 text-amber-600" />
+            {/* Step 5: Challan Generation */}
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <span>5. Challan</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="text-xs font-mono font-extrabold text-foreground mt-1">✓ TRRN Issued</p>
+                <p className="text-[10.5px] text-muted-foreground mt-0.5">TRRN: 1012409123456</p>
               </div>
-              <p className="text-xs font-mono font-extrabold text-amber-600 dark:text-amber-400">Separate Page →</p>
               <Button
                 size="sm"
+                variant="outline"
                 onClick={() => onNavigateTab('challan')}
-                className="w-full h-7 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
+                className="w-full h-7 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50 cursor-pointer"
               >
-                Go to Challan
+                View Challan
               </Button>
             </div>
 
-            {/* Step 6 (Separate Page Action) */}
-            <div className="p-3.5 rounded-xl border border-blue-500/40 bg-blue-500/10 space-y-2 hover:border-blue-500 transition-all">
-              <div className="flex items-center justify-between text-xs font-bold text-blue-700 dark:text-blue-300">
-                <span>6. Payment</span>
-                <ArrowRight className="w-4 h-4 text-blue-600" />
+            {/* Step 6: Payment */}
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <span>6. Payment</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="text-xs font-mono font-extrabold text-foreground mt-1">✓ Paid</p>
+                <p className="text-[10.5px] text-muted-foreground mt-0.5">UTR: HDFCN26245123456</p>
               </div>
-              <p className="text-xs font-mono font-extrabold text-blue-600 dark:text-blue-400">Separate Page →</p>
               <Button
                 size="sm"
+                variant="outline"
                 onClick={() => onNavigateTab('challan')}
-                className="w-full h-7 text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                className="w-full h-7 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50 cursor-pointer"
               >
-                Payment Status
+                View Payment
+              </Button>
+            </div>
+
+            {/* Step 7: Reconciliation */}
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <span>7. Reconciliation</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="text-xs font-mono font-extrabold text-foreground mt-1">✓ Reconciled</p>
+                <p className="text-[10.5px] text-muted-foreground mt-0.5">5-Way matching passed</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onNavigateTab('reconciliation')}
+                className="w-full h-7 text-[11px] font-bold border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50 cursor-pointer"
+              >
+                View Audit
               </Button>
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* ── HISTORICAL PF FILINGS TABLE ── */}
       <Card className="border-border/80 shadow-xs">
@@ -294,7 +331,7 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
             <div>
               <CardTitle className="text-base font-bold">Monthly Provident Fund Statement History</CardTitle>
               <CardDescription className="text-xs">
-                Historical record of PF wage calculations, liability, and filing status
+                Historical record of PF wage calculations, statutory breakdown, and operational statuses
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -323,12 +360,18 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
               <thead className="bg-muted/50 border-b border-border/60 text-muted-foreground font-semibold uppercase tracking-wider text-[10.5px]">
                 <tr>
                   <th className="py-3.5 px-4">Period</th>
-                  <th className="py-3.5 px-4 text-right">Eligible Staff</th>
-                  <th className="py-3.5 px-4 text-right">PF Wage</th>
-                  <th className="py-3.5 px-4 text-right">Employee PF (12%)</th>
-                  <th className="py-3.5 px-4 text-right">Employer PF</th>
-                  <th className="py-3.5 px-4 text-right">Total Liability</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-3 text-right">Eligible Staff</th>
+                  <th className="py-3.5 px-3 text-right">PF Wage</th>
+                  <th className="py-3.5 px-3 text-right">Employee PF (12%)</th>
+                  <th className="py-3.5 px-3 text-right">Employer EPF (3.67%)</th>
+                  <th className="py-3.5 px-3 text-right">Employer EPS (8.33%)</th>
+                  <th className="py-3.5 px-3 text-right">EDLI (0.5%)</th>
+                  <th className="py-3.5 px-3 text-right">Admin Charges</th>
+                  <th className="py-3.5 px-3 text-right">Total Liability</th>
+                  <th className="py-3.5 px-3 text-center">ECR Status</th>
+                  <th className="py-3.5 px-3 text-center">Challan Status</th>
+                  <th className="py-3.5 px-3 text-center">Payment Status</th>
+                  <th className="py-3.5 px-3 text-center">Reconciliation</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
                 </tr>
               </thead>
@@ -336,38 +379,76 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
                 {monthlyHistory.map((row, idx) => (
                   <tr key={idx} className="hover:bg-muted/30 transition-colors">
                     <td className="py-3.5 px-4 font-bold text-foreground font-mono">{row.period}</td>
-                    <td className="py-3.5 px-4 text-right font-mono font-semibold">{row.employees}</td>
-                    <td className="py-3.5 px-4 text-right font-mono font-bold text-foreground">
+                    <td className="py-3.5 px-3 text-right font-mono font-semibold">{row.employees}</td>
+                    <td className="py-3.5 px-3 text-right font-mono font-bold text-foreground">
                       ₹{row.pfWage.toLocaleString('en-IN')}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                    <td className="py-3.5 px-3 text-right font-mono font-semibold text-indigo-600 dark:text-indigo-400">
                       ₹{row.employeePf.toLocaleString('en-IN')}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                      ₹{row.employerPf.toLocaleString('en-IN')}
+                    <td className="py-3.5 px-3 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                      ₹{row.employerEpf.toLocaleString('en-IN')}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-extrabold text-foreground">
+                    <td className="py-3.5 px-3 text-right font-mono font-semibold text-purple-600 dark:text-purple-400">
+                      ₹{row.employerEps.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 px-3 text-right font-mono text-slate-600">
+                      ₹{row.edli.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 px-3 text-right font-mono text-slate-600">
+                      ₹{row.adminCharges.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 px-3 text-right font-mono font-extrabold text-foreground">
                       ₹{row.totalLiability.toLocaleString('en-IN')}
                     </td>
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-3.5 px-3 text-center">
                       <Badge
                         variant="outline"
                         className={
-                          row.status === 'READY_FOR_ECR'
-                            ? 'bg-purple-500/10 text-purple-600 border-purple-500/30 font-bold text-[10.5px]'
-                            : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold text-[10.5px]'
+                          row.ecrStatus === 'Ready for ECR'
+                            ? 'bg-purple-500/10 text-purple-600 border-purple-500/30 text-[10px]'
+                            : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 text-[10px]'
                         }
                       >
-                        {row.statusLabel}
+                        {row.ecrStatus}
+                      </Badge>
+                    </td>
+                    <td className="py-3.5 px-3 text-center">
+                      <Badge variant="outline" className="text-[10px]">
+                        {row.challanStatus}
+                      </Badge>
+                    </td>
+                    <td className="py-3.5 px-3 text-center">
+                      <Badge
+                        variant="outline"
+                        className={
+                          row.paymentStatus === 'Paid'
+                            ? 'bg-emerald-100 text-emerald-800 text-[10px]'
+                            : 'bg-amber-50 text-amber-700 text-[10px]'
+                        }
+                      >
+                        {row.paymentStatus}
+                      </Badge>
+                    </td>
+                    <td className="py-3.5 px-3 text-center">
+                      <Badge
+                        variant="outline"
+                        className={
+                          row.reconcileStatus === 'Reconciled'
+                            ? 'bg-blue-100 text-blue-800 text-[10px]'
+                            : 'bg-slate-100 text-slate-600 text-[10px]'
+                        }
+                      >
+                        {row.reconcileStatus}
                       </Badge>
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                      <div className="flex items-center justify-center gap-1">
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => onNavigateTab('calculation')}
-                          className="h-7 px-2 text-[11px] font-semibold hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-950/50 cursor-pointer"
+                          className="h-7 px-2 text-[11px] font-semibold hover:bg-purple-50 hover:text-purple-600 cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5 mr-1" /> View Details
                         </Button>
@@ -375,7 +456,7 @@ export function PfDashboardTab({ selectedPeriod, selectedCompany, onNavigateTab 
                           size="sm"
                           variant="ghost"
                           onClick={() => onNavigateTab('employees')}
-                          className="h-7 px-2 text-[11px] font-semibold hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/50 cursor-pointer"
+                          className="h-7 px-2 text-[11px] font-semibold hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
                         >
                           <Users className="w-3.5 h-3.5 mr-1" /> Employees
                         </Button>

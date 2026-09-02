@@ -185,7 +185,7 @@ export function PfEmployeesTab({ selectedCompany }: PfEmployeesTabProps) {
   const [pfApplicableFilter, setPfApplicableFilter] = useState('ALL');
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePfRecord | null>(null);
 
-  // Fetch employees dynamically from API
+  // Fetch employees dynamically from API with strict company isolation
   const fetchPfEmployees = async () => {
     setIsLoading(true);
     try {
@@ -193,17 +193,23 @@ export function PfEmployeesTab({ selectedCompany }: PfEmployeesTabProps) {
         params: { companyId: selectedCompany || '' },
       });
       if (res.data && Array.isArray(res.data)) {
-        setEmployeeRecords(res.data.length > 0 ? res.data : INITIAL_FALLBACK_DATA);
+        setEmployeeRecords(res.data);
+      } else {
+        setEmployeeRecords([]);
       }
     } catch (e) {
-      console.warn('API fetch for PF employees fallback active', e);
-      setEmployeeRecords(INITIAL_FALLBACK_DATA);
+      console.warn('API fetch for PF employees failed', e);
+      setEmployeeRecords([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
+    setSearchQuery('');
+    setDepartmentFilter('ALL');
+    setStatusFilter('ALL');
+    setPfApplicableFilter('ALL');
     fetchPfEmployees();
   }, [selectedCompany]);
 

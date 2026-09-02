@@ -69,14 +69,24 @@ export function PfModule({ companyId, companies = [] }: PfModuleProps) {
       )}
 
       {activeSubTab === 'challan' && (
-        <PfChallanTab selectedPeriod={selectedPeriod} onNavigateTab={setActiveSubTab} />
+        <PfChallanTab
+          selectedPeriod={selectedPeriod}
+          selectedCompany={selectedCompany}
+          onNavigateTab={setActiveSubTab}
+        />
       )}
 
       {activeSubTab === 'reconciliation' && (
-        <PfReconciliationTab selectedPeriod={selectedPeriod} onNavigateTab={setActiveSubTab} />
+        <PfReconciliationTab
+          selectedPeriod={selectedPeriod}
+          selectedCompany={selectedCompany}
+          onNavigateTab={setActiveSubTab}
+        />
       )}
 
-      {activeSubTab === 'reports' && <PfReportsTab selectedPeriod={selectedPeriod} />}
+      {activeSubTab === 'reports' && (
+        <PfReportsTab selectedPeriod={selectedPeriod} selectedCompany={selectedCompany} />
+      )}
     </div>
   );
 }

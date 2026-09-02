@@ -35,12 +35,246 @@ export interface PfEcrTabProps {
   onNavigateTab: (tab: PfTabType) => void;
 }
 
+const DEFAULT_11_MOCK_EMPLOYEES = [
+  {
+    id: 'emp-1',
+    name: 'Sanika Shelke',
+    code: 'EMP-1483',
+    department: 'Administration',
+    uan: '100987654321',
+    pfMemberId: 'MH/PUN/0012345/000/0001483',
+    pfApplicable: true,
+    joiningDate: '2022-04-15',
+    grossSalary: 25000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-2',
+    name: 'Aditya Deshpande',
+    code: 'EMP-016',
+    department: 'Information Technology',
+    uan: '100987654322',
+    pfMemberId: 'MH/PUN/0012345/000/0000016',
+    pfApplicable: true,
+    joiningDate: '2021-08-01',
+    grossSalary: 28000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-3',
+    name: 'Rohan Mehta',
+    code: 'EMP-042',
+    department: 'Software Engineering',
+    uan: '100987654323',
+    pfMemberId: 'MH/PUN/0012345/000/0000042',
+    pfApplicable: true,
+    joiningDate: '2023-01-10',
+    grossSalary: 32000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-4',
+    name: 'Priya Sharma',
+    code: 'EMP-108',
+    department: 'Human Resources',
+    uan: '100987654324',
+    pfMemberId: 'MH/PUN/0012345/000/0000108',
+    pfApplicable: true,
+    joiningDate: '2023-06-20',
+    grossSalary: 22000,
+    pfWage: 14500,
+    employeePf: 1740,
+    employerPf: 532,
+    eps: 1208,
+    edli: 72.5,
+    adminCharge: 72.5,
+    totalLiability: 3625,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-5',
+    name: 'Amit Varma',
+    code: 'EMP-215',
+    department: 'Finance & Accounts',
+    uan: '100987654325',
+    pfMemberId: 'MH/PUN/0012345/000/0000215',
+    pfApplicable: true,
+    joiningDate: '2022-11-05',
+    grossSalary: 35000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-6',
+    name: 'Sneha Kulkarni',
+    code: 'EMP-304',
+    department: 'Marketing & Sales',
+    uan: '100987654326',
+    pfMemberId: 'MH/PUN/0012345/000/0000304',
+    pfApplicable: true,
+    joiningDate: '2023-03-15',
+    grossSalary: 27000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-7',
+    name: 'Purvesh Patil',
+    code: 'EMP-001',
+    department: 'Management',
+    uan: '100987656360',
+    pfMemberId: 'MH/PUN/0012345/000/0636D74',
+    pfApplicable: true,
+    joiningDate: '2021-01-01',
+    grossSalary: 45000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-8',
+    name: 'Vikram Malhotra',
+    code: 'EMP-412',
+    department: 'Operations',
+    uan: '100987654328',
+    pfMemberId: 'MH/PUN/0012345/000/0000412',
+    pfApplicable: true,
+    joiningDate: '2022-07-18',
+    grossSalary: 29000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-9',
+    name: 'Neha Verma',
+    code: 'EMP-519',
+    department: 'Quality Assurance',
+    uan: '100987654329',
+    pfMemberId: 'MH/PUN/0012345/000/0000519',
+    pfApplicable: true,
+    joiningDate: '2023-09-01',
+    grossSalary: 26000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-10',
+    name: 'Rajesh Kumar',
+    code: 'EMP-623',
+    department: 'Customer Support',
+    uan: '100987654330',
+    pfMemberId: 'MH/PUN/0012345/000/0000623',
+    pfApplicable: true,
+    joiningDate: '2022-02-14',
+    grossSalary: 24000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+  {
+    id: 'emp-11',
+    name: 'Deepak Joshi',
+    code: 'EMP-711',
+    department: 'Logistics & Supply',
+    uan: '100987654331',
+    pfMemberId: 'MH/PUN/0012345/000/0000711',
+    pfApplicable: true,
+    joiningDate: '2023-04-05',
+    grossSalary: 23000,
+    pfWage: 15000,
+    employeePf: 1800,
+    employerPf: 550,
+    eps: 1250,
+    edli: 75,
+    adminCharge: 75,
+    totalLiability: 3750,
+    status: 'VALID',
+    kycStatus: 'VERIFIED',
+    nominationStatus: 'SUBMITTED',
+  },
+];
+
 export function PfEcrTab({ selectedPeriod, selectedCompany, onNavigateTab }: PfEcrTabProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGenerated, setIsGenerated] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dashboardData, setDashboardData] = useState<any>(null);
-  const [employeeRecords, setEmployeeRecords] = useState<any[]>([]);
+  const [employeeRecords, setEmployeeRecords] = useState<any[]>(DEFAULT_11_MOCK_EMPLOYEES);
 
   // Search, Filter & Selection State for Employee ECR Register
   const [searchTerm, setSearchTerm] = useState('');
@@ -79,10 +313,9 @@ export function PfEcrTab({ selectedPeriod, selectedCompany, onNavigateTab }: PfE
         }),
       ]);
       setDashboardData(dashRes.data);
-      if (empRes.data && Array.isArray(empRes.data)) {
-        setEmployeeRecords(empRes.data);
-        setSelectedEmpIds(empRes.data.filter((e: any) => e.pfApplicable).map((e: any) => e.id));
-      }
+      const fetchedEmps = empRes.data && Array.isArray(empRes.data) ? empRes.data : [];
+      setEmployeeRecords(fetchedEmps);
+      setSelectedEmpIds(fetchedEmps.filter((e: any) => e.pfApplicable !== false).map((e: any) => e.id));
 
       // Check if existing challan / submission exists
       const run = dashRes.data?.run;
@@ -124,6 +357,21 @@ export function PfEcrTab({ selectedPeriod, selectedCompany, onNavigateTab }: PfE
   const validUanCount = applicableEmployees.filter((e) => e.uan && e.uan !== 'Pending UAN' && e.uan !== 'EXEMPT_HIGHER_WAGE').length;
   const validMemberCount = applicableEmployees.filter((e) => e.pfMemberId && e.pfMemberId !== 'Pending Allocation' && e.pfMemberId !== 'N/A').length;
 
+  // UAN Duplicate Check per Rule
+  const uanCounts: Record<string, number> = {};
+  applicableEmployees.forEach((emp) => {
+    if (emp.uan && emp.uan !== 'Pending UAN' && emp.uan !== 'EXEMPT_HIGHER_WAGE') {
+      uanCounts[emp.uan] = (uanCounts[emp.uan] || 0) + 1;
+    }
+  });
+  const duplicateUanList = Object.keys(uanCounts).filter((uan) => uanCounts[uan] > 1);
+  const hasDuplicateUan = duplicateUanList.length > 0;
+
+  // Count consistency check
+  const calculationEmployeeCount = runMetrics.eligibleStaffCount !== undefined ? runMetrics.eligibleStaffCount : applicableEmployees.length;
+  const ecrEmployeeCount = applicableEmployees.length;
+  const isCountMismatch = calculationEmployeeCount !== ecrEmployeeCount;
+
   const totalPfWage = runMetrics.totalPfWage !== undefined ? runMetrics.totalPfWage : applicableEmployees.reduce((sum, e) => sum + (e.pfWage || 0), 0);
   const totalEePf = runMetrics.totalEePf !== undefined ? runMetrics.totalEePf : applicableEmployees.reduce((sum, e) => sum + (e.employeePf || 0), 0);
   const totalErEpf = runMetrics.totalErEpf !== undefined ? runMetrics.totalErEpf : applicableEmployees.reduce((sum, e) => sum + (e.employerPf || 0), 0);
@@ -133,7 +381,7 @@ export function PfEcrTab({ selectedPeriod, selectedCompany, onNavigateTab }: PfE
   const totalAdminCharge = runMetrics.totalAdminCharge !== undefined ? runMetrics.totalAdminCharge : applicableEmployees.reduce((sum, e) => sum + (e.adminCharge || 0), 0);
   const totalLiability = runMetrics.totalLiability !== undefined ? runMetrics.totalLiability : (totalEePf + totalEmployerPf + totalEdli + totalAdminCharge);
 
-  const isEcrReady = eligibleStaffCount > 0 && pendingCount === 0;
+  const isEcrReady = eligibleStaffCount > 0 && pendingCount === 0 && !hasDuplicateUan && !isCountMismatch;
 
   // Filtered employees for Employee ECR Register
   const filteredEmployees = applicableEmployees.filter((emp) => {

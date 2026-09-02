@@ -25,6 +25,7 @@ import { apiClient } from '@/lib/api-client';
 
 export interface PfChallanTabProps {
   selectedPeriod: string;
+  selectedCompany?: string;
   onNavigateTab: (tab: PfTabType) => void;
 }
 
@@ -43,7 +44,7 @@ export interface ChallanRecord {
   status: 'PAID' | 'PENDING' | 'OVERDUE';
 }
 
-export function PfChallanTab({ selectedPeriod, onNavigateTab }: PfChallanTabProps) {
+export function PfChallanTab({ selectedPeriod, selectedCompany, onNavigateTab }: PfChallanTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [trrnInput, setTrrnInput] = useState('1012409123456');
   const [utrInput, setUtrInput] = useState('HDFCN26245123456');
@@ -56,42 +57,14 @@ export function PfChallanTab({ selectedPeriod, onNavigateTab }: PfChallanTabProp
       period: 'Sep 2026',
       internalChallanId: 'PFC-2026-09-001',
       trrnNumber: '1012409123456',
-      epfAmount: 230400,
-      epsAmount: 160000,
-      edliAmount: 9600,
-      adminAmount: 9600,
-      totalAmount: 409600,
+      epfAmount: 214680,
+      epsAmount: 114122,
+      edliAmount: 6850,
+      adminAmount: 6850,
+      totalAmount: 336327,
       dueDate: '2026-09-15',
       paymentDate: '2026-09-01',
       paymentRef: 'HDFCN26245123456',
-      status: 'PAID',
-    },
-    {
-      period: 'Aug 2026',
-      internalChallanId: 'PFC-2026-08-001',
-      trrnNumber: '1012408662233',
-      epfAmount: 225000,
-      epsAmount: 156250,
-      edliAmount: 9375,
-      adminAmount: 9375,
-      totalAmount: 400000,
-      dueDate: '2026-08-15',
-      paymentDate: '2026-08-12',
-      paymentRef: 'ICICN2622433440',
-      status: 'PAID',
-    },
-    {
-      period: 'Jul 2026',
-      internalChallanId: 'PFC-2026-07-001',
-      trrnNumber: '1012407553344',
-      epfAmount: 219600,
-      epsAmount: 152500,
-      edliAmount: 9150,
-      adminAmount: 9150,
-      totalAmount: 390400,
-      dueDate: '2026-07-15',
-      paymentDate: '2026-07-14',
-      paymentRef: 'SBIN2621445500',
       status: 'PAID',
     },
   ]);
@@ -100,17 +73,41 @@ export function PfChallanTab({ selectedPeriod, onNavigateTab }: PfChallanTabProp
     const fetchRunData = async () => {
       try {
         const res = await apiClient.get('/compliance/pf/dashboard', {
-          params: { period: selectedPeriod },
+          params: { period: selectedPeriod, companyId: selectedCompany || '' },
         });
-        if (res.data?.run?.id) {
-          setPfRunId(res.data.run.id);
+        if (res.data?.run) {
+          const run = res.data.run;
+          setPfRunId(run.id);
+          if (run.totalLiability) {
+            const tot = run.totalLiability;
+            const ee = run.totalEePf || Math.round(tot * 0.488);
+            const erEpf = run.totalErEpf || Math.round(tot * 0.149);
+            const erEps = run.totalErEps || Math.round(tot * 0.339);
+            const edli = Math.round(run.totalEdli || tot * 0.012);
+            const admin = Math.round(run.totalAdminCharge || tot * 0.012);
+
+            setChallanList((prev) =>
+              prev.map((c, i) =>
+                i === 0
+                  ? {
+                      ...c,
+                      epfAmount: ee + erEpf,
+                      epsAmount: erEps,
+                      edliAmount: edli,
+                      adminAmount: admin,
+                      totalAmount: tot,
+                    }
+                  : c
+              )
+            );
+          }
         }
       } catch (e) {
         console.warn('Dashboard run fetch failed', e);
       }
     };
     fetchRunData();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, selectedCompany]);
 
   const handleRecordPayment = async () => {
     setIsSavingPayment(true);

@@ -2,11 +2,12 @@ import { useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, Trash2, Plus, Check, Laptop, ShieldAlert, Award, FileText, CheckCircle2, Camera, AlertCircle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Plus, Check, Laptop, ShieldAlert, Award, FileText, CheckCircle2, Camera, AlertCircle, ShieldCheck, ArrowRight, IndianRupee } from 'lucide-react';
 import { employeesApi } from '@/api/employees';
 import { assetsApi } from '@/api/asset-management';
 import { payGradesApi } from '@/api/cost-grades';
 import { exitsApi } from '@/api/exits';
+import { salaryAssignmentsApi } from '@/api/payroll';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth-store';
 import type { ApprovalStatus, EmployeeStatus } from '@/api/types';
@@ -93,6 +95,17 @@ export default function EmployeeDetailPage() {
   });
 
   const targetEmpId = employee?.id || id;
+
+  const { data: salaryAssignmentsList = [] } = useQuery({
+    queryKey: ['employee-salary-assignments', targetEmpId],
+    queryFn: () => salaryAssignmentsApi.list(undefined, targetEmpId),
+    enabled: !!targetEmpId && targetEmpId !== 'me',
+  });
+
+  const activeSalaryAssignment =
+    salaryAssignmentsList.find((a: any) => a.status === 'ACTIVE') ||
+    (employee as any)?.salaryAssignment ||
+    salaryAssignmentsList[0];
 
   const { data: employeeExits = [] } = useQuery({
     queryKey: ['employee-exits', targetEmpId],
@@ -744,88 +757,222 @@ export default function EmployeeDetailPage() {
 
             {/* 9. SALARY */}
             <TabsContent value="salary" className="m-0 space-y-4">
-              <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <span>Compensation Salary Structure</span>
-                    {(employee.annualCtc || employee.basicSalary) && (
-                      <Badge className="bg-purple-600 text-white font-bold text-[10px]">
-                        Synced from Payroll
-                      </Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 text-xs space-y-3">
-                  {employee.annualCtc || employee.basicSalary ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-4 border-b pb-3 mb-3">
-                        <div>
-                          <p className="text-muted-foreground">Salary Grade / Band</p>
-                          <p className="font-semibold text-primary">
-                            {employee.salaryGrade || 'No Grade Specified'} {employee.salaryBand ? `(${employee.salaryBand})` : ''}
-                          </p>
+              {(() => {
+                const assignmentItems = activeSalaryAssignment?.details || [];
+                const earnings = assignmentItems.filter((it: any) => (it.salaryComponent?.type || it.type || 'EARNING') === 'EARNING');
+                const deductions = assignmentItems.filter((it: any) => (it.salaryComponent?.type || it.type) === 'DEDUCTION');
+                const annualCtcValue = Number(activeSalaryAssignment?.annualCtc || employee.annualCtc || 0);
+                const monthlyCtcValue = Number(activeSalaryAssignment?.monthlyCtc || Math.round(annualCtcValue / 12) || 0);
+                const totalEarnings = earnings.length > 0
+                  ? earnings.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0)
+                  : Number(employee.grossSalary) || monthlyCtcValue;
+                const totalDeductions = deductions.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0);
+                const netTakeHome = totalEarnings - totalDeductions;
+                const hasSalaryConfig = annualCtcValue > 0 || (employee.basicSalary !== undefined && employee.basicSalary !== null && employee.basicSalary > 0);
+
+                return (
+                  <Card className="shadow-2xs border-border/80">
+                    <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 border border-purple-500/20">
+                          <IndianRupee className="h-4 w-4" />
                         </div>
                         <div>
-                          <p className="text-muted-foreground">Total CTC (Annual Cost to Company)</p>
-                          <p className="font-semibold text-lg text-foreground">
-                            {employee.annualCtc ? `₹${employee.annualCtc.toLocaleString()} / annum` : 'No information available'}
+                          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <span>Compensation Salary Structure</span>
+                            {hasSalaryConfig && (
+                              <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] tracking-wide">
+                                ✓ Synced from Payroll (Live)
+                              </Badge>
+                            )}
+                            {activeSalaryAssignment?.status && (
+                              <Badge variant="outline" className={activeSalaryAssignment.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold' : 'bg-slate-500/10 text-slate-600 text-[10px]'}>
+                                {activeSalaryAssignment.status}
+                              </Badge>
+                            )}
+                          </CardTitle>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Live payroll compensation structure and monthly earnings & deductions breakdown.
                           </p>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        {typeof employee.basicSalary === 'number' && (
-                          <div className="flex justify-between border-b pb-1">
-                            <span className="text-muted-foreground">Basic Salary</span>
-                            <span className="font-semibold font-mono">₹{employee.basicSalary.toLocaleString()} / month</span>
-                          </div>
-                        )}
-                        {typeof employee.hra === 'number' && (
-                          <div className="flex justify-between border-b pb-1">
-                            <span className="text-muted-foreground">House Rent Allowance (HRA)</span>
-                            <span className="font-semibold font-mono">₹{employee.hra.toLocaleString()} / month</span>
-                          </div>
-                        )}
-                        {typeof employee.conveyance === 'number' && (
-                          <div className="flex justify-between border-b pb-1">
-                            <span className="text-muted-foreground">Conveyance Allowance</span>
-                            <span className="font-semibold font-mono">₹{employee.conveyance.toLocaleString()} / month</span>
-                          </div>
-                        )}
-                        {typeof employee.specialAllowance === 'number' && (
-                          <div className="flex justify-between border-b pb-1">
-                            <span className="text-muted-foreground">Special Allowance</span>
-                            <span className="font-semibold font-mono">₹{employee.specialAllowance.toLocaleString()} / month</span>
-                          </div>
-                        )}
-                        {typeof employee.otherAllowances === 'number' && (
-                          <div className="flex justify-between border-b pb-1">
-                            <span className="text-muted-foreground">Other Allowances</span>
-                            <span className="font-semibold font-mono">₹{employee.otherAllowances.toLocaleString()} / month</span>
-                          </div>
-                        )}
-                        {typeof employee.grossSalary === 'number' && (
-                          <div className="flex justify-between pt-1 text-sm font-bold text-emerald-600">
-                            <span>Gross Salary</span>
-                            <span className="font-mono">₹{employee.grossSalary.toLocaleString()} / month</span>
-                          </div>
-                        )}
-                        {employee.salaryEffectiveFrom && (
-                          <p className="text-[10px] text-muted-foreground italic pt-2">
-                            Effective Date: {new Date(employee.salaryEffectiveFrom).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-8 space-y-2">
-                      <p className="text-xs font-bold text-muted-foreground">No salary structure assigned</p>
-                      <Button size="sm" variant="outline" className="text-xs font-bold border-purple-500/30 text-purple-600">
-                        Select Salary Structure
+
+                      <Button asChild variant="outline" size="sm" className="h-8 text-xs font-bold gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950/50">
+                        <Link to="/payroll/structure">
+                          Manage in Payroll <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
                       </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    </CardHeader>
+                    <CardContent className="p-5 text-xs space-y-5">
+                      {hasSalaryConfig ? (
+                        <>
+                          {/* Top Metric Cards */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="p-3.5 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+                              <p className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider">Total Annual CTC</p>
+                              <div className="text-xl font-extrabold text-foreground font-mono">
+                                ₹{annualCtcValue.toLocaleString('en-IN')}
+                              </div>
+                              <span className="inline-block text-[10.5px] font-bold text-purple-600 bg-purple-500/10 px-2 py-0.5 rounded-md">
+                                {(annualCtcValue / 100000).toFixed(2)} LPA
+                              </span>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+                              <p className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider">Monthly CTC</p>
+                              <div className="text-xl font-extrabold text-emerald-600 font-mono">
+                                ₹{monthlyCtcValue.toLocaleString('en-IN')}
+                              </div>
+                              <p className="text-[10.5px] text-muted-foreground">Standard monthly company cost</p>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+                              <p className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider">Salary Grade / Band</p>
+                              <p className="text-sm font-bold text-primary truncate">
+                                {activeSalaryAssignment?.template?.name || employee.salaryGrade || (employee.grade ? `Grade ${employee.grade}` : 'Standard Structure')}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Effective: {new Date(activeSalaryAssignment?.effectiveFrom || employee.salaryEffectiveFrom || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Component Details Breakdown */}
+                          {assignmentItems.length > 0 ? (
+                            <div className="space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-bold text-foreground uppercase tracking-wider text-[11px]">
+                                  Itemized Salary Components ({assignmentItems.length})
+                                </h4>
+                              </div>
+                              <div className="border border-border/60 rounded-xl overflow-hidden shadow-xs">
+                                <Table>
+                                  <TableHeader className="bg-muted/40 text-[11px]">
+                                    <TableRow>
+                                      <TableHead className="py-2.5 px-3">Component</TableHead>
+                                      <TableHead className="py-2.5 px-3">Type</TableHead>
+                                      <TableHead className="py-2.5 px-3 text-right">Monthly (₹)</TableHead>
+                                      <TableHead className="py-2.5 px-3 text-right">Annual (₹)</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody className="text-xs">
+                                    {assignmentItems.map((item: any, idx: number) => {
+                                      const compName = item.salaryComponent?.name || item.name || 'Salary Component';
+                                      const compCode = item.salaryComponent?.code || '';
+                                      const compType = item.salaryComponent?.type || item.type || 'EARNING';
+                                      const monthly = Number(item.monthlyAmount || 0);
+                                      const annual = Number(item.annualAmount) || monthly * 12;
+
+                                      return (
+                                        <TableRow key={idx} className="hover:bg-muted/20 transition-colors">
+                                          <TableCell className="py-2.5 px-3 font-semibold text-foreground">
+                                            {compName} {compCode && <span className="text-muted-foreground font-mono text-[10px]">({compCode})</span>}
+                                          </TableCell>
+                                          <TableCell className="py-2.5 px-3">
+                                            <Badge variant="outline" className={compType === 'EARNING' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold' : 'bg-rose-500/10 text-rose-600 border-rose-500/30 text-[10px] font-bold'}>
+                                              {compType}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
+                                            ₹{monthly.toLocaleString('en-IN')}
+                                          </TableCell>
+                                          <TableCell className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                                            ₹{annual.toLocaleString('en-IN')}
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+
+                              {/* Net Take-Home Breakdown Summary */}
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-gradient-to-r from-emerald-500/5 via-indigo-500/5 to-purple-500/5 rounded-xl border border-border/60">
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Gross Monthly Earnings</span>
+                                  <div className="text-base font-extrabold text-emerald-600 font-mono">
+                                    ₹{totalEarnings.toLocaleString('en-IN')}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Total Monthly Deductions</span>
+                                  <div className="text-base font-extrabold text-rose-600 font-mono">
+                                    ₹{totalDeductions.toLocaleString('en-IN')}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Net Take-Home Salary</span>
+                                  <div className="text-base font-extrabold text-indigo-600 font-mono">
+                                    ₹{netTakeHome.toLocaleString('en-IN')}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Fallback Component List */
+                            <div className="space-y-2 border border-border/60 rounded-xl p-4 bg-muted/10">
+                              <h4 className="font-bold text-foreground uppercase tracking-wider text-[11px] mb-3">
+                                Standard Salary Components
+                              </h4>
+                              {typeof employee.basicSalary === 'number' && (
+                                <div className="flex justify-between border-b border-border/40 pb-2">
+                                  <span className="text-muted-foreground">Basic Salary</span>
+                                  <span className="font-semibold font-mono">₹{employee.basicSalary.toLocaleString('en-IN')} / month</span>
+                                </div>
+                              )}
+                              {typeof employee.hra === 'number' && (
+                                <div className="flex justify-between border-b border-border/40 pb-2">
+                                  <span className="text-muted-foreground">House Rent Allowance (HRA)</span>
+                                  <span className="font-semibold font-mono">₹{employee.hra.toLocaleString('en-IN')} / month</span>
+                                </div>
+                              )}
+                              {typeof employee.conveyance === 'number' && (
+                                <div className="flex justify-between border-b border-border/40 pb-2">
+                                  <span className="text-muted-foreground">Conveyance Allowance</span>
+                                  <span className="font-semibold font-mono">₹{employee.conveyance.toLocaleString('en-IN')} / month</span>
+                                </div>
+                              )}
+                              {typeof employee.specialAllowance === 'number' && (
+                                <div className="flex justify-between border-b border-border/40 pb-2">
+                                  <span className="text-muted-foreground">Special Allowance</span>
+                                  <span className="font-semibold font-mono">₹{employee.specialAllowance.toLocaleString('en-IN')} / month</span>
+                                </div>
+                              )}
+                              {typeof employee.otherAllowances === 'number' && (
+                                <div className="flex justify-between border-b border-border/40 pb-2">
+                                  <span className="text-muted-foreground">Other Allowances</span>
+                                  <span className="font-semibold font-mono">₹{employee.otherAllowances.toLocaleString('en-IN')} / month</span>
+                                </div>
+                              )}
+                              {typeof employee.grossSalary === 'number' && (
+                                <div className="flex justify-between pt-2 text-sm font-bold text-emerald-600">
+                                  <span>Gross Salary</span>
+                                  <span className="font-mono">₹{employee.grossSalary.toLocaleString('en-IN')} / month</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-12 space-y-3">
+                          <div className="p-3 bg-muted/40 rounded-full w-12 h-12 flex items-center justify-center mx-auto text-muted-foreground">
+                            <IndianRupee className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-foreground">No salary structure assigned</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Assign a compensation structure template to this employee in Payroll.</p>
+                          </div>
+                          <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5 h-9">
+                            <Link to="/payroll/structure">
+                              <Plus className="h-4 w-4" /> Assign Structure in Payroll
+                            </Link>
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </TabsContent>
 
             {/* 10. DOCUMENTS */}
