@@ -197,9 +197,10 @@ export const HCM_MODULES: HcmModule[] = [
     status: 'active',
     icon: GraduationCap,
     subItems: [
-      { key: 'training', label: 'Training Programs', path: '/learning/training' },
-      { key: 'courses', label: 'Course Catalog', path: '/learning/courses' },
-      { key: 'assessments', label: 'Assessments & Quizzes', path: '/learning/assessments' },
+      { key: 'employee-learning', label: 'Employee Learning Hub', path: '/learning/employee-learning' },
+      { key: 'course-catalog', label: 'Course Catalog', path: '/learning/course-catalog' },
+      { key: 'course-requests', label: 'Course Requests', path: '/learning/course-requests' },
+      { key: 'training-programs', label: 'Training Programs', path: '/learning/training-programs' },
       { key: 'certifications', label: 'Certifications', path: '/learning/certifications' },
       { key: 'skill-matrix', label: 'Skill Matrix', path: '/learning/skill-matrix' },
       { key: 'reports', label: 'LMS Reports', path: '/learning/reports' },
@@ -474,6 +475,21 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
     subItems: [
       { key: 'my-travel-bookings', label: 'My Travel Bookings', path: '/travel-expense/travel' },
       { key: 'my-expense-claims', label: 'My Expense Claims', path: '/travel-expense/claims' },
+    ],
+  },
+  {
+    key: 'learning',
+    label: 'Learning (LMS)',
+    path: '/learning',
+    phase: 5,
+    status: 'active',
+    icon: GraduationCap,
+    subItems: [
+      { key: 'employee-learning', label: 'Employee Learning Hub', path: '/learning/employee-learning' },
+      { key: 'course-catalog', label: 'Course Catalog', path: '/learning/course-catalog' },
+      { key: 'course-requests', label: 'Course Requests', path: '/learning/course-requests' },
+      { key: 'certifications', label: 'Certifications', path: '/learning/certifications' },
+      { key: 'skill-matrix', label: 'Skill Matrix', path: '/learning/skill-matrix' },
     ],
   },
   {

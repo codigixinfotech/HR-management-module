@@ -8,7 +8,6 @@ const ADMIN_ONLY_ROUTES = [
   '/payroll',
   '/compliance',
   '/performance',
-  '/learning',
   '/workforce',
   '/asset-management',
   '/ehs',
