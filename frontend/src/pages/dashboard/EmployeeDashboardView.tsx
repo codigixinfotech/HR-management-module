@@ -20,7 +20,9 @@ import {
   Plus,
   ExternalLink,
   Zap,
+  GraduationCap,
 } from 'lucide-react';
+import { notificationStore } from '@/utils/notificationStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -351,6 +353,31 @@ export function EmployeeDashboardView() {
             </Button>
           </CardHeader>
           <CardContent className="p-4 space-y-3">
+            {/* Assigned Training Activities from notificationStore */}
+            {notificationStore.getNotificationsForUser(user?.id).filter((n) => n.type === 'TRAINING').slice(0, 2).map((n) => (
+              <div
+                key={n.id}
+                className="p-3 rounded-xl border border-primary/30 bg-primary/5 flex items-center justify-between text-xs transition-colors hover:bg-primary/10"
+              >
+                <div className="space-y-1 pr-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] font-bold text-primary px-1.5 py-0.5 rounded bg-primary/20 flex items-center gap-1">
+                      <GraduationCap className="h-3 w-3" /> TRAINING
+                    </span>
+                    <h4 className="font-bold text-foreground text-xs">{n.title}</h4>
+                  </div>
+                  <p className="text-[10.5px] text-muted-foreground line-clamp-1">{n.message}</p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => navigate(n.actionUrl || '/learning/training-programs')}
+                  className="h-7 text-[10px] gap-1 bg-primary text-primary-foreground shrink-0 font-semibold"
+                >
+                  View Training
+                </Button>
+              </div>
+            ))}
+
             {assignedTasks.map((t: any) => (
               <div
                 key={t.id}

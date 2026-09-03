@@ -293,8 +293,10 @@ model Company {
   holidays   Holiday[]
   leaveTypes LeaveType[]
 
-  salaryComponents SalaryComponent[]
-  payrollRuns      PayrollRun[]
+  salaryComponents        SalaryComponent[]
+  salaryStructureTemplates SalaryStructureTemplate[]
+  salaryAssignments       EmployeeSalaryAssignment[]
+  payrollRuns             PayrollRun[]
   complianceTypes  ComplianceType[]
   complianceTasks  ComplianceTask[]
 
@@ -310,6 +312,9 @@ model Company {
   manpowerRequisitions ManpowerRequisition[]
   travelBookings       TravelBooking[]
   expenseClaims        ExpenseClaim[]
+  pfConfiguration      PfConfiguration?
+  pfMonthlyRuns        PfMonthlyRun[]
+  complianceSetups     ComplianceSetup[]
 
   @@map("companies")
 }
@@ -682,8 +687,10 @@ model Employee {
   leaveRequestsApproved LeaveRequest[]     @relation("LeaveRequestApprover")
 
   salaryComponents     EmployeeSalaryComponent[]
+  salaryAssignments    EmployeeSalaryAssignment[]
   payslips             Payslip[]
   filedComplianceTasks ComplianceTask[]
+  pfRecords            PfEmployeeRecord[]
 
   currentAssets     Asset[]
   assetAllocations  AssetAllocation[]
@@ -1251,23 +1258,123 @@ model AttendanceRecord {
 // Module: Payroll
 // ---------------------------------------------------------------------------
 
-model SalaryComponent {
-  id          String              @id @default(cuid())
-  companyId   String
-  code        String
-  name        String
-  type        SalaryComponentType
-  isStatutory Boolean             @default(false)
-  isActive    Boolean             @default(true)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+// ---------------------------------------------------------------------------
+// Module: Payroll
+// ---------------------------------------------------------------------------
 
-  company           Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  assignments       EmployeeSalaryComponent[]
-  payslipComponents PayslipComponent[]
+model SalaryComponent {
+  id                        String              @id @default(cuid())
+  companyId                 String
+  code                      String
+  name                      String
+  type                      SalaryComponentType
+  category                  String?             // Basic, HRA, Allowance, Statutory, Tax
+  description               String?
+  calculationType           String              @default("FIXED") // FIXED, PERCENTAGE, FORMULA, SLAB
+  calculationValue          Float               @default(0)
+  calculationBase           String?             // BASIC, GROSS, CTC
+  isStatutory               Boolean             @default(false)
+  isTaxable                 Boolean             @default(true)
+  includeInGross            Boolean             @default(true)
+  includeInCtc              Boolean             @default(true)
+  isPfApplicable            Boolean             @default(false)
+  isEsiApplicable           Boolean             @default(false)
+  isPtApplicable            Boolean             @default(false)
+  isTdsApplicable           Boolean             @default(false)
+  showOnPayslip             Boolean             @default(true)
+  isActive                  Boolean             @default(true)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  company                   Company                             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignments               EmployeeSalaryComponent[]
+  payslipComponents         PayslipComponent[]
+  templateItems             SalaryStructureTemplateItem[]
+  assignmentDetails         EmployeeSalaryComponentDetail[]
 
   @@unique([companyId, code])
   @@map("salary_components")
+}
+
+model SalaryStructureTemplate {
+  id              String   @id @default(cuid())
+  companyId       String
+  name            String
+  code            String
+  description     String?
+  currency        String   @default("INR")
+  payFrequency    String   @default("MONTHLY")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company         Company                             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items           SalaryStructureTemplateItem[]
+  assignments     EmployeeSalaryAssignment[]
+
+  @@unique([companyId, code])
+  @@map("salary_structure_templates")
+}
+
+model SalaryStructureTemplateItem {
+  id                String   @id @default(cuid())
+  templateId        String
+  salaryComponentId String
+  calculationType   String   @default("FIXED") // FIXED, PERCENTAGE
+  calculationValue  Float    @default(0)
+  calculationBase   String?  // BASIC, GROSS, CTC
+  monthlyAmount     Float    @default(0)
+  annualAmount      Float    @default(0)
+  order             Int      @default(0)
+
+  template          SalaryStructureTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  salaryComponent   SalaryComponent         @relation(fields: [salaryComponentId], references: [id], onDelete: Cascade)
+
+  @@map("salary_structure_template_items")
+}
+
+model EmployeeSalaryAssignment {
+  id                 String    @id @default(cuid())
+  companyId          String
+  employeeId         String
+  templateId         String?
+  annualCtc          Float
+  monthlyCtc         Float
+  grossSalary        Float     @default(0)
+  netSalary          Float     @default(0)
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  status             String    @default("ACTIVE") // DRAFT, SUBMITTED, APPROVED, ACTIVE, HISTORICAL
+  revisionReason     String?
+  previousCtc        Float?
+  newCtc             Float?
+  increasePercentage Float?
+  approvedBy         String?
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company            Company                         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee           Employee                        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  template           SalaryStructureTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  details            EmployeeSalaryComponentDetail[]
+
+  @@map("employee_salary_assignments")
+}
+
+model EmployeeSalaryComponentDetail {
+  id                String   @id @default(cuid())
+  assignmentId      String
+  salaryComponentId String
+  monthlyAmount     Float
+  annualAmount      Float
+  calculationType   String   @default("FIXED")
+  calculationValue  Float    @default(0)
+
+  assignment        EmployeeSalaryAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  salaryComponent   SalaryComponent          @relation(fields: [salaryComponentId], references: [id], onDelete: Cascade)
+
+  @@map("employee_salary_component_details")
 }
 
 model EmployeeSalaryComponent {
@@ -2079,5 +2186,289 @@ model ExpenseClaim {
   @@index([employeeId])
   @@index([travelBookingId])
   @@map("expense_claims")
+}
+
+// ---------------------------------------------------------------------------
+// Module: Compliance - Provident Fund (PF) Enterprise Suite
+// ---------------------------------------------------------------------------
+
+enum PfRunState {
+  PAYROLL_PENDING
+  PF_RUN_CREATED
+  CALCULATING
+  CALCULATED
+  VALIDATION_FAILED
+  READY_FOR_ECR
+  ECR_GENERATED
+  ECR_SUBMITTED
+  CHALLAN_CREATED
+  PAYMENT_PENDING
+  PAID
+  RECONCILIATION_PENDING
+  COMPLETED
+}
+
+model PfConfiguration {
+  id                  String   @id @default(cuid())
+  companyId           String   @unique
+  establishmentCode  String   @default("DLCPM0001234000")
+  epfoOfficeCode      String   @default("DLCPM")
+  pfWageCeiling       Decimal  @default(15000) @db.Decimal(12, 2)
+  epsWageCeiling      Decimal  @default(15000) @db.Decimal(12, 2)
+  edliWageCeiling     Decimal  @default(15000) @db.Decimal(12, 2)
+  employeePfRate      Decimal  @default(12.00) @db.Decimal(5, 2)
+  employerEpsRate     Decimal  @default(8.33) @db.Decimal(5, 2)
+  employerEpfRate     Decimal  @default(3.67) @db.Decimal(5, 2)
+  edliRate            Decimal  @default(0.50) @db.Decimal(5, 2)
+  adminRate           Decimal  @default(0.50) @db.Decimal(5, 2)
+  minAdminCharge      Decimal  @default(500) @db.Decimal(12, 2)
+  epsMaxCap           Decimal  @default(1250) @db.Decimal(12, 2)
+  edliMaxCap          Decimal  @default(75) @db.Decimal(12, 2)
+  edliExempt          Boolean  @default(false)
+  account22Applicable Boolean  @default(false)
+  account22Rate       Decimal  @default(0.005) @db.Decimal(6, 4)
+  account22Min        Decimal  @default(1.00) @db.Decimal(12, 2)
+  allowHigherWage     Boolean  @default(true)
+  restrictEpsOver58   Boolean  @default(true)
+  policyVersion       String   @default("EPFO_2026_V1")
+  effectiveFrom       DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("pf_configurations")
+}
+
+model PfMonthlyRun {
+  id                 String       @id @default(cuid())
+  companyId          String
+  period             String       // e.g. "2026-09"
+  status             PfRunState   @default(PF_RUN_CREATED)
+  eligibleStaffCount Int          @default(0)
+  totalGrossWage     Decimal      @default(0) @db.Decimal(14, 2)
+  totalPfWage        Decimal      @default(0) @db.Decimal(14, 2)
+  totalEpsWage       Decimal      @default(0) @db.Decimal(14, 2)
+  totalEdliWage      Decimal      @default(0) @db.Decimal(14, 2)
+  totalEePf          Decimal      @default(0) @db.Decimal(14, 2)
+  totalVpf           Decimal      @default(0) @db.Decimal(14, 2)
+  totalErEpf         Decimal      @default(0) @db.Decimal(14, 2)
+  totalErEps         Decimal      @default(0) @db.Decimal(14, 2)
+  totalEdli          Decimal      @default(0) @db.Decimal(14, 2)
+  totalAdminCharge   Decimal      @default(0) @db.Decimal(14, 2)
+  totalAcct22Charge  Decimal      @default(0) @db.Decimal(14, 2)
+  totalLiability     Decimal      @default(0) @db.Decimal(14, 2)
+  remarks            String?
+  calculatedAt       DateTime?
+  validatedAt        DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeRecords PfEmployeeRecord[]
+  validations     PfValidation[]
+  returns         PfReturn[]
+  challans        PfChallan[]
+  reconciliations PfReconciliation[]
+  auditLogs       PfAuditLog[]
+
+  @@unique([companyId, period])
+  @@index([companyId])
+  @@index([period])
+  @@index([status])
+  @@map("pf_monthly_runs")
+}
+
+model PfEmployeeRecord {
+  id                String   @id @default(cuid())
+  pfRunId           String
+  employeeId        String
+  uan               String
+  memberId          String?
+  employeeName      String
+  period            String
+  grossWage         Decimal  @default(0) @db.Decimal(12, 2)
+  basicWage         Decimal  @default(0) @db.Decimal(12, 2)
+  daWage            Decimal  @default(0) @db.Decimal(12, 2)
+  pfWage            Decimal  @default(0) @db.Decimal(12, 2)
+  epsWage           Decimal  @default(0) @db.Decimal(12, 2)
+  edliWage          Decimal  @default(0) @db.Decimal(12, 2)
+  ncpDays           Int      @default(0)
+  employeePf        Decimal  @default(0) @db.Decimal(12, 2)
+  vpfAmount         Decimal  @default(0) @db.Decimal(12, 2)
+  employerEpf       Decimal  @default(0) @db.Decimal(12, 2)
+  employerEps       Decimal  @default(0) @db.Decimal(12, 2)
+  edli              Decimal  @default(0) @db.Decimal(12, 2)
+  adminCharge       Decimal  @default(0) @db.Decimal(12, 2)
+  refundOfAdvance   Decimal  @default(0) @db.Decimal(12, 2)
+  epsEligible       Boolean  @default(true)
+  edliApplicable    Boolean  @default(true)
+  higherWage        Boolean  @default(false)
+  policyVersion     String   @default("EPFO_2026_V1")
+  calculationStatus String   @default("COMPUTED")
+  calculatedAt      DateTime @default(now())
+
+  pfRun    PfMonthlyRun @relation(fields: [pfRunId], references: [id], onDelete: Cascade)
+  employee Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([pfRunId])
+  @@index([employeeId])
+  @@index([uan])
+  @@map("pf_employee_records")
+}
+
+model PfValidation {
+  id         String   @id @default(cuid())
+  pfRunId    String
+  severity   String   // WARNING, ERROR, CRITICAL
+  ruleCode   String   // UAN_MISSING, AADHAAR_NOT_LINKED, NCP_MISMATCH, WAGE_CEILING_EXCEEDED
+  message    String
+  employeeId String?
+  details    Json?
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  pfRun PfMonthlyRun @relation(fields: [pfRunId], references: [id], onDelete: Cascade)
+
+  @@index([pfRunId])
+  @@map("pf_validations")
+}
+
+model PfReturn {
+  id              String    @id @default(cuid())
+  pfRunId         String
+  returnType      String    @default("ECR_V2")
+  period          String
+  fileName        String
+  fileContent     String    @db.LongText
+  recordCount     Int       @default(0)
+  totalPfWageSum  Decimal   @default(0) @db.Decimal(14, 2)
+  totalEeRemitted Decimal   @default(0) @db.Decimal(14, 2)
+  totalErRemitted Decimal   @default(0) @db.Decimal(14, 2)
+  status          String    @default("GENERATED") // GENERATED, DOWNLOADED, SUBMITTED
+  submittedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  pfRun PfMonthlyRun @relation(fields: [pfRunId], references: [id], onDelete: Cascade)
+
+  @@index([pfRunId])
+  @@map("pf_returns")
+}
+
+model PfChallan {
+  id                 String      @id @default(cuid())
+  pfRunId            String
+  trrnNumber         String?     @unique // Official EPFO Portal issued TRRN (entered or synced)
+  period             String
+  account1Amount     Decimal     @default(0) @db.Decimal(14, 2) // EPF EE + ER
+  account2Amount     Decimal     @default(0) @db.Decimal(14, 2) // Admin Charges
+  account10Amount    Decimal     @default(0) @db.Decimal(14, 2) // EPS ER
+  account21Amount    Decimal     @default(0) @db.Decimal(14, 2) // EDLI Insurance
+  account22Amount    Decimal     @default(0) @db.Decimal(14, 2) // EDLI Admin/Inspection
+  totalChallanAmount Decimal     @default(0) @db.Decimal(14, 2)
+  status             String      @default("PENDING") // PENDING, GENERATED_IN_PORTAL, PAID, VERIFIED
+  dueDate            DateTime?
+  challanReceiptUrl  String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  pfRun    PfMonthlyRun @relation(fields: [pfRunId], references: [id], onDelete: Cascade)
+  payments PfPayment[]
+
+  @@index([pfRunId])
+  @@index([trrnNumber])
+  @@map("pf_challans")
+}
+
+model PfPayment {
+  id            String   @id @default(cuid())
+  pfChallanId   String
+  utrNumber     String   @unique
+  crnNumber     String?
+  paidAmount    Decimal  @default(0) @db.Decimal(14, 2)
+  paymentMode   String   @default("NET_BANKING")
+  bankName      String?
+  paymentDate   DateTime
+  paymentStatus String   @default("SUCCESS")
+  receiptUrl    String?
+  remarks       String?
+  createdAt     DateTime @default(now())
+
+  pfChallan PfChallan @relation(fields: [pfChallanId], references: [id], onDelete: Cascade)
+
+  @@index([pfChallanId])
+  @@index([utrNumber])
+  @@map("pf_payments")
+}
+
+model PfReconciliation {
+  id                 String   @id @default(cuid())
+  pfRunId            String
+  period             String
+  payrollGlLiability Decimal  @default(0) @db.Decimal(14, 2)
+  pfEngineCalc       Decimal  @default(0) @db.Decimal(14, 2)
+  ecrReturnSum       Decimal  @default(0) @db.Decimal(14, 2)
+  challanTrrnTotal   Decimal  @default(0) @db.Decimal(14, 2)
+  bankPaidAmount     Decimal  @default(0) @db.Decimal(14, 2)
+  variance           Decimal  @default(0) @db.Decimal(14, 2)
+  isReconciled       Boolean  @default(false)
+  discrepancies      Json?
+  reconciledAt       DateTime @default(now())
+
+  pfRun PfMonthlyRun @relation(fields: [pfRunId], references: [id], onDelete: Cascade)
+
+  @@index([pfRunId])
+  @@map("pf_reconciliations")
+}
+
+model PfAuditLog {
+  id        String   @id @default(cuid())
+  pfRunId   String
+  fromState String
+  toState   String
+  actionBy  String   @default("SYSTEM")
+  remarks   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  pfRun PfMonthlyRun @relation(fields: [pfRunId], references: [id], onDelete: Cascade)
+
+  @@index([pfRunId])
+  @@map("pf_audit_logs")
+}
+
+model ComplianceSetup {
+  id                             String   @id @default(cuid())
+  companyId                      String
+  entityId                       String?
+  state                          String   @default("Maharashtra")
+  establishmentType              String   @default("Commercial Establishment")
+  financialYear                  String   @default("2026-2027")
+  effectiveFrom                  DateTime @default(now())
+  version                        String   @default("COMPLIANCE-2026-V1")
+  status                         String   @default("Active")
+
+  pfApplicable                   Boolean  @default(true)
+  esicApplicable                 Boolean  @default(true)
+  ptApplicable                   Boolean  @default(true)
+  tdsApplicable                  Boolean  @default(true)
+  labourComplianceApplicable     Boolean  @default(true)
+
+  payrollComplianceFrequency     String   @default("Monthly")
+  complianceCalendarEnabled     Boolean  @default(true)
+  dueDateNotificationsEnabled    Boolean  @default(true)
+  complianceValidationEnabled    Boolean  @default(true)
+  requireComplianceBeforePayroll Boolean  @default(true)
+
+  createdBy                      String   @default("Admin User")
+  updatedBy                      String   @default("Admin User")
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([version])
+  @@map("compliance_setups")
 }
 

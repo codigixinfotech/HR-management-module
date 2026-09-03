@@ -1,5 +1,16 @@
 import { apiClient } from '@/lib/api-client';
-import type { ComplianceStatus, ComplianceTask, ComplianceType, PaginatedResult } from './types';
+import type { ComplianceSetupRecord, ComplianceStatus, ComplianceTask, ComplianceType, PaginatedResult } from './types';
+
+export const complianceSetupApi = {
+  get: async (companyId?: string) =>
+    (await apiClient.get<ComplianceSetupRecord>('/compliance/setup', { params: { companyId } })).data,
+  save: async (payload: Partial<ComplianceSetupRecord>) =>
+    (await apiClient.post<ComplianceSetupRecord>('/compliance/setup', payload)).data,
+  update: async (id: string, payload: Partial<ComplianceSetupRecord>) =>
+    (await apiClient.put<ComplianceSetupRecord>(`/compliance/setup/${id}`, payload)).data,
+  getHistory: async (companyId?: string) =>
+    (await apiClient.get<ComplianceSetupRecord[]>('/compliance/setup/history', { params: { companyId } })).data,
+};
 
 export const complianceTypesApi = {
   list: async (companyId?: string) =>
@@ -22,3 +33,4 @@ export const complianceTasksApi = {
   ) => (await apiClient.patch<ComplianceTask>(`/compliance/tasks/${id}/status`, payload)).data,
   remove: async (id: string) => (await apiClient.delete(`/compliance/tasks/${id}`)).data,
 };
+

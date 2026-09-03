@@ -53,13 +53,13 @@ export default function App() {
           <Route path="/careers/job/:id" element={<CareersJobDetailPage />} />
           <Route path="/candidate-assessment/:token" element={<CandidateAssessmentPage />} />
 
-          {/* Public Landing Page — No login required */}
-          <Route path="/landing" element={<LandingPage />} />
+          {/* Root & Public Landing Page — No login required */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/landing" element={<Navigate to="/" replace />} />
           <Route path="/landing/:tab" element={<LandingPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               
               {/* Dashboard Routes */}
               <Route path="/dashboard" element={<DashboardPage />} />

@@ -247,11 +247,61 @@ export class EmployeesService implements OnModuleInit {
     }
 
     const positionHistory = await this.getPositionHistory(employee.id);
+
+    // Auto-sync latest active salary assignment from Payroll module
+    let latestSalaryAssignment: any = null;
+    try {
+      latestSalaryAssignment = await this.prisma.employeeSalaryAssignment.findFirst({
+        where: { employeeId: employee.id, status: 'ACTIVE' },
+        include: {
+          template: true,
+          details: { include: { salaryComponent: true } },
+        },
+        orderBy: { effectiveFrom: 'desc' },
+      });
+
+      if (latestSalaryAssignment) {
+        let basic = 0;
+        let hra = 0;
+        let conveyance = 0;
+        let special = 0;
+        let others = 0;
+        let gross = 0;
+
+        for (const d of (latestSalaryAssignment.details || [])) {
+          const code = (d.salaryComponent?.code || '').toUpperCase();
+          const type = (d.salaryComponent?.type || d.calculationType || 'EARNING').toUpperCase();
+          const amt = Number(d.monthlyAmount) || 0;
+          if (type === 'EARNING') {
+            gross += amt;
+            if (code === 'BASIC') basic = amt;
+            else if (code === 'HRA') hra = amt;
+            else if (code === 'CONVEYANCE') conveyance = amt;
+            else if (code === 'SPECIAL' || code === 'SA') special = amt;
+            else others += amt;
+          }
+        }
+
+        employee.annualCtc = latestSalaryAssignment.annualCtc;
+        employee.grossSalary = gross > 0 ? gross : latestSalaryAssignment.monthlyCtc;
+        employee.basicSalary = basic > 0 ? basic : Math.round(latestSalaryAssignment.monthlyCtc * 0.5);
+        employee.hra = hra > 0 ? hra : Math.round(latestSalaryAssignment.monthlyCtc * 0.25);
+        employee.conveyance = conveyance;
+        employee.specialAllowance = special;
+        employee.otherAllowances = others;
+        employee.salaryEffectiveFrom = latestSalaryAssignment.effectiveFrom;
+        employee.salaryGrade = latestSalaryAssignment.template?.name || latestSalaryAssignment.template?.code || employee.salaryGrade;
+      }
+    } catch (err) {
+      // Non-blocking fallback
+    }
+
     return {
       ...employee,
       grade: resolvedGrade,
       level: resolvedLevel,
       positionHistory,
+      salaryAssignment: latestSalaryAssignment,
     };
   }
 

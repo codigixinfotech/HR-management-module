@@ -1,21 +1,28 @@
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, Clock, ShieldCheck } from 'lucide-react';
-import { companiesApi } from '@/api/organization';
 import { complianceTasksApi } from '@/api/compliance';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useCompany } from '@/context/CompanyContext';
 import { ComplianceTypesCard } from './ComplianceTypesCard';
 import { ComplianceCalendarTab } from './ComplianceCalendarTab';
 import { ComplianceReportsTab } from './ComplianceReportsTab';
+import { ComplianceSetupTab } from './ComplianceSetupTab';
+import { PfModule } from './pf/PfModule';
+import { PtModule } from './pt/PtModule';
+import { EsicModule } from './esic/EsicModule';
+import { TdsModule } from './tds/TdsModule';
+import { LabourComplianceModule } from './labour/LabourComplianceModule';
+import { GovernmentReturnsModule } from './returns/GovernmentReturnsModule';
 
 export default function CompliancePage() {
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
-  const activeTab = routeTab || searchParams.get('tab') || 'dashboard';
+  const activeTab = routeTab || searchParams.get('tab') || 'setup';
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const companyId = companies?.[0]?.id;
+  const { activeCompanyId, companies } = useCompany();
+  const companyId = searchParams.get('companyId') || activeCompanyId || companies?.[0]?.id;
 
   const { data: tasksPage } = useQuery({
     queryKey: ['compliance-tasks', companyId],
@@ -29,22 +36,28 @@ export default function CompliancePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={ShieldCheck}
-        title="Statutory Compliance & Legal Returns"
-        description="Compliance calendar for PF, ESIC, Professional Tax, TDS and other statutory filings"
-        badge={overdue > 0 ? `${overdue} overdue` : 'All up to date'}
-        badgeVariant={overdue > 0 ? 'warning' : 'success'}
-      />
+      {!['setup', 'pf', 'ptax', 'esic', 'itax', 'labour', 'returns', 'reports'].includes(activeTab) && (
+        <>
+          <PageHeader
+            icon={ShieldCheck}
+            title="Statutory Compliance & Legal Returns"
+            description="Compliance calendar for PF, ESIC, Professional Tax, TDS and other statutory filings"
+            badge={overdue > 0 ? `${overdue} overdue` : 'All up to date'}
+            badgeVariant={overdue > 0 ? 'warning' : 'success'}
+          />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={ShieldCheck} label="Total Tasks" value={tasks.length} accent="primary" />
-        <StatCard icon={CheckCircle2} label="Filed" value={filed} accent="success" />
-        <StatCard icon={Clock} label="Pending" value={pending} accent="warning" />
-        <StatCard icon={AlertCircle} label="Overdue" value={overdue} accent="destructive" />
-      </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <StatCard icon={ShieldCheck} label="Total Tasks" value={tasks.length} accent="primary" />
+            <StatCard icon={CheckCircle2} label="Filed" value={filed} accent="success" />
+            <StatCard icon={Clock} label="Pending" value={pending} accent="warning" />
+            <StatCard icon={AlertCircle} label="Overdue" value={overdue} accent="destructive" />
+          </div>
+        </>
+      )}
 
       {/* Render Dedicated Subpage based on activeTab */}
+      {activeTab === 'setup' && <ComplianceSetupTab companyId={companyId} companies={companies} />}
+
       {activeTab === 'dashboard' && (
         <div className="space-y-4">
           <ComplianceTypesCard companyId={companyId} />
@@ -52,61 +65,19 @@ export default function CompliancePage() {
         </div>
       )}
 
-      {activeTab === 'pf' && (
-        <ComplianceCalendarTab
-          companyId={companyId}
-          title="Provident Fund"
-          description="PF monthly returns and filings"
-          filter={(t) => t.complianceType?.code === 'PF_RETURN'}
-        />
-      )}
+      {activeTab === 'pf' && <PfModule companyId={companyId} companies={companies} />}
 
-      {activeTab === 'esic' && (
-        <ComplianceCalendarTab
-          companyId={companyId}
-          title="ESIC"
-          description="Employee State Insurance monthly filings"
-          filter={(t) => t.complianceType?.code === 'ESIC_RETURN'}
-        />
-      )}
+      {activeTab === 'esic' && <EsicModule companyId={companyId} companies={companies} />}
 
-      {activeTab === 'ptax' && (
-        <ComplianceCalendarTab
-          companyId={companyId}
-          title="Professional Tax"
-          description="State professional tax returns"
-          filter={(t) => t.complianceType?.code === 'PT_RETURN'}
-        />
-      )}
+      {activeTab === 'ptax' && <PtModule companyId={companyId} companies={companies} />}
 
-      {activeTab === 'itax' && (
-        <ComplianceCalendarTab
-          companyId={companyId}
-          title="Income Tax (TDS)"
-          description="Quarterly TDS returns"
-          filter={(t) => t.complianceType?.code === 'TDS_RETURN'}
-        />
-      )}
+      {activeTab === 'itax' && <TdsModule companyId={companyId} companies={companies} />}
 
-      {activeTab === 'labour' && (
-        <ComplianceCalendarTab
-          companyId={companyId}
-          title="Labour Compliance"
-          description="POSH, contract labour and other non-statutory-return audits"
-          filter={(t) => t.complianceType?.category !== 'STATUTORY_RETURN'}
-        />
-      )}
+      {activeTab === 'labour' && <LabourComplianceModule companyId={companyId} companies={companies} />}
 
-      {activeTab === 'returns' && (
-        <ComplianceCalendarTab
-          companyId={companyId}
-          title="Government Returns"
-          description="All statutory return filings across PF, ESIC, PT and TDS"
-          filter={(t) => t.complianceType?.category === 'STATUTORY_RETURN'}
-        />
-      )}
+      {activeTab === 'returns' && <GovernmentReturnsModule companyId={companyId} companies={companies} />}
 
-      {activeTab === 'reports' && <ComplianceReportsTab companyId={companyId} />}
+      {activeTab === 'reports' && <ComplianceReportsTab companyId={companyId} companies={companies} />}
     </div>
   );
 }

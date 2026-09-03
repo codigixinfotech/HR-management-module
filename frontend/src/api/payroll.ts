@@ -2,13 +2,41 @@ import { apiClient } from '@/lib/api-client';
 import type { EmployeeSalaryComponent, PayrollRun, Payslip, PayrollRunStatus, SalaryComponent } from './types';
 
 export const salaryComponentsApi = {
-  list: async (companyId?: string) =>
-    (await apiClient.get<SalaryComponent[]>('/payroll/salary-components', { params: { companyId } })).data,
+  list: async (companyId?: string, search?: string, type?: string) =>
+    (await apiClient.get<SalaryComponent[]>('/payroll/salary-components', { params: { companyId, search, type } })).data,
   create: async (payload: Partial<SalaryComponent>) =>
     (await apiClient.post<SalaryComponent>('/payroll/salary-components', payload)).data,
   update: async (id: string, payload: Partial<SalaryComponent>) =>
     (await apiClient.patch<SalaryComponent>(`/payroll/salary-components/${id}`, payload)).data,
   remove: async (id: string) => (await apiClient.delete(`/payroll/salary-components/${id}`)).data,
+};
+
+export const salaryTemplatesApi = {
+  list: async (companyId?: string) =>
+    (await apiClient.get<any[]>('/payroll/salary-templates', { params: { companyId } })).data,
+  get: async (id: string) =>
+    (await apiClient.get<any>(`/payroll/salary-templates/${id}`)).data,
+  create: async (payload: any) =>
+    (await apiClient.post<any>('/payroll/salary-templates', payload)).data,
+  update: async (id: string, payload: any) =>
+    (await apiClient.put<any>(`/payroll/salary-templates/${id}`, payload)).data,
+  remove: async (id: string) =>
+    (await apiClient.delete(`/payroll/salary-templates/${id}`)).data,
+};
+
+export const salaryAssignmentsApi = {
+  list: async (companyId?: string, employeeId?: string, status?: string) =>
+    (await apiClient.get<any[]>('/payroll/salary-assignments', { params: { companyId, employeeId, status } })).data,
+  listRevisions: async (companyId?: string) =>
+    (await apiClient.get<any[]>('/payroll/salary-assignments/revisions', { params: { companyId } })).data,
+  get: async (id: string) =>
+    (await apiClient.get<any>(`/payroll/salary-assignments/${id}`)).data,
+  assign: async (payload: any) =>
+    (await apiClient.post<any>('/payroll/salary-assignments', payload)).data,
+  update: async (id: string, payload: any) =>
+    (await apiClient.put<any>(`/payroll/salary-assignments/${id}`, payload)).data,
+  remove: async (id: string) =>
+    (await apiClient.delete<any>(`/payroll/salary-assignments/${id}`)).data,
 };
 
 export const salaryStructureApi = {

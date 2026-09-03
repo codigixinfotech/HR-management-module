@@ -35,6 +35,43 @@ export class AttendanceService {
     return Boolean(isRoleAdmin || isPrimaryAdmin);
   }
 
+  private computeBackendBiometricSimilarity(descA: number[], descB: number[]): number {
+    if (!descA || !descB || descA.length !== 128 || descB.length !== 128) return 0;
+    let dotProduct = 0;
+    let normASq = 0;
+    let normBSq = 0;
+
+    for (let i = 0; i < 128; i++) {
+      const a = descA[i];
+      const b = descB[i];
+      if (typeof a !== 'number' || typeof b !== 'number' || !isFinite(a) || !isFinite(b)) return 0;
+      dotProduct += a * b;
+      normASq += a * a;
+      normBSq += b * b;
+    }
+
+    const denominator = Math.sqrt(normASq) * Math.sqrt(normBSq);
+    if (denominator === 0) return 0;
+
+    const cosineSim = dotProduct / denominator;
+    return parseFloat(Math.max(0, Math.min(100, cosineSim * 100)).toFixed(1));
+  }
+
+  private validate128dVector(vec: any): number[] | null {
+    if (!vec) return null;
+    let arr = vec;
+    if (typeof vec === 'string') {
+      try {
+        arr = JSON.parse(vec);
+      } catch {
+        return null;
+      }
+    }
+    if (!Array.isArray(arr) || arr.length !== 128) return null;
+    if (arr.some((v) => typeof v !== 'number' || !isFinite(v))) return null;
+    return arr;
+  }
+
   private computeCheckInMinsInIst(checkInDate: Date): number {
     try {
       const formatter = new Intl.DateTimeFormat('en-US', {
@@ -333,13 +370,99 @@ export class AttendanceService {
       );
     }
 
+    // SECURITY RULE: Independent Backend Biometric Verification & Vector Re-Validation
+    if (dto.verificationMethod === 'Biometric Face ID' || dto.faceVerificationStatus) {
+      if (dto.faceVerificationStatus !== 'VERIFIED') {
+        throw new BadRequestException(
+          `Attendance punch rejected: Biometric face verification failed (${dto.faceVerificationStatus || 'UNVERIFIED'}).`
+        );
+      }
+
+      // 1. Validate Enrolled Reference Face Template for Employee
+      const enrolledVector = this.validate128dVector(emp.faceTemplate);
+      if (!enrolledVector) {
+        throw new BadRequestException(
+          `Attendance punch rejected: Employee "${emp.firstName} ${emp.lastName}" has no valid enrolled 128-D face template.`
+        );
+      }
+
+      // 2. Parse & Validate Captured Live Face Descriptor
+      const liveVector = this.validate128dVector(dto.liveFaceDescriptor);
+      if (!liveVector) {
+        throw new BadRequestException(
+          `Attendance punch rejected: Captured live face descriptor is missing or invalid.`
+        );
+      }
+
+      // 3. Independent Backend 128-D Cosine Similarity Calculation
+      const realSimilarity = this.computeBackendBiometricSimilarity(liveVector, enrolledVector);
+      console.log(`[BACKEND BIOMETRIC VERIFICATION] Employee: ${emp.firstName} ${emp.lastName} (${emp.id}) | Real Score: ${realSimilarity}%`);
+
+      const BACKEND_THRESHOLD = 70.0;
+      if (realSimilarity < BACKEND_THRESHOLD) {
+        throw new BadRequestException(
+          `Attendance punch rejected: Backend biometric verification failed (Score: ${realSimilarity}%, Cutoff: ${BACKEND_THRESHOLD}%).`
+        );
+      }
+
+      // Store real calculated score in DTO
+      dto.faceMatchScore = realSimilarity;
+    }
+
     const validEmployeeId = emp.id;
     const validCompanyId = emp.companyId;
 
     const rawDate = new Date(dto.date);
     const normalizedDate = new Date(Date.UTC(rawDate.getUTCFullYear(), rawDate.getUTCMonth(), rawDate.getUTCDate()));
 
-    const checkInDate = dto.checkIn ? new Date(dto.checkIn) : new Date();
+    const startOfDay = new Date(Date.UTC(rawDate.getUTCFullYear(), rawDate.getUTCMonth(), rawDate.getUTCDate(), 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(rawDate.getUTCFullYear(), rawDate.getUTCMonth(), rawDate.getUTCDate(), 23, 59, 59));
+
+    // Find today's existing attendance record for this employee
+    const existingRecord = await this.prisma.attendanceRecord.findFirst({
+      where: {
+        employeeId: validEmployeeId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+
+    // 1. Explicitly separate Check-In and Check-Out timestamps
+    let checkInDate: Date;
+    let checkOutDate: Date | null = null;
+
+    if (dto.punchType === 'CHECK_OUT') {
+      // On Check-Out: Preserve original Check-In timestamp and reject if no Check-In exists
+      const existingCheckIn = existingRecord?.checkIn || (dto.checkIn ? new Date(dto.checkIn) : null);
+      if (!existingCheckIn) {
+        throw new BadRequestException(
+          `Cannot Check-Out for "${emp.firstName} ${emp.lastName}": No existing Check-In record found for today (${dto.date}). Please complete Check-In first.`
+        );
+      }
+      checkInDate = new Date(existingCheckIn);
+      checkOutDate = dto.checkOut ? new Date(dto.checkOut) : new Date();
+
+      if (checkOutDate.getTime() < checkInDate.getTime()) {
+        throw new BadRequestException(
+          `Invalid Check-Out time: Check-Out timestamp (${checkOutDate.toLocaleTimeString()}) cannot be earlier than Check-In timestamp (${checkInDate.toLocaleTimeString()}).`
+        );
+      }
+    } else {
+      // On Check-In: Set new Check-In timestamp; keep Check-Out null
+      checkInDate = dto.checkIn ? new Date(dto.checkIn) : new Date();
+      checkOutDate = dto.checkOut
+        ? new Date(dto.checkOut)
+        : existingRecord?.checkOut
+        ? new Date(existingRecord.checkOut)
+        : null;
+    }
+
+    let workedMinutes: number | undefined = undefined;
+    if (checkInDate && checkOutDate) {
+      workedMinutes = Math.max(0, Math.round((checkOutDate.getTime() - checkInDate.getTime()) / 60000));
+    }
 
     // Default shift start time: 09:30 AM (570 minutes)
     let shiftStartHour = 9;
@@ -360,23 +483,24 @@ export class AttendanceService {
     const computedStatus: any = checkInTotalMins <= shiftStartTotalMins ? 'PRESENT' : 'LATE_ARRIVING';
 
     console.log('[ATTENDANCE STATUS EVALUATION]', {
+      punchType: dto.punchType,
       checkInTime: checkInDate.toISOString(),
-      checkInTotalMins,
-      shiftStart: `${shiftStartHour}:${shiftStartMin}`,
-      shiftStartTotalMins,
+      checkOutTime: checkOutDate ? checkOutDate.toISOString() : 'NULL',
+      workedMinutes,
       computedStatus,
     });
 
     // Pass PRESENT to MySQL column to comply with DB ENUM constraint; API layer dynamically returns LATE_ARRIVING
     const dbStatus = (computedStatus === 'LATE_ARRIVING' || computedStatus === 'PRESENT') ? 'PRESENT' : computedStatus;
 
-    const data = {
+    const data: any = {
       companyId: validCompanyId,
       employeeId: validEmployeeId,
-      date: normalizedDate,
+      date: existingRecord?.date || normalizedDate,
       status: dbStatus as any,
       checkIn: checkInDate,
-      checkOut: dto.checkOut ? new Date(dto.checkOut) : undefined,
+      checkOut: checkOutDate || undefined,
+      workedMinutes: workedMinutes ?? undefined,
       remarks: dto.remarks,
       faceVerificationStatus: dto.faceVerificationStatus,
       faceMatchScore: dto.faceMatchScore,
@@ -392,15 +516,22 @@ export class AttendanceService {
       allowedRadiusMeters: dto.allowedRadiusMeters,
       verificationMethod: dto.verificationMethod,
       failureReason: dto.failureReason,
-      punchType: dto.punchType,
+      punchType: dto.punchType || (checkOutDate ? 'CHECK_OUT' : 'CHECK_IN'),
     };
 
-    const savedRecord = await this.prisma.attendanceRecord.upsert({
-      where: { employeeId_date: { employeeId: validEmployeeId, date: normalizedDate } },
-      update: data,
-      create: data,
-      include: this.listInclude,
-    });
+    let savedRecord: any;
+    if (existingRecord) {
+      savedRecord = await this.prisma.attendanceRecord.update({
+        where: { id: existingRecord.id },
+        data,
+        include: this.listInclude,
+      });
+    } else {
+      savedRecord = await this.prisma.attendanceRecord.create({
+        data,
+        include: this.listInclude,
+      });
+    }
 
     console.log('[ATTENDANCE SAVED]', {
       id: savedRecord.id,
