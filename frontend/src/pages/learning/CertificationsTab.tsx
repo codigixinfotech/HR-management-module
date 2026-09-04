@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Award,
   Plus,
@@ -24,32 +24,62 @@ import {
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { INITIAL_CERTIFICATES, type IssuedCertificate, type CertificateTemplate } from './mockTrainingData';
 import { CreateCertificateModal } from './CreateCertificateModal';
 import { useAuthStore } from '@/stores/auth-store';
 import { isHrOrAdminUser } from '@/lib/modules';
+import { apiClient } from '@/lib/api-client';
 
 export function CertificationsTab() {
   const user = useAuthStore((s) => s.user);
   const isHrOrAdmin = isHrOrAdminUser(user);
 
-  const [certificates, setCertificates] = useState<IssuedCertificate[]>(INITIAL_CERTIFICATES);
+  const [certificates, setCertificates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    apiClient
+      .get<any[]>('/learning/certificates')
+      .then((res) => {
+        if (Array.isArray(res)) {
+          const mapped = res.map((c) => ({
+            id: c.id,
+            certificateNumber: c.certificateNumber,
+            employeeId: c.employeeId,
+            employeeName: c.employeeName,
+            department: c.department || 'Operations',
+            courseId: c.courseId,
+            courseTitle: c.courseTitle,
+            credentialTitle: c.courseTitle,
+            issueDate: typeof c.issueDate === 'string' ? c.issueDate.split('T')[0] : '2026-09-03',
+            expiryDate: c.expiryDate ? c.expiryDate.split('T')[0] : '2028-09-03',
+            verificationCode: c.verificationCode,
+            status: c.status || 'VERIFIED',
+          }));
+          setCertificates(mapped);
+        }
+      })
+      .catch((err) => console.warn('Failed to load certificates from DB:', err))
+      .finally(() => setLoading(false));
+  }, []);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
   // Filter for employee view vs admin view
+  const currentEmpId = user?.employee?.id || user?.id || '';
   const myCertificates = useMemo(() => {
     if (isHrOrAdmin) return certificates;
     return certificates.filter(
-      (c) => c.employeeId === user?.id || c.employeeId === 'EMP-001' || c.employeeName.toLowerCase().includes('sanika') || c.employeeName.toLowerCase().includes('priya')
+      (c) =>
+        c.employeeId === currentEmpId ||
+        (user?.name && c.employeeName?.toLowerCase().includes(user.name.toLowerCase()))
     );
-  }, [certificates, isHrOrAdmin, user]);
+  }, [certificates, isHrOrAdmin, currentEmpId, user]);
 
-  const totalIssued = myCertificates.filter((c) => c.status === 'VERIFIED').length;
-  const eligibleCount = isHrOrAdmin ? 14 : 1;
+  const totalIssued = myCertificates.length;
+  const eligibleCount = totalIssued;
   const expiringSoonCount = myCertificates.filter((c) => c.status === 'EXPIRING_SOON').length;
   const expiredCount = myCertificates.filter((c) => c.status === 'EXPIRED').length;
 
@@ -57,7 +87,10 @@ export function CertificationsTab() {
     return myCertificates.filter((c) => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        if (!c.employeeName.toLowerCase().includes(q) && !c.credentialTitle.toLowerCase().includes(q) && !c.verificationCode.toLowerCase().includes(q)) return false;
+        const empName = (c.employeeName || '').toLowerCase();
+        const credTitle = (c.credentialTitle || c.courseTitle || '').toLowerCase();
+        const verCode = (c.verificationCode || '').toLowerCase();
+        if (!empName.includes(q) && !credTitle.includes(q) && !verCode.includes(q)) return false;
       }
       if (statusFilter !== 'All' && c.status !== statusFilter) return false;
       return true;
@@ -65,23 +98,45 @@ export function CertificationsTab() {
   }, [myCertificates, searchQuery, statusFilter]);
 
   const handleRevoke = (id: string) => {
-    setCertificates(certificates.filter((c) => c.id !== id));
+    if (window.confirm('Are you sure you want to revoke this certificate?')) {
+      setCertificates(certificates.map((c) => (c.id === id ? { ...c, status: 'REVOKED' } : c)));
+      apiClient.delete(`/learning/certificates/${id}`).catch(() => {});
+    }
   };
 
-  const handleSaveTemplate = (tpl: CertificateTemplate) => {
-    // Add mock issued certificate derived from new template
-    const newCert: IssuedCertificate = {
-      id: `CERT-${Date.now().toString().slice(-4)}`,
-      employeeId: 'EMP-005',
-      employeeName: 'Vikas Kumar',
-      credentialTitle: tpl.name,
-      courseName: tpl.relatedCourse,
-      issueDate: '2026-09-03',
-      expiryDate: '2028-09-03',
-      verificationCode: `CRT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      status: 'VERIFIED',
+  const handleSaveTemplate = (tpl: any) => {
+    const empName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim() : (user as any)?.name || 'Employee';
+    const dept = user?.employee?.departmentName || 'HR / Administration';
+
+    const newCertData = {
+      employeeId: currentEmpId,
+      employeeName: empName,
+      department: dept,
+      courseId: tpl.courseId || 'CRS-101',
+      courseTitle: tpl.name || 'Workplace Safety Fundamentals',
     };
-    setCertificates([newCert, ...certificates]);
+
+    apiClient
+      .post('/learning/certificates', newCertData)
+      .then((res: any) => {
+        const created = {
+          id: res.id || `CERT-${Date.now().toString().slice(-4)}`,
+          certificateNumber: res.certificateNumber || `CERT-2026-${Math.floor(100000 + Math.random() * 900000)}`,
+          employeeId: res.employeeId || currentEmpId,
+          employeeName: res.employeeName || empName,
+          department: res.department || dept,
+          courseId: res.courseId || 'CRS-101',
+          courseTitle: res.courseTitle || tpl.name,
+          credentialTitle: res.courseTitle || tpl.name,
+          issueDate: new Date().toISOString().split('T')[0],
+          expiryDate: new Date(Date.now() + 2 * 365 * 24 * 3600 * 1000).toISOString().split('T')[0],
+          verificationCode: res.verificationCode || `VER-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+          status: 'VERIFIED',
+        };
+        setCertificates([created, ...certificates]);
+        setIsModalOpen(false);
+      })
+      .catch(() => {});
   };
 
   return (

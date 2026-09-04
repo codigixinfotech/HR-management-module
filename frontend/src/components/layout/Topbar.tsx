@@ -76,10 +76,13 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
   }, [user?.name]);
 
   const roleDisplay = useMemo(() => {
-    if (isSuperAdmin) return 'Super Admin';
+    if (isSuperAdmin || user?.role === 'Super Admin' || user?.primaryRole?.toUpperCase().includes('ADMIN')) return 'Super Admin';
     if (user?.role) return user.role;
+    if (user?.primaryRole) return user.primaryRole;
+    if (user?.roles && user.roles.length > 0) return user.roles[0];
+    if (user?.name?.toLowerCase().includes('admin') || user?.email?.toLowerCase().includes('admin')) return 'Super Admin';
     return 'Employee';
-  }, [isSuperAdmin, user?.role]);
+  }, [isSuperAdmin, user]);
 
   const departmentName = useMemo(() => {
     if (user?.departmentName) return user.departmentName;

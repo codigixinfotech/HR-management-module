@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X,
   Award,
@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CATALOG_COURSES, INITIAL_PROGRAMS, type CertificateTemplate } from './mockTrainingData';
+import { apiClient } from '@/lib/api-client';
+import type { CertificateTemplate } from './types';
 
 interface CreateCertificateModalProps {
   isOpen: boolean;
@@ -29,12 +30,50 @@ interface CreateCertificateModalProps {
 export function CreateCertificateModal({ isOpen, onClose, onSave }: CreateCertificateModalProps) {
   const [name, setName] = useState('Industrial Safety & EHS Specialist Credential');
   const [code, setCode] = useState(`TPL-CERT-${Math.floor(100 + Math.random() * 900)}`);
-  const [relatedCourse, setRelatedCourse] = useState(CATALOG_COURSES[0].title);
-  const [relatedProgram, setRelatedProgram] = useState(INITIAL_PROGRAMS[0].name);
+  const [relatedCourse, setRelatedCourse] = useState('');
+  const [relatedProgram, setRelatedProgram] = useState('');
   const [issuingAuthority, setIssuingAuthority] = useState('Codigix HR & Global Safety Council');
   const [validityYears, setValidityYears] = useState<number>(2);
   const [expiryPeriodMonths, setExpiryPeriodMonths] = useState<number>(24);
   const [signatureName, setSignatureName] = useState('Dr. Vikram Malhotra (VP EHS)');
+
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [programs, setPrograms] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    setLoadingCourses(true);
+
+    Promise.all([
+      apiClient.get<any[]>('/learning/catalog-courses').catch(() => []),
+      apiClient.get<any[]>('/learning/training-programs').catch(() => []),
+    ])
+      .then(([catalogRes, programsRes]) => {
+        if (!isMounted) return;
+        const cList = Array.isArray(catalogRes) ? catalogRes : (catalogRes as any)?.data || [];
+        const pList = Array.isArray(programsRes) ? programsRes : (programsRes as any)?.data || [];
+        setCourses(cList);
+        setPrograms(pList);
+
+        if (cList.length > 0 && !relatedCourse) {
+          setRelatedCourse(cList[0].title);
+        }
+        if (pList.length > 0 && !relatedProgram) {
+          setRelatedProgram(pList[0].name || pList[0].title);
+        } else if (cList.length > 0 && !relatedProgram) {
+          setRelatedProgram(cList[0].title);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoadingCourses(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
 
   // Completion Requirements
   const [reqCourseCompleted, setReqCourseCompleted] = useState(true);
@@ -48,8 +87,8 @@ export function CreateCertificateModal({ isOpen, onClose, onSave }: CreateCertif
       id: code,
       code,
       name,
-      relatedCourse,
-      relatedProgram,
+      relatedCourse: relatedCourse || 'General Certification',
+      relatedProgram: relatedProgram || relatedCourse || 'Enterprise Training',
       issuingAuthority,
       validityYears,
       expiryPeriodMonths,
@@ -93,27 +132,41 @@ export function CreateCertificateModal({ isOpen, onClose, onSave }: CreateCertif
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Related Course *</Label>
-              <Select value={relatedCourse} onValueChange={setRelatedCourse}>
+              <Select value={relatedCourse} onValueChange={setRelatedCourse} disabled={loadingCourses}>
                 <SelectTrigger className="text-xs">
-                  <SelectValue />
+                  <SelectValue placeholder={loadingCourses ? "Loading courses..." : courses.length === 0 ? "No courses available" : "Select course"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATALOG_COURSES.map((c) => (
-                    <SelectItem key={c.id} value={c.title}>{c.title}</SelectItem>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id || c.code} value={c.title}>
+                      {c.title}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Related Training Program *</Label>
-              <Select value={relatedProgram} onValueChange={setRelatedProgram}>
+              <Label className="text-xs font-medium">Related Training Program</Label>
+              <Select value={relatedProgram} onValueChange={setRelatedProgram} disabled={loadingCourses}>
                 <SelectTrigger className="text-xs">
-                  <SelectValue />
+                  <SelectValue placeholder="Select program" />
                 </SelectTrigger>
                 <SelectContent>
-                  {INITIAL_PROGRAMS.map((p) => (
-                    <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
-                  ))}
+                  {programs.length > 0 ? (
+                    programs.map((p) => (
+                      <SelectItem key={p.id || p.code} value={p.name || p.title}>
+                        {p.name || p.title}
+                      </SelectItem>
+                    ))
+                  ) : courses.length > 0 ? (
+                    courses.map((c) => (
+                      <SelectItem key={`prg-${c.id || c.code}`} value={c.title}>
+                        {c.title}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="Default Program">Enterprise Training Program</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -125,38 +178,32 @@ export function CreateCertificateModal({ isOpen, onClose, onSave }: CreateCertif
               <Label className="text-xs font-medium">Validity Period (Years) *</Label>
               <Input type="number" value={validityYears} onChange={(e) => setValidityYears(Number(e.target.value))} className="text-xs" />
             </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <Label className="text-xs font-medium">Digital Signature Name *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Expiry Period (Months) *</Label>
+              <Input type="number" value={expiryPeriodMonths} onChange={(e) => setExpiryPeriodMonths(Number(e.target.value))} className="text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Authorized Signatory *</Label>
               <Input value={signatureName} onChange={(e) => setSignatureName(e.target.value)} className="text-xs" />
             </div>
           </div>
 
-          {/* Completion Requirements */}
+          {/* Trigger Requirements */}
           <div className="space-y-3 border-t pt-4">
-            <h3 className="text-xs font-bold text-primary uppercase tracking-wider">Completion Requirement Triggers</h3>
-            <div className="flex flex-wrap items-center gap-6 text-xs font-medium">
+            <h3 className="text-xs font-bold text-primary uppercase tracking-wider">Automated Issuance Triggers</h3>
+            <div className="space-y-2 text-xs">
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox checked={reqCourseCompleted} onCheckedChange={(c) => setReqCourseCompleted(!!c)} />
-                Course Completed (100%)
+                <span>Employee reaches 100% syllabus module completion</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox checked={reqAssessmentPassed} onCheckedChange={(c) => setReqAssessmentPassed(!!c)} />
-                Assessment Passed
+                <span>Employee scores above required passing threshold in course assessment</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox checked={reqAttendance} onCheckedChange={(c) => setReqAttendance(!!c)} />
-                Attendance Threshold Met
+                <span>Manager/Instructor marks attendance confirmation</span>
               </label>
-            </div>
-          </div>
-
-          {/* Lifecycle Visual */}
-          <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2">
-            <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-              <ShieldCheck className="h-4 w-4" /> Certificate Auto-Generation Flow
-            </p>
-            <div className="flex flex-wrap items-center justify-between text-[11px] font-medium gap-1 text-muted-foreground pt-1">
-              <span>Employee</span> → <span>Course Completed</span> → <span>Assessment Passed</span> → <span>Eligible</span> → <span>Generate</span> → <strong className="text-emerald-600">ISSUE CERTIFICATE</strong>
             </div>
           </div>
         </div>
@@ -167,7 +214,7 @@ export function CreateCertificateModal({ isOpen, onClose, onSave }: CreateCertif
             Cancel
           </Button>
           <Button size="sm" onClick={handleSave} className="gap-1.5 text-xs bg-primary text-primary-foreground">
-            <Check className="h-4 w-4" /> Save Certificate Template
+            <Check className="h-4 w-4" /> Save Template
           </Button>
         </div>
       </div>

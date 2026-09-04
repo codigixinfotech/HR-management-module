@@ -62,7 +62,7 @@ export class EmployeesService implements OnModuleInit {
     reportingManager: { select: { id: true, firstName: true, lastName: true } },
     documents: true,
     onboardingTasks: { orderBy: { createdAt: 'asc' as const } },
-    courseEnrollments: { orderBy: { enrollmentDate: 'desc' as const } },
+    courseEnrollments: { orderBy: { createdAt: 'desc' as const } },
     kpis: { orderBy: { createdAt: 'desc' as const } },
     hrNotes: { orderBy: { createdDate: 'desc' as const } },
     timelineEvents: { orderBy: { date: 'asc' as const } },
@@ -540,10 +540,10 @@ export class EmployeesService implements OnModuleInit {
     const enrollment = await this.prisma.courseEnrollment.create({
       data: {
         employeeId,
-        courseName: dto.courseName,
-        courseType: dto.courseType,
+        courseId: `CRS-${Date.now().toString().slice(-4)}`,
+        courseCode: dto.courseType || 'CRS-GEN',
+        courseTitle: dto.courseName,
         status: dto.status ?? 'In Progress',
-        certification: dto.certification ?? null,
       },
     });
 

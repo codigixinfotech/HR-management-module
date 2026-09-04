@@ -315,6 +315,7 @@ model Company {
   pfConfiguration      PfConfiguration?
   pfMonthlyRuns        PfMonthlyRun[]
   complianceSetups     ComplianceSetup[]
+  subscriptions        CompanySubscription[]
 
   @@map("companies")
 }
@@ -705,6 +706,10 @@ model Employee {
   interviewPanels      CandidateInterviewPanel[]
   interviewEvaluations CandidateInterviewEvaluation[]
 
+  learningReimbursements LmsLearningReimbursement[]
+  employeeSkills         LmsEmployeeSkill[]
+  assessmentAttempts     LmsAssessmentAttempt[]
+
   @@unique([companyId, employeeCode])
   @@index([departmentId])
   @@index([reportingManagerId])
@@ -725,22 +730,297 @@ model EmployeeDocument {
   @@map("employee_documents")
 }
 
-model CourseEnrollment {
-  id             String    @id @default(cuid())
-  employeeId     String
-  courseName     String
-  courseType     String
-  enrollmentDate DateTime  @default(now())
-  completionDate DateTime?
-  status         String    @default("In Progress")
-  certification  String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+model CompanyCourse {
+  id                    String    @id @default(cuid())
+  courseId              String    @unique
+  courseCode            String
+  title                 String
+  provider              String
+  category              String
+  purchasedSeats        Int       @default(0)
+  assignedSeats         Int       @default(0)
+  availableSeats        Int       @default(0)
+  inProgressCount       Int       @default(0)
+  completedCount        Int       @default(0)
+  status                String    @default("ACTIVE")
+  courseUrl             String?
+  accessInstructions    String?   @db.Text
+  subscriptionType      String?   @default("Company Sponsored")
+  subscriptionStartDate DateTime?
+  subscriptionEndDate   DateTime?
+  accessUsername        String?
+  accessPassword        String?
+  externalReference     String?
+  purchasedAt           DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  enrollments CourseEnrollment[]
+
+  @@map("company_courses")
+}
+
+model CourseEnrollment {
+  id                String    @id @default(cuid())
+  companyCourseId   String?
+  employeeId        String
+  employeeName      String?
+  department        String?
+  courseId          String
+  courseCode        String
+  courseTitle       String
+  assignedDate      DateTime  @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  progress          Int       @default(0)
+  moduleProgress    Json?
+  assessmentScore   Float?
+  assessmentPassed  Boolean?
+  status            String    @default("Not Started")
+  certificateIssued Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  companyCourse CompanyCourse? @relation(fields: [companyCourseId], references: [id], onDelete: Cascade)
+  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([companyCourseId, employeeId])
+  @@index([employeeId])
+  @@index([courseId])
+  @@map("course_enrollments")
+}
+
+model LmsCourseRequest {
+  id               String   @id @default(cuid())
+  employeeId       String
+  employeeName     String
+  department       String
+  courseId         String
+  courseTitle      String
+  provider         String
+  pricePerSeat     Float
+  reason           String?  @db.Text
+  businessBenefit  String?  @db.Text
+  priority         String   @default("Medium")
+  courseUrl        String?  @db.Text
+  requestedAt      DateTime @default(now())
+  status           String   @default("Pending")
+  rejectionReason  String?  @db.Text
+  approvedSeatType String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("lms_course_requests")
+}
+
+model LmsPurchaseHistory {
+  id             String   @id @default(cuid())
+  orderId        String   @unique
+  courseId       String
+  courseCode     String
+  courseTitle    String
+  provider       String
+  seatsPurchased Int
+  pricePerSeat   Float
+  subtotal       Float
+  gst            Float
+  totalAmount    Float
+  billingEntity  String   @default("EHCM Enterprise Corp")
+  costCenter     String   @default("HR-L&D")
+  purchasedAt    DateTime @default(now())
+  status         String   @default("PAID")
+  createdAt      DateTime @default(now())
+
+  @@map("lms_purchase_history")
+}
+
+model LmsCourseCatalog {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  title               String
+  provider            String
+  instructor          String?
+  category            String
+  durationHours       Int      @default(10)
+  pricePerSeat        Float    @default(2500)
+  rating              Float    @default(4.8)
+  difficulty          String   @default("Intermediate")
+  language            String   @default("English")
+  certificateIncluded Boolean  @default(true)
+  assessmentIncluded  Boolean  @default(true)
+  description         String   @db.Text
+  modulesJson         Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("lms_course_catalog")
+}
+
+model LmsCertificate {
+  id                String    @id @default(cuid())
+  certificateNumber String    @unique
+  employeeId        String
+  employeeName      String
+  department        String?
+  courseId          String
+  courseTitle       String
+  issueDate         DateTime  @default(now())
+  expiryDate        DateTime?
+  verificationCode  String    @unique
+  status            String    @default("ACTIVE")
+  certificateUrl    String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("lms_certificates")
+}
+
+model LmsLearningReimbursement {
+  id                   String    @id @default(cuid())
+  employeeId           String
+  courseId             String
+  courseTitle          String
+  provider             String
+  courseUrl            String?
+  purchaseDate         DateTime  @default(now())
+  purchaseAmount       Float
+  currency             String    @default("INR")
+  invoiceNumber        String?
+  invoiceFileUrl       String?   @db.Text
+  certificateFileUrl   String?   @db.Text
+  certificateNumber    String?
+  certificateIssueDate DateTime?
+  requestedAmount      Float
+  approvedAmount       Float?
+  status               String    @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, PAYMENT_PENDING, PAID
+  rejectionReason      String?   @db.Text
+  reviewedBy           String?
+  reviewedAt           DateTime?
+  paidAmount           Float?
+  paidDate             DateTime?
+  paymentReference     String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
-  @@map("course_enrollments")
+  @@map("lms_learning_reimbursements")
+}
+
+model TrainingProgram {
+  id              String    @id @default(cuid())
+  programCode     String    @unique
+  title           String
+  category        String
+  department      String    @default("All Departments")
+  deliveryMode    String    @default("Online Self-Paced")
+  durationHours   Int       @default(10)
+  trainerName     String?
+  startDate       DateTime?
+  endDate         DateTime?
+  location        String?
+  maxParticipants Int       @default(30)
+  status          String    @default("PUBLISHED") // DRAFT, PUBLISHED, ACTIVE, COMPLETED, ARCHIVED
+  budget          Float     @default(0)
+  description     String    @db.Text
+  attendeeIds     Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("training_programs")
+}
+
+model LmsSkill {
+  id                  String             @id @default(cuid())
+  name                String             @unique
+  category            String             @default("Technical")
+  description         String?            @db.Text
+  relatedCoursesCount Int                @default(0)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  employeeSkills      LmsEmployeeSkill[]
+
+  @@map("lms_skills")
+}
+
+model LmsEmployeeSkill {
+  id           String    @id @default(cuid())
+  skillId      String
+  employeeId   String
+  employeeName String?
+  department   String?
+  skillLevel   String    @default("Beginner") // Beginner, Intermediate, Advanced, Expert
+  sourceCourse String?
+  lastUpdated  DateTime  @default(now())
+
+  skill        LmsSkill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, employeeId])
+  @@index([employeeId])
+  @@map("lms_employee_skills")
+}
+
+model LmsAssessment {
+  id            String                 @id @default(cuid())
+  courseId      String                 @unique
+  title         String
+  passingScore  Int                    @default(80)
+  questionsJson Json
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  attempts      LmsAssessmentAttempt[]
+
+  @@map("lms_assessments")
+}
+
+model LmsAssessmentAttempt {
+  id           String        @id @default(cuid())
+  assessmentId String
+  employeeId   String
+  employeeName String?
+  score        Float
+  passed       Boolean
+  answersJson  Json
+  submittedAt  DateTime      @default(now())
+
+  assessment   LmsAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  employee     Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@index([employeeId])
+  @@map("lms_assessment_attempts")
+}
+
+model LmsNotification {
+  id          String   @id @default(cuid())
+  employeeId  String
+  title       String
+  message     String   @db.Text
+  type        String   @default("TRAINING")
+  actionUrl   String?
+  referenceId String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+  @@map("lms_notifications")
+}
+
+model LmsEmailDispatch {
+  id          String    @id @default(cuid())
+  recipient   String
+  subject     String
+  template    String?
+  referenceId String?
+  status      String    @default("QUEUED") // QUEUED, SENT, SIMULATED, FAILED
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("lms_email_dispatches")
 }
 
 model EmployeeKpi {
@@ -2471,4 +2751,81 @@ model ComplianceSetup {
   @@index([version])
   @@map("compliance_setups")
 }
+
+// ---------------------------------------------------------------------------
+// Module: Administration - Subscription & Plans
+// ---------------------------------------------------------------------------
+
+model PlanPackage {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  name             String
+  type             String   @default("STANDARD_PLAN") // STANDARD_PLAN, CUSTOM_PACKAGE, ADD_ON
+  category         String?  @default("Core HR")
+  description      String?  @db.Text
+  badge            String?
+  billingCycle     String   @default("MONTHLY") // MONTHLY, YEARLY, ONE_TIME
+  price            Decimal  @default(0) @db.Decimal(12, 2)
+  monthlyPrice     Decimal  @default(0) @db.Decimal(12, 2)
+  annualPrice      Decimal  @default(0) @db.Decimal(12, 2)
+  currency         String   @default("INR")
+
+  maxEmployees     Int?     @default(50)
+  maxDepartments   Int?     @default(10)
+  maxLocations     Int?     @default(2)
+  maxStorageGb     Int?     @default(5)
+  maxLmsLearners   Int?     @default(20)
+
+  includedModules  Json
+  featureToggles   Json?
+  features         Json?
+
+  status           String   @default("ACTIVE") // ACTIVE, INACTIVE, DRAFT
+  isActive         Boolean  @default(true)
+  isPopular        Boolean  @default(false)
+  isPublic         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  subscriptions    CompanySubscription[]
+
+  @@map("plan_packages")
+}
+
+model CompanySubscription {
+  id                      String       @id @default(cuid())
+  companyId               String
+  company                 Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  planId                  String
+  plan                    PlanPackage  @relation(fields: [planId], references: [id])
+
+  billingCycle            String       @default("ANNUAL")
+  status                  String       @default("ACTIVE") // ACTIVE, TRIAL, EXPIRED, CANCELLED
+  price                   Decimal      @default(0) @db.Decimal(12, 2)
+  startDate               DateTime     @default(now())
+  endDate                 DateTime
+  validUntil              DateTime?
+  trialEndDate            DateTime?
+  autoRenew               Boolean      @default(true)
+
+  activeAddons            Json?        // List of Add-on Package IDs
+  enabledModulesOverride  Json?
+  customModuleOverrides   Json?
+  employeeLimitOverride   Int?
+  storageLimitOverrideGb  Int?
+  lmsLearnerLimitOverride Int?
+  customLimitOverrides    Json?
+
+  paymentStatus           String?      @default("PAID") // PAID, PENDING, COMPLIMENTARY
+  paymentReference        String?
+  notes                   String?      @db.Text
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  @@index([companyId])
+  @@index([planId])
+  @@map("company_subscriptions")
+}
+
 

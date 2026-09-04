@@ -53,3 +53,29 @@ export async function changePassword(newPassword: string): Promise<{ success: bo
   const { data } = await apiClient.post('/auth/change-password', { newPassword });
   return data;
 }
+
+export interface ValidateInvitationResponse {
+  valid: boolean;
+  status: 'VALID' | 'EXPIRED' | 'USED' | 'INVALID';
+  message?: string;
+  email?: string;
+  company?: string;
+  companyCode?: string;
+  role?: string;
+}
+
+export async function validateInvitation(token: string): Promise<ValidateInvitationResponse> {
+  const { data } = await apiClient.get<ValidateInvitationResponse>('/auth/invitation/validate', {
+    params: { token },
+  });
+  return data;
+}
+
+export async function setPasswordWithToken(payload: {
+  token: string;
+  newPassword: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { data } = await apiClient.post<{ success: boolean; message: string }>('/auth/set-password', payload);
+  return data;
+}
+

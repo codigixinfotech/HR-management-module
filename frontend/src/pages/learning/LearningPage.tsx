@@ -6,6 +6,7 @@ import { EmployeeCourseRequestsTab } from './EmployeeCourseRequestsTab';
 import { CertificationsTab } from './CertificationsTab';
 import { SkillMatrixTab } from './SkillMatrixTab';
 import { LmsReportsTab } from './LmsReportsTab';
+import { LearningReimbursementsTab } from './LearningReimbursementsTab';
 
 export default function LearningPage() {
   const { tab: pathTab } = useParams<{ tab?: string }>();
@@ -23,6 +24,10 @@ export default function LearningPage() {
 
   if (currentTab === 'course-requests') {
     return <EmployeeCourseRequestsTab />;
+  }
+
+  if (currentTab === 'reimbursements') {
+    return <LearningReimbursementsTab />;
   }
 
   if (currentTab === 'training-programs') {

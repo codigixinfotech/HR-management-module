@@ -39,32 +39,61 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { toast } from 'sonner';
-import { INITIAL_PROGRAMS, type TrainingProgram } from './mockTrainingData';
+import { useAuthStore } from '@/stores/auth-store';
+import { isHrOrAdminUser } from '@/lib/modules';
+import type { TrainingProgram } from './types';
 import { CreateProgramForm } from './CreateProgramModal';
 import { ProgramDetailView } from './ProgramDetailView';
 import { SendNotificationModal, SendEmailModal } from './SendNotificationModal';
 
-export function TrainingProgramsTab() {
-  // ① LocalStorage Persistent State
-  const [programs, setPrograms] = useState<TrainingProgram[]>(() => {
-    const saved = localStorage.getItem('ehcm_training_programs');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch (e) {
-        console.error('Failed to parse saved training programs', e);
-      }
-    }
-    return INITIAL_PROGRAMS;
-  });
+import { apiClient } from '@/lib/api-client';
+import { lmsApi } from '@/services/lmsApi';
 
-  // Sync to LocalStorage on changes
+interface TrainingProgramsTabProps {
+  onSelectProgram?: (program: TrainingProgram) => void;
+}
+
+export function TrainingProgramsTab({ onSelectProgram }: TrainingProgramsTabProps) {
+  const user = useAuthStore((s) => s.user);
+  const isHrOrAdmin = isHrOrAdminUser(user);
+
+  // Real Backend State
+  const [programs, setPrograms] = useState<TrainingProgram[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchPrograms = async () => {
+    setIsLoading(true);
+    try {
+      const data = await lmsApi.getPrograms();
+      const mapped: TrainingProgram[] = (data || []).map((p: any) => ({
+        ...p,
+        title: p.title,
+        name: p.title,
+        programCode: p.programCode,
+        code: p.programCode,
+        category: p.category || 'General',
+        department: p.department || 'All Departments',
+        deliveryMode: p.deliveryMode || 'Online Self-Paced',
+        durationHours: p.durationHours || 10,
+        description: p.description || '',
+        status: p.status || 'PUBLISHED',
+        trainerName: p.trainerName || 'Lead Instructor',
+        vendorName: p.trainerName || 'Enterprise Academy',
+        employeeCount: Array.isArray(p.attendeeIds) ? p.attendeeIds.length : (p.attendeeIds?.length || 0),
+        totalBudget: p.budget || 0,
+      }));
+      setPrograms(mapped);
+    } catch (err) {
+      console.warn('Failed to load training programs from DB:', err);
+      toast.error('Failed to load training programs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('ehcm_training_programs', JSON.stringify(programs));
-  }, [programs]);
+    fetchPrograms();
+  }, []);
 
   const [selectedProgram, setSelectedProgram] = useState<TrainingProgram | null>(null);
   const [editingProgram, setEditingProgram] = useState<TrainingProgram | null>(null);
@@ -173,16 +202,41 @@ export function TrainingProgramsTab() {
   };
 
   // Handler to Save (Create or Update)
-  const handleSaveProgram = (progToSave: TrainingProgram) => {
+  const handleSaveProgram = async (progToSave: TrainingProgram) => {
     const exists = programs.some((p) => p.id === progToSave.id);
-    let updatedList: TrainingProgram[];
-    if (exists) {
-      updatedList = programs.map((p) => (p.id === progToSave.id ? progToSave : p));
-    } else {
-      updatedList = [progToSave, ...programs];
+    try {
+      if (exists) {
+        await lmsApi.updateProgram(progToSave.id, {
+          title: progToSave.title || progToSave.name,
+          category: progToSave.category,
+          department: progToSave.department,
+          deliveryMode: progToSave.deliveryMode,
+          durationHours: progToSave.durationHours,
+          trainerName: progToSave.trainerName,
+          status: progToSave.status,
+          budget: progToSave.totalBudget,
+          description: progToSave.description,
+        });
+        toast.success(`Training Program "${progToSave.title || progToSave.name}" updated successfully.`);
+      } else {
+        await lmsApi.createProgram({
+          title: progToSave.title || progToSave.name,
+          programCode: progToSave.programCode,
+          category: progToSave.category,
+          department: progToSave.department,
+          deliveryMode: progToSave.deliveryMode,
+          durationHours: progToSave.durationHours,
+          trainerName: progToSave.trainerName,
+          status: progToSave.status,
+          budget: progToSave.totalBudget,
+          description: progToSave.description,
+        });
+        toast.success(`Training Program "${progToSave.title || progToSave.name}" created successfully.`);
+      }
+      await fetchPrograms();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to save training program');
     }
-    setPrograms(updatedList);
-    localStorage.setItem('ehcm_training_programs', JSON.stringify(updatedList));
 
     if (selectedProgram && selectedProgram.id === progToSave.id) {
       setSelectedProgram(progToSave);
@@ -198,19 +252,22 @@ export function TrainingProgramsTab() {
   };
 
   // Handler to Delete
-  const handleDeleteProgram = (progId: string, e?: React.MouseEvent) => {
+  const handleDeleteProgram = async (progId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const target = programs.find((p) => p.id === progId);
-    const confirmName = target ? target.name : 'this program';
+    const confirmName = target ? (target.title || target.name) : 'this program';
 
     if (window.confirm(`Are you sure you want to delete "${confirmName}"? This action cannot be undone.`)) {
-      const updatedList = programs.filter((p) => p.id !== progId);
-      setPrograms(updatedList);
-      localStorage.setItem('ehcm_training_programs', JSON.stringify(updatedList));
-      if (selectedProgram && selectedProgram.id === progId) {
-        setSelectedProgram(null);
+      try {
+        await lmsApi.deleteProgram(progId);
+        toast.success(`Training Program "${confirmName}" deleted successfully.`);
+        if (selectedProgram && selectedProgram.id === progId) {
+          setSelectedProgram(null);
+        }
+        await fetchPrograms();
+      } catch (err: any) {
+        toast.error(err?.response?.data?.message || 'Failed to delete training program');
       }
-      toast.success(`Training Program "${confirmName}" deleted successfully.`);
     }
   };
 
@@ -296,15 +353,17 @@ export function TrainingProgramsTab() {
             {showAnalytics ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </Button>
 
-          <Button
-            onClick={() => {
-              setEditingProgram(null);
-              setIsCreateOpen(true);
-            }}
-            className="gap-1.5 text-xs h-9 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold"
-          >
-            <Plus className="h-4 w-4" /> Create Program
-          </Button>
+          {isHrOrAdmin && (
+            <Button
+              onClick={() => {
+                setEditingProgram(null);
+                setIsCreateOpen(true);
+              }}
+              className="gap-1.5 text-xs h-9 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" /> Create Program
+            </Button>
+          )}
         </div>
       </div>
 
@@ -479,11 +538,10 @@ export function TrainingProgramsTab() {
             <button
               type="button"
               onClick={() => setViewMode('card')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-all ${
-                viewMode === 'card'
+              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-all ${viewMode === 'card'
                   ? 'bg-background text-foreground font-semibold shadow-2xs'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
               title="Grid Card View"
             >
               <LayoutGrid className="h-3.5 w-3.5" />
@@ -492,11 +550,10 @@ export function TrainingProgramsTab() {
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-all ${
-                viewMode === 'table'
+              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-all ${viewMode === 'table'
                   ? 'bg-background text-foreground font-semibold shadow-2xs'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
               title="Table View"
             >
               <TableIcon className="h-3.5 w-3.5" />
@@ -608,50 +665,54 @@ export function TrainingProgramsTab() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedProgram(p)}
-                          className="h-7 px-2 text-[11px] gap-1 text-primary hover:bg-primary/10"
+                          className="h-7 px-2 text-[11px] gap-1 text-primary hover:bg-primary/10 font-semibold"
                         >
                           <Eye className="h-3.5 w-3.5" /> Details
                         </Button>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => handleOpenEdit(p, e)}
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
-                          title="Edit Program"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
+                        {isHrOrAdmin && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => handleOpenEdit(p, e)}
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                              title="Edit Program"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setActiveNotifProgram(p)}
-                          className="h-7 px-2 text-[11px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                          title="Send Portal Notification"
-                        >
-                          <Bell className="h-3.5 w-3.5" /> Notify
-                        </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setActiveNotifProgram(p)}
+                              className="h-7 px-2 text-[11px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                              title="Send Portal Notification"
+                            >
+                              <Bell className="h-3.5 w-3.5" /> Notify
+                            </Button>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setActiveEmailProgram(p)}
-                          className="h-7 px-2 text-[11px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                          title="Send Email Dispatch"
-                        >
-                          <Mail className="h-3.5 w-3.5" /> Email
-                        </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setActiveEmailProgram(p)}
+                              className="h-7 px-2 text-[11px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                              title="Send Email Dispatch"
+                            >
+                              <Mail className="h-3.5 w-3.5" /> Email
+                            </Button>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => handleDeleteProgram(p.id, e)}
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          title="Delete Program"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => handleDeleteProgram(p.id, e)}
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              title="Delete Program"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </Card>

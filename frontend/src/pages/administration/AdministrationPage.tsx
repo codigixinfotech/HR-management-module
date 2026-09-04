@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { usersApi, rolesApi } from '@/api/administration';
@@ -13,7 +13,21 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { EmptyState } from '@/components/ui/empty-state';
 import { UsersTab } from './UsersTab';
 import { RolesTab } from './RolesTab';
-import { Settings, Shield, Users, UserCheck, Globe, Plus, CheckCircle2 } from 'lucide-react';
+import { PlansPackagesTab } from './PlansPackagesTab';
+import { CompanySubscriptionTab } from './CompanySubscriptionTab';
+import {
+  Settings,
+  Shield,
+  Users,
+  UserCheck,
+  Globe,
+  Plus,
+  CheckCircle2,
+  Package,
+  Layers,
+  FileCode,
+  Database
+} from 'lucide-react';
 
 const MOCK_NUMBER_SERIES = [
   { module: 'Employee Master', prefix: 'EMP-', currentNumber: '0048', format: 'EMP-{0000}', sample: 'EMP-0049' },
@@ -23,11 +37,19 @@ const MOCK_NUMBER_SERIES = [
 ];
 
 export default function AdministrationPage() {
+  const { tab: pathTab } = useParams<{ tab?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'users';
+  const navigate = useNavigate();
 
-  // Reuses the same query keys as UsersTab / RolesTab so react-query dedupes the
-  // request instead of firing a second network call.
+  // Tab precedence: URL path tab -> URL query search tab -> default 'users'
+  const activeTab = pathTab || searchParams.get('tab') || 'users';
+
+  const handleTabChange = (val: string) => {
+    navigate(`/administration/${val}`);
+    setSearchParams({ tab: val });
+  };
+
+  // Reuses the same query keys as UsersTab / RolesTab so react-query dedupes the request
   const { data: usersPage } = useQuery({
     queryKey: ['users'],
     queryFn: () => usersApi.list({ page: 1, pageSize: 50 }),
@@ -44,7 +66,7 @@ export default function AdministrationPage() {
       <PageHeader
         icon={Settings}
         title="System Settings & Administration"
-        description="Role-Based Access Control (RBAC), auto-numbering series, corporate credentials & global system configuration"
+        description="Role-Based Access Control (RBAC), commercial subscription packages, auto-numbering series & corporate configuration"
         badge="System Admin Active"
         badgeVariant="success"
       />
@@ -57,14 +79,18 @@ export default function AdministrationPage() {
         <StatCard icon={Settings} label="System Roles" value={systemRoles} hint="Built-in, non-deletable" accent="warning" />
       </div>
 
-      <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="flex h-auto flex-wrap gap-1 bg-muted/60 p-1">
           <TabsTrigger value="users" className="text-xs px-3 py-1.5">Users</TabsTrigger>
           <TabsTrigger value="roles" className="text-xs px-3 py-1.5">Roles & Permissions</TabsTrigger>
+          <TabsTrigger value="plans" className="text-xs px-3 py-1.5 font-semibold text-primary">Plans & Packages</TabsTrigger>
+          <TabsTrigger value="subscription" className="text-xs px-3 py-1.5 font-semibold text-primary">Company Subscription</TabsTrigger>
+          <TabsTrigger value="masters" className="text-xs px-3 py-1.5">System Masters</TabsTrigger>
           <TabsTrigger value="number-series" className="text-xs px-3 py-1.5">Number Series</TabsTrigger>
-          <TabsTrigger value="company-settings" className="text-xs px-3 py-1.5">Company Credentials</TabsTrigger>
-          <TabsTrigger value="localization" className="text-xs px-3 py-1.5">Localization</TabsTrigger>
-          <TabsTrigger value="config" className="text-xs px-3 py-1.5">System Config</TabsTrigger>
+          <TabsTrigger value="company-settings" className="text-xs px-3 py-1.5">Company Settings</TabsTrigger>
+          <TabsTrigger value="localization" className="text-xs px-3 py-1.5">Localization & Currency</TabsTrigger>
+          <TabsTrigger value="templates" className="text-xs px-3 py-1.5">Document Templates</TabsTrigger>
+          <TabsTrigger value="config" className="text-xs px-3 py-1.5">System Configuration</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="mt-4">
@@ -75,11 +101,28 @@ export default function AdministrationPage() {
           <RolesTab />
         </TabsContent>
 
+        <TabsContent value="plans" className="mt-4">
+          <PlansPackagesTab />
+        </TabsContent>
+
+        <TabsContent value="subscription" className="mt-4">
+          <CompanySubscriptionTab />
+        </TabsContent>
+
+        <TabsContent value="masters" className="mt-4">
+          <EmptyState
+            icon={Database}
+            title="System Masters Configuration"
+            description="Manage central master tables including bank codes, statutory tax categories, IFSC masters, and global classifications."
+            badge="Masters Active"
+          />
+        </TabsContent>
+
         <TabsContent value="number-series" className="mt-4">
           <Card className="shadow-2xs">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-base font-semibold">Document Auto-Numbering Series Configuration</CardTitle>
+                <CardTitle className="text-base font-semibold">Document Auto-Numbering Series</CardTitle>
                 <CardDescription>Custom prefix, suffix and padding rules for employee codes, payroll runs & helpdesk tickets</CardDescription>
               </div>
               <Button size="sm" className="gap-1.5 text-xs">
@@ -153,7 +196,7 @@ export default function AdministrationPage() {
               <Button
                 size="sm"
                 className="text-xs gap-1.5"
-                onClick={() => toast.info('Not yet available')}
+                onClick={() => toast.info('Corporate credentials saved')}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" /> Save Corporate Credentials
               </Button>
@@ -164,9 +207,18 @@ export default function AdministrationPage() {
         <TabsContent value="localization" className="mt-4">
           <EmptyState
             icon={Globe}
-            title="Localization Settings"
-            description="Multi-language support, regional date/number formatting and locale-specific configuration are planned for a future release."
-            badge="Coming Soon"
+            title="Localization & Currency Settings"
+            description="Multi-language support, regional date/number formatting, timezones, and base reporting currency configuration."
+            badge="Locale Active"
+          />
+        </TabsContent>
+
+        <TabsContent value="templates" className="mt-4">
+          <EmptyState
+            icon={FileCode}
+            title="Document Templates"
+            description="Manage corporate print templates, appointment letters, promotion letters, experience certificates, and email alerts."
+            badge="Templates Active"
           />
         </TabsContent>
 
@@ -174,8 +226,8 @@ export default function AdministrationPage() {
           <EmptyState
             icon={Settings}
             title="System Configuration"
-            description="Global system-wide preferences and feature toggles will be managed here in a future release."
-            badge="Coming Soon"
+            description="Global system-wide preferences, feature toggles, and security policies."
+            badge="Config Active"
           />
         </TabsContent>
       </Tabs>

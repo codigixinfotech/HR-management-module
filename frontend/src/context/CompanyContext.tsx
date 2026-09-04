@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { companiesApi } from '@/api/organization';
 import type { Company } from '@/api/types';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface CompanyContextType {
   activeCompanyId: string | undefined;
@@ -27,8 +28,13 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return localStorage.getItem(STORAGE_KEY) || undefined;
   });
 
+  const user = useAuthStore((s) => s.user);
+
   useEffect(() => {
-    if (companies.length > 0) {
+    if (user?.companyId) {
+      setActiveCompanyIdState(user.companyId);
+      localStorage.setItem(STORAGE_KEY, user.companyId);
+    } else if (companies.length > 0) {
       const storedId = localStorage.getItem(STORAGE_KEY);
       const validStored = storedId && companies.some((c) => c.id === storedId);
 
@@ -42,7 +48,8 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         localStorage.setItem(STORAGE_KEY, defaultId);
       }
     }
-  }, [companies]);
+  }, [user?.companyId, companies]);
+
 
   const setActiveCompanyId = (id: string) => {
     setActiveCompanyIdState(id);

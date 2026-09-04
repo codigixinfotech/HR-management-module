@@ -29,8 +29,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
 import { VerificationDetailsModal } from '@/components/attendance/VerificationDetailsModal';
-import { EditAttendanceRequestModal } from '@/components/attendance/EditAttendanceRequestModal';
 import { FileSignature } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 
 export function EmployeeDashboardView() {
   const navigate = useNavigate();
@@ -178,6 +178,35 @@ export function EmployeeDashboardView() {
     setIsDetailsModalOpen(true);
   };
 
+  const [assignedCourse, setAssignedCourse] = useState<any>(null);
+
+  useEffect(() => {
+    const syncAssignedCourse = () => {
+      apiClient
+        .get<any[]>('/learning/my-learning')
+        .then((res) => {
+          const list = Array.isArray(res) ? res : (res as any)?.data || [];
+          if (list.length > 0) {
+            const myLatest = list.find(
+              (e: any) => e.status === 'Not Started' || e.status === 'In Progress'
+            ) || list[0];
+            setAssignedCourse(myLatest);
+          }
+        })
+        .catch(() => {});
+    };
+
+    syncAssignedCourse();
+    window.addEventListener('storage', syncAssignedCourse);
+    window.addEventListener('focus', syncAssignedCourse);
+    window.addEventListener('ehcm_enrollments_updated', syncAssignedCourse);
+    return () => {
+      window.removeEventListener('storage', syncAssignedCourse);
+      window.removeEventListener('focus', syncAssignedCourse);
+      window.removeEventListener('ehcm_enrollments_updated', syncAssignedCourse);
+    };
+  }, [user]);
+
   return (
     <div className="space-y-6">
       {/* ── 1. Welcome Header Banner ── */}
@@ -220,6 +249,42 @@ export function EmployeeDashboardView() {
           </div>
         </div>
       </div>
+
+      {/* ── 🔔 New Training Assigned Banner ── */}
+      {assignedCourse && (
+        <Card className="border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-card shadow-sm">
+          <CardHeader className="py-3 px-4 border-b border-indigo-500/20 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-indigo-600 animate-ping" />
+              <CardTitle className="text-xs uppercase tracking-wider font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                <GraduationCap className="h-4 w-4 text-indigo-600" /> 🔔 New Training Assigned
+              </CardTitle>
+            </div>
+            <Badge className="bg-indigo-600 text-white text-[10px] font-bold">
+              {assignedCourse.status}
+            </Badge>
+          </CardHeader>
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-foreground">
+                {assignedCourse.courseTitle}
+              </h3>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>Assigned by: <strong className="text-foreground">HR / Learning & Development</strong></span>
+                <span>Assigned Date: <strong className="text-foreground">{assignedCourse.assignedDate || '03-Sep-2026'}</strong></span>
+                <span>Status: <strong className="text-amber-600 font-semibold">{assignedCourse.status}</strong></span>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => navigate('/learning?tab=employee-learning')}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs gap-1.5 shadow-sm shrink-0"
+            >
+              <GraduationCap className="h-4 w-4" /> View Course
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── 2. Today's Attendance & Verification Telemetry ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

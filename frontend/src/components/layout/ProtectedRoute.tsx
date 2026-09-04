@@ -24,9 +24,14 @@ export function ProtectedRoute() {
   const location = useLocation();
   const currentPath = location.pathname;
 
-  if (currentPath.startsWith('/careers') || currentPath === '/login') {
+  if (
+    currentPath.startsWith('/careers') ||
+    currentPath.startsWith('/auth') ||
+    currentPath === '/login'
+  ) {
     return <Outlet />;
   }
+
 
   if (!accessToken) {
     return <Navigate to="/login" replace />;

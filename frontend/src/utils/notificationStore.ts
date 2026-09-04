@@ -30,36 +30,17 @@ export interface EmailDispatchLog {
 const NOTIF_KEY = 'ehcm_portal_notifications';
 const EMAIL_LOG_KEY = 'ehcm_email_dispatches';
 
-// Initial default seed notifications for realistic first-time view
-const DEFAULT_NOTIFICATIONS: PortalNotification[] = [
-  {
-    id: 'NOTIF-1001',
-    type: 'TRAINING',
-    employeeId: 'EMP-1483',
-    employeeName: 'Sanika Shelke',
-    title: 'New Training Assigned',
-    message: 'You have been assigned to First-Time Manager Leadership Workshop 2026.',
-    programId: 'PRG-0347',
-    programCode: 'TRN-2026-347',
-    createdAt: new Date().toISOString(),
-    read: false,
-    actionUrl: '/learning/training-programs',
-    sender: 'L&D HR Team',
-  },
-];
-
 export const notificationStore = {
   // Get all portal notifications
   getNotifications(): PortalNotification[] {
     const raw = localStorage.getItem(NOTIF_KEY);
     if (!raw) {
-      localStorage.setItem(NOTIF_KEY, JSON.stringify(DEFAULT_NOTIFICATIONS));
-      return DEFAULT_NOTIFICATIONS;
+      return [];
     }
     try {
       return JSON.parse(raw);
     } catch {
-      return DEFAULT_NOTIFICATIONS;
+      return [];
     }
   },
 
@@ -67,7 +48,7 @@ export const notificationStore = {
   getNotificationsForUser(employeeId?: string): PortalNotification[] {
     const all = this.getNotifications();
     if (!employeeId) return all;
-    return all.filter((n) => !n.employeeId || n.employeeId === employeeId || employeeId === 'EMP-1483');
+    return all.filter((n) => !n.employeeId || n.employeeId === employeeId);
   },
 
   // Get unread count for user

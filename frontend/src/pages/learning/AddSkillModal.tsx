@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X,
   LayoutGrid,
   Check,
-  Plus,
-  Trash2,
-  Sparkles,
+  BookOpen,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CATALOG_COURSES, type SkillItem } from './mockTrainingData';
+import { apiClient } from '@/lib/api-client';
+import type { SkillItem } from './types';
 
 interface AddSkillModalProps {
   isOpen: boolean;
@@ -28,22 +28,48 @@ interface AddSkillModalProps {
 }
 
 export function AddSkillModal({ isOpen, onClose, onSave }: AddSkillModalProps) {
-  const [name, setName] = useState('AWS Certified Solutions Architect');
-  const [code, setCode] = useState(`SKL-${Math.floor(100 + Math.random() * 900)}`);
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
   const [category, setCategory] = useState<SkillItem['category']>('Technical');
-  const [description, setDescription] = useState('Cloud infrastructure design, deployment, and security auditing.');
+  const [description, setDescription] = useState('');
 
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([CATALOG_COURSES[0].title]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    setLoadingCourses(true);
+    apiClient
+      .get<any[]>('/learning/catalog-courses')
+      .then((res) => {
+        if (!isMounted) return;
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        setCourses(list);
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch courses for skill mapping:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingCourses(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     const newSkill: SkillItem = {
       id: code,
-      code,
       name,
       category,
       description,
+      relatedCoursesCount: selectedCourses.length,
       levels: [
         { level: 1, title: 'Beginner', description: 'Basic concept awareness.' },
         { level: 2, title: 'Basic', description: 'Guided implementation.' },
@@ -145,6 +171,58 @@ export function AddSkillModal({ isOpen, onClose, onSave }: AddSkillModalProps) {
                 <strong className="text-emerald-600">Expert</strong>
               </div>
             </div>
+          </div>
+
+          {/* Associated Courses */}
+          <div className="space-y-2 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <BookOpen className="h-3.5 w-3.5" /> Associated Courses
+              </Label>
+              <span className="text-[11px] text-muted-foreground">
+                {selectedCourses.length} course{selectedCourses.length === 1 ? '' : 's'} mapped
+              </span>
+            </div>
+
+            {loadingCourses ? (
+              <div className="flex items-center justify-center gap-2 p-4 text-xs text-muted-foreground bg-muted/20 rounded-md border">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" /> Loading courses...
+              </div>
+            ) : courses.length === 0 ? (
+              <div className="p-4 text-xs text-muted-foreground bg-muted/20 rounded-md border text-center">
+                No courses available.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1.5 border rounded-md bg-muted/10">
+                {courses.map((c) => {
+                  const isChecked = selectedCourses.includes(c.title);
+                  return (
+                    <label
+                      key={c.id || c.code}
+                      className={`flex items-start gap-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
+                        isChecked ? 'border-primary bg-primary/5 text-foreground' : 'border-border/60 hover:bg-muted/40'
+                      }`}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedCourses((prev) => [...prev, c.title]);
+                          } else {
+                            setSelectedCourses((prev) => prev.filter((t) => t !== c.title));
+                          }
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold truncate">{c.title}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono">{c.code} • {c.category}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 

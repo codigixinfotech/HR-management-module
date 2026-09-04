@@ -331,6 +331,147 @@ export class AuthService implements OnModuleInit {
     return { success: true, message: 'Password updated successfully' };
   }
 
+  async validateInvitation(token: string) {
+    if (!token) {
+      throw new BadRequestException('Invitation token is required');
+    }
+
+    try {
+      const rawToken = token.startsWith('inv_') ? token.slice(4) : token;
+      const decodedStr = Buffer.from(rawToken, 'base64url').toString('utf-8');
+
+      let userId: string | undefined;
+      let email: string | undefined;
+      let createdAt: number | undefined;
+
+      // 1. Try parsing JSON payload
+      try {
+        const parsed = JSON.parse(decodedStr);
+        userId = parsed.userId;
+        email = parsed.email;
+        createdAt = parsed.createdAt;
+      } catch {
+        // Fallback for delimited format
+        const parts = decodedStr.split(':');
+        userId = parts[0];
+        if (parts[1] && !isNaN(Number(parts[1]))) {
+          createdAt = Number(parts[1]);
+        }
+      }
+
+      // 2. Query user
+      let user = userId
+        ? await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+              company: true,
+              roles: { include: { role: true } },
+            },
+          })
+        : null;
+
+      // If not found by userId, check if userId was actually a companyId
+      if (!user && userId) {
+        user = await this.prisma.user.findFirst({
+          where: { companyId: userId },
+          include: {
+            company: true,
+            roles: { include: { role: true } },
+          },
+        });
+      }
+
+      // If still not found, check by email if provided
+      if (!user && email) {
+        user = await this.prisma.user.findUnique({
+          where: { email },
+          include: {
+            company: true,
+            roles: { include: { role: true } },
+          },
+        });
+      }
+
+      if (!user) {
+        return {
+          valid: false,
+          status: 'INVALID',
+          message: 'Invalid invitation link. Account not found.',
+        };
+      }
+
+      // 3. Check if already used
+      if (user.mustResetPassword === false) {
+        return {
+          valid: false,
+          status: 'USED',
+          message: 'This invitation has already been used.',
+          email: user.email,
+          company: user.company?.name || 'Company',
+        };
+      }
+
+      // 4. Check expiration (7 days)
+      if (createdAt && Date.now() - createdAt > 7 * 24 * 60 * 60 * 1000) {
+        return {
+          valid: false,
+          status: 'EXPIRED',
+          message: 'This invitation has expired.',
+          email: user.email,
+          company: user.company?.name || 'Company',
+        };
+      }
+
+      return {
+        valid: true,
+        status: 'VALID',
+        email: user.email,
+        company: user.company?.name || 'Company',
+        companyCode: user.company?.code || '',
+        role: user.roles[0]?.role?.name || 'COMPANY_ADMIN',
+        userId: user.id,
+      };
+    } catch {
+      return {
+        valid: false,
+        status: 'INVALID',
+        message: 'Invalid or malformed invitation link.',
+      };
+    }
+  }
+
+  async setPassword(token: string, newPassword: string) {
+    if (!token || !newPassword) {
+      throw new BadRequestException('Invitation token and new password are required');
+    }
+
+    if (newPassword.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters long');
+    }
+
+    const validation = await this.validateInvitation(token);
+    if (!validation.valid || !validation.userId) {
+      throw new BadRequestException(validation.message || 'Invalid or expired invitation token');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: validation.userId },
+      data: {
+        passwordHash,
+        mustResetPassword: false, // Marks token as USED
+        isActive: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Password created successfully. Your company account is now active.',
+    };
+  }
+
+
   async refresh(refreshToken: string) {
     let payload: { sub: string; email: string };
     try {

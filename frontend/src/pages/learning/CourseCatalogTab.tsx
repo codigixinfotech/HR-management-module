@@ -25,6 +25,8 @@ import {
   Mail,
   Bell,
   CheckSquare,
+  Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,18 +50,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import {
-  MARKETPLACE_COURSES,
-  INITIAL_COMPANY_COURSES,
-  INITIAL_COURSE_ENROLLMENTS,
-  INITIAL_COURSE_REQUESTS,
-  INITIAL_PURCHASE_HISTORY,
-  type MarketplaceCourse,
-  type CompanyCourse,
-  type CourseEnrollment,
-  type CourseRequest,
-  type PurchaseHistoryRecord,
-} from './mockTrainingData';
+import type {
+  MarketplaceCourse,
+  CompanyCourse,
+  CourseEnrollment,
+  CourseRequest,
+  PurchaseHistoryRecord,
+} from './types';
 import {
   ViewCourseModal,
   PurchaseCourseModal,
@@ -67,85 +64,83 @@ import {
   ReviewCourseRequestModal,
   PurchaseMoreSeatsModal,
   EmployeeRequestCourseModal,
+  AddCompanyCourseModal,
+  EnrollSuccessModal,
+  ViewCompanyCourseModal,
+  ManageCompanySeatsModal,
+  DeleteCompanyCourseModal,
 } from './CourseCatalogModals';
 import { notificationStore } from '@/utils/notificationStore';
 import { useAuthStore } from '@/stores/auth-store';
 import { isHrOrAdminUser } from '@/lib/modules';
+import { apiClient } from '@/lib/api-client';
+import { employeesApi } from '@/api/employees';
+import { lmsApi } from '@/services/lmsApi';
 
 export function CourseCatalogTab() {
   const user = useAuthStore((s) => s.user);
   const isHrOrAdmin = isHrOrAdminUser(user);
-  // ① LocalStorage State Management
-  const [marketplaceCourses] = useState<MarketplaceCourse[]>(MARKETPLACE_COURSES);
+  const [marketplaceCourses, setMarketplaceCourses] = useState<MarketplaceCourse[]>([]);
+  const [companyCourses, setCompanyCourses] = useState<CompanyCourse[]>([]);
+  const [enrollments, setEnrollments] = useState<CourseEnrollment[]>([]);
+  const [courseRequests, setCourseRequests] = useState<CourseRequest[]>([]);
+  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistoryRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<'available' | 'company' | 'enrollments' | 'requests' | 'history'>('company');
 
-  const [companyCourses, setCompanyCourses] = useState<CompanyCourse[]>(() => {
-    const saved = localStorage.getItem('ehcm_company_courses');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {
-        console.error('Failed to parse company courses', e);
-      }
+
+  // Fetch & Sync with Backend MySQL Database
+  const fetchBackendDbData = async () => {
+    try {
+      const [catRes, compRes, enrRes, reqRes, histRes] = await Promise.all([
+        lmsApi.getCatalogCourses().catch(() => []),
+        lmsApi.getCompanyCourses().catch(() => []),
+        lmsApi.getEnrollments().catch(() => []),
+        lmsApi.getCourseRequests().catch(() => []),
+        lmsApi.getPurchaseHistory().catch(() => []),
+      ]);
+
+      setMarketplaceCourses(Array.isArray(catRes) ? catRes : []);
+      setCompanyCourses(Array.isArray(compRes) ? compRes : []);
+      setEnrollments(Array.isArray(enrRes) ? enrRes : []);
+      setCourseRequests(Array.isArray(reqRes) ? reqRes : []);
+      setPurchaseHistory(Array.isArray(histRes) ? histRes : []);
+    } catch (err) {
+      console.warn('Backend DB sync error:', err);
     }
-    return INITIAL_COMPANY_COURSES;
-  });
-
-  const [enrollments, setEnrollments] = useState<CourseEnrollment[]>(() => {
-    const saved = localStorage.getItem('ehcm_course_enrollments');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {
-        console.error('Failed to parse enrollments', e);
-      }
-    }
-    return INITIAL_COURSE_ENROLLMENTS;
-  });
-
-  const [courseRequests, setCourseRequests] = useState<CourseRequest[]>(() => {
-    const saved = localStorage.getItem('ehcm_course_requests');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {
-        console.error('Failed to parse course requests', e);
-      }
-    }
-    return INITIAL_COURSE_REQUESTS;
-  });
-
-  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistoryRecord[]>(() => {
-    const saved = localStorage.getItem('ehcm_purchase_history');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {
-        console.error('Failed to parse purchase history', e);
-      }
-    }
-    return INITIAL_PURCHASE_HISTORY;
-  });
-
-  // Sync to LocalStorage
-  useEffect(() => {
-    localStorage.setItem('ehcm_company_courses', JSON.stringify(companyCourses));
-  }, [companyCourses]);
+  };
 
   useEffect(() => {
-    localStorage.setItem('ehcm_course_enrollments', JSON.stringify(enrollments));
-  }, [enrollments]);
+    fetchBackendDbData();
+  }, [activeTab]);
+
+  const [dbEmployees, setDbEmployees] = useState<
+    Array<{ id: string; employeeCode?: string; name: string; department: string; designation?: string }>
+  >([]);
 
   useEffect(() => {
-    localStorage.setItem('ehcm_course_requests', JSON.stringify(courseRequests));
-  }, [courseRequests]);
+    employeesApi.list({ pageSize: 1000 }).then((res: any) => {
+      const rawList: any[] = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.items)
+        ? res.items
+        : Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.items)
+        ? res.data.items
+        : [];
 
-  useEffect(() => {
-    localStorage.setItem('ehcm_purchase_history', JSON.stringify(purchaseHistory));
-  }, [purchaseHistory]);
+      if (rawList.length > 0) {
+        const mapped = rawList.map((e: any) => ({
+          id: e.id,
+          employeeCode: e.employeeCode || e.id,
+          name: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.name || e.employeeCode || 'Employee',
+          department: typeof e.department === 'string' ? e.department : e.department?.name || 'Operations',
+          designation: typeof e.designation === 'string' ? e.designation : e.designation?.title || 'Staff',
+        }));
+        setDbEmployees(mapped);
+      }
+    }).catch((err) => console.warn('Failed to load DB employees in CourseCatalogTab:', err));
+  }, []);
 
   // Active Modals State
   const [viewingCourse, setViewingCourse] = useState<MarketplaceCourse | null>(null);
@@ -154,6 +149,70 @@ export function CourseCatalogTab() {
   const [reviewingRequest, setReviewingRequest] = useState<CourseRequest | null>(null);
   const [purchasingMoreSeatsCourse, setPurchasingMoreSeatsCourse] = useState<CompanyCourse | null>(null);
   const [requestingCourse, setRequestingCourse] = useState<MarketplaceCourse | null>(null);
+  const [isAddCompanyCourseOpen, setIsAddCompanyCourseOpen] = useState(false);
+  const [requestForPurchase, setRequestForPurchase] = useState<CourseRequest | null>(null);
+
+  const [enrollSuccessData, setEnrollSuccessData] = useState<{
+    courseTitle: string;
+    enrolledCount: number;
+    seatsRemaining: number;
+    portalNotifSent: number;
+    emailSent: number;
+  } | null>(null);
+
+  const [viewingCompanyCourse, setViewingCompanyCourse] = useState<CompanyCourse | null>(null);
+  const [managingSeatsCompanyCourse, setManagingSeatsCompanyCourse] = useState<CompanyCourse | null>(null);
+  const [deletingCompanyCourse, setDeletingCompanyCourse] = useState<CompanyCourse | null>(null);
+
+  const handleAddCompanyCourse = async (newCompCourse: CompanyCourse, newOrderRecord: PurchaseHistoryRecord) => {
+    try {
+      await lmsApi.addCompanyCourse({
+        title: newCompCourse.title,
+        courseCode: newCompCourse.courseCode,
+        provider: newCompCourse.provider,
+        category: newCompCourse.category,
+        seatsPurchased: newCompCourse.purchasedSeats,
+        pricePerSeat: newOrderRecord.pricePerSeat,
+      });
+      await fetchBackendDbData();
+      setIsAddCompanyCourseOpen(false);
+      toast.success(`✓ Added ${newCompCourse.title} to company courses library in MySQL.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to add company course');
+    }
+  };
+
+  const handleReleaseSeat = async (enrId: string) => {
+    const targetEnr = enrollments.find((e) => e.id === enrId);
+    if (!targetEnr) return;
+
+    if (targetEnr.progress > 0 || targetEnr.status !== 'Not Started') {
+      toast.error('⚠ Seat cannot be released because the employee has already started the course.');
+      return;
+    }
+
+    try {
+      await lmsApi.releaseSeat(enrId);
+      await fetchBackendDbData();
+      window.dispatchEvent(new Event('ehcm_enrollments_updated'));
+      toast.success(`✓ Released 1 seat from ${targetEnr.employeeName}. Available seats restored in MySQL.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to release seat');
+    }
+  };
+
+  const handleConfirmDeleteCompanyCourse = async (courseId: string) => {
+    const target = companyCourses.find((c) => c.courseId === courseId || c.id === courseId);
+    try {
+      await lmsApi.deleteCompanyCourse(courseId);
+      await fetchBackendDbData();
+      toast.success(`Deleted ${target?.title || 'company course entry'} from MySQL database.`);
+    } catch (err: any) {
+      toast.error('Failed to delete course');
+    } finally {
+      setDeletingCompanyCourse(null);
+    }
+  };
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -161,411 +220,343 @@ export function CourseCatalogTab() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [enrollmentCourseFilter, setEnrollmentCourseFilter] = useState('All');
 
+  // Dynamic Seat Ledger Calculation (Single Source of Truth derived from actual Enrollments)
+  const effectiveCompanyCourses = useMemo(() => {
+    return companyCourses.map((cc) => {
+      const courseEnrCount = enrollments.filter(
+        (e) => e.courseId === cc.courseId || e.courseTitle === cc.title
+      ).length;
+      const assignedSeats = Math.min(cc.purchasedSeats, courseEnrCount);
+      const availableSeats = Math.max(0, cc.purchasedSeats - assignedSeats);
+      return {
+        ...cc,
+        assignedSeats,
+        availableSeats,
+      };
+    });
+  }, [companyCourses, enrollments]);
+
   // KPI Calculations
   const totalAvailableMarketplace = marketplaceCourses.length;
-  const totalCompanyCourses = companyCourses.length;
-  const totalPurchasedSeats = companyCourses.reduce((acc, c) => acc + c.purchasedSeats, 0);
-  const totalAvailableSeats = companyCourses.reduce((acc, c) => acc + c.availableSeats, 0);
+  const totalCompanyCourses = effectiveCompanyCourses.length;
+  const totalPurchasedSeats = effectiveCompanyCourses.reduce((acc, c) => acc + c.purchasedSeats, 0);
+  const totalAvailableSeats = effectiveCompanyCourses.reduce((acc, c) => acc + c.availableSeats, 0);
   const totalActiveEnrollments = enrollments.filter((e) => e.status === 'In Progress' || e.status === 'Not Started').length;
   const totalCompletedCourses = enrollments.filter((e) => e.status === 'Completed').length;
-  const totalPendingRequests = courseRequests.filter((r) => r.status === 'Pending').length;
+  const totalPendingRequests = courseRequests.filter((r) => r.status?.toLowerCase() === 'pending').length;
 
   // ① Handler: Purchase New Course
-  const handleConfirmPurchase = (order: PurchaseHistoryRecord, seatsCount: number) => {
-    const updatedHistory = [order, ...purchaseHistory];
-    setPurchaseHistory(updatedHistory);
-
-    const existingCourse = companyCourses.find((c) => c.courseId === order.courseId);
-    let updatedCompanyCourses: CompanyCourse[];
-
-    if (existingCourse) {
-      updatedCompanyCourses = companyCourses.map((c) => {
-        if (c.courseId === order.courseId) {
-          const newPurchased = c.purchasedSeats + seatsCount;
-          const newAvailable = c.availableSeats + seatsCount;
-          return {
-            ...c,
-            purchasedSeats: newPurchased,
-            availableSeats: newAvailable,
-          };
-        }
-        return c;
-      });
-    } else {
+  const handleConfirmPurchase = async (order: PurchaseHistoryRecord, seatsCount: number) => {
+    try {
       const marketCourse = marketplaceCourses.find((m) => m.id === order.courseId);
-      const newCompCourse: CompanyCourse = {
-        courseId: order.courseId,
-        courseCode: order.courseCode,
+      await lmsApi.addCompanyCourse({
         title: order.courseTitle,
+        courseCode: order.courseCode,
         provider: order.provider,
         category: marketCourse?.category || 'Technical',
-        purchasedSeats: seatsCount,
-        assignedSeats: 0,
-        availableSeats: seatsCount,
-        inProgressCount: 0,
-        completedCount: 0,
-        status: 'ACTIVE',
-        purchasedAt: new Date().toLocaleDateString(),
-      };
-      updatedCompanyCourses = [newCompCourse, ...companyCourses];
+        seatsPurchased: seatsCount,
+        pricePerSeat: order.pricePerSeat,
+      });
+      await fetchBackendDbData();
+      toast.success(`✓ Successfully purchased ${seatsCount} seats for ${order.courseTitle}! Saved in MySQL.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to complete purchase');
     }
-
-    setCompanyCourses(updatedCompanyCourses);
   };
 
   // ② Handler: Enroll Selected Employees
-  const handleConfirmEnrollment = (
-    courseId: string,
+  const handleConfirmEnrollment = async (
+    companyCourseId: string,
     enrolledEmpIds: string[],
     notifyPortal: boolean,
     notifyEmail: boolean
   ) => {
-    const targetCompCourse = companyCourses.find((c) => c.courseId === courseId);
-    if (!targetCompCourse) return;
-
-    const count = enrolledEmpIds.length;
-
-    // Update Seat math: Available = Available - count, Assigned = Assigned + count
-    const updatedCompCourses = companyCourses.map((c) => {
-      if (c.courseId === courseId) {
-        return {
-          ...c,
-          assignedSeats: c.assignedSeats + count,
-          availableSeats: c.availableSeats - count,
-        };
-      }
-      return c;
-    });
-    setCompanyCourses(updatedCompCourses);
-
-    // Create Enrollment records
-    const newEnrollments: CourseEnrollment[] = enrolledEmpIds.map((empId, idx) => {
-      const mockEmpName = `Employee ${empId}`;
-      return {
-        id: `ENR-${Date.now()}-${idx}`,
-        employeeId: empId,
-        employeeName: mockEmpName,
-        department: 'Operations',
-        courseId: targetCompCourse.courseId,
-        courseCode: targetCompCourse.courseCode,
-        courseTitle: targetCompCourse.title,
-        assignedDate: new Date().toLocaleDateString(),
-        progress: 0,
-        status: 'Not Started',
-        certificateIssued: false,
-      };
-    });
-
-    setEnrollments([...newEnrollments, ...enrollments]);
-
-    // Dispatch Notifications & Email logs
-    if (notifyPortal) {
-      const portalNotifs = enrolledEmpIds.map((empId) => ({
-        type: 'TRAINING' as const,
-        employeeId: empId,
-        employeeName: `Employee ${empId}`,
-        title: `New Course Assigned: ${targetCompCourse.title}`,
-        message: `You have been enrolled in ${targetCompCourse.title} by EHCM HR. Log in to start your course learning.`,
-        programId: targetCompCourse.courseId,
-        programCode: targetCompCourse.courseCode,
-        actionUrl: '/learning/course-catalog',
-        sender: 'EHCM L&D Team',
-      }));
-      notificationStore.addNotifications(portalNotifs);
+    let targetCompCourse = companyCourses.find(
+      (c) => c.courseId === companyCourseId || c.id === companyCourseId || c.courseId === enrollingCompanyCourse?.courseId
+    );
+    if (!targetCompCourse && enrollingCompanyCourse) {
+      targetCompCourse = enrollingCompanyCourse;
+    } else if (!targetCompCourse && companyCourses.length > 0) {
+      targetCompCourse = companyCourses[0];
     }
 
-    if (notifyEmail) {
-      notificationStore.addEmailDispatchLog({
-        programId: targetCompCourse.courseId,
-        programCode: targetCompCourse.courseCode,
-        programName: targetCompCourse.title,
-        recipientCount: count,
-        recipients: enrolledEmpIds.map((empId) => ({
-          name: `Employee ${empId}`,
-          email: `${empId.toLowerCase()}@codigix.com`,
-        })),
-        subject: `New Course Assigned – ${targetCompCourse.title}`,
-        body: `You have been enrolled in ${targetCompCourse.title} by EHCM Technologies Pvt Ltd.`,
-        status: 'SENT',
-        senderName: 'EHCM L&D HR Team',
+    if (!targetCompCourse) {
+      toast.error('Could not find company course for enrollment.');
+      return;
+    }
+
+    try {
+      const targetId = targetCompCourse.id || targetCompCourse.courseId;
+      const res: any = await lmsApi.enrollEmployees(targetId, enrolledEmpIds);
+      await fetchBackendDbData();
+      window.dispatchEvent(new Event('ehcm_enrollments_updated'));
+
+      const count = enrolledEmpIds.length;
+      if (notifyPortal) {
+        const portalNotifs = enrolledEmpIds.map((empId) => {
+          const foundEmp = dbEmployees.find((e) => e.id === empId);
+          return {
+            type: 'TRAINING' as const,
+            employeeId: empId,
+            employeeName: foundEmp?.name || `Employee ${empId}`,
+            title: `🎓 New Course Assigned: ${targetCompCourse!.title}`,
+            message: `You have been enrolled in ${targetCompCourse!.title} by EHCM HR. Start Date: ${new Date().toLocaleDateString()}. Click to start course in My Learning.`,
+            programId: targetCompCourse!.courseId,
+            programCode: targetCompCourse!.courseCode,
+            actionUrl: '/learning/employee-learning',
+            sender: 'EHCM L&D HR Team',
+          };
+        });
+        notificationStore.addNotifications(portalNotifs);
+      }
+
+      if (notifyEmail) {
+        notificationStore.addEmailDispatchLog({
+          programId: targetCompCourse.courseId,
+          programCode: targetCompCourse.courseCode,
+          programName: targetCompCourse.title,
+          recipientCount: count,
+          recipients: enrolledEmpIds.map((empId) => {
+            const foundEmp = dbEmployees.find((e) => e.id === empId);
+            return {
+              name: foundEmp?.name || `Employee ${empId}`,
+              email: `${(foundEmp?.name || empId).toLowerCase().replace(/\s+/g, '.')}@codigix.com`,
+            };
+          }),
+          subject: `New Course Assigned – ${targetCompCourse.title}`,
+          body: `You have been enrolled in ${targetCompCourse.title} by EHCM Technologies Pvt Ltd. Please log in to Employee Learning Hub to start your course.`,
+          status: 'SENT',
+          senderName: 'EHCM L&D HR Team',
+        });
+      }
+
+      setEnrollingCompanyCourse(null);
+      setEnrollSuccessData({
+        courseTitle: targetCompCourse.title,
+        enrolledCount: count,
+        seatsRemaining: res?.availableSeats ?? Math.max(0, targetCompCourse.availableSeats - count),
+        portalNotifSent: notifyPortal ? count : 0,
+        emailSent: notifyEmail ? count : 0,
       });
+      toast.success(`✓ Successfully enrolled ${count} employees into ${targetCompCourse.title}!`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Enrollment failed');
     }
   };
 
   // ③ Handler: Course Request Approval (Approve & Purchase vs Approve Existing vs Reject)
   const handleApprovePurchaseRequest = (req: CourseRequest) => {
-    const marketCourse = marketplaceCourses.find((m) => m.id === req.courseId);
-    if (marketCourse) {
-      // Update request status
-      const updatedReqs = courseRequests.map((r) =>
-        r.id === req.id ? { ...r, status: 'Approved' as const, approvedSeatType: 'New Purchase' as const } : r
-      );
-      setCourseRequests(updatedReqs);
-      setReviewingRequest(null);
-      // Open Purchase Modal for 1 seat
-      setPurchasingCourse(marketCourse);
+    setReviewingRequest(null);
+    setRequestForPurchase(req);
+    setIsAddCompanyCourseOpen(true);
+  };
+
+  const handleConfirmApproveAndPurchase = async (req: CourseRequest, purchaseData: any) => {
+    try {
+      await lmsApi.approvePurchaseCourseRequest(req.id, purchaseData);
+      await fetchBackendDbData();
+      setIsAddCompanyCourseOpen(false);
+      setRequestForPurchase(null);
+      window.dispatchEvent(new Event('ehcm_enrollments_updated'));
+      toast.success(`✓ Approved request & purchased 1 seat for ${req.employeeName}! Seat allocated and enrolled in MySQL.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to complete approval and purchase');
     }
   };
 
-  const handleApproveExistingSeatRequest = (req: CourseRequest) => {
-    const existingCompCourse = companyCourses.find((c) => c.courseId === req.courseId);
-
+  const handleApproveExistingSeatRequest = async (req: CourseRequest) => {
+    const existingCompCourse = companyCourses.find((c) => c.courseId === req.courseId || c.title === req.courseTitle);
     if (!existingCompCourse || existingCompCourse.availableSeats <= 0) {
       toast.error('No available seats remaining in existing course library. Please click "Approve & Purchase" instead.');
       return;
     }
 
-    // Decrement available seat, increment assigned seat
-    const updatedCompCourses = companyCourses.map((c) => {
-      if (c.courseId === req.courseId) {
-        return {
-          ...c,
-          assignedSeats: c.assignedSeats + 1,
-          availableSeats: c.availableSeats - 1,
-        };
-      }
-      return c;
-    });
-    setCompanyCourses(updatedCompCourses);
-
-    // Create Enrollment for Employee
-    const newEnrollment: CourseEnrollment = {
-      id: `ENR-${Date.now()}`,
-      employeeId: req.employeeId,
-      employeeName: req.employeeName,
-      department: req.department,
-      courseId: req.courseId,
-      courseCode: existingCompCourse.courseCode,
-      courseTitle: req.courseTitle,
-      assignedDate: new Date().toLocaleDateString(),
-      progress: 0,
-      status: 'Not Started',
-      certificateIssued: false,
-    };
-    setEnrollments([newEnrollment, ...enrollments]);
-
-    // Update Request Status
-    const updatedReqs = courseRequests.map((r) =>
-      r.id === req.id ? { ...r, status: 'Approved' as const, approvedSeatType: 'Existing Seat' as const } : r
-    );
-    setCourseRequests(updatedReqs);
-    setReviewingRequest(null);
-
-    // Notify Employee
-    notificationStore.addNotifications([
-      {
-        type: 'TRAINING',
-        employeeId: req.employeeId,
-        employeeName: req.employeeName,
-        title: `Course Request Approved: ${req.courseTitle}`,
-        message: `Your request for ${req.courseTitle} was approved using existing company seats! You can now start learning.`,
-        programId: req.courseId,
-        actionUrl: '/learning/course-catalog',
-        sender: 'EHCM L&D Team',
-      },
-    ]);
-
-    toast.success(`✓ Course Request Approved! 1 existing seat assigned to ${req.employeeName}.`);
+    try {
+      await lmsApi.approveExistingSeatCourseRequest(req.id, { companyCourseId: existingCompCourse.id || existingCompCourse.courseId });
+      await fetchBackendDbData();
+      window.dispatchEvent(new Event('ehcm_enrollments_updated'));
+      setReviewingRequest(null);
+      toast.success(`✓ Course Request Approved! 1 existing seat assigned to ${req.employeeName}.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to approve request');
+    }
   };
 
-  const handleRejectRequest = (req: CourseRequest, reason: string) => {
-    const updatedReqs = courseRequests.map((r) =>
-      r.id === req.id ? { ...r, status: 'Rejected' as const, rejectionReason: reason } : r
-    );
-    setCourseRequests(updatedReqs);
-
-    // Notify Employee of Rejection
-    notificationStore.addNotifications([
-      {
-        type: 'TRAINING',
-        employeeId: req.employeeId,
-        employeeName: req.employeeName,
-        title: `Course Request Update: ${req.courseTitle}`,
-        message: `Your request for ${req.courseTitle} was not approved. Reason: ${reason}`,
-        programId: req.courseId,
-        actionUrl: '/learning/course-catalog',
-        sender: 'EHCM L&D Team',
-      },
-    ]);
-
-    toast.success(`Course request for ${req.employeeName} rejected.`);
+  const handleRejectRequest = async (req: CourseRequest, reason: string) => {
+    try {
+      await lmsApi.rejectCourseRequest(req.id, reason);
+      await fetchBackendDbData();
+      setReviewingRequest(null);
+      toast.success(`Course request for ${req.employeeName} rejected.`);
+    } catch (err: any) {
+      toast.error('Failed to reject request');
+    }
   };
 
   // Handler: Employee Submits Course Request
-  const handleEmployeeSubmitRequest = (reqData: {
-    courseId: string;
-    courseTitle: string;
-    provider: string;
-    pricePerSeat: number;
-    reason: string;
-    businessBenefit: string;
-    priority: 'High' | 'Medium' | 'Low';
-  }) => {
-    const newReq: CourseRequest = {
-      id: `CRQ-2026-${Math.floor(100 + Math.random() * 900)}`,
-      employeeId: 'EMP-1483',
-      employeeName: 'Sanika Shelke',
-      department: 'Administration',
-      ...reqData,
-      requestedAt: new Date().toLocaleDateString(),
-      status: 'Pending',
-    };
+  const handleEmployeeSubmitRequest = async (reqData: any) => {
+    const empId = user?.employee?.id || user?.id || '';
+    const empName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim() : (user as any)?.name || 'Employee';
+    const dept = user?.employee?.department?.name || 'Operations';
 
-    const updated = [newReq, ...courseRequests];
-    setCourseRequests(updated);
-
-    // Notify HR
-    notificationStore.addNotifications([
-      {
-        type: 'TRAINING',
-        employeeId: 'EMP-ADMIN',
-        employeeName: 'HR Admin',
-        title: `New Course Request: ${reqData.courseTitle}`,
-        message: `Sanika Shelke requested ${reqData.courseTitle} (Priority: ${reqData.priority}). Click to review in Course Requests.`,
-        programId: reqData.courseId,
-        actionUrl: '/learning/course-catalog',
-        sender: 'Employee Self-Service Portal',
-      },
-    ]);
+    try {
+      await lmsApi.submitCourseRequest({
+        employeeId: empId,
+        employeeName: empName,
+        department: dept,
+        ...reqData,
+      });
+      await fetchBackendDbData();
+      toast.success('✓ Course Request Submitted to HR!');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to submit course request');
+    }
   };
 
   // ④ Handler: Purchase Additional Seats
-  const handleConfirmAdditionalSeats = (courseId: string, additionalSeats: number, totalAmount: number) => {
-    const updatedCompCourses = companyCourses.map((c) => {
-      if (c.courseId === courseId) {
-        return {
-          ...c,
-          purchasedSeats: c.purchasedSeats + additionalSeats,
-          availableSeats: c.availableSeats + additionalSeats,
-        };
-      }
-      return c;
-    });
-    setCompanyCourses(updatedCompCourses);
-
-    // Add Record to Purchase History
-    const targetComp = companyCourses.find((c) => c.courseId === courseId);
-    if (targetComp) {
-      const newOrder: PurchaseHistoryRecord = {
-        orderId: `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        courseId: targetComp.courseId,
-        courseCode: targetComp.courseCode,
-        courseTitle: targetComp.title,
-        provider: targetComp.provider,
-        seatsPurchased: additionalSeats,
-        pricePerSeat: 2500,
-        subtotal: additionalSeats * 2500,
-        gst: Math.round(additionalSeats * 2500 * 0.18),
-        totalAmount,
-        billingEntity: 'EHCM Technologies Pvt Ltd',
-        costCenter: 'HR-L&D',
-        purchasedAt: new Date().toLocaleString(),
-        status: 'PAID',
-      };
-      setPurchaseHistory([newOrder, ...purchaseHistory]);
+  const handleConfirmAdditionalSeats = async (courseId: string, additionalSeats: number, totalAmount: number) => {
+    try {
+      await lmsApi.purchaseAdditionalSeats(courseId, { additionalSeats, pricePerSeat: 2500 });
+      await fetchBackendDbData();
+      toast.success(`✓ Successfully purchased ${additionalSeats} additional seats.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to purchase additional seats');
     }
   };
 
   // ⑤ Simulator Handlers for Enrollments
-  const handleSimulateProgress = (enrId: string, newProgress: number) => {
-    const updated = enrollments.map((e) => {
-      if (e.id === enrId) {
-        const isComplete = newProgress === 100;
-        return {
-          ...e,
-          progress: newProgress,
-          status: isComplete ? ('In Progress' as const) : newProgress > 0 ? ('In Progress' as const) : ('Not Started' as const),
-        };
-      }
-      return e;
-    });
-    setEnrollments(updated);
-    toast.success(`Updated enrollment progress to ${newProgress}%`);
-  };
-
-  const handleSimulateAssessment = (enrId: string, score: number) => {
-    const passed = score >= 60;
-    const updated = enrollments.map((e) => {
-      if (e.id === enrId) {
-        return {
-          ...e,
-          progress: 100,
-          assessmentScore: score,
-          assessmentPassed: passed,
-          status: passed ? ('Completed' as const) : ('Failed' as const),
-          certificateIssued: passed,
-        };
-      }
-      return e;
-    });
-    setEnrollments(updated);
-    if (passed) {
-      toast.success(`✓ Assessment Passed (${score}%)! Certificate generated.`);
-    } else {
-      toast.error(`Assessment Failed (${score}%). Retake enabled.`);
+  const handleSimulateProgress = async (enrId: string, newProgress: number) => {
+    try {
+      await lmsApi.updateEnrollmentProgress(enrId, { progress: newProgress });
+      await fetchBackendDbData();
+      window.dispatchEvent(new Event('ehcm_enrollments_updated'));
+      toast.success(`Updated enrollment progress to ${newProgress}% in MySQL database.`);
+    } catch (err: any) {
+      toast.error('Failed to update progress');
     }
   };
 
-  const handleDirectSelfEnroll = (course: MarketplaceCourse) => {
-    const targetComp = companyCourses.find((cc) => cc.courseId === course.id);
+  const handleSimulateAssessment = async (enrId: string, score: number) => {
+    const passed = score >= 60;
+    try {
+      await lmsApi.updateEnrollmentProgress(enrId, {
+        progress: 100,
+        assessmentScore: score,
+        assessmentPassed: passed,
+        status: passed ? 'Completed' : 'Failed',
+      });
+      await fetchBackendDbData();
+      window.dispatchEvent(new Event('ehcm_enrollments_updated'));
+      if (passed) {
+        toast.success(`✓ Assessment Passed (${score}%)! Certificate stored in MySQL.`);
+      } else {
+        toast.error(`Assessment Failed (${score}%). Retake enabled.`);
+      }
+    } catch (err: any) {
+      toast.error('Failed to record assessment');
+    }
+  };
+
+  // Delete Handlers for All 5 Tabs (with Database Persistence)
+  const handleDeleteMarketplaceCourse = async (courseId: string) => {
+    if (!window.confirm('Are you sure you want to permanently delete this course from the database catalog?')) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/learning/catalog-courses/${courseId}`);
+      await fetchBackendDbData();
+      toast.success('Course entry permanently deleted from catalog.');
+    } catch (err: any) {
+      console.error('Failed to delete catalog course:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to delete course from database');
+    }
+  };
+
+  const handleDeleteCompanyCourse = async (courseId: string) => {
+    if (!window.confirm('Are you sure you want to delete this company course entry?')) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/learning/company-courses/${courseId}`);
+      await fetchBackendDbData();
+      toast.success('Company course entry deleted from database.');
+    } catch (err: any) {
+      console.error('Failed to delete company course:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to delete company course');
+    }
+  };
+
+  const handleDeleteEnrollment = async (enrId: string) => {
+    if (!window.confirm('Are you sure you want to delete this enrollment record?')) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/learning/enrollments/${enrId}`);
+      await fetchBackendDbData();
+      window.dispatchEvent(new Event('ehcm_enrollments_updated'));
+      toast.success('Enrollment record deleted from database.');
+    } catch (err: any) {
+      console.error('Failed to delete enrollment:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to delete enrollment');
+    }
+  };
+
+  const handleDeleteCourseRequest = async (reqId: string) => {
+    if (!window.confirm('Are you sure you want to delete this course request entry?')) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/learning/course-requests/${reqId}`);
+      await fetchBackendDbData();
+      toast.success('Course request entry deleted from database.');
+    } catch (err: any) {
+      console.error('Failed to delete course request:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to delete course request');
+    }
+  };
+
+  const handleDeletePurchaseRecord = async (orderId: string) => {
+    if (!window.confirm('Are you sure you want to delete this purchase order log?')) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/learning/purchase-history/${orderId}`);
+      await fetchBackendDbData();
+      toast.success('Purchase order log deleted from database.');
+    } catch (err: any) {
+      console.error('Failed to delete purchase record:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to delete purchase log');
+    }
+  };
+
+  const handleDirectSelfEnroll = async (course: MarketplaceCourse) => {
+    const targetComp = companyCourses.find((cc) => cc.courseId === course.id || cc.title === course.title);
     if (!targetComp || targetComp.availableSeats <= 0) {
       toast.error('No available seats currently remaining for this course.');
       return;
     }
 
+    const currentEmpId = user?.employee?.id || user?.id || '';
     const alreadyEnrolled = enrollments.some(
-      (e) => (e.employeeId === user?.id || e.employeeId === 'EMP-1483') && e.courseId === course.id
+      (e) => (e.employeeId === currentEmpId) && (e.courseId === course.id || e.courseCode === course.code)
     );
     if (alreadyEnrolled) {
       toast.info('You are already enrolled in this course! Check Employee Learning Hub.');
       return;
     }
 
-    const updatedCompCourses = companyCourses.map((c) => {
-      if (c.courseId === course.id) {
-        return {
-          ...c,
-          assignedSeats: c.assignedSeats + 1,
-          availableSeats: c.availableSeats - 1,
-        };
-      }
-      return c;
-    });
-    setCompanyCourses(updatedCompCourses);
-
-    const newEnrollment: CourseEnrollment = {
-      id: `ENR-${Date.now()}`,
-      employeeId: user?.id || 'EMP-1483',
-      employeeName: user?.name || 'Sanika Shelke',
-      department: user?.departmentName || 'Administration',
-      courseId: course.id,
-      courseCode: course.code,
-      courseTitle: course.title,
-      assignedDate: new Date().toLocaleDateString(),
-      progress: 0,
-      status: 'Not Started',
-      certificateIssued: false,
-    };
-    setEnrollments([newEnrollment, ...enrollments]);
-
-    notificationStore.addNotifications([
-      {
-        type: 'TRAINING',
-        employeeId: user?.id || 'EMP-1483',
-        employeeName: user?.name || 'Sanika Shelke',
-        title: `Enrolled: ${course.title}`,
-        message: `You have successfully enrolled in ${course.title}! Open Employee Learning Hub to start your course.`,
-        programId: course.id,
-        actionUrl: '/learning/employee-learning',
-        sender: 'EHCM Learning System',
-      },
-    ]);
-
-    toast.success(`✓ Enrolled in ${course.title}! Added to Employee Learning Hub.`);
+    try {
+      await lmsApi.enrollEmployees(targetComp.id || targetComp.courseId, [currentEmpId]);
+      await fetchBackendDbData();
+      window.dispatchEvent(new Event('ehcm_enrollments_updated'));
+      toast.success(`✓ Enrolled in ${course.title}! Added to Employee Learning Hub.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to self-enroll');
+    }
   };
 
   // ─────────────────────────────────────────────────────────────
-  // EMPLOYEE VIEW (When user is not HR / Admin)
+  // EMPLOYEE VIEW (When user is a standard Employee)
   // ─────────────────────────────────────────────────────────────
   if (!isHrOrAdmin) {
     return (
@@ -588,7 +579,7 @@ export function CourseCatalogTab() {
           />
         )}
 
-        {/* Employee Course Catalog Banner */}
+        {/* Employee Header Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-primary/10 via-purple-500/5 to-card border shadow-xs">
           <div>
             <div className="flex items-center gap-2">
@@ -597,16 +588,26 @@ export function CourseCatalogTab() {
                 Course Catalog
               </h1>
               <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30 font-semibold">
-                Employee Marketplace
+                Available Courses
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Browse available enterprise courses, view curriculum, enroll in company-accessible courses, or request new training
+              Browse available courses through your organization, view curriculum, enroll if accessible, or request new training
             </p>
           </div>
+
+          <Button
+            onClick={() => {
+              const firstMarket = marketplaceCourses[0];
+              if (firstMarket) setRequestingCourse(firstMarket);
+            }}
+            className="gap-1.5 text-xs bg-primary text-primary-foreground font-semibold shadow-xs"
+          >
+            <Plus className="h-4 w-4" /> Request New Course
+          </Button>
         </div>
 
-        {/* Filter Bar */}
+        {/* Search & Filter Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-card rounded-xl border shadow-2xs">
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -634,103 +635,128 @@ export function CourseCatalogTab() {
         </div>
 
         {/* Employee Course Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {marketplaceCourses
-            .filter((c) => {
-              if (searchQuery) {
-                const q = searchQuery.toLowerCase();
-                if (!c.title.toLowerCase().includes(q) && !c.code.toLowerCase().includes(q) && !c.provider.toLowerCase().includes(q)) return false;
-              }
-              if (categoryFilter !== 'All' && c.category !== categoryFilter) return false;
-              return true;
-            })
-            .map((c) => {
-              const matchingComp = companyCourses.find((cc) => cc.courseId === c.id);
-              const hasCompanySeats = matchingComp && matchingComp.availableSeats > 0;
-              const isEnrolled = enrollments.some(
-                (e) => (e.employeeId === user?.id || e.employeeId === 'EMP-1483') && e.courseId === c.id
-              );
+        {(() => {
+          const filtered = marketplaceCourses.filter((c) => {
+            if (searchQuery) {
+              const q = searchQuery.toLowerCase();
+              if (!c.title.toLowerCase().includes(q) && !c.code.toLowerCase().includes(q) && !c.provider.toLowerCase().includes(q)) return false;
+            }
+            if (categoryFilter !== 'All' && c.category !== categoryFilter) return false;
+            return true;
+          });
 
-              return (
-                <Card key={c.id} className="border shadow-2xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
-                  <div className="p-4 bg-gradient-to-r from-primary/10 via-card to-card border-b space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="font-mono text-[10px] bg-background">
-                        {c.code}
-                      </Badge>
-                      {hasCompanySeats ? (
-                        <Badge variant="default" className="text-[9px] bg-emerald-600">
-                          Company Access Available
+          if (filtered.length === 0) {
+            return (
+              <div className="p-12 text-center border rounded-2xl bg-card space-y-3 shadow-2xs">
+                <BookOpen className="h-10 w-10 text-muted-foreground mx-auto" />
+                <h3 className="text-base font-bold text-foreground">No courses match your search</h3>
+                <p className="text-xs text-muted-foreground">Try clearing search filters or selecting All Categories.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCategoryFilter('All');
+                  }}
+                  className="text-xs font-semibold"
+                >
+                  Reset All Filters
+                </Button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filtered.map((c) => {
+                const matchingComp = companyCourses.find((cc) => cc.courseId === c.id);
+                const hasCompanySeats = matchingComp && matchingComp.availableSeats > 0;
+                const isEnrolled = enrollments.some(
+                  (e) => (e.employeeId === (user?.employee?.id || user?.id)) && (e.courseId === c.id || e.courseCode === c.code)
+                );
+
+                return (
+                  <Card key={c.id} className="border shadow-2xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
+                    <div className="p-4 bg-gradient-to-r from-primary/10 via-card to-card border-b space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="font-mono text-[10px] bg-background">
+                          {c.code}
                         </Badge>
+                        {hasCompanySeats ? (
+                          <Badge variant="default" className="text-[9px] bg-emerald-600">
+                            Company Access: Available
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[9px]">
+                            Company Access: Not Available
+                          </Badge>
+                        )}
+                      </div>
+
+                      <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                        {c.title}
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground line-clamp-2">
+                        {c.description}
+                      </p>
+                    </div>
+
+                    <CardContent className="p-4 space-y-3 text-xs flex-grow">
+                      <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-muted/30 border text-[11px]">
+                        <div>
+                          <span className="text-muted-foreground block text-[10px]">Provider:</span>
+                          <span className="font-semibold text-foreground line-clamp-1">{c.provider}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-[10px]">Duration:</span>
+                          <span className="font-semibold text-foreground">{c.durationHours} Hours</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>Level: <strong className="text-foreground">{c.difficulty}</strong></span>
+                        <span>Certificate: <strong className="text-emerald-600">Included ✓</strong></span>
+                      </div>
+                    </CardContent>
+
+                    <div className="p-3 bg-muted/20 border-t flex items-center justify-between gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setViewingCourse(c)}
+                        className="h-8 text-xs gap-1"
+                      >
+                        <Eye className="h-3.5 w-3.5" /> View Details
+                      </Button>
+
+                      {isEnrolled ? (
+                        <Badge variant="default" className="h-8 px-3 text-xs bg-emerald-600">
+                          Enrolled ✓
+                        </Badge>
+                      ) : hasCompanySeats ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleDirectSelfEnroll(c)}
+                          className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Enroll Now
+                        </Button>
                       ) : (
-                        <Badge variant="secondary" className="text-[10px] font-mono">
-                          ₹{c.pricePerSeat.toLocaleString()} / Seat
-                        </Badge>
+                        <Button
+                          size="sm"
+                          onClick={() => setRequestingCourse(c)}
+                          className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold"
+                        >
+                          <FileText className="h-3.5 w-3.5" /> Request Course
+                        </Button>
                       )}
                     </div>
-
-                    <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                      {c.title}
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2">
-                      {c.description}
-                    </p>
-                  </div>
-
-                  <CardContent className="p-4 space-y-3 text-xs flex-grow">
-                    <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-muted/30 border text-[11px]">
-                      <div>
-                        <span className="text-muted-foreground block text-[10px]">Provider:</span>
-                        <span className="font-semibold text-foreground line-clamp-1">{c.provider}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground block text-[10px]">Duration:</span>
-                        <span className="font-semibold text-foreground">{c.durationHours} Hours</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>Level: <strong className="text-foreground">{c.difficulty}</strong></span>
-                      <span>Certificate: <strong className="text-emerald-600">Included ✓</strong></span>
-                    </div>
-                  </CardContent>
-
-                  <div className="p-3 bg-muted/20 border-t flex items-center justify-between gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setViewingCourse(c)}
-                      className="h-8 text-xs gap-1"
-                    >
-                      <Eye className="h-3.5 w-3.5" /> View
-                    </Button>
-
-                    {isEnrolled ? (
-                      <Badge variant="default" className="h-8 px-3 text-xs bg-emerald-600">
-                        Enrolled ✓
-                      </Badge>
-                    ) : hasCompanySeats ? (
-                      <Button
-                        size="sm"
-                        onClick={() => handleDirectSelfEnroll(c)}
-                        className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Enroll Now
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => setRequestingCourse(c)}
-                        className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold"
-                      >
-                        <FileText className="h-3.5 w-3.5" /> Request Course
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-        </div>
+                  </Card>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -765,6 +791,8 @@ export function CourseCatalogTab() {
           isOpen={!!enrollingCompanyCourse}
           onClose={() => setEnrollingCompanyCourse(null)}
           companyCourse={enrollingCompanyCourse}
+          existingEnrollments={enrollments}
+          allEmployees={dbEmployees}
           onConfirmEnrollment={handleConfirmEnrollment}
         />
       )}
@@ -799,6 +827,51 @@ export function CourseCatalogTab() {
         />
       )}
 
+      <AddCompanyCourseModal
+        isOpen={isAddCompanyCourseOpen}
+        onClose={() => {
+          setIsAddCompanyCourseOpen(false);
+          setRequestForPurchase(null);
+        }}
+        catalogCourses={marketplaceCourses}
+        onAddCompanyCourse={handleAddCompanyCourse}
+        initialCourseRequest={requestForPurchase}
+        onApprovePurchaseRequest={handleConfirmApproveAndPurchase}
+      />
+
+      <EnrollSuccessModal
+        isOpen={!!enrollSuccessData}
+        onClose={() => setEnrollSuccessData(null)}
+        data={enrollSuccessData}
+        onViewEnrollments={() => setActiveTab('enrollments')}
+        onViewNotifications={() => toast.info('Navigating to Notifications Center')}
+      />
+
+      <ViewCompanyCourseModal
+        isOpen={!!viewingCompanyCourse}
+        onClose={() => setViewingCompanyCourse(null)}
+        companyCourse={viewingCompanyCourse}
+        onViewEnrollments={() => setActiveTab('enrollments')}
+      />
+
+      <ManageCompanySeatsModal
+        isOpen={!!managingSeatsCompanyCourse}
+        onClose={() => setManagingSeatsCompanyCourse(null)}
+        companyCourse={managingSeatsCompanyCourse}
+        enrollments={enrollments}
+        onReleaseSeat={handleReleaseSeat}
+        onAssignEmployees={(cc) => setEnrollingCompanyCourse(cc)}
+        onPurchaseMoreSeats={(cc) => setPurchasingMoreSeatsCourse(cc)}
+      />
+
+      <DeleteCompanyCourseModal
+        isOpen={!!deletingCompanyCourse}
+        onClose={() => setDeletingCompanyCourse(null)}
+        companyCourse={deletingCompanyCourse}
+        activeEnrollmentCount={enrollments.filter((e) => e.courseId === deletingCompanyCourse?.courseId).length}
+        onConfirmDelete={handleConfirmDeleteCompanyCourse}
+      />
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -807,7 +880,7 @@ export function CourseCatalogTab() {
             <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground">
               Enterprise Course Catalog & Seat Management
             </h1>
-            <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+            <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30 font-semibold">
               LMS License Hub
             </Badge>
           </div>
@@ -816,15 +889,26 @@ export function CourseCatalogTab() {
           </p>
         </div>
 
-        <Button
-          onClick={() => {
-            const firstMarket = marketplaceCourses[0];
-            if (firstMarket) setPurchasingCourse(firstMarket);
-          }}
-          className="gap-1.5 text-xs bg-primary text-primary-foreground font-semibold"
-        >
-          <ShoppingCart className="h-4 w-4" /> Browse & Purchase Courses
-        </Button>
+        <div className="flex items-center gap-2">
+
+          <Button
+            onClick={() => setIsAddCompanyCourseOpen(true)}
+            variant="outline"
+            className="gap-1.5 text-xs font-semibold border-primary/30 text-primary hover:bg-primary/10"
+          >
+            <Plus className="h-4 w-4" /> Add Company Course
+          </Button>
+
+          <Button
+            onClick={() => {
+              const firstMarket = marketplaceCourses[0];
+              if (firstMarket) setPurchasingCourse(firstMarket);
+            }}
+            className="gap-1.5 text-xs bg-primary text-primary-foreground font-semibold shadow-xs"
+          >
+            <ShoppingCart className="h-4 w-4" /> Browse & Purchase Courses
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards Summary Header */}
@@ -941,63 +1025,81 @@ export function CourseCatalogTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {marketplaceCourses.map((c) => (
-                    <TableRow key={c.id} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="text-xs font-mono font-bold text-primary">{c.code}</TableCell>
-                      <TableCell className="text-xs">
-                        <div>
-                          <span className="font-semibold text-foreground">{c.title}</span>
-                          <span className="block text-[10px] text-muted-foreground">Instructor: {c.instructor}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-medium">{c.provider}</TableCell>
-                      <TableCell className="text-xs">
-                        <Badge variant="outline" className="text-[10px]">{c.category}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-mono">{c.durationHours} Hours</TableCell>
-                      <TableCell className="text-xs font-mono font-bold text-foreground">
-                        {companyCourses.some((cc) => cc.courseId === c.id && cc.availableSeats > 0) ? (
-                          <Badge variant="default" className="text-[9px] bg-emerald-600">Company Access Available</Badge>
-                        ) : (
-                          `₹${c.pricePerSeat.toLocaleString()}`
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                          Included ✓
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setViewingCourse(c)}
-                            className="h-7 text-xs gap-1"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> View
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setRequestingCourse(c)}
-                            className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 font-semibold"
-                          >
-                            <FileText className="h-3.5 w-3.5" /> Request Course
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            onClick={() => setPurchasingCourse(c)}
-                            className="h-7 text-xs gap-1 bg-primary text-primary-foreground font-semibold"
-                          >
-                            <ShoppingCart className="h-3.5 w-3.5" /> Purchase
-                          </Button>
-                        </div>
+                  {marketplaceCourses.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-12 text-xs text-muted-foreground">
+                        No courses available in catalog.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    marketplaceCourses.map((c) => (
+                      <TableRow key={c.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="text-xs font-mono font-bold text-primary">{c.code}</TableCell>
+                        <TableCell className="text-xs">
+                          <div>
+                            <span className="font-semibold text-foreground">{c.title}</span>
+                            <span className="block text-[10px] text-muted-foreground">Instructor: {c.instructor}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs font-medium">{c.provider}</TableCell>
+                        <TableCell className="text-xs">
+                          <Badge variant="outline" className="text-[10px]">{c.category}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">{c.durationHours} Hours</TableCell>
+                        <TableCell className="text-xs font-mono font-bold text-foreground">
+                          {companyCourses.some((cc) => cc.courseId === c.id && cc.availableSeats > 0) ? (
+                            <Badge variant="default" className="text-[9px] bg-emerald-600">Company Access Available</Badge>
+                          ) : (
+                            `₹${c.pricePerSeat.toLocaleString()}`
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                            Included ✓
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setViewingCourse(c)}
+                              className="h-7 text-xs gap-1"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> View
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRequestingCourse(c)}
+                              className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 font-semibold"
+                            >
+                              <FileText className="h-3.5 w-3.5" /> Request Course
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              onClick={() => setPurchasingCourse(c)}
+                              className="h-7 text-xs gap-1 bg-primary text-primary-foreground font-semibold"
+                            >
+                              <ShoppingCart className="h-3.5 w-3.5" /> Purchase
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteMarketplaceCourse(c.id)}
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                              title="Delete Course Entry"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -1006,8 +1108,24 @@ export function CourseCatalogTab() {
 
         {/* 2. MY COMPANY COURSES TAB (SEAT LEDGER) */}
         <TabsContent value="company" className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-card rounded-xl border shadow-2xs">
+            <div>
+              <h3 className="font-bold text-xs uppercase tracking-wider text-foreground flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary" /> Company Licensed Course Library
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                Manage purchased enterprise licenses, allocate seats to employees, and monitor completion progress
+              </p>
+            </div>
+            <Button
+              onClick={() => setIsAddCompanyCourseOpen(true)}
+              className="gap-1.5 text-xs bg-primary text-primary-foreground font-semibold shadow-xs"
+            >
+              <Plus className="h-4 w-4" /> Add Company Course
+            </Button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {companyCourses.map((cc) => (
+            {effectiveCompanyCourses.map((cc) => (
               <Card key={cc.courseId} className="border shadow-2xs hover:shadow-sm transition-all">
                 <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
                   <div className="space-y-0.5">
@@ -1078,14 +1196,17 @@ export function CourseCatalogTab() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="text-xs cursor-pointer">
+                          <DropdownMenuItem onClick={() => setViewingCompanyCourse(cc)} className="text-xs cursor-pointer">
                             <Eye className="h-3.5 w-3.5 mr-1.5" /> View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-xs cursor-pointer">
+                          <DropdownMenuItem onClick={() => setManagingSeatsCompanyCourse(cc)} className="text-xs cursor-pointer">
                             <Layers className="h-3.5 w-3.5 mr-1.5" /> Manage Seats
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-xs cursor-pointer text-destructive">
-                            Archive Course
+                          <DropdownMenuItem
+                            onClick={() => setDeletingCompanyCourse(cc)}
+                            className="text-xs cursor-pointer text-destructive font-semibold"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Course Entry
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -1119,7 +1240,7 @@ export function CourseCatalogTab() {
                     <TableHead className="text-xs font-bold">Progress %</TableHead>
                     <TableHead className="text-xs font-bold">Score</TableHead>
                     <TableHead className="text-xs font-bold">Status</TableHead>
-                    <TableHead className="text-xs font-bold text-right">Interactive Simulator</TableHead>
+                    <TableHead className="text-xs font-bold text-right">Actions & Simulator</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1179,6 +1300,15 @@ export function CourseCatalogTab() {
                         >
                           Fail (48%)
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteEnrollment(enr.id)}
+                          className="h-6 w-6 text-destructive hover:bg-destructive/10 inline-flex"
+                          title="Delete Enrollment Entry"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1214,43 +1344,94 @@ export function CourseCatalogTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {courseRequests.map((req) => (
-                    <TableRow key={req.id} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="text-xs font-semibold">
-                        {req.employeeName}
-                        <span className="block text-[10px] text-muted-foreground font-mono">{req.department}</span>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <span className="font-semibold text-foreground">{req.courseTitle}</span>
-                        <span className="block text-[10px] text-muted-foreground line-clamp-1">{req.reason}</span>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{req.provider}</TableCell>
-                      <TableCell className="text-xs font-mono font-bold">₹{req.pricePerSeat.toLocaleString()}</TableCell>
-                      <TableCell className="text-xs">
-                        <Badge variant={req.priority === 'High' ? 'destructive' : 'secondary'} className="text-[10px]">
-                          {req.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <Badge variant={req.status === 'Approved' ? 'default' : req.status === 'Rejected' ? 'destructive' : 'outline'} className="text-[10px]">
-                          {req.status} {req.approvedSeatType ? `(${req.approvedSeatType})` : ''}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-right">
-                        {req.status === 'Pending' ? (
-                          <Button
-                            size="sm"
-                            onClick={() => setReviewingRequest(req)}
-                            className="h-7 text-xs gap-1 bg-primary text-primary-foreground"
-                          >
-                            <FileText className="h-3.5 w-3.5" /> Review Request
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground text-[11px]">Processed</span>
-                        )}
+                  {courseRequests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-10 text-xs text-muted-foreground">
+                        <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+                        <p className="font-semibold text-foreground">No course requests found.</p>
+                        <p className="text-[11px]">Employee course requests submitted for approval will appear here.</p>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    courseRequests.map((req) => {
+                      const isPending = req.status?.toLowerCase() === 'pending';
+                      const isApproved = req.status?.toLowerCase() === 'approved';
+                      const isRejected = req.status?.toLowerCase() === 'rejected';
+                      const empName = req.employeeName || (req.employee ? `${req.employee.firstName} ${req.employee.lastName}`.trim() : 'Employee');
+                      const empDept = req.department || req.employee?.department || 'Operations';
+                      const title = req.courseTitle || (req as any).requestedCourseTitle || 'Course';
+                      const price = req.pricePerSeat ?? (req as any).requestedPrice ?? 0;
+
+                      return (
+                        <TableRow key={req.id} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="text-xs font-semibold">
+                            {empName}
+                            <span className="block text-[10px] text-muted-foreground font-mono">{empDept}</span>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-foreground">{title}</span>
+                              {req.courseUrl || req.url ? (
+                                <a
+                                  href={(() => {
+                                    const u = req.courseUrl || req.url || '';
+                                    return u.startsWith('http://') || u.startsWith('https://') ? u : `https://${u}`;
+                                  })()}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:text-primary/70 shrink-0 inline-flex items-center"
+                                  title={req.courseUrl || req.url}
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              ) : null}
+                            </div>
+                            <span className="block text-[10px] text-muted-foreground line-clamp-1">{req.reason}</span>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{req.provider}</TableCell>
+                          <TableCell className="text-xs font-mono font-bold">₹{Number(price).toLocaleString()}</TableCell>
+                          <TableCell className="text-xs">
+                            <Badge variant={req.priority === 'High' ? 'destructive' : 'secondary'} className="text-[10px]">
+                              {req.priority}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <Badge
+                              variant={isApproved ? 'default' : isRejected ? 'destructive' : 'outline'}
+                              className={`text-[10px] ${isPending ? 'bg-amber-500/10 text-amber-600 border-amber-500/30' : ''}`}
+                            >
+                              {isPending ? 'Pending HR Approval' : isApproved ? 'Approved' : isRejected ? 'Rejected' : req.status} {req.approvedSeatType ? `(${req.approvedSeatType})` : ''}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isPending ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() => setReviewingRequest(req)}
+                                  className="h-7 text-xs gap-1 bg-primary text-primary-foreground font-semibold"
+                                >
+                                  <FileText className="h-3.5 w-3.5" /> Review
+                                </Button>
+                              ) : (
+                                <span className="text-muted-foreground text-[11px]">Processed</span>
+                              )}
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteCourseRequest(req.id)}
+                                className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                title="Delete Request Entry"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -1261,49 +1442,96 @@ export function CourseCatalogTab() {
         <TabsContent value="history" className="space-y-4">
           <Card className="shadow-2xs overflow-hidden">
             <CardHeader className="py-3 px-4 border-b bg-muted/20">
-              <CardTitle className="text-sm font-bold">Course Purchase & License Order Logs</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <span>Course Purchase & License Order Logs</span>
+                <Badge variant="outline" className="font-mono text-xs font-bold">
+                  {purchaseHistory.length}
+                </Badge>
+              </CardTitle>
               <CardDescription className="text-xs">
                 Audit history of all enterprise seat orders, billing entities, cost centers, and GST invoices.
               </CardDescription>
             </CardHeader>
 
             <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead className="text-xs font-bold">Order ID</TableHead>
-                    <TableHead className="text-xs font-bold">Course Title</TableHead>
-                    <TableHead className="text-xs font-bold">Seats</TableHead>
-                    <TableHead className="text-xs font-bold">Unit Price</TableHead>
-                    <TableHead className="text-xs font-bold">Subtotal</TableHead>
-                    <TableHead className="text-xs font-bold">GST (18%)</TableHead>
-                    <TableHead className="text-xs font-bold">Total Paid</TableHead>
-                    <TableHead className="text-xs font-bold">Billing Entity</TableHead>
-                    <TableHead className="text-xs font-bold">Date & Time</TableHead>
-                    <TableHead className="text-xs font-bold text-right">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {purchaseHistory.map((ord) => (
-                    <TableRow key={ord.orderId} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="text-xs font-mono font-bold text-primary">{ord.orderId}</TableCell>
-                      <TableCell className="text-xs font-semibold">{ord.courseTitle}</TableCell>
-                      <TableCell className="text-xs font-mono font-bold">{ord.seatsPurchased} Seats</TableCell>
-                      <TableCell className="text-xs font-mono">₹{ord.pricePerSeat.toLocaleString()}</TableCell>
-                      <TableCell className="text-xs font-mono">₹{ord.subtotal.toLocaleString()}</TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">₹{ord.gst.toLocaleString()}</TableCell>
-                      <TableCell className="text-xs font-mono font-bold text-primary">₹{ord.totalAmount.toLocaleString()}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{ord.billingEntity} ({ord.costCenter})</TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">{ord.purchasedAt}</TableCell>
-                      <TableCell className="text-xs text-right">
-                        <Badge variant="default" className="text-[10px] bg-emerald-600">
-                          {ord.status}
-                        </Badge>
-                      </TableCell>
+              {purchaseHistory.length === 0 ? (
+                <div className="p-12 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                    <ShoppingCart className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-foreground">No Purchase History</h3>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                      Course purchases and license orders will appear here after a company course is purchased.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      const firstMarket = marketplaceCourses[0];
+                      if (firstMarket) setPurchasingCourse(firstMarket);
+                    }}
+                    className="gap-1.5 text-xs bg-primary text-primary-foreground font-semibold shadow-xs"
+                  >
+                    <ShoppingCart className="h-4 w-4" /> Browse & Purchase Courses
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead className="text-xs font-bold">Order ID</TableHead>
+                      <TableHead className="text-xs font-bold">Course Title</TableHead>
+                      <TableHead className="text-xs font-bold">Seats</TableHead>
+                      <TableHead className="text-xs font-bold">Unit Price</TableHead>
+                      <TableHead className="text-xs font-bold">Subtotal</TableHead>
+                      <TableHead className="text-xs font-bold">GST (18%)</TableHead>
+                      <TableHead className="text-xs font-bold">Total Paid</TableHead>
+                      <TableHead className="text-xs font-bold">Billing Entity</TableHead>
+                      <TableHead className="text-xs font-bold">Date & Time</TableHead>
+                      <TableHead className="text-xs font-bold text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {purchaseHistory.map((ord) => (
+                      <TableRow key={ord.orderId} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="text-xs font-mono font-bold text-primary">{ord.orderId}</TableCell>
+                        <TableCell className="text-xs font-semibold">{ord.courseTitle}</TableCell>
+                        <TableCell className="text-xs font-mono font-bold">{ord.seatsPurchased} Seats</TableCell>
+                        <TableCell className="text-xs font-mono">₹{ord.pricePerSeat.toLocaleString()}</TableCell>
+                        <TableCell className="text-xs font-mono">₹{ord.subtotal.toLocaleString()}</TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">₹{ord.gst.toLocaleString()}</TableCell>
+                        <TableCell className="text-xs font-mono font-bold text-primary">₹{ord.totalAmount.toLocaleString()}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{ord.billingEntity} ({ord.costCenter})</TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">{ord.purchasedAt}</TableCell>
+                        <TableCell className="text-xs text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Badge variant="default" className="text-[10px] bg-emerald-600">
+                              {ord.status}
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toast.success(`✓ Downloaded Invoice Receipt for Order ${ord.orderId} (₹${ord.totalAmount.toLocaleString()})`)}
+                              className="h-6 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                            >
+                              <Download className="h-3 w-3" /> Invoice
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeletePurchaseRecord(ord.orderId)}
+                              className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                              title="Delete Order Log"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
