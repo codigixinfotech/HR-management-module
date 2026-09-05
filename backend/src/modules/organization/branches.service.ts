@@ -64,7 +64,8 @@ export class BranchesService {
   }
 
   async createLocation(branchId: string, dto: any) {
-    let code = dto.code;
+    const { companyId, effectiveFrom, description, parentLocationId, ...rest } = dto;
+    let code = rest.code;
     if (!code) {
       const branch = await this.prisma.branch.findUnique({
         where: { id: branchId },
@@ -89,13 +90,14 @@ export class BranchesService {
     }
 
     return this.prisma.location.create({
-      data: { ...dto, code, branchId },
+      data: { ...rest, code, branchId },
     });
   }
 
   async updateLocation(id: string, dto: any) {
     await this.findLocationById(id);
-    return this.prisma.location.update({ where: { id }, data: dto });
+    const { companyId, effectiveFrom, description, parentLocationId, branchId, ...rest } = dto;
+    return this.prisma.location.update({ where: { id }, data: rest });
   }
 
   async removeLocation(id: string) {

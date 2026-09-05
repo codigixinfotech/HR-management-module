@@ -2,14 +2,31 @@ import { PartialType } from '@nestjs/mapped-types';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateLocationDto {
+  @IsOptional()
   @IsString()
-  branchId: string;
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
+  companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  parentLocationId?: string;
 
   @IsString()
   code: string;
 
   @IsString()
   name: string;
+
+  @IsOptional()
+  @IsString()
+  effectiveFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @IsOptional()
   @IsString()

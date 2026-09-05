@@ -51,7 +51,7 @@ export default function OrganizationPage() {
       case 'branches':
         return {
           title: 'Branches & Locations',
-          description: 'Manage corporate entities, registered offices, facility branches & regional hubs',
+          description: 'Manage legal entities, registered offices, facility branches & regional hubs',
           badge: 'Facility Management',
           icon: GitFork,
         };
@@ -87,7 +87,7 @@ export default function OrganizationPage() {
       default:
         return {
           title: 'Organization Structure',
-          description: 'Visual hierarchy of executive leadership, department leads, reporting lines & span of control',
+          description: 'Visual representation of organizational hierarchy, reporting relationships, and workforce structure.',
           badge: 'Org Architecture',
           icon: Building2,
         };
@@ -151,7 +151,7 @@ export default function OrganizationPage() {
       {activeTab === 'branches' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <StatCard icon={Building2} label="Corporate Entities" value={companies?.length ?? 1} accent="primary" />
+            <StatCard icon={Building2} label="Legal Entities" value={companies?.length ?? 1} accent="primary" />
             <StatCard icon={GitFork} label="Registered Branches" value={branches?.length ?? 0} accent="info" />
             <StatCard icon={Clock} label="Primary Headquarters" value="Headquarters" accent="success" />
             <StatCard icon={Layers} label="Manufacturing Plants" value="1 Facility" accent="warning" />
