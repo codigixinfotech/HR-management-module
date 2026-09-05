@@ -355,6 +355,99 @@ export class SubscriptionsService {
     });
   }
 
+  async getEffectiveSubscriptionModules(companyId: string) {
+    const subscription = await this.prisma.companySubscription.findFirst({
+      where: { companyId, status: 'ACTIVE' },
+      include: { plan: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!subscription) {
+      return {
+        companyId,
+        subscription: null,
+        modules: {
+          total: ERP_25_MODULE_CATALOG.length,
+          enabled: 0,
+          items: [],
+        },
+        moduleEntitlementMatrix: ERP_25_MODULE_CATALOG.map((m) => ({ ...m, isEnabled: false, source: 'NONE' })),
+      };
+    }
+
+    const activeAddonIds: string[] = Array.isArray(subscription.activeAddons)
+      ? (subscription.activeAddons as string[])
+      : [];
+
+    const activeAddonPackages = activeAddonIds.length > 0
+      ? await this.prisma.planPackage.findMany({
+          where: { id: { in: activeAddonIds } },
+        })
+      : [];
+
+    const planIncludedModules: string[] = Array.isArray(subscription.plan?.includedModules)
+      ? (subscription.plan.includedModules as string[])
+      : [];
+
+    const addonIncludedModules: string[] = [];
+    for (const addon of activeAddonPackages) {
+      if (Array.isArray(addon.includedModules)) {
+        addonIncludedModules.push(...(addon.includedModules as string[]));
+      }
+    }
+
+    const customOverrides: string[] = Array.isArray(subscription.customModuleOverrides)
+      ? (subscription.customModuleOverrides as string[])
+      : [];
+
+    const effectiveSet = new Set<string>([
+      ...planIncludedModules,
+      ...addonIncludedModules,
+      ...customOverrides,
+    ]);
+
+    const effectiveItems = Array.from(effectiveSet);
+
+    const moduleEntitlementMatrix = ERP_25_MODULE_CATALOG.map((mod) => {
+      const isFromPlan = planIncludedModules.includes(mod.key);
+      const isFromAddon = addonIncludedModules.includes(mod.key);
+      const isFromOverride = customOverrides.includes(mod.key);
+      const isEnabled = effectiveSet.has(mod.key);
+
+      let source = 'NONE';
+      if (isFromPlan) source = 'PLAN';
+      else if (isFromAddon) source = 'ADDON';
+      else if (isFromOverride) source = 'OVERRIDE';
+
+      return {
+        ...mod,
+        isEnabled,
+        source,
+      };
+    });
+
+    return {
+      companyId,
+      subscription: {
+        id: subscription.id,
+        planId: subscription.planId,
+        planName: subscription.plan.name,
+        status: subscription.status,
+        billingCycle: subscription.billingCycle,
+        price: Number(subscription.price),
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        validUntil: subscription.validUntil || subscription.endDate,
+      },
+      modules: {
+        total: ERP_25_MODULE_CATALOG.length,
+        enabled: effectiveItems.length,
+        items: effectiveItems,
+      },
+      moduleEntitlementMatrix,
+    };
+  }
+
   async getSubscribersForPlan(planId: string) {
     const allSubs = await this.prisma.companySubscription.findMany({
       include: {
@@ -378,44 +471,68 @@ export class SubscriptionsService {
       return false;
     });
 
-    return matchedSubs.map((s) => {
-      const adminUser = s.company.users[0];
-      const adminEmail =
-        adminUser?.email || s.company.email || `admin@${s.company.code.toLowerCase()}.com`;
-      const invitationToken = `inv_${Buffer.from(
-        `${adminUser?.id || s.companyId}:${s.company.code}`
-      ).toString('base64url')}`;
-      const invitationUrl = `/auth/set-password?token=${invitationToken}&email=${encodeURIComponent(
-        adminEmail
-      )}`;
-      const invitationStatus = adminUser?.mustResetPassword === false ? 'ACTIVATED' : 'DISPATCHED';
-      const planIncluded = Array.isArray(s.plan.includedModules)
-        ? (s.plan.includedModules as string[])
-        : [];
+    return Promise.all(
+      matchedSubs.map(async (s) => {
+        const adminUser = s.company.users[0];
+        const adminEmail =
+          adminUser?.email || s.company.email || `admin@${s.company.code.toLowerCase()}.com`;
+        const invitationToken = `inv_${Buffer.from(
+          `${adminUser?.id || s.companyId}:${s.company.code}`
+        ).toString('base64url')}`;
+        const invitationUrl = `/auth/set-password?token=${invitationToken}&email=${encodeURIComponent(
+          adminEmail
+        )}`;
+        const invitationStatus = adminUser?.mustResetPassword === false ? 'ACTIVATED' : 'DISPATCHED';
 
-      return {
-        subscriptionId: s.id,
-        companyId: s.companyId,
-        companyName: s.company.name,
-        companyCode: s.company.code,
-        industry: s.company.entityType || 'Information Technology',
-        city: s.company.city || 'Corporate HQ',
-        adminEmail,
-        adminRole: 'COMPANY_ADMIN',
-        planName: s.plan.name,
-        includedModules: planIncluded,
-        billingCycle: s.billingCycle,
-        price: Number(s.price),
-        status: s.status,
-        startDate: s.startDate,
-        validUntil: s.validUntil || s.endDate,
-        paymentStatus: s.paymentStatus || 'PAID',
-        paymentReference: s.paymentReference || 'N/A',
-        isAddon: s.planId !== planId,
-        invitationUrl,
-        invitationStatus,
-      };
-    });
+        const planModules = Array.isArray(s.plan?.includedModules)
+          ? (s.plan.includedModules as string[])
+          : [];
+        const addonIds = Array.isArray(s.activeAddons) ? (s.activeAddons as string[]) : [];
+        let addonModules: string[] = [];
+        if (addonIds.length > 0) {
+          const addons = await this.prisma.planPackage.findMany({
+            where: { id: { in: addonIds } },
+            select: { includedModules: true },
+          });
+          for (const a of addons) {
+            if (Array.isArray(a.includedModules)) {
+              addonModules.push(...(a.includedModules as string[]));
+            }
+          }
+        }
+        const overrides = Array.isArray(s.customModuleOverrides)
+          ? (s.customModuleOverrides as string[])
+          : [];
+
+        const effectiveModules = Array.from(
+          new Set([...planModules, ...addonModules, ...overrides])
+        );
+
+        return {
+          subscriptionId: s.id,
+          companyId: s.companyId,
+          companyName: s.company.name,
+          companyCode: s.company.code,
+          industry: s.company.entityType || 'Information Technology',
+          city: s.company.city || 'Corporate HQ',
+          adminEmail,
+          adminRole: 'COMPANY_ADMIN',
+          planName: s.plan.name,
+          includedModules: effectiveModules,
+          enabledModulesCount: effectiveModules.length,
+          billingCycle: s.billingCycle,
+          price: Number(s.price),
+          status: s.status,
+          startDate: s.startDate,
+          validUntil: s.validUntil || s.endDate,
+          paymentStatus: s.paymentStatus || 'PAID',
+          paymentReference: s.paymentReference || 'N/A',
+          isAddon: s.planId !== planId,
+          invitationUrl,
+          invitationStatus,
+        };
+      })
+    );
   }
 
   async resendInvitation(companyId: string, email: string) {

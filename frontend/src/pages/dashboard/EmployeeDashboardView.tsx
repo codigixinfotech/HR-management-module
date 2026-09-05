@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
 import { VerificationDetailsModal } from '@/components/attendance/VerificationDetailsModal';
+import { EditAttendanceRequestModal } from '@/components/attendance/EditAttendanceRequestModal';
 import { FileSignature } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 

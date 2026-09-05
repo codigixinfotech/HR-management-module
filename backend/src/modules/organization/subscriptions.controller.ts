@@ -16,6 +16,11 @@ export class SubscriptionsController {
     return this.subscriptionsService.getCompanySubscription(companyId);
   }
 
+  @Get('company/:companyId/effective-modules')
+  getEffectiveSubscriptionModules(@Param('companyId') companyId: string) {
+    return this.subscriptionsService.getEffectiveSubscriptionModules(companyId);
+  }
+
   @Get('company/:companyId/check-plan/:planId')
   checkActiveSubscription(
     @Param('companyId') companyId: string,

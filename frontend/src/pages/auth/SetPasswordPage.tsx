@@ -103,6 +103,14 @@ export default function SetPasswordPage() {
     }
   };
 
+  const handleGoToLogin = () => {
+    const activatedEmail = validationData?.email || emailParam;
+    if (activatedEmail) {
+      sessionStorage.setItem('ehcm_activated_email', activatedEmail);
+    }
+    navigate('/login', { state: { email: activatedEmail } });
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 relative overflow-hidden">
       {/* Decorative ambient background glows */}
@@ -162,7 +170,7 @@ export default function SetPasswordPage() {
               </div>
 
               <Button
-                onClick={() => navigate('/login')}
+                onClick={handleGoToLogin}
                 className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 h-10"
               >
                 Go to ERP Login <ArrowRight className="h-4 w-4" />
@@ -197,7 +205,7 @@ export default function SetPasswordPage() {
               </div>
 
               <Button
-                onClick={() => navigate('/login')}
+                onClick={handleGoToLogin}
                 className="w-full text-xs font-semibold h-9"
               >
                 Go to Login

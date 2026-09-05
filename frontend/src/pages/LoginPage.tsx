@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { login, register, fetchMe, changePassword } from '@/api/auth';
@@ -62,6 +62,7 @@ const ROLES = [
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const setTokens = useAuthStore((s) => s.setTokens);
   const setUser = useAuthStore((s) => s.setUser);
 
@@ -83,9 +84,25 @@ export default function LoginPage() {
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmNewPasswordInput, setConfirmNewPasswordInput] = useState('');
 
-  // Sign In form fields
-  const [signInEmail, setSignInEmail] = useState('admin@ehcm.local');
+  // Sign In form fields — prefill only activated user's email if available, otherwise empty string (never hardcode admin@ehcm.local)
+  const [signInEmail, setSignInEmail] = useState(() => {
+    const navEmail = (location.state as any)?.email;
+    if (navEmail) return navEmail;
+    const storedEmail = sessionStorage.getItem('ehcm_activated_email');
+    if (storedEmail) return storedEmail;
+    return '';
+  });
   const [signInPassword, setSignInPassword] = useState('');
+
+  useEffect(() => {
+    const navEmail = (location.state as any)?.email;
+    if (navEmail) {
+      setSignInEmail(navEmail);
+    } else {
+      const storedEmail = sessionStorage.getItem('ehcm_activated_email');
+      if (storedEmail) setSignInEmail(storedEmail);
+    }
+  }, [location.state]);
 
   // Sign Up form fields
   const [signUpFullName, setSignUpFullName] = useState('');
@@ -133,6 +150,7 @@ export default function LoginPage() {
       return { me, mustResetPassword: tokens.mustResetPassword || me.mustResetPassword };
     },
     onSuccess: (res) => {
+      sessionStorage.removeItem('ehcm_activated_email');
       if (res.mustResetPassword) {
         setFirstLoginModalOpen(true);
         toast.info('First-time login detected. Please update your temporary password.');
@@ -308,7 +326,7 @@ export default function LoginPage() {
                       <Input
                         id="signin-email"
                         type="email"
-                        placeholder="admin@ehcm.local"
+                        placeholder="name@company.com"
                         value={signInEmail}
                         onChange={(e) => setSignInEmail(e.target.value)}
                         className="h-10 pl-9 text-xs font-medium bg-white/60 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all rounded-xl"

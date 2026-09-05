@@ -362,11 +362,11 @@ export class PlansService implements OnModuleInit {
 
       // ── Custom Packages ──
       {
-        name: 'Employee Management',
+        name: 'Employee Management System',
         code: 'CUSTOM_EMP_MGMT',
         type: 'CUSTOM_PACKAGE',
         category: 'Core HR',
-        description: 'Employee profile, digital records and directory for teams wanting simple personnel tracking.',
+        description: 'Employee directory, organizational structure, and digital onboarding for growing teams.',
         billingCycle: 'MONTHLY',
         price: 499,
         monthlyPrice: 499,
@@ -379,7 +379,7 @@ export class PlansService implements OnModuleInit {
         maxLocations: 2,
         maxStorageGb: 10,
         maxLmsLearners: 0,
-        includedModules: ['employee-management'],
+        includedModules: ['employee-management', 'organization', 'onboarding'],
       },
       {
         name: 'HR Essentials',

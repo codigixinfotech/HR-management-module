@@ -88,12 +88,11 @@ export const BuyerAccessModal: React.FC<BuyerAccessModalProps> = ({
     }
   };
 
-  const effectiveModules =
-    currentSubscriber.includedModules && currentSubscriber.includedModules.length > 0
-      ? currentSubscriber.includedModules
-      : plan?.includedModules && plan.includedModules.length > 0
-      ? plan.includedModules
-      : ['employee-management', 'organization', 'document-templates'];
+  const effectiveModules = currentSubscriber.includedModules || [];
+  const effectiveSet = new Set(effectiveModules);
+
+  const purchasedModulesList = moduleCatalog.filter((m) => effectiveSet.has(m.key));
+  const lockedModulesList = moduleCatalog.filter((m) => !effectiveSet.has(m.key));
 
   const invitationUrl = currentSubscriber.invitationUrl
     ? `${window.location.origin}${currentSubscriber.invitationUrl}`
@@ -143,7 +142,7 @@ export const BuyerAccessModal: React.FC<BuyerAccessModalProps> = ({
               </span>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="font-semibold text-foreground text-sm">
-                  {currentSubscriber.planName || plan?.name || 'Standard Package'}
+                  {currentSubscriber.planName || 'Standard Package'}
                 </span>
                 <Badge
                   variant="outline"
@@ -181,28 +180,68 @@ export const BuyerAccessModal: React.FC<BuyerAccessModalProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
-              {effectiveModules.map((modKey: string) => {
-                const displayName =
-                  moduleNameMap.get(modKey) ||
-                  modKey
-                    .split('-')
-                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                    .join(' ');
-
-                return (
-                  <div
-                    key={modKey}
-                    className="flex items-center gap-2 p-2 rounded-lg border bg-background text-xs"
-                  >
-                    <div className="h-4 w-4 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
-                      <Check className="h-2.5 w-2.5 stroke-[3]" />
+              {purchasedModulesList.length > 0
+                ? purchasedModulesList.map((mod) => (
+                    <div
+                      key={mod.key}
+                      className="flex items-center gap-2 p-2 rounded-lg border bg-background text-xs border-emerald-500/30"
+                    >
+                      <div className="h-4 w-4 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                        <Check className="h-2.5 w-2.5 stroke-[3]" />
+                      </div>
+                      <span className="font-medium text-foreground truncate">{mod.name}</span>
                     </div>
-                    <span className="font-medium text-foreground truncate">{displayName}</span>
-                  </div>
-                );
-              })}
+                  ))
+                : effectiveModules.map((modKey: string) => {
+                    const displayName =
+                      moduleNameMap.get(modKey) ||
+                      modKey
+                        .split('-')
+                        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(' ');
+
+                    return (
+                      <div
+                        key={modKey}
+                        className="flex items-center gap-2 p-2 rounded-lg border bg-background text-xs border-emerald-500/30"
+                      >
+                        <div className="h-4 w-4 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                          <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        </div>
+                        <span className="font-medium text-foreground truncate">{displayName}</span>
+                      </div>
+                    );
+                  })}
             </div>
           </div>
+
+          {/* 3. LOCKED MODULES */}
+          {lockedModulesList.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between pb-1 border-b">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Locked Modules
+                  </span>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground">
+                  {lockedModulesList.length} Locked
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                {lockedModulesList.map((mod) => (
+                  <div
+                    key={mod.key}
+                    className="flex items-center gap-2 p-2 rounded-lg border bg-muted/20 text-xs opacity-75"
+                  >
+                    <span className="text-xs">🔒</span>
+                    <span className="font-medium text-muted-foreground truncate">{mod.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 3. COMPANY ADMIN ACCESS */}
           <div className="space-y-3">

@@ -505,11 +505,25 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
   },
 ];
 
+export function isSuperAdminUser(user?: any): boolean {
+  if (!user) return false;
+  if (user.permissions?.includes('*')) return true;
+  if (user.companyId === null && !user.employee) return true;
+  if (user.email === 'admin@ehcm.local') return true;
+  const isSuperRole = user.roles?.some((r: string) => {
+    const u = typeof r === 'string' ? r.toUpperCase() : '';
+    return u.includes('SUPER_ADMIN') || u === 'SUPERADMIN';
+  });
+  const isSuperPrimary = user.primaryRole?.toUpperCase().includes('SUPER_ADMIN');
+  return Boolean(isSuperRole || isSuperPrimary);
+}
+
 export function isHrOrAdminUser(user?: any): boolean {
   if (!user) return true;
+  if (isSuperAdminUser(user)) return true;
   if (user.permissions?.includes('*')) return true;
   const isRoleAdmin = user.roles?.some((r: string) => {
-    const u = r.toUpperCase();
+    const u = typeof r === 'string' ? r.toUpperCase() : '';
     return u.includes('ADMIN') || u.includes('HR');
   });
   const isPrimaryAdmin =

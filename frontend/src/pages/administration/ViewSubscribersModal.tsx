@@ -235,7 +235,7 @@ export const ViewSubscribersModal: React.FC<ViewSubscribersModalProps> = ({
                     </TableRow>
                   ) : (
                     filteredSubscribers.map((sub) => {
-                      const modCount = sub.includedModules?.length || (Array.isArray(plan.includedModules) ? plan.includedModules.length : 10);
+                      const modCount = sub.includedModules?.length ?? 0;
 
                       return (
                         <TableRow key={sub.subscriptionId} className="hover:bg-muted/20">
@@ -249,7 +249,7 @@ export const ViewSubscribersModal: React.FC<ViewSubscribersModalProps> = ({
 
                           {/* Plan */}
                           <TableCell className="text-xs">
-                            <span className="font-medium text-foreground">{sub.planName || plan.name}</span>
+                            <span className="font-medium text-foreground">{sub.planName}</span>
                             <span className="text-[10px] text-muted-foreground block font-mono">
                               ₹{sub.price?.toLocaleString()} / {sub.billingCycle === 'MONTHLY' ? 'Mo' : 'Yr'}
                             </span>
