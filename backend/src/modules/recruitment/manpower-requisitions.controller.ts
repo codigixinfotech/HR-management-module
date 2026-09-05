@@ -15,6 +15,8 @@ import {
   UpdateMrStatusDto,
 } from './dto/manpower-requisition.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('recruitment/manpower-requisitions')
 export class ManpowerRequisitionsController {
@@ -28,8 +30,13 @@ export class ManpowerRequisitionsController {
 
   @Get()
   @Permissions('recruitment.read')
-  list(@Query('companyId') companyId?: string, @Query('status') status?: string) {
-    return this.mrService.list(companyId, status);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+    @Query('status') status?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.mrService.list(tenantCompanyId, status);
   }
 
   @Get(':id')

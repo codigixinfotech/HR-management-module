@@ -18,6 +18,8 @@ import {
   UpdateExitStatusDto,
 } from './dto/exit.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('employees/exits')
 export class ExitsController {
@@ -25,18 +27,24 @@ export class ExitsController {
 
   @Get('kpis')
   @Permissions('employees.read')
-  getKpis(@Query('companyId') companyId?: string) {
-    return this.service.getKpis(companyId);
+  getKpis(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.service.getKpis(tenantCompanyId);
   }
 
   @Get()
   @Permissions('employees.read')
   findAll(
+    @CurrentUser() user: CurrentUserPayload,
     @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('companyId') companyId?: string,
   ) {
-    return this.service.findAll(search, status, companyId);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.service.findAll(search, status, tenantCompanyId);
   }
 
   @Get(':id')

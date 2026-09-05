@@ -1,14 +1,20 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { SalaryTemplatesService } from './salary-templates.service';
 import { CreateSalaryTemplateDto, UpdateSalaryTemplateDto } from './dto/salary-template.dto';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('payroll/salary-templates')
 export class SalaryTemplatesController {
   constructor(private readonly service: SalaryTemplatesService) {}
 
   @Get()
-  list(@Query('companyId') companyId?: string) {
-    return this.service.list(companyId);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.service.list(tenantCompanyId);
   }
 
   @Get(':id')

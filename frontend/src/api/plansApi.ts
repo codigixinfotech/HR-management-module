@@ -284,6 +284,7 @@ export const subscriptionsApi = {
   renew: async (companyId: string, payload?: { durationMonths?: number }) =>
     (await apiClient.post(`/subscriptions/company/${companyId}/renew`, payload || {})).data,
 };
+// Export module catalog for administration and role management matrix
 
 
 

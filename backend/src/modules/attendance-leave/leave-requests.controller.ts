@@ -17,6 +17,7 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 
 import { ApprovalStatus } from '@prisma/client';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('attendance-leave/leave-requests')
 export class LeaveRequestsController {
@@ -24,11 +25,16 @@ export class LeaveRequestsController {
 
   @Get()
   @Permissions('attendance_leave.read')
-  list(@Query() query: ListLeaveRequestsQueryDto) {
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: ListLeaveRequestsQueryDto,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, (query as any).companyId);
     return this.leaveRequestsService.list(
       query,
       query.employeeId,
       query.status,
+      tenantCompanyId,
     );
   }
 

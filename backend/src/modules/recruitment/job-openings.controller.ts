@@ -27,6 +27,8 @@ import { CreateCandidateDto } from './dto/candidate.dto';
 import { candidateResumeStorage } from './multer.config';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('recruitment/job-openings')
 export class JobOpeningsController {
@@ -37,8 +39,13 @@ export class JobOpeningsController {
 
   @Get()
   @Permissions('recruitment.read')
-  list(@Query('companyId') companyId?: string, @Query('status') status?: string) {
-    return this.jobOpeningsService.list(companyId, status);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+    @Query('status') status?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.jobOpeningsService.list(tenantCompanyId, status);
   }
 
   @Public()

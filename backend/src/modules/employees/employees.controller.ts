@@ -25,6 +25,7 @@ import { employeeDocumentStorage } from './multer.config';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('employees')
 export class EmployeesController {
@@ -35,8 +36,12 @@ export class EmployeesController {
 
   @Get()
   @Permissions('employees.read')
-  list(@Query() query: ListEmployeesQueryDto) {
-    return this.employeesService.list(query, query.companyId);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: ListEmployeesQueryDto,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, query.companyId);
+    return this.employeesService.list(query, tenantCompanyId);
   }
 
   @Get('skills/competencies')

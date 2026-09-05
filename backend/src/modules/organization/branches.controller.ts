@@ -12,6 +12,8 @@ import { BranchesService } from './branches.service';
 import { CreateBranchDto, UpdateBranchDto } from './dto/branch.dto';
 import { CreateLocationDto, UpdateLocationDto } from './dto/location.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('organization/branches')
 export class BranchesController {
@@ -19,8 +21,12 @@ export class BranchesController {
 
   @Get()
   @Permissions('organization.branches.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.branchesService.list(companyId);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.branchesService.list(tenantCompanyId);
   }
 
   @Get(':id')

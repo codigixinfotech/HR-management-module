@@ -39,8 +39,10 @@ export interface UpdateRolePayload {
 }
 
 export const rolesApi = {
-  list: async (params?: { companyId?: string }) =>
-    (await apiClient.get<Role[]>('/roles', { params })).data,
+  list: async (params?: { companyId?: string }) => {
+    const cleanParams = typeof params?.companyId === 'string' ? { companyId: params.companyId } : undefined;
+    return (await apiClient.get<Role[]>('/roles', { params: cleanParams })).data;
+  },
   permissionsCatalog: async () =>
     (await apiClient.get<Permission[]>('/roles/permissions/catalog')).data,
   create: async (payload: CreateRolePayload) =>

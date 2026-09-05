@@ -13,6 +13,8 @@ import {
   UpdatePayrollRunStatusDto,
 } from './dto/payroll-run.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('payroll/runs')
 export class PayrollRunsController {
@@ -20,8 +22,12 @@ export class PayrollRunsController {
 
   @Get()
   @Permissions('payroll.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.payrollRunsService.list(companyId);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.payrollRunsService.list(tenantCompanyId);
   }
 
   @Get(':id')

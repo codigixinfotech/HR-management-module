@@ -11,6 +11,7 @@ import { AttendanceService } from './attendance.service';
 import { MarkAttendanceDto, UpdateAttendanceDto } from './dto/attendance.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('attendance-leave/attendance')
 export class AttendanceController {
@@ -25,7 +26,8 @@ export class AttendanceController {
     @Query('to') to?: string,
     @CurrentUser() user?: CurrentUserPayload,
   ) {
-    return this.attendanceService.list(employeeId, companyId, from, to, user);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.attendanceService.list(employeeId, tenantCompanyId, from, to, user);
   }
 
   @Get('my')

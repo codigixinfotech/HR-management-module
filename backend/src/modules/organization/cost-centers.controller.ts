@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { CostCentersService } from './cost-centers.service';
 import { CreateCostCenterDto, UpdateCostCenterDto } from './dto/cost-center.dto';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('organization/cost-centers')
 export class CostCentersController {
@@ -8,11 +10,13 @@ export class CostCentersController {
 
   @Get()
   list(
+    @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
     @Query('branchId') branchId?: string,
     @Query('departmentId') departmentId?: string,
   ) {
-    return this.service.list(companyId, branchId, departmentId);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.service.list(tenantCompanyId, branchId, departmentId);
   }
 
   @Get(':id')

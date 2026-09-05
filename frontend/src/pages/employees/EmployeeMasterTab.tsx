@@ -1563,7 +1563,7 @@ export function EmployeeMasterTab() {
                               {shiftTypesList && shiftTypesList.length > 0 ? (
                                 shiftTypesList.map((st: any) => (
                                   <SelectItem key={st.id} value={st.name} className="text-xs">
-                                    {st.name} ({st.startTime} - {st.endTime})
+                                    {st.name} ({st?.startTime ?? '09:00'} - {st?.endTime ?? '18:00'})
                                   </SelectItem>
                                 ))
                               ) : (

@@ -30,10 +30,26 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const user = useAuthStore((s) => s.user);
 
+  const isSuperAdmin = Boolean(
+    user?.permissions?.includes('*') ||
+    user?.roles?.some(
+      (r) => r.toUpperCase().includes('SUPER_ADMIN') || r.toUpperCase() === 'SUPERADMIN'
+    ) ||
+    user?.primaryRole?.toUpperCase().includes('SUPER_ADMIN')
+  );
+
   useEffect(() => {
-    if (user?.companyId) {
+    if (!isSuperAdmin && user?.companyId) {
       setActiveCompanyIdState(user.companyId);
       localStorage.setItem(STORAGE_KEY, user.companyId);
+    } else if (user?.companyId) {
+      const storedId = localStorage.getItem(STORAGE_KEY);
+      if (storedId && companies.some((c) => c.id === storedId)) {
+        setActiveCompanyIdState(storedId);
+      } else {
+        setActiveCompanyIdState(user.companyId);
+        localStorage.setItem(STORAGE_KEY, user.companyId);
+      }
     } else if (companies.length > 0) {
       const storedId = localStorage.getItem(STORAGE_KEY);
       const validStored = storedId && companies.some((c) => c.id === storedId);
@@ -48,10 +64,12 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         localStorage.setItem(STORAGE_KEY, defaultId);
       }
     }
-  }, [user?.companyId, companies]);
-
+  }, [user?.companyId, isSuperAdmin, companies]);
 
   const setActiveCompanyId = (id: string) => {
+    if (!isSuperAdmin && user?.companyId) {
+      return;
+    }
     setActiveCompanyIdState(id);
     localStorage.setItem(STORAGE_KEY, id);
     queryClient.invalidateQueries();

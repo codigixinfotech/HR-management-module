@@ -11,8 +11,11 @@ import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 export class CompaniesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
-    return this.prisma.company.findMany({ orderBy: { name: 'asc' } });
+  list(companyId?: string) {
+    return this.prisma.company.findMany({
+      where: companyId ? { id: companyId } : undefined,
+      orderBy: { name: 'asc' },
+    });
   }
 
   async findById(id: string) {

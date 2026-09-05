@@ -17,11 +17,12 @@ interface InterviewReminderNotifierProps {
  * Helper to parse interview Date & startTime string into a JavaScript Date object.
  * e.g. date: "2026-08-19" or ISO string, startTime: "11:00 AM" or "11:00"
  */
-export function parseInterviewDateTime(interviewDate: string | Date, startTimeStr: string): Date {
+export function parseInterviewDateTime(interviewDate: string | Date, startTimeStr?: string): Date {
   const d = new Date(interviewDate);
   if (isNaN(d.getTime())) return new Date();
+  if (!startTimeStr) return d;
 
-  const timeMatch = startTimeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  const timeMatch = String(startTimeStr).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
   if (!timeMatch) return d;
 
   let hours = parseInt(timeMatch[1], 10);

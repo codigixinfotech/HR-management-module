@@ -9,6 +9,9 @@ import {
 } from '@nestjs/common';
 import { TransfersService } from './transfers.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
+import { Query } from '@nestjs/common';
 
 @Controller('employees/transfers')
 export class TransfersController {
@@ -16,8 +19,12 @@ export class TransfersController {
 
   @Get()
   @Permissions('employees.read')
-  list() {
-    return this.transfersService.list();
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.transfersService.list(tenantCompanyId);
   }
 
   @Get(':id')

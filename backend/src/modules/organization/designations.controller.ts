@@ -14,6 +14,8 @@ import {
   UpdateDesignationDto,
 } from './dto/designation.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('organization/designations')
 export class DesignationsController {
@@ -22,10 +24,12 @@ export class DesignationsController {
   @Get()
   @Permissions('organization.designations.read')
   list(
+    @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
     @Query('departmentId') departmentId?: string,
   ) {
-    return this.designationsService.list(companyId, departmentId);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.designationsService.list(tenantCompanyId, departmentId);
   }
 
   @Get(':id')
