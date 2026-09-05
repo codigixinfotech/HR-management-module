@@ -22,9 +22,12 @@ const MOCK_APPRAISALS = [
   { id: 'APR-004', employee: 'Sunita Rao', reviewer: 'Rajesh Sharma', cycle: 'Q3 2026', dueDate: '15 Sep 2026', status: 'PENDING' },
 ];
 
+import { useAuthStore } from '@/stores/auth-store';
+
 export default function PerformancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'dashboard';
+  const canCreateGoal = useAuthStore((s) => s.hasPermission('performance.create'));
 
   return (
     <div className="space-y-6">
@@ -35,9 +38,11 @@ export default function PerformancePage() {
         badge="Q3 Appraisal Cycle Open"
         badgeVariant="info"
         actions={
-          <Button size="sm" className="gap-1.5 text-xs">
-            <Plus className="h-3.5 w-3.5" /> Create Goal / OKR
-          </Button>
+          canCreateGoal ? (
+            <Button size="sm" className="gap-1.5 text-xs">
+              <Plus className="h-3.5 w-3.5" /> Create Goal / OKR
+            </Button>
+          ) : null
         }
       />
 

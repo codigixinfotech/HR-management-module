@@ -695,13 +695,43 @@ export interface DashboardSummary {
   modules: { key: string; label: string; path: string; phase: number; status: string }[];
 }
 
+export type RoleType = 'CUSTOM_ROLE' | 'SYSTEM_ROLE' | 'INDUSTRY_TEMPLATE';
+export type RoleDataScope = 'OWN' | 'TEAM' | 'DEPARTMENT' | 'LOCATION' | 'PLANT' | 'COMPANY';
+
+export interface LoginAccessConfig {
+  web: boolean;
+  mobile: boolean;
+  ess: boolean;
+  admin: boolean;
+  reports: boolean;
+}
+
+export interface RoleUserAssignment {
+  user: {
+    id: string;
+    email: string;
+    employee?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      employeeCode: string;
+    } | null;
+  };
+}
+
 export interface Role {
   id: string;
   companyId?: string | null;
   name: string;
+  type: RoleType;
   description?: string | null;
   isSystem: boolean;
+  dataScope: RoleDataScope;
+  loginAccess?: LoginAccessConfig | null;
   permissions: { permission: { id: string; code: string; module: string; action: string; description?: string | null } }[];
+  users?: RoleUserAssignment[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Permission {

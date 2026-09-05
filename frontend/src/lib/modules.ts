@@ -532,9 +532,54 @@ export function isHrOrAdminUser(user?: any): boolean {
   return Boolean(isRoleAdmin || isPrimaryAdmin);
 }
 
+export function hasModulePermission(user: any, moduleKey: string, action: string = 'view'): boolean {
+  if (!user) return false;
+  if (isSuperAdminUser(user)) return true;
+  const perms = user.permissions || [];
+  if (perms.includes('*')) return true;
+
+  const targetModule = moduleKey.toLowerCase().replace(/[-_]/g, '');
+  const targetAction = action.toLowerCase();
+
+  const ALIAS_MAP: Record<string, string[]> = {
+    employees: ['employeemanagement', 'employees'],
+    tasks: ['employeemanagement', 'tasks'],
+    compliance: ['statutorytaxes', 'labourcompliance', 'compliance'],
+    learning: ['learning', 'lms'],
+    ehs: ['safetyehs', 'ehs'],
+    'iot-devices': ['integrationsiot', 'iot'],
+  };
+
+  const possibleModuleNames = ALIAS_MAP[moduleKey] || [targetModule];
+
+  return perms.some((p: string) => {
+    if (p === '*') return true;
+    const parts = p.toLowerCase().split('.');
+    const permModule = parts[0]?.replace(/[-_]/g, '');
+    const permAction = parts[1] || '';
+
+    const moduleMatches = possibleModuleNames.includes(permModule);
+    if (!moduleMatches) return false;
+
+    if (!permAction || permAction === '*' || permAction === 'manage' || permAction === targetAction) return true;
+    if (targetAction === 'view' && (permAction === 'read' || permAction === 'view')) return true;
+    if (targetAction === 'create' && (permAction === 'create' || permAction === 'write')) return true;
+    if (targetAction === 'edit' && (permAction === 'edit' || permAction === 'write')) return true;
+    if (targetAction === 'delete' && (permAction === 'delete' || permAction === 'write')) return true;
+
+    return false;
+  });
+}
+
 export function getModulesForRole(user?: any): HcmModule[] {
-  if (isHrOrAdminUser(user)) {
-    return HCM_MODULES;
-  }
-  return EMPLOYEE_MODULES;
+  if (!user) return EMPLOYEE_MODULES;
+  if (isSuperAdminUser(user)) return HCM_MODULES;
+
+  const userPerms = user.permissions || [];
+  if (userPerms.includes('*')) return HCM_MODULES;
+
+  return HCM_MODULES.filter((mod) => {
+    if (mod.key === 'dashboard' || mod.key === 'landing-page' || mod.key === 'profile') return true;
+    return hasModulePermission(user, mod.key, 'view');
+  });
 }

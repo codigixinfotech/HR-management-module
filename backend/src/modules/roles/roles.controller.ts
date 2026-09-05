@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -18,8 +19,8 @@ export class RolesController {
 
   @Get()
   @Permissions('administration.roles.read')
-  list() {
-    return this.rolesService.list();
+  list(@Query('companyId') companyId?: string) {
+    return this.rolesService.list(companyId);
   }
 
   @Get('permissions/catalog')
@@ -38,6 +39,18 @@ export class RolesController {
   @Permissions('administration.roles.write')
   create(@Body() dto: CreateRoleDto) {
     return this.rolesService.create(dto);
+  }
+
+  @Post(':id/duplicate')
+  @Permissions('administration.roles.write')
+  duplicate(@Param('id') id: string) {
+    return this.rolesService.duplicate(id);
+  }
+
+  @Post(':id/assign-users')
+  @Permissions('administration.roles.write')
+  assignUsers(@Param('id') id: string, @Body() body: { userIds: string[] }) {
+    return this.rolesService.assignUsers(id, body.userIds || []);
   }
 
   @Patch(':id')

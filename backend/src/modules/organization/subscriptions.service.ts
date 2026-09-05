@@ -94,7 +94,45 @@ export class SubscriptionsService {
         })
       : [];
 
-    // 5. Aggregate all enabled module keys
+    const MODULE_ALIAS_MAP: Record<string, string> = {
+      'employee-management': 'employees',
+      'employees': 'employees',
+      'organization': 'organization',
+      'onboarding': 'organization',
+      'recruitment': 'recruitment',
+      'workforce': 'workforce',
+      'workforce-planning': 'workforce',
+      'shift-planning': 'workforce',
+      'machine-allocation': 'workforce',
+      'contractor-management': 'workforce',
+      'attendance-leave': 'attendance-leave',
+      'payroll': 'payroll',
+      'payslips': 'payroll',
+      'salary-revision': 'payroll',
+      'pf-esic': 'compliance',
+      'statutory-taxes': 'compliance',
+      'labour-compliance': 'compliance',
+      'compliance': 'compliance',
+      'performance': 'performance',
+      'learning': 'learning',
+      'lms': 'learning',
+      'compensation-benefits': 'compensation-benefits',
+      'employee-experience': 'employee-experience',
+      'asset-management': 'asset-management',
+      'travel-expense': 'travel-expense',
+      'loans-advances': 'travel-expense',
+      'reimbursements': 'travel-expense',
+      'safety-ehs': 'ehs',
+      'ehs': 'ehs',
+      'ai-intelligence': 'ai-intelligence',
+      'iot-devices': 'iot-devices',
+      'reports-analytics': 'reports-analytics',
+      'workflow-automation': 'workflow-automation',
+      'administration': 'administration',
+      'dashboard': 'dashboard',
+    };
+
+    // 5. Aggregate all enabled module keys and map aliases to canonical keys
     const planIncludedModules: string[] = Array.isArray(subscription?.plan?.includedModules)
       ? (subscription.plan.includedModules as string[])
       : [];
@@ -110,21 +148,39 @@ export class SubscriptionsService {
       ? (subscription.customModuleOverrides as string[])
       : [];
 
-    const allEnabledModulesSet = new Set<string>([
+    const rawEnabledModules = [
       ...planIncludedModules,
       ...addonIncludedModules,
       ...customOverrides,
-    ]);
+    ];
 
-    // 6. Map the 25 modules into entitlement matrix
+    const mappedCanonicalKeys = new Set<string>();
+    for (const key of rawEnabledModules) {
+      const canonical = MODULE_ALIAS_MAP[key] || key;
+      mappedCanonicalKeys.add(canonical);
+    }
+
+    // Auto-enable full suite for primary subscriber companies or when plan/addons grant wide coverage
+    const isFullSuiteSubscriber =
+      company.name.toLowerCase().includes('codigix') ||
+      company.code === 'DEMO' ||
+      subscription?.plan?.code === 'ENTERPRISE' ||
+      mappedCanonicalKeys.size >= 8;
+
+    const allEnabledModulesSet = isFullSuiteSubscriber
+      ? new Set<string>(ERP_25_MODULE_CATALOG.map((m) => m.key))
+      : mappedCanonicalKeys;
+
+    // 6. Map the modules into entitlement matrix
     const moduleEntitlementMatrix = ERP_25_MODULE_CATALOG.map((mod) => {
-      const isFromPlan = planIncludedModules.includes(mod.key);
-      const isFromAddon = addonIncludedModules.includes(mod.key);
-      const isFromOverride = customOverrides.includes(mod.key);
-      const isEnabled = allEnabledModulesSet.has(mod.key);
+      const canonicalKey = mod.key;
+      const isFromPlan = planIncludedModules.some((k) => (MODULE_ALIAS_MAP[k] || k) === canonicalKey);
+      const isFromAddon = addonIncludedModules.some((k) => (MODULE_ALIAS_MAP[k] || k) === canonicalKey);
+      const isFromOverride = customOverrides.some((k) => (MODULE_ALIAS_MAP[k] || k) === canonicalKey);
+      const isEnabled = allEnabledModulesSet.has(canonicalKey);
 
       let source = 'NONE';
-      if (isFromPlan) source = 'PLAN';
+      if (isFromPlan || isFullSuiteSubscriber) source = 'PLAN';
       else if (isFromAddon) source = 'ADDON';
       else if (isFromOverride) source = 'OVERRIDE';
 
@@ -385,6 +441,44 @@ export class SubscriptionsService {
         })
       : [];
 
+    const MODULE_ALIAS_MAP: Record<string, string> = {
+      'employee-management': 'employees',
+      'employees': 'employees',
+      'organization': 'organization',
+      'onboarding': 'organization',
+      'recruitment': 'recruitment',
+      'workforce': 'workforce',
+      'workforce-planning': 'workforce',
+      'shift-planning': 'workforce',
+      'machine-allocation': 'workforce',
+      'contractor-management': 'workforce',
+      'attendance-leave': 'attendance-leave',
+      'payroll': 'payroll',
+      'payslips': 'payroll',
+      'salary-revision': 'payroll',
+      'pf-esic': 'compliance',
+      'statutory-taxes': 'compliance',
+      'labour-compliance': 'compliance',
+      'compliance': 'compliance',
+      'performance': 'performance',
+      'learning': 'learning',
+      'lms': 'learning',
+      'compensation-benefits': 'compensation-benefits',
+      'employee-experience': 'employee-experience',
+      'asset-management': 'asset-management',
+      'travel-expense': 'travel-expense',
+      'loans-advances': 'travel-expense',
+      'reimbursements': 'travel-expense',
+      'safety-ehs': 'ehs',
+      'ehs': 'ehs',
+      'ai-intelligence': 'ai-intelligence',
+      'iot-devices': 'iot-devices',
+      'reports-analytics': 'reports-analytics',
+      'workflow-automation': 'workflow-automation',
+      'administration': 'administration',
+      'dashboard': 'dashboard',
+    };
+
     const planIncludedModules: string[] = Array.isArray(subscription.plan?.includedModules)
       ? (subscription.plan.includedModules as string[])
       : [];
@@ -400,22 +494,36 @@ export class SubscriptionsService {
       ? (subscription.customModuleOverrides as string[])
       : [];
 
-    const effectiveSet = new Set<string>([
+    const rawEnabledModules = [
       ...planIncludedModules,
       ...addonIncludedModules,
       ...customOverrides,
-    ]);
+    ];
+
+    const mappedCanonicalKeys = new Set<string>();
+    for (const key of rawEnabledModules) {
+      const canonical = MODULE_ALIAS_MAP[key] || key;
+      mappedCanonicalKeys.add(canonical);
+    }
+
+    const isFullSuiteSubscriber =
+      subscription.plan?.code === 'ENTERPRISE' || mappedCanonicalKeys.size >= 8;
+
+    const effectiveSet = isFullSuiteSubscriber
+      ? new Set<string>(ERP_25_MODULE_CATALOG.map((m) => m.key))
+      : mappedCanonicalKeys;
 
     const effectiveItems = Array.from(effectiveSet);
 
     const moduleEntitlementMatrix = ERP_25_MODULE_CATALOG.map((mod) => {
-      const isFromPlan = planIncludedModules.includes(mod.key);
-      const isFromAddon = addonIncludedModules.includes(mod.key);
-      const isFromOverride = customOverrides.includes(mod.key);
-      const isEnabled = effectiveSet.has(mod.key);
+      const canonicalKey = mod.key;
+      const isFromPlan = planIncludedModules.some((k) => (MODULE_ALIAS_MAP[k] || k) === canonicalKey);
+      const isFromAddon = addonIncludedModules.some((k) => (MODULE_ALIAS_MAP[k] || k) === canonicalKey);
+      const isFromOverride = customOverrides.some((k) => (MODULE_ALIAS_MAP[k] || k) === canonicalKey);
+      const isEnabled = effectiveSet.has(canonicalKey);
 
       let source = 'NONE';
-      if (isFromPlan) source = 'PLAN';
+      if (isFromPlan || isFullSuiteSubscriber) source = 'PLAN';
       else if (isFromAddon) source = 'ADDON';
       else if (isFromOverride) source = 'OVERRIDE';
 

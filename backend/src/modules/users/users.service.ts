@@ -21,9 +21,11 @@ export class UsersService {
     roles: { include: { role: { select: { id: true, name: true } } } },
   };
 
-  async list(query: PaginationQueryDto) {
+  async list(query: PaginationQueryDto & { companyId?: string }) {
     const { skip, take, page, pageSize } = buildPagination(query);
-    const where = query.search ? { email: { contains: query.search } } : {};
+    const where: any = {};
+    if (query.companyId) where.companyId = query.companyId;
+    if (query.search) where.email = { contains: query.search };
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
@@ -68,12 +70,35 @@ export class UsersService {
         email: dto.email,
         passwordHash,
         companyId: dto.companyId,
+        mustResetPassword: dto.mustResetPassword ?? true,
         roles: dto.roleIds
           ? { create: dto.roleIds.map((roleId) => ({ roleId })) }
           : undefined,
       },
       include: this.listInclude,
     });
+
+    if (dto.employeeName || dto.companyId) {
+      const nameParts = (dto.employeeName || 'New User').trim().split(' ');
+      const firstName = nameParts[0] || 'New';
+      const lastName = nameParts.slice(1).join(' ') || 'User';
+      const empCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      await this.prisma.employee.create({
+        data: {
+          companyId: dto.companyId || user.companyId || '',
+          userId: user.id,
+          employeeCode: empCode,
+          firstName,
+          lastName,
+          workEmail: dto.email,
+          phone: dto.phone,
+          departmentId: dto.departmentId,
+          dateOfJoining: new Date(),
+          status: 'ACTIVE',
+        },
+      });
+    }
 
     const { passwordHash: _passwordHash, ...rest } = user;
     return rest;

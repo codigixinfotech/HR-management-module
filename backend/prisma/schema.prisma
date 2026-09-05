@@ -167,7 +167,10 @@ model Role {
   id          String   @id @default(cuid())
   companyId   String?
   name        String
+  type        String?  @default("CUSTOM_ROLE") // SYSTEM_ROLE | INDUSTRY_TEMPLATE | CUSTOM_ROLE
   description String?
+  dataScope   String?  @default("DEPARTMENT") // OWN | TEAM | DEPARTMENT | LOCATION | PLANT | COMPANY
+  loginAccess Json?    // { web: true, mobile: true, ess: true, admin: false, reports: true }
   isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
