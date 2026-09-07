@@ -34,16 +34,74 @@ const designationSchema = z.object({
   description: z.string().optional(),
 });
 
+const getDesigSalaryMultiplier = (unit: string) => {
+  if (unit === '₹ Crore') return 10000000;
+  if (unit === '₹ Lakh') return 100000;
+  if (unit === '₹ Thousand') return 1000;
+  return 1;
+};
+
+const parseSalaryToValueAndUnit = (val?: number | null) => {
+  if (!val || val <= 0) return { value: '', unit: '₹ Lakh' };
+  
+  // If val is less than 100,000, it's a monthly salary figure (e.g., 20,000 or 27,000).
+  // Convert to annual package by multiplying by 12.
+  let annualVal = val;
+  if (val < 100000) {
+    annualVal = val * 12;
+  }
+
+  if (annualVal >= 10000000) {
+    const cr = (annualVal / 10000000).toFixed(2).replace(/\.?0+$/, '');
+    return { value: cr, unit: '₹ Crore' };
+  }
+  if (annualVal >= 100000) {
+    const lk = (annualVal / 100000).toFixed(2).replace(/\.?0+$/, '');
+    return { value: lk, unit: '₹ Lakh' };
+  }
+  if (annualVal >= 1000) {
+    const th = (annualVal / 1000).toFixed(2).replace(/\.?0+$/, '');
+    return { value: th, unit: '₹ Thousand' };
+  }
+  return { value: annualVal.toString(), unit: '₹' };
+};
+
+const formatSalaryVal = (val: number) => {
+  if (val >= 10000000) {
+    const cr = (val / 10000000).toFixed(2).replace(/\.?0+$/, '');
+    return `₹${cr} Cr`;
+  }
+  if (val >= 100000) {
+    const lk = (val / 100000).toFixed(2).replace(/\.?0+$/, '');
+    return `₹${lk} Lakh`;
+  }
+  if (val >= 1000) {
+    return `₹${(val / 1000).toFixed(0)}K`;
+  }
+  return `₹${val.toLocaleString('en-IN')}`;
+};
+
 const formatSalaryRange = (min?: number | null, max?: number | null) => {
-  const formatVal = (val: number) => {
-    if (val >= 100000) {
-      return `₹${(val / 100000).toFixed(1).replace(/\.0$/, '')}L`;
+  if (!min && !max) return 'Not Specified';
+  
+  const minAnnual = min ? (min < 100000 ? min * 12 : min) : null;
+  const maxAnnual = max ? (max < 100000 ? max * 12 : max) : null;
+
+  if (minAnnual && maxAnnual) {
+    if (minAnnual >= 100000 && maxAnnual >= 100000 && minAnnual < 10000000 && maxAnnual < 10000000) {
+      const minL = (minAnnual / 100000).toFixed(2).replace(/\.?0+$/, '');
+      const maxL = (maxAnnual / 100000).toFixed(2).replace(/\.?0+$/, '');
+      return `₹${minL} – ₹${maxL} Lakh`;
     }
-    return `₹${val.toLocaleString('en-IN')}`;
-  };
-  if (min && max) return `${formatVal(min)} - ${formatVal(max)} / yr`;
-  if (min) return `Min: ${formatVal(min)} / yr`;
-  return max ? `Max: ${formatVal(max)} / yr` : 'Not Specified';
+    if (minAnnual >= 10000000 && maxAnnual >= 10000000) {
+      const minC = (minAnnual / 10000000).toFixed(2).replace(/\.?0+$/, '');
+      const maxC = (maxAnnual / 10000000).toFixed(2).replace(/\.?0+$/, '');
+      return `₹${minC} – ₹${maxC} Crore`;
+    }
+    return `${formatSalaryVal(minAnnual)} – ${formatSalaryVal(maxAnnual)}`;
+  }
+  if (minAnnual) return `Min: ${formatSalaryVal(minAnnual)}`;
+  return `Max: ${formatSalaryVal(maxAnnual!)}`;
 };
 
 type DesignationFormValues = z.infer<typeof designationSchema>;
@@ -63,6 +121,11 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Designation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [minAnnualVal, setMinAnnualVal] = useState<string>('');
+  const [minAnnualUnit, setMinAnnualUnit] = useState<string>('₹ Lakh');
+  const [maxAnnualVal, setMaxAnnualVal] = useState<string>('');
+  const [maxAnnualUnit, setMaxAnnualUnit] = useState<string>('₹ Lakh');
 
   const form = useForm<DesignationFormValues>({
     resolver: zodResolver(designationSchema) as any,
@@ -126,12 +189,15 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
 
   const upsertMutation = useMutation({
     mutationFn: async (values: DesignationFormValues) => {
+      const calcMin = minAnnualVal !== '' && !isNaN(Number(minAnnualVal)) ? Number(minAnnualVal) * getDesigSalaryMultiplier(minAnnualUnit) : null;
+      const calcMax = maxAnnualVal !== '' && !isNaN(Number(maxAnnualVal)) ? Number(maxAnnualVal) * getDesigSalaryMultiplier(maxAnnualUnit) : null;
+
       const payload = {
         ...values,
         departmentId: (values.departmentId && values.departmentId !== 'none') ? values.departmentId : null,
         reportingDesignationId: (values.reportingDesignationId && values.reportingDesignationId !== 'none') ? values.reportingDesignationId : null,
-        minSalary: values.minSalary || null,
-        maxSalary: values.maxSalary || null,
+        minSalary: calcMin,
+        maxSalary: calcMax,
         effectiveFrom: new Date(values.effectiveFrom).toISOString(),
         description: values.description || null,
       };
@@ -157,6 +223,10 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
 
   const openCreate = () => {
     setEditing(null);
+    setMinAnnualVal('');
+    setMinAnnualUnit('₹ Lakh');
+    setMaxAnnualVal('');
+    setMaxAnnualUnit('₹ Lakh');
     form.reset({
       companyId: companyId ?? companies[0]?.id ?? '',
       departmentId: '',
@@ -177,6 +247,14 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
 
   const openEdit = (designation: Designation) => {
     setEditing(designation);
+    const minP = parseSalaryToValueAndUnit(designation.minSalary);
+    setMinAnnualVal(minP.value);
+    setMinAnnualUnit(minP.unit);
+
+    const maxP = parseSalaryToValueAndUnit(designation.maxSalary);
+    setMaxAnnualVal(maxP.value);
+    setMaxAnnualUnit(maxP.unit);
+
     form.reset({
       companyId: designation.companyId,
       departmentId: designation.departmentId ?? '',
@@ -290,24 +368,6 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Job Family (Optional)</Label>
-                      <Select value={form.watch('jobFamily')} onValueChange={(v) => form.setValue('jobFamily', v)}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select job family" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Engineering" className="text-xs">Engineering</SelectItem>
-                          <SelectItem value="Human Resources" className="text-xs">Human Resources</SelectItem>
-                          <SelectItem value="Finance" className="text-xs">Finance</SelectItem>
-                          <SelectItem value="Sales" className="text-xs">Sales</SelectItem>
-                          <SelectItem value="Operations" className="text-xs">Operations</SelectItem>
-                          <SelectItem value="Marketing" className="text-xs">Marketing</SelectItem>
-                          <SelectItem value="Product" className="text-xs">Product</SelectItem>
-                          <SelectItem value="Administration" className="text-xs">Administration</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Pay Grade / Level *</Label>
                       <Select value={form.watch('grade')} onValueChange={(v) => {
                         form.setValue('grade', v);
@@ -315,6 +375,16 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                         if (selectedGrade) {
                           form.setValue('minSalary', Number(selectedGrade.minSalary));
                           form.setValue('maxSalary', Number(selectedGrade.maxSalary));
+                          if (selectedGrade.minSalary) {
+                            const minP = parseSalaryToValueAndUnit(Number(selectedGrade.minSalary));
+                            setMinAnnualVal(minP.value);
+                            setMinAnnualUnit(minP.unit);
+                          }
+                          if (selectedGrade.maxSalary) {
+                            const maxP = parseSalaryToValueAndUnit(Number(selectedGrade.maxSalary));
+                            setMaxAnnualVal(maxP.value);
+                            setMaxAnnualUnit(maxP.unit);
+                          }
                         }
                       }}>
                         <SelectTrigger className="h-9 text-xs font-mono">
@@ -330,9 +400,7 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                       </Select>
                       {form.formState.errors.grade && <p className="text-[10px] text-destructive">{form.formState.errors.grade.message}</p>}
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Reporting Designation (Optional)</Label>
                       <Select value={form.watch('reportingDesignationId') || 'none'} onValueChange={(v) => form.setValue('reportingDesignationId', v)}>
@@ -349,6 +417,9 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Employment Type (Optional)</Label>
                       <Select value={form.watch('employmentType')} onValueChange={(v) => form.setValue('employmentType', v)}>
@@ -364,27 +435,6 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Minimum Salary (₹ / yr - Optional)</Label>
-                      <Input type="number" placeholder="e.g. 400000" {...form.register('minSalary')} className="h-9 text-xs" />
-                      {form.formState.errors.minSalary && <p className="text-[10px] text-destructive">{form.formState.errors.minSalary.message}</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Maximum Salary (₹ / yr - Optional)</Label>
-                      <Input type="number" placeholder="e.g. 1200000" {...form.register('maxSalary')} className="h-9 text-xs" />
-                      {form.formState.errors.maxSalary && <p className="text-[10px] text-destructive">{form.formState.errors.maxSalary.message}</p>}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Effective From *</Label>
-                      <Input type="date" {...form.register('effectiveFrom')} className="h-9 text-xs" />
-                      {form.formState.errors.effectiveFrom && <p className="text-[10px] text-destructive">{form.formState.errors.effectiveFrom.message}</p>}
-                    </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Status</Label>
                       <Select
@@ -399,6 +449,69 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                           <SelectItem value="inactive" className="text-xs">Inactive</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 border border-border/60 rounded-lg p-3 bg-muted/20">
+                    <Label className="text-xs font-semibold text-foreground">Annual Package / CTC Range (Optional)</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] text-muted-foreground">Min Annual CTC</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="number"
+                            step="any"
+                            placeholder="e.g. 2.40"
+                            value={minAnnualVal}
+                            onChange={(e) => setMinAnnualVal(e.target.value)}
+                            className="h-9 text-xs"
+                          />
+                          <Select value={minAnnualUnit} onValueChange={setMinAnnualUnit}>
+                            <SelectTrigger className="h-9 w-[120px] text-xs shrink-0 font-medium">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="₹" className="text-xs">₹</SelectItem>
+                              <SelectItem value="₹ Thousand" className="text-xs">₹ Thousand</SelectItem>
+                              <SelectItem value="₹ Lakh" className="text-xs">₹ Lakh</SelectItem>
+                              <SelectItem value="₹ Crore" className="text-xs">₹ Crore</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] text-muted-foreground">Max Annual CTC</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="number"
+                            step="any"
+                            placeholder="e.g. 3.24"
+                            value={maxAnnualVal}
+                            onChange={(e) => setMaxAnnualVal(e.target.value)}
+                            className="h-9 text-xs"
+                          />
+                          <Select value={maxAnnualUnit} onValueChange={setMaxAnnualUnit}>
+                            <SelectTrigger className="h-9 w-[120px] text-xs shrink-0 font-medium">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="₹" className="text-xs">₹</SelectItem>
+                              <SelectItem value="₹ Thousand" className="text-xs">₹ Thousand</SelectItem>
+                              <SelectItem value="₹ Lakh" className="text-xs">₹ Lakh</SelectItem>
+                              <SelectItem value="₹ Crore" className="text-xs">₹ Crore</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Effective From *</Label>
+                      <Input type="date" {...form.register('effectiveFrom')} className="h-9 text-xs" />
+                      {form.formState.errors.effectiveFrom && <p className="text-[10px] text-destructive">{form.formState.errors.effectiveFrom.message}</p>}
                     </div>
                   </div>
 
@@ -458,17 +571,10 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                 <TableRow key={designation.id} className="hover:bg-muted/40 transition-colors">
                   <TableCell className="font-mono text-xs font-semibold text-primary">{designation.code}</TableCell>
                   <TableCell className="text-xs font-semibold text-foreground">
-                    <div className="flex flex-col">
-                      <span className="flex items-center gap-1.5">
-                        <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        {designation.title}
-                      </span>
-                      {designation.jobFamily && (
-                        <span className="text-[10px] text-muted-foreground font-normal ml-5">
-                          Family: {designation.jobFamily}
-                        </span>
-                      )}
-                    </div>
+                    <span className="flex items-center gap-1.5">
+                      <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      {designation.title}
+                    </span>
                   </TableCell>
                   <TableCell className="text-xs font-medium text-muted-foreground">
                     {designation.department?.name ?? 'General Corporate'}
