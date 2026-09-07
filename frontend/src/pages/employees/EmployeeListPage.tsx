@@ -21,7 +21,8 @@ export default function EmployeeListPage() {
   const navigate = useNavigate();
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
-  const activeTab = routeTab || searchParams.get('tab') || 'directory';
+  const rawTab = routeTab || searchParams.get('tab') || 'directory';
+  const activeTab = rawTab === 'skills' ? 'directory' : rawTab;
 
   const { activeCompanyId } = useCompany();
 
@@ -102,9 +103,6 @@ export default function EmployeeListPage() {
       {activeTab === 'master' && <EmployeeMasterTab />}
 
       {activeTab === 'documents' && <DocumentVaultTab />}
-
-      {activeTab === 'skills' && <SkillsCertificationsTab />}
-
       {activeTab === 'transfers' && <TransfersPromotionsTab />}
 
       {activeTab === 'exit' && <ExitManagementTab />}

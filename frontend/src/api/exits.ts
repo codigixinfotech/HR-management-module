@@ -24,6 +24,8 @@ export interface ExitInterview {
   recommendCompany?: boolean;
   rehireEligible?: boolean;
   hrRemarks?: string;
+  isWaived?: boolean;
+  waiverReason?: string;
   completedAt?: string;
 }
 
@@ -34,6 +36,7 @@ export interface ExitFnfSettlement {
   leaveEncashment: number;
   incentives: number;
   reimbursements: number;
+  gratuity?: number;
   noticeRecovery: number;
   loanAdvanceRecovery: number;
   assetRecovery: number;
@@ -105,6 +108,22 @@ export interface EmployeeExit {
     designation?: { id: string; title: string } | null;
     branch?: { id: string; name: string } | null;
     reportingManager?: { id: string; firstName: string; lastName: string } | null;
+    assetAllocations?: Array<{
+      id: string;
+      assetId: string;
+      allocatedAt: string;
+      returnedAt?: string | null;
+      conditionOnReturn?: string | null;
+      asset: {
+        id: string;
+        assetTag: string;
+        name: string;
+        category: string;
+        status: string;
+        condition?: string | null;
+        serialNumber?: string | null;
+      };
+    }>;
   };
   clearanceItems?: ExitClearanceItem[];
   exitInterview?: ExitInterview | null;

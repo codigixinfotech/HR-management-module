@@ -66,7 +66,7 @@ function OrgTreeNode({ node, toggleNode, expandedNodes }: OrgTreeNodeProps) {
 
         <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2 text-[10px]">
           <span className="text-muted-foreground flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> {node.location.split(' ')[0]}
+            <MapPin className="h-3 w-3" /> {node.location ? node.location.replace(/\s+Office$/i, '').replace(/\s+Manufacturing Plant$/i, '').trim() : 'Pune'}
           </span>
           {hasChildren && (
             <span className="flex items-center gap-0.5 text-primary font-semibold">
@@ -186,15 +186,19 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
       (emp: any) => !emp.reportingManagerId || !employeeIds.has(emp.reportingManagerId)
     );
 
-    // Identify primary executive leader (CEO / MD / Founder / Chief Officer / Top Manager)
+    // Identify primary executive leader (Managing Director / CEO / Founder / Chief Officer / Top Manager)
     let primaryRoot = rootCandidates.find((emp: any) => {
       const title = (emp.designation?.title || '').toLowerCase();
+      const code = (emp.employeeCode || '').toLowerCase();
       return (
+        title.includes('director') ||
+        title.includes('founder') ||
+        title.includes('owner') ||
+        title.includes('managing director') ||
         title.includes('ceo') ||
         title.includes('chief executive') ||
-        title.includes('managing director') ||
-        title.includes('founder') ||
-        title.includes('president')
+        title.includes('president') ||
+        code.endsWith('-001')
       );
     });
 
@@ -224,15 +228,19 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
 
       const childNodes = directReports.map(buildNode);
 
+      const cleanFirst = (emp.firstName || '').replace(/^(mr\.|mrs\.|ms\.|dr\.)\s*/i, '');
+      const firstInitial = cleanFirst[0] || emp.firstName?.[0] || 'E';
+      const lastInitial = emp.lastName?.[0] || '';
+
       return {
         id: emp.id,
-        name: `${emp.firstName} ${emp.lastName}`,
-        title: emp.designation?.title ?? (emp.id === primaryRoot!.id ? 'Organization Head' : 'Designation'),
-        dept: emp.department?.name ?? 'Organization Unit',
+        name: `${emp.firstName || ''} ${emp.lastName || ''}`.replace(/\s+/g, ' ').trim(),
+        title: emp.designation?.title ?? (emp.id === primaryRoot!.id ? 'Managing Director & Founder' : 'Executive'),
+        dept: emp.department?.name ?? 'Executive Management',
         code: emp.employeeCode,
-        avatar: `${emp.firstName[0] || 'E'}${emp.lastName[0] || 'E'}`.toUpperCase(),
+        avatar: `${firstInitial}${lastInitial}`.toUpperCase(),
         reportsCount: childNodes.length,
-        location: emp.location ?? 'Head Office',
+        location: emp.location || emp.branch?.city || 'Pune',
         email: emp.workEmail ?? '',
         children: childNodes.length > 0 ? childNodes : undefined,
       };

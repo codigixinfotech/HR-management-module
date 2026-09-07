@@ -100,7 +100,6 @@ export const HCM_MODULES: HcmModule[] = [
       { key: 'directory', label: 'Employee Directory', path: '/employees/directory' },
       { key: 'master', label: 'Employee Master', path: '/employees/master' },
       { key: 'documents', label: 'Documents', path: '/employees/documents' },
-      { key: 'skills', label: 'Skills & Certifications', path: '/employees/skills' },
       { key: 'transfers', label: 'Transfers & Promotions', path: '/employees/transfers' },
       { key: 'exit', label: 'Exit Management', path: '/employees/exit' },
       { key: 'reports', label: 'Employee Reports', path: '/employees/reports' },

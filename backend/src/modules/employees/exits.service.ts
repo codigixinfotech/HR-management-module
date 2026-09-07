@@ -14,37 +14,96 @@ import {
   UpdateExitStatusDto,
 } from './dto/exit.dto';
 
-const DEFAULT_CLEARANCE_ITEMS = [
-  // Reporting Manager
-  { department: 'Reporting Manager', itemKey: 'work_handover', itemLabel: 'Project & Task Work Handover' },
-  { department: 'Reporting Manager', itemKey: 'pending_tasks', itemLabel: 'Pending Operations & Client Handoff' },
-  { department: 'Reporting Manager', itemKey: 'kt_completion', itemLabel: 'Knowledge Transfer & Code/Doc Deposit' },
-  
-  // IT Department
-  { department: 'IT', itemKey: 'laptop_hardware', itemLabel: 'Company Laptop & Peripheral Hardware' },
-  { department: 'IT', itemKey: 'email_access', itemLabel: 'Email Account & Inbox Archival' },
-  { department: 'IT', itemKey: 'system_licenses', itemLabel: 'SaaS Software Licenses & Cloud Revocation' },
-  { department: 'IT', itemKey: 'vpn_security', itemLabel: 'VPN Keys, Tokens & Security Credential Revocation' },
+export function getClearanceTemplateForEmployee(deptName: string = '', exitType: string = '') {
+  const norm = deptName.toLowerCase();
 
-  // Admin Department
-  { department: 'Admin', itemKey: 'id_badge', itemLabel: 'Employee Physical ID Badge & Smartcard' },
-  { department: 'Admin', itemKey: 'building_keys', itemLabel: 'Access Cards, Office Keys & Drawers' },
-  { department: 'Admin', itemKey: 'office_property', itemLabel: 'Company Vehicle / Parking Sticker Return' },
+  // 1. Manufacturing / Operations / Plant / Quality Template
+  if (
+    norm.includes('manufactur') ||
+    norm.includes('product') ||
+    norm.includes('operat') ||
+    norm.includes('plant') ||
+    norm.includes('quality') ||
+    norm.includes('maintenan') ||
+    norm.includes('machin')
+  ) {
+    return [
+      { department: 'Production & Operations', itemKey: 'shift_handoff', itemLabel: 'Shift Operations Handoff & Job Orders Closure' },
+      { department: 'Production & Operations', itemKey: 'ppe_tools', itemLabel: 'Tool Crib, Safety Helmet & PPE Return' },
+      { department: 'Stores & Inventory', itemKey: 'inventory_custody', itemLabel: 'Material Requisition & Consumables Clearance' },
+      { department: 'Maintenance & EHS', itemKey: 'ehs_safety', itemLabel: 'Hazard Safety & LOTO Protocol Clearance' },
+      { department: 'Security & Gate', itemKey: 'gate_pass', itemLabel: 'Factory Gate Pass & Physical Access Badge' },
+      { department: 'Security & Gate', itemKey: 'vehicle_locker', itemLabel: 'Plant Locker Key & Vehicle Parking Pass' },
+      { department: 'Finance', itemKey: 'salary_dues', itemLabel: 'Salary & Shift Allowance Dues Reconciliation' },
+      { department: 'Finance', itemKey: 'loan_advance', itemLabel: 'Travel Advance & Loan Recovery Audit' },
+      { department: 'HR', itemKey: 'attendance_punch', itemLabel: 'Biometric Attendance Audit & Leave Balance' },
+      { department: 'HR', itemKey: 'service_bond', itemLabel: 'Employment Agreement & Service Bond Clearance' },
+      { department: 'IT', itemKey: 'terminal_access', itemLabel: 'Plant Terminal Account & Biometric De-registration' },
+      { department: 'Assets', itemKey: 'assigned_assets', itemLabel: 'Assigned Factory Equipment, Gauges & Radio Unit' },
+    ];
+  }
 
-  // Finance Department
-  { department: 'Finance', itemKey: 'salary_dues', itemLabel: 'Salary & Variable Pay Dues Reconciliation' },
-  { department: 'Finance', itemKey: 'advance_recovery', itemLabel: 'Travel Advance & Loan Recovery Clearance' },
-  { department: 'Finance', itemKey: 'expense_claims', itemLabel: 'Outstanding Expense Reimbursement Audit' },
+  // 2. Healthcare / Hospital / Clinical Template
+  if (
+    norm.includes('health') ||
+    norm.includes('medic') ||
+    norm.includes('nurs') ||
+    norm.includes('clinic') ||
+    norm.includes('pharm') ||
+    norm.includes('doctor')
+  ) {
+    return [
+      { department: 'Clinical Dept', itemKey: 'patient_handoff', itemLabel: 'Patient File & Clinical Case Handover' },
+      { department: 'Nursing & Wards', itemKey: 'ward_log', itemLabel: 'Ward Custody, Equipment & Shift Duty Signoff' },
+      { department: 'Pharmacy & Custody', itemKey: 'narcotics_keys', itemLabel: 'Schedule Drug & Narcotics Cabinet Key Return' },
+      { department: 'Medical Records', itemKey: 'ehr_access', itemLabel: 'Electronic Health Record (EHR) & HIPAA Access Revocation' },
+      { department: 'Admin & Facilities', itemKey: 'scrubs_locker', itemLabel: 'Hospital Smart Badge, Scrubs & Locker Keys' },
+      { department: 'Finance', itemKey: 'duty_allowances', itemLabel: 'On-Call / Shift Allowance Dues & Advance Clearance' },
+      { department: 'HR', itemKey: 'license_records', itemLabel: 'Medical Registration Verification & Exit Clearance' },
+      { department: 'IT', itemKey: 'hospital_system', itemLabel: 'Hospital Information System (HIS) Access Deactivation' },
+      { department: 'Assets', itemKey: 'medical_devices', itemLabel: 'Assigned Diagnostic Tools, Tablet & Pager Return' },
+    ];
+  }
 
-  // HR Department
-  { department: 'HR', itemKey: 'document_clearance', itemLabel: 'HR Service Agreement & Bond Clearance' },
-  { department: 'HR', itemKey: 'exit_interview', itemLabel: 'Formal Exit Interview Completion' },
-  { department: 'HR', itemKey: 'leave_encashment', itemLabel: 'Unavailed Leave Balance Encashment Audit' },
+  // 3. IT & Software / Technology Template
+  if (
+    norm.includes('tech') ||
+    norm.includes('software') ||
+    norm.includes('it') ||
+    norm.includes('develop') ||
+    norm.includes('engineer') ||
+    norm.includes('data')
+  ) {
+    return [
+      { department: 'Reporting Manager', itemKey: 'work_handover', itemLabel: 'Sprint Backlog & Task Work Handover' },
+      { department: 'Reporting Manager', itemKey: 'code_kt', itemLabel: 'Knowledge Transfer & Repository / Git Access Transfer' },
+      { department: 'IT Department', itemKey: 'laptop_hardware', itemLabel: 'Company Laptop, Charger & Peripheral Hardware' },
+      { department: 'IT Department', itemKey: 'email_archival', itemLabel: 'Email Account, Slack / Teams & Cloud Archival' },
+      { department: 'IT Department', itemKey: 'vpn_cloud', itemLabel: 'VPN Keys, AWS/GCP IAM & Token Revocation' },
+      { department: 'Admin', itemKey: 'id_badge', itemLabel: 'Employee Physical ID Badge & Smartcard' },
+      { department: 'Admin', itemKey: 'facility_keys', itemLabel: 'Office Access Card, Pedestal Key & Parking Pass' },
+      { department: 'Finance', itemKey: 'salary_dues', itemLabel: 'Salary & Variable Pay Dues Reconciliation' },
+      { department: 'Finance', itemKey: 'advance_recovery', itemLabel: 'Travel Advance & Loan Recovery Clearance' },
+      { department: 'HR', itemKey: 'bond_clearance', itemLabel: 'HR Service Agreement & Bond Clearance' },
+      { department: 'HR', itemKey: 'leave_audit', itemLabel: 'Unavailed Leave Balance Encashment Audit' },
+      { department: 'Assets', itemKey: 'assigned_assets', itemLabel: 'Assigned Monitor, Ergonomic Accessories & Tech Peripherals' },
+      { department: 'Assets', itemKey: 'corporate_mobile', itemLabel: 'Corporate Mobile Handset & SIM Return' },
+    ];
+  }
 
-  // Assets
-  { department: 'Assets', itemKey: 'assigned_assets', itemLabel: 'Assigned Hardware, Monitor & Tools Audit' },
-  { department: 'Assets', itemKey: 'mobile_sim', itemLabel: 'Corporate Mobile Handset & SIM Return' },
-];
+  // 4. General / Corporate / Banking / Retail (Default)
+  return [
+    { department: 'Reporting Manager', itemKey: 'work_handover', itemLabel: 'Project & Client Deliverables Handover' },
+    { department: 'Reporting Manager', itemKey: 'kt_completion', itemLabel: 'Knowledge Transfer & Operational Files Deposit' },
+    { department: 'IT', itemKey: 'workstation_it', itemLabel: 'Workstation Laptop & Peripheral Hardware' },
+    { department: 'IT', itemKey: 'email_sso', itemLabel: 'Email Account, Single Sign-On (SSO) & Network Access' },
+    { department: 'Admin', itemKey: 'id_card', itemLabel: 'Company ID Card, RFID Access Card & Office Keys' },
+    { department: 'Finance', itemKey: 'salary_dues', itemLabel: 'Salary & Incentive Reconciliation' },
+    { department: 'Finance', itemKey: 'advance_recovery', itemLabel: 'Travel Advance, Loan & Credit Card Dues' },
+    { department: 'HR', itemKey: 'service_agreement', itemLabel: 'Service Agreement Clearance & Leave Encashment Audit' },
+    { department: 'Assets', itemKey: 'company_property', itemLabel: 'Return of Company Assigned Assets & Mobile SIM' },
+  ];
+}
 
 @Injectable()
 export class ExitsService implements OnModuleInit {
@@ -54,7 +113,10 @@ export class ExitsService implements OnModuleInit {
     try {
       const count = await this.prisma.employeeExit.count();
       if (count === 0) {
-        const employees = await this.prisma.employee.findMany({ take: 3 });
+        const employees = await this.prisma.employee.findMany({
+          take: 3,
+          include: { department: true },
+        });
         if (employees.length >= 2) {
           await this.create({
             employeeId: employees[0].id,
@@ -62,7 +124,7 @@ export class ExitsService implements OnModuleInit {
             noticePeriodDays: 60,
             lastWorkingDay: '2026-08-31',
             exitType: 'RESIGNATION',
-            exitReason: 'Better Career Opportunity',
+            exitReason: 'Career Growth',
             remarks: 'Initiated voluntary resignation.',
             companyId: employees[0].companyId,
           });
@@ -73,7 +135,7 @@ export class ExitsService implements OnModuleInit {
             noticePeriodDays: 90,
             lastWorkingDay: '2026-10-15',
             exitType: 'RESIGNATION',
-            exitReason: 'Personal Reasons / Relocation',
+            exitReason: 'Relocation',
             remarks: 'Relocating to another city.',
             companyId: employees[1].companyId,
           });
@@ -188,6 +250,11 @@ export class ExitsService implements OnModuleInit {
             branch: { select: { id: true, name: true } },
             reportingManager: { select: { id: true, firstName: true, lastName: true } },
             positionHistory: { orderBy: { effectiveDate: 'desc' } },
+            assetAllocations: {
+              where: { returnedAt: null },
+              include: { asset: true },
+              orderBy: { allocatedAt: 'desc' },
+            },
           },
         },
         clearanceItems: { orderBy: [{ department: 'asc' }, { createdAt: 'asc' }] },
@@ -204,6 +271,7 @@ export class ExitsService implements OnModuleInit {
   async create(dto: CreateExitDto) {
     const employee = await this.prisma.employee.findUnique({
       where: { id: dto.employeeId },
+      include: { department: true },
     });
     if (!employee) throw new NotFoundException('Employee record not found');
 
@@ -216,6 +284,10 @@ export class ExitsService implements OnModuleInit {
       ? new Date(dto.lastWorkingDay)
       : new Date(resignationDate.getTime() + noticeDays * 24 * 60 * 60 * 1000);
 
+    const exitType = dto.exitType || 'RESIGNATION';
+    const isInterviewAutoWaived = ['ABSCONDING', 'DEATH'].includes(exitType);
+    const templateItems = getClearanceTemplateForEmployee(employee.department?.name, exitType);
+
     // Business Rule: DO NOT deactivate employee master upon resignation initiation!
     // Employee remains ACTIVE during notice period.
     const exit = await this.prisma.employeeExit.create({
@@ -226,16 +298,16 @@ export class ExitsService implements OnModuleInit {
         resignationDate,
         noticePeriodDays: noticeDays,
         lastWorkingDay,
-        exitType: dto.exitType || 'RESIGNATION',
+        exitType,
         exitReason: dto.exitReason,
         resignationLetterUrl: dto.resignationLetterUrl,
         remarks: dto.remarks,
         status: 'INITIATED',
         clearanceStatus: 'PENDING',
         fnfStatus: 'PENDING',
-        exitInterviewStatus: 'PENDING',
+        exitInterviewStatus: isInterviewAutoWaived ? 'WAIVED' : 'PENDING',
         clearanceItems: {
-          create: DEFAULT_CLEARANCE_ITEMS.map((item) => ({
+          create: templateItems.map((item) => ({
             department: item.department,
             itemKey: item.itemKey,
             itemLabel: item.itemLabel,
@@ -263,7 +335,7 @@ export class ExitsService implements OnModuleInit {
             action: 'RESIGNATION_INITIATED',
             newStatus: 'INITIATED',
             performedBy: 'HR System',
-            remarks: `Resignation submitted. Notice period: ${noticeDays} days. LWD: ${lastWorkingDay.toISOString().split('T')[0]}.`,
+            remarks: `Exit initiated (${exitType}). Reason: ${dto.exitReason}. Notice period: ${noticeDays} days. LWD: ${lastWorkingDay.toISOString().split('T')[0]}.`,
           },
         },
       },
@@ -351,8 +423,8 @@ export class ExitsService implements OnModuleInit {
     const allItems = await this.prisma.exitClearanceItem.findMany({
       where: { exitId: item.exitId },
     });
-    const allCleared = allItems.every((i) => i.status === 'CLEARED');
-    const anyInFilter = allItems.some((i) => i.status === 'CLEARED' || i.status === 'VERIFIED');
+    const allCleared = allItems.every((i) => i.status === 'CLEARED' || i.status === 'WAIVED');
+    const anyInFilter = allItems.some((i) => i.status === 'CLEARED' || i.status === 'VERIFIED' || i.status === 'WAIVED');
 
     let overallClearanceStatus = 'PENDING';
     if (allCleared) overallClearanceStatus = 'COMPLETED';
@@ -371,6 +443,8 @@ export class ExitsService implements OnModuleInit {
 
   async saveExitInterview(exitId: string, dto: SaveExitInterviewDto) {
     const exit = await this.findOne(exitId);
+    const isWaived = dto.isWaived || false;
+    const interviewStatus = isWaived ? 'WAIVED' : 'COMPLETED';
 
     const interview = await this.prisma.exitInterview.upsert({
       where: { exitId },
@@ -384,7 +458,7 @@ export class ExitsService implements OnModuleInit {
         compensationRating: dto.compensationRating ?? 5,
         recommendCompany: dto.recommendCompany ?? true,
         rehireEligible: dto.rehireEligible ?? true,
-        hrRemarks: dto.hrRemarks,
+        hrRemarks: isWaived && dto.waiverReason ? `[WAIVED]: ${dto.waiverReason}` : dto.hrRemarks,
         completedAt: new Date(),
       },
       update: {
@@ -396,7 +470,7 @@ export class ExitsService implements OnModuleInit {
         compensationRating: dto.compensationRating ?? 5,
         recommendCompany: dto.recommendCompany ?? true,
         rehireEligible: dto.rehireEligible ?? true,
-        hrRemarks: dto.hrRemarks,
+        hrRemarks: isWaived && dto.waiverReason ? `[WAIVED]: ${dto.waiverReason}` : dto.hrRemarks,
         completedAt: new Date(),
       },
     });
@@ -404,15 +478,17 @@ export class ExitsService implements OnModuleInit {
     await this.prisma.employeeExit.update({
       where: { id: exitId },
       data: {
-        exitInterviewStatus: 'COMPLETED',
+        exitInterviewStatus: interviewStatus,
         status: exit.status === 'CLEARANCE_COMPLETED' ? 'EXIT_INTERVIEW' : exit.status,
         auditLogs: {
           create: {
-            action: 'EXIT_INTERVIEW_COMPLETED',
+            action: isWaived ? 'EXIT_INTERVIEW_WAIVED' : 'EXIT_INTERVIEW_COMPLETED',
             previousStatus: exit.status,
             newStatus: 'EXIT_INTERVIEW',
             performedBy: 'HR Manager',
-            remarks: `Exit interview recorded. Primary reason: ${dto.primaryReason}`,
+            remarks: isWaived
+              ? `Exit interview marked as waived. Reason: ${dto.waiverReason || 'Waived by HR Policy'}`
+              : `Exit interview recorded. Primary reason: ${dto.primaryReason}`,
           },
         },
       },
@@ -428,13 +504,14 @@ export class ExitsService implements OnModuleInit {
     const leaveEncashment = dto.leaveEncashment ?? 0;
     const incentives = dto.incentives ?? 0;
     const reimbursements = dto.reimbursements ?? 0;
+    const gratuity = dto.gratuity ?? 0;
 
     const noticeRecovery = dto.noticeRecovery ?? 0;
     const loanAdvanceRecovery = dto.loanAdvanceRecovery ?? 0;
     const assetRecovery = dto.assetRecovery ?? 0;
     const otherDeductions = dto.otherDeductions ?? 0;
 
-    const grossPayable = salaryPayable + leaveEncashment + incentives + reimbursements;
+    const grossPayable = salaryPayable + leaveEncashment + incentives + reimbursements + gratuity;
     const totalDeductions = noticeRecovery + loanAdvanceRecovery + assetRecovery + otherDeductions;
     const netPayable = grossPayable - totalDeductions;
 
@@ -505,14 +582,15 @@ export class ExitsService implements OnModuleInit {
     if (exit.clearanceStatus !== 'COMPLETED') {
       throw new BadRequestException('Cannot grant Final Exit Approval: Department clearances are not 100% completed.');
     }
-    if (exit.exitInterviewStatus !== 'COMPLETED') {
-      throw new BadRequestException('Cannot grant Final Exit Approval: Exit Interview questionnaire has not been completed.');
+    if (exit.exitInterviewStatus !== 'COMPLETED' && exit.exitInterviewStatus !== 'WAIVED') {
+      throw new BadRequestException('Cannot grant Final Exit Approval: Exit Interview questionnaire has not been completed or waived.');
     }
     if (exit.fnfStatus !== 'COMPLETED') {
       throw new BadRequestException('Cannot grant Final Exit Approval: Full & Final Settlement (F&F) is pending finance approval.');
     }
 
     const lastWorkingDay = exit.adjustedLwd || exit.lastWorkingDay;
+    const nextEmpStatus = exit.exitType === 'TERMINATION' ? 'TERMINATED' : 'EXITED';
 
     // Transition Exit status to EXITED
     const updatedExit = await this.prisma.employeeExit.update({
@@ -525,7 +603,7 @@ export class ExitsService implements OnModuleInit {
             previousStatus: exit.status,
             newStatus: 'EXITED',
             performedBy: performedBy || 'HR Director',
-            remarks: `Final Exit Approval granted. Employee status updated to EXITED as of LWD ${lastWorkingDay.toISOString().split('T')[0]}.`,
+            remarks: `Final Exit Approval granted. Employee status updated to ${nextEmpStatus} (Separated) as of LWD ${lastWorkingDay.toISOString().split('T')[0]}.`,
           },
         },
       },
@@ -535,13 +613,14 @@ export class ExitsService implements OnModuleInit {
     await this.prisma.employee.update({
       where: { id: exit.employeeId },
       data: {
-        status: 'EXITED',
+        status: nextEmpStatus as any,
         dateOfExit: lastWorkingDay,
       },
     });
 
     return updatedExit;
   }
+
 
   async remove(id: string) {
     await this.findOne(id);
