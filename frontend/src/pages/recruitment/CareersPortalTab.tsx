@@ -104,10 +104,12 @@ const DEMO_JOB_OPENINGS: JobOpening[] = [
 ];
 
 import { Pagination } from '@/components/common/Pagination';
+import { useCompany } from '@/context/CompanyContext';
 
 export function CareersPortalTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
 
   const defaultPortalUrl =
     import.meta.env.VITE_CAREERS_PORTAL_URL ||
@@ -160,8 +162,8 @@ export function CareersPortalTab() {
 
   // 1. Fetch Real Database Job Requisitions
   const { data: openings = [], isLoading } = useQuery({
-    queryKey: ['job-openings'],
-    queryFn: () => jobOpeningsApi.list(),
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
 
   // Toggle Visibility Status Mutation

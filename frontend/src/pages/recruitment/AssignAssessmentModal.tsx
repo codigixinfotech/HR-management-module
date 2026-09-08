@@ -33,6 +33,10 @@ export interface TestTemplateItem {
 }
 
 export const ASSESSMENT_TEMPLATES: TestTemplateItem[] = [
+  { id: 'TST-MFG-01', name: 'Manufacturing Technical & Machine Practical Assessment', dept: 'Manufacturing', duration: '60 mins', questions: 5, difficulty: 'Medium', passingScore: 70, status: 'Active' },
+  { id: 'TST-MFG-02', name: 'CNC Machine Operation & Tooling Practical Test', dept: 'Manufacturing', duration: '75 mins', questions: 4, difficulty: 'Hard', passingScore: 75, status: 'Active' },
+  { id: 'TST-MFG-03', name: 'Blueprint Reading & Vernier/Micrometer Measurement Test', dept: 'Quality Assurance', duration: '45 mins', questions: 10, difficulty: 'Medium', passingScore: 80, status: 'Active' },
+  { id: 'TST-MFG-04', name: 'Industrial Safety, 5S & EHS Plant Protocol Test', dept: 'Health & Safety', duration: '30 mins', questions: 20, difficulty: 'Easy', passingScore: 85, status: 'Active' },
   { id: 'TST-201', name: 'React Architecture & State Challenge', dept: 'Engineering', duration: '90 mins', questions: 3, difficulty: 'Hard', passingScore: 70, status: 'Active' },
   { id: 'TST-202', name: 'DevOps Helm & Kubernetes Quiz', dept: 'Engineering', duration: '45 mins', questions: 30, difficulty: 'Medium', passingScore: 75, status: 'Active' },
   { id: 'TST-203', name: 'Figma Component & Styling Review', dept: 'Product Design', duration: '60 mins', questions: 1, difficulty: 'Medium', passingScore: 70, status: 'Active' },
@@ -61,19 +65,61 @@ export function AssignAssessmentModal({
     'Please complete all coding challenges and submit the code within the allocated duration. Maintain clean modular architecture.'
   );
 
+  const [assessmentMode, setAssessmentMode] = useState<'ONLINE' | 'OFFLINE_IN_PERSON' | 'HYBRID'>('OFFLINE_IN_PERSON');
+  const [offlineVenue, setOfflineVenue] = useState<string>('Plant 1 - Production Workshop & Machine Shop');
+  const [practicalEvaluator, setPracticalEvaluator] = useState<string>('Production Head / Senior Quality Inspector');
+
   const selectedTemplate = ASSESSMENT_TEMPLATES.find((t) => t.id === selectedTemplateId) || ASSESSMENT_TEMPLATES[0];
 
   useEffect(() => {
+    // Check saved recruitment config
+    try {
+      const savedConfig = localStorage.getItem('ehcm_recruitment_config');
+      if (savedConfig) {
+        const parsed = JSON.parse(savedConfig);
+        if (parsed.assessmentMode === 'OFFLINE') setAssessmentMode('OFFLINE_IN_PERSON');
+        else if (parsed.assessmentMode === 'ONLINE') setAssessmentMode('ONLINE');
+        else if (parsed.assessmentMode === 'BOTH') setAssessmentMode('OFFLINE_IN_PERSON');
+
+        if (parsed.defaultAssessmentTemplateId) {
+          const match = ASSESSMENT_TEMPLATES.find((t) => t.id === parsed.defaultAssessmentTemplateId);
+          if (match) setSelectedTemplateId(match.id);
+        }
+      }
+    } catch (e) {
+      // fallback
+    }
+
     const titleLower = (candidate?.jobTitle || '').toLowerCase();
     if (titleLower) {
-      if (titleLower.includes('design')) {
+      if (titleLower.includes('production') || titleLower.includes('machine') || titleLower.includes('operator') || titleLower.includes('plant') || titleLower.includes('manufacturing')) {
+        setSelectedTemplateId('TST-MFG-01');
+        setAssessmentType('OFFLINE_PRACTICAL');
+        setAssessmentMode('OFFLINE_IN_PERSON');
+        setInstructions('Candidate must demonstrate hands-on machine operation, clamp tool calibration, and blueprint interpretation at the machine shop.');
+      } else if (titleLower.includes('cnc') || titleLower.includes('tool')) {
+        setSelectedTemplateId('TST-MFG-02');
+        setAssessmentType('OFFLINE_PRACTICAL');
+        setAssessmentMode('OFFLINE_IN_PERSON');
+      } else if (titleLower.includes('quality') || titleLower.includes('inspect')) {
+        setSelectedTemplateId('TST-MFG-03');
+        setAssessmentType('OFFLINE_PRACTICAL');
+        setAssessmentMode('OFFLINE_IN_PERSON');
+      } else if (titleLower.includes('design')) {
         setSelectedTemplateId('TST-203');
+        setAssessmentType('DESIGN_STYLING_REVIEW');
+        setAssessmentMode('ONLINE');
       } else if (titleLower.includes('devops') || titleLower.includes('kubernetes')) {
         setSelectedTemplateId('TST-202');
+        setAssessmentType('QUIZ_MULTIPLE_CHOICE');
+        setAssessmentMode('ONLINE');
       } else if (titleLower.includes('hr') || titleLower.includes('compliance')) {
         setSelectedTemplateId('TST-204');
+        setAssessmentType('MANAGERIAL_SCENARIO');
+        setAssessmentMode('ONLINE');
       } else {
-        setSelectedTemplateId('TST-201');
+        setSelectedTemplateId('TST-MFG-01');
+        setAssessmentType('OFFLINE_PRACTICAL');
       }
     }
   }, [candidate]);
@@ -89,12 +135,12 @@ export function AssignAssessmentModal({
       candidateName: candidate.name || `${candidate.firstName || ''} ${candidate.lastName || ''}`,
       candidateEmail: candidate.email,
       jobId: candidate.jobOpeningId || candidate.jobId,
-      jobTitle: candidate.jobTitle || 'Senior Fullstack Engineer',
+      jobTitle: candidate.jobTitle || 'Production Operator / Manufacturing Specialist',
       templateId: selectedTemplate.id,
       templateName: selectedTemplate.name,
       assignedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       dueDate: new Date(dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      instructions,
+      instructions: `${instructions}${assessmentMode === 'OFFLINE_IN_PERSON' ? ` | Venue: ${offlineVenue} | Examiner: ${practicalEvaluator}` : ''}`,
       status: 'ASSIGNED',
       passingScorePercent: selectedTemplate.passingScore,
     };
@@ -149,6 +195,26 @@ export function AssignAssessmentModal({
           {/* Assessment Selection Form */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Assessment Evaluation Mode *</Label>
+              <Select value={assessmentMode} onValueChange={(val: any) => setAssessmentMode(val)}>
+                <SelectTrigger className="text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="OFFLINE_IN_PERSON" className="text-xs">
+                    Offline / In-Person (Plant / Workshop Practical)
+                  </SelectItem>
+                  <SelectItem value="ONLINE" className="text-xs">
+                    Online (Virtual Coding / MCQ Test)
+                  </SelectItem>
+                  <SelectItem value="HYBRID" className="text-xs">
+                    Hybrid (Online Theory + In-Person Practical)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Select Assessment Template *</Label>
               <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
                 <SelectTrigger className="text-xs">
@@ -164,13 +230,14 @@ export function AssignAssessmentModal({
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Assessment Type *</Label>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className="text-xs font-semibold">Assessment Type / Format *</Label>
               <Select value={assessmentType} onValueChange={setAssessmentType}>
                 <SelectTrigger className="text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="OFFLINE_PRACTICAL" className="text-xs">Offline Practical & Machine Operation Test</SelectItem>
                   <SelectItem value="TECHNICAL_CODING" className="text-xs">Technical Coding Challenge</SelectItem>
                   <SelectItem value="QUIZ_MULTIPLE_CHOICE" className="text-xs">Multiple Choice MCQ Quiz</SelectItem>
                   <SelectItem value="DESIGN_STYLING_REVIEW" className="text-xs">Design / Case Study Review</SelectItem>
@@ -179,6 +246,34 @@ export function AssignAssessmentModal({
               </Select>
             </div>
           </div>
+
+          {/* If In-Person / Offline Mode, render Venue & Evaluator Fields */}
+          {assessmentMode === 'OFFLINE_IN_PERSON' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-emerald-50/50 dark:bg-emerald-950/20 p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                  Practical Evaluation Venue / Test Bay *
+                </Label>
+                <Input
+                  value={offlineVenue}
+                  onChange={(e) => setOfflineVenue(e.target.value)}
+                  placeholder="e.g. Machine Shop Bay 3 / Plant Floor"
+                  className="text-xs bg-white dark:bg-slate-900 border-emerald-300"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                  Assigned Examiner / Practical Assessor *
+                </Label>
+                <Input
+                  value={practicalEvaluator}
+                  onChange={(e) => setPracticalEvaluator(e.target.value)}
+                  placeholder="e.g. Production Head / QA Inspector"
+                  className="text-xs bg-white dark:bg-slate-900 border-emerald-300"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Selected Template Highlights Card */}
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-3.5 space-y-2">

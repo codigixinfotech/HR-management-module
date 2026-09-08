@@ -8,7 +8,11 @@ import {
   AlertCircle,
   Users,
   Video,
+  MapPin,
+  Building2,
+  DoorOpen,
 } from 'lucide-react';
+import { useRecruitmentConfig } from '@/hooks/useRecruitmentConfig';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +45,8 @@ interface PanelSelectionItem {
   role: string;
 }
 
+import { useCompany } from '@/context/CompanyContext';
+
 export function ScheduleInterviewModal({
   isOpen,
   onClose,
@@ -49,6 +55,14 @@ export function ScheduleInterviewModal({
   onSuccess,
 }: ScheduleInterviewModalProps) {
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
+
+  // Recruitment config → default offline venue values
+  const {
+    defaultInterviewLocation,
+    defaultInterviewBuilding,
+    defaultInterviewRoom,
+  } = useRecruitmentConfig();
 
   const [candidateId, setCandidateId] = useState<string>('');
   const [candidateEmail, setCandidateEmail] = useState<string>('motesanika@gmail.com');
@@ -60,12 +74,28 @@ export function ScheduleInterviewModal({
   );
   const [startTime, setStartTime] = useState<string>('11:00 AM');
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
+
+  // ------ Interview Format / Type ------
   const [interviewFormat, setInterviewFormat] = useState<string>('Microsoft Teams');
   const [linkAllocationMode, setLinkAllocationMode] = useState<'AUTO_POOL' | 'CUSTOM'>('AUTO_POOL');
   const [meetingLink, setMeetingLink] = useState<string>('');
   const [createTeamsMeeting, setCreateTeamsMeeting] = useState<boolean>(true);
   const [sendCalendarInvite, setSendCalendarInvite] = useState<boolean>(true);
+
+  // ------ Offline venue fields (used when On-site HQ is selected) ------
+  const [offlineLocation, setOfflineLocation] = useState<string>('Pune Manufacturing Plant');
+  const [offlineBuilding, setOfflineBuilding] = useState<string>('Administration Block');
+  const [offlineRoom, setOfflineRoom] = useState<string>('HR Interview Room 1');
+  const [offlineMeetingUrl, setOfflineMeetingUrl] = useState<string>('');
+
   const [notes, setNotes] = useState<string>('');
+
+  // Sync offline field defaults when config loads
+  useEffect(() => {
+    if (defaultInterviewLocation) setOfflineLocation(defaultInterviewLocation);
+    if (defaultInterviewBuilding) setOfflineBuilding(defaultInterviewBuilding);
+    if (defaultInterviewRoom) setOfflineRoom(defaultInterviewRoom);
+  }, [defaultInterviewLocation, defaultInterviewBuilding, defaultInterviewRoom]);
 
   // Query Preview Assigned Teams Link from Pool
   const { data: previewPoolLink } = useQuery({
@@ -91,8 +121,8 @@ export function ScheduleInterviewModal({
 
   // Fetch Candidates available for scheduling (SHORTLISTED or INTERVIEW)
   const { data: jobOpenings = [] } = useQuery({
-    queryKey: ['job-openings-for-scheduling'],
-    queryFn: () => jobOpeningsApi.list(),
+    queryKey: ['job-openings-for-scheduling', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
 
   const availableCandidates = useMemo(() => {
@@ -236,13 +266,14 @@ export function ScheduleInterviewModal({
     setInterviewFormat(fmt);
     if (fmt === 'Microsoft Teams') {
       setCreateTeamsMeeting(true);
+      setLinkAllocationMode('AUTO_POOL');
     } else if (fmt === 'Google Meet') {
       setMeetingLink('https://meet.google.com/ehcm-interview-room');
       setCreateTeamsMeeting(false);
-    } else if (fmt === 'On-site') {
-      setMeetingLink('Pune HQ - Room 302, Executive Conference Suite');
+    } else if (fmt === 'On-site HQ' || fmt === 'On-site') {
+      setMeetingLink('');
       setCreateTeamsMeeting(false);
-    } else if (fmt === 'Phone') {
+    } else if (fmt === 'Phone Call' || fmt === 'Phone') {
       setMeetingLink('+91 98230 11223 (HR Conference Line)');
       setCreateTeamsMeeting(false);
     }
@@ -280,17 +311,25 @@ export function ScheduleInterviewModal({
       queryClient.invalidateQueries({ queryKey: ['interviews-list'] });
       queryClient.invalidateQueries({ queryKey: ['interviews-summary'] });
       queryClient.invalidateQueries({ queryKey: ['job-openings'] });
-      
+
       const cand = availableCandidates.find((c) => c.id === candidateId) || initialCandidate;
+      const isOffline = interviewFormat === 'On-site HQ' || interviewFormat === 'On-site';
       setScheduledSuccessResult({
         interview: data,
         candidateName: cand ? `${cand.firstName} ${cand.lastName}` : 'Sanika Shelke',
         candidateEmail: candidateEmail || cand?.email || 'motesanika@gmail.com',
         position: position || cand?.jobOpening?.title || 'Senior Fullstack Engineer',
         teamsJoinUrl: data.teamsJoinUrl || data.meetingLink || '',
+        interviewFormat,
+        isOffline,
+        location: isOffline ? `${offlineLocation} — ${offlineRoom}` : undefined,
       });
-      
-      toast.success(`Microsoft Teams Interview scheduled & email invitation sent to ${candidateEmail || 'candidate'}!`);
+
+      if (isOffline) {
+        toast.success(`In-Person Interview scheduled & calendar invitation sent to ${candidateEmail || 'candidate'}!`);
+      } else {
+        toast.success(`${interviewFormat} Interview scheduled & email invitation sent to ${candidateEmail || 'candidate'}!`);
+      }
       onSuccess?.();
     },
     onError: (err: any) => {
@@ -307,7 +346,7 @@ export function ScheduleInterviewModal({
       return;
     }
     if (!candidateEmail || !candidateEmail.includes('@')) {
-      toast.error('A valid candidate email address is required to create a Teams interview invitation.');
+      toast.error('A valid candidate email address is required.');
       return;
     }
     if (selectedPanel.length === 0) {
@@ -315,11 +354,31 @@ export function ScheduleInterviewModal({
       return;
     }
 
+    const isOffline = interviewFormat === 'On-site HQ' || interviewFormat === 'On-site';
+
+    // Offline validation
+    if (isOffline) {
+      if (!offlineLocation.trim()) {
+        toast.error('Interview Location is required for In-Person interviews.');
+        return;
+      }
+      if (!offlineRoom.trim()) {
+        toast.error('Interview Room is required for In-Person interviews.');
+        return;
+      }
+    }
+
     const panelMemberIds = selectedPanel.map((p) => p.employee.id);
     const panelMemberRoles: Record<string, string> = {};
     selectedPanel.forEach((p) => {
       panelMemberRoles[p.employee.id] = p.role;
     });
+
+    const resolvedMeetingLink = isOffline
+      ? (offlineMeetingUrl.trim() || null)
+      : interviewFormat === 'Microsoft Teams'
+        ? (linkAllocationMode === 'AUTO_POOL' ? (previewPoolLink?.meetingUrl || null) : meetingLink || null)
+        : meetingLink || null;
 
     createInterviewMutation.mutate({
       candidateId,
@@ -330,12 +389,17 @@ export function ScheduleInterviewModal({
       interviewDate,
       startTime,
       durationMinutes,
+      interviewMode: isOffline ? 'OFFLINE' : 'ONLINE',
       interviewFormat,
-      createTeamsMeeting,
-      meetingLink,
+      createTeamsMeeting: interviewFormat === 'Microsoft Teams' && linkAllocationMode === 'AUTO_POOL',
+      meetingLink: resolvedMeetingLink,
+      location: isOffline ? offlineLocation : null,
+      building: isOffline ? offlineBuilding : null,
+      room: isOffline ? offlineRoom : null,
       notes,
       panelMemberIds,
       panelMemberRoles,
+      sendCalendarInvite,
     });
   };
 
@@ -373,15 +437,24 @@ export function ScheduleInterviewModal({
                 <strong className="text-slate-900 dark:text-white font-semibold">{scheduledSuccessResult.position}</strong>
               </div>
 
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
-                <span className="text-slate-500 font-medium">Teams Meeting:</span>
-                <span className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Created ✓
-                </span>
-              </div>
+              {scheduledSuccessResult.isOffline ? (
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <span className="text-slate-500 font-medium">Interview Venue:</span>
+                  <span className="inline-flex items-center gap-1 text-amber-600 font-bold bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded border border-amber-200">
+                    <MapPin className="h-3.5 w-3.5" /> {scheduledSuccessResult.location}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <span className="text-slate-500 font-medium">Interview Format:</span>
+                  <span className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {scheduledSuccessResult.interviewFormat || 'Online Meeting'}
+                  </span>
+                </div>
+              )}
 
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Outlook Calendar Invite:</span>
+                <span className="text-slate-500 font-medium">Calendar & Email Invite:</span>
                 <span className="inline-flex items-center gap-1 text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Sent to Candidate & Panel ✓
                 </span>
@@ -389,16 +462,18 @@ export function ScheduleInterviewModal({
             </div>
 
             <div className="flex gap-3 pt-2">
-              <a
-                href={scheduledSuccessResult.teamsJoinUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1"
-              >
-                <Button type="button" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 h-10 text-xs">
-                  <Video className="h-4 w-4" /> Join Teams Meeting
-                </Button>
-              </a>
+              {scheduledSuccessResult.teamsJoinUrl && !scheduledSuccessResult.isOffline ? (
+                <a
+                  href={scheduledSuccessResult.teamsJoinUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1"
+                >
+                  <Button type="button" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 h-10 text-xs">
+                    <Video className="h-4 w-4" /> Join Meeting
+                  </Button>
+                </a>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -580,7 +655,7 @@ export function ScheduleInterviewModal({
                 </div>
               </div>
 
-              {/* Date, Time, Duration & Format Row */}
+              {/* Date, Time, Duration, Interview Type Row (Matching Image 2) */}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold">Interview Date *</Label>
@@ -627,19 +702,21 @@ export function ScheduleInterviewModal({
                   <Label className="text-xs font-semibold">Interview Type *</Label>
                   <Select value={interviewFormat} onValueChange={handleFormatChange}>
                     <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Format" />
+                      <SelectValue placeholder="Interview Type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Microsoft Teams">Microsoft Teams</SelectItem>
                       <SelectItem value="Google Meet">Google Meet</SelectItem>
-                      <SelectItem value="On-site">On-site HQ</SelectItem>
-                      <SelectItem value="Phone">Phone Call</SelectItem>
+                      <SelectItem value="On-site HQ">On-site HQ</SelectItem>
+                      <SelectItem value="Phone Call">Phone Call</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              {/* Microsoft Teams Options */}
+              {/* ─── Conditional Panels Based on Interview Type ─── */}
+
+              {/* 1. Microsoft Teams Link Assignment (Image 2) */}
               {interviewFormat === 'Microsoft Teams' && (
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                   <div className="flex items-center justify-between">
@@ -723,6 +800,134 @@ export function ScheduleInterviewModal({
                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                     />
                     <label htmlFor="chk-calendar-invite" className="text-xs font-semibold text-slate-900 dark:text-slate-200 cursor-pointer">
+                      Send calendar invitation to Candidate & Panel
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Google Meet Link Assignment */}
+              {interviewFormat === 'Google Meet' && (
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Google Meet Link / Meeting URL
+                    </Label>
+                    <Input
+                      type="url"
+                      value={meetingLink}
+                      onChange={(e) => setMeetingLink(e.target.value)}
+                      placeholder="https://meet.google.com/ehcm-interview-room"
+                      className="h-8 text-xs font-mono bg-background"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <input
+                      type="checkbox"
+                      id="chk-calendar-invite-meet"
+                      checked={sendCalendarInvite}
+                      onChange={(e) => setSendCalendarInvite(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                    />
+                    <label htmlFor="chk-calendar-invite-meet" className="text-xs font-semibold text-slate-900 dark:text-slate-200 cursor-pointer">
+                      Send calendar invitation to Candidate & Panel
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. On-site HQ / Offline In-Person Venue */}
+              {(interviewFormat === 'On-site HQ' || interviewFormat === 'On-site') && (
+                <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin className="h-4 w-4 text-amber-600" />
+                    <Label className="text-xs font-bold text-amber-800 dark:text-amber-300">In-Person Interview Venue</Label>
+                  </div>
+
+                  {/* Location */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                      Interview Location *
+                    </Label>
+                    <Input
+                      value={offlineLocation}
+                      onChange={(e) => setOfflineLocation(e.target.value)}
+                      placeholder="e.g. Pune Manufacturing Plant"
+                      className="h-9 text-xs bg-background"
+                      required
+                    />
+                  </div>
+
+                  {/* Building & Room */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold flex items-center gap-1">
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        Building / Area
+                      </Label>
+                      <Input
+                        value={offlineBuilding}
+                        onChange={(e) => setOfflineBuilding(e.target.value)}
+                        placeholder="e.g. Administration Block"
+                        className="h-9 text-xs bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold flex items-center gap-1">
+                        <DoorOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                        Interview Room *
+                      </Label>
+                      <Input
+                        value={offlineRoom}
+                        onChange={(e) => setOfflineRoom(e.target.value)}
+                        placeholder="e.g. HR Interview Room 1"
+                        className="h-9 text-xs bg-background"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Calendar invite checkbox */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
+                    <input
+                      type="checkbox"
+                      id="chk-calendar-invite-offline"
+                      checked={sendCalendarInvite}
+                      onChange={(e) => setSendCalendarInvite(e.target.checked)}
+                      className="rounded border-amber-300 text-amber-600 focus:ring-amber-500 h-4 w-4"
+                    />
+                    <label htmlFor="chk-calendar-invite-offline" className="text-xs font-semibold text-amber-900 dark:text-amber-200 cursor-pointer">
+                      Send calendar / email invitation to Candidate & Panel
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Phone Call */}
+              {(interviewFormat === 'Phone Call' || interviewFormat === 'Phone') && (
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Phone Number / Conference Line
+                    </Label>
+                    <Input
+                      type="text"
+                      value={meetingLink}
+                      onChange={(e) => setMeetingLink(e.target.value)}
+                      placeholder="+91 98230 11223 (HR Conference Line)"
+                      className="h-8 text-xs font-mono bg-background"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <input
+                      type="checkbox"
+                      id="chk-calendar-invite-phone"
+                      checked={sendCalendarInvite}
+                      onChange={(e) => setSendCalendarInvite(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                    />
+                    <label htmlFor="chk-calendar-invite-phone" className="text-xs font-semibold text-slate-900 dark:text-slate-200 cursor-pointer">
                       Send calendar invitation to Candidate & Panel
                     </label>
                   </div>

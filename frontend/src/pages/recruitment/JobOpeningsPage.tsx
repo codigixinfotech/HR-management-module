@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   Plus,
   Users,
@@ -10,6 +10,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { jobOpeningsApi } from '@/api/recruitment';
+import { useRecruitmentConfig } from '@/hooks/useRecruitmentConfig';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -23,6 +24,7 @@ import { InterviewsTab } from './InterviewsTab';
 import { AssessmentsTab } from './AssessmentsTab';
 import { OffersTab } from './OffersTab';
 import { RecruitmentReportsTab } from './RecruitmentReportsTab';
+import { useCompany } from '@/context/CompanyContext';
 
 export default function JobOpeningsPage() {
   const navigate = useNavigate();
@@ -31,7 +33,13 @@ export default function JobOpeningsPage() {
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'requisitions';
 
-  const { data: openings } = useQuery({ queryKey: ['job-openings'], queryFn: () => jobOpeningsApi.list() });
+  const { activeCompanyId } = useCompany();
+  const { isAssessmentEnabled } = useRecruitmentConfig();
+
+  const { data: openings = [] } = useQuery({
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
+  });
 
   // Show "Post Job Opening" ONLY on /recruitment/planning and /recruitment/requisitions
   const isPostJobAllowed =
@@ -60,11 +68,11 @@ export default function JobOpeningsPage() {
     return acc + cands.filter((c: any) => c.stage === 'OFFERED' || c.stage === 'HIRED').length;
   }, 0) || 0;
 
-  const displayReqCount = realReqCount > 0 ? realReqCount : (openings?.length ? openings.length : 18);
-  const displayPosCount = realPosCount > 0 ? realPosCount : 45;
-  const displayApplicantCount = realApplicantCount > 0 ? realApplicantCount : 44;
-  const displayInterviewsCount = realInterviewsCount > 0 ? realInterviewsCount : 6;
-  const displayOffersCount = realOffersCount > 0 ? realOffersCount : 9;
+  const displayReqCount = realReqCount > 0 ? realReqCount : (openings?.length || 0);
+  const displayPosCount = realPosCount > 0 ? realPosCount : (openings?.reduce((acc, curr) => acc + (curr.numPositions || 0), 0) || 0);
+  const displayApplicantCount = realApplicantCount;
+  const displayInterviewsCount = realInterviewsCount;
+  const displayOffersCount = realOffersCount;
 
   if (activeTab === 'portal-config') {
     return <PortalConfigurationPage />;
@@ -72,6 +80,11 @@ export default function JobOpeningsPage() {
 
   if (activeTab === 'communication') {
     return <CandidateCommunicationTab />;
+  }
+
+  // Route Protection: If Assessment Stage is globally OFF, block /recruitment/assessments and redirect to candidates ATS
+  if (activeTab === 'assessments' && !isAssessmentEnabled) {
+    return <Navigate to="/recruitment/candidates" replace />;
   }
 
   return (

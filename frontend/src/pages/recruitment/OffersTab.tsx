@@ -43,6 +43,7 @@ import { Badge } from '@/components/ui/badge';
 import { jobOpeningsApi, candidatesApi, offersApi } from '@/api/recruitment';
 import type { CandidateStage } from '@/api/types';
 import { Pagination } from '@/components/common/Pagination';
+import { useCompany } from '@/context/CompanyContext';
 
 interface OfferItem {
   id: string;
@@ -146,6 +147,7 @@ export function OffersTab() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -159,8 +161,8 @@ export function OffersTab() {
 
   // Fetch real Job Openings & candidates from DB
   const { data: openings = [] } = useQuery({
-    queryKey: ['job-openings'],
-    queryFn: () => jobOpeningsApi.list(),
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
 
   // Dynamically map DB candidates in OFFERED / HIRED / SELECTED stage
@@ -205,13 +207,15 @@ export function OffersTab() {
   // Combine DB candidates with local state (Preventing Duplicates)
   const allOffers = useMemo(() => {
     const combined = [...dbOfferedCandidates];
-    localOffers.forEach((loc) => {
-      if (!combined.some((item) => (item.candidateId && item.candidateId === loc.candidateId) || item.candidate === loc.candidate)) {
-        combined.push(loc);
-      }
-    });
+    if (openings.length === 0) {
+      localOffers.forEach((loc) => {
+        if (!combined.some((item) => (item.candidateId && item.candidateId === loc.candidateId) || item.candidate === loc.candidate)) {
+          combined.push(loc);
+        }
+      });
+    }
     return combined;
-  }, [dbOfferedCandidates, localOffers]);
+  }, [dbOfferedCandidates, localOffers, openings]);
 
   // Stage Mutation for Triggering Onboarding -> HIRED
   const updateStageMutation = useMutation({

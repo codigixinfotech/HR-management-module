@@ -1130,10 +1130,10 @@ model JobOpening {
   graduationYear        String?
   minSalary             Float?
   maxSalary             Float?
-  qualification         String?
-  experience            String?
-  requiredSkills        String?
-  workLocation          String?
+  qualification         String?  @db.Text
+  experience            String?  @db.Text
+  requiredSkills        String?  @db.Text
+  workLocation          String?  @db.Text
   reportingManagerId    String?
   applicationDeadline   DateTime?
   status                String   @default("DRAFT") // DRAFT, PENDING_REVIEW, READY_TO_PUBLISH, PUBLISHED, CLOSED, CANCELLED
@@ -1147,10 +1147,10 @@ model JobOpening {
   hrbpId                 String?
   applicationStartDate   DateTime? @default(now())
   jobVisibility          String?  @default("Public")
-  preferredSkills        String?
-  preferredQualification String?
-  certifications         String?
-  languages              String?
+  preferredSkills        String?  @db.Text
+  preferredQualification String?  @db.Text
+  certifications         String?  @db.Text
+  languages              String?  @db.Text
   benefits               String?  @db.Text
   interviewProcess       String?  @db.Text
   numInterviewRounds     Int?     @default(3)
@@ -1182,13 +1182,13 @@ model Candidate {
   phone                String?
   resumePath           String?        @db.Text
   candidateType        String?        @default("FRESHER") // FRESHER, EXPERIENCED
-  qualification        String?
+  qualification        String?        @db.Text
   graduationYear       String?
   internshipDetails    String?        @db.Text
-  experience           String?
+  experience           String?        @db.Text
   currentCompany       String?
-  currentLocation      String?
-  skills               String?
+  currentLocation      String?        @db.Text
+  skills               String?        @db.Text
   currentCtc           Float?
   expectedCtc          Float?
   noticePeriod         String?
@@ -1343,9 +1343,9 @@ model ManpowerRequisition {
   priority           String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
   minSalary          Float?
   maxSalary          Float?
-  qualification      String
+  qualification      String   @db.Text
   experience         String
-  requiredSkills     String?
+  requiredSkills     String?  @db.Text
   workLocation       String
   reportingManagerId String?
   requestorName      String   @default("HR Admin")
@@ -2280,6 +2280,10 @@ model CandidateInterview {
   teamsJoinUrl         String?  @db.Text
   teamsMeetingLinkId   String?
   notes                String?  @db.Text
+  interviewMode        String?  @default("ONLINE") // ONLINE, OFFLINE
+  location             String?
+  building             String?
+  room                 String?
 
   status               String   @default("SCHEDULED") // READY_TO_SCHEDULE, SCHEDULED, IN_PROGRESS, COMPLETED, EVALUATION_PENDING, EVALUATED, CANCELLED, RESCHEDULED
 

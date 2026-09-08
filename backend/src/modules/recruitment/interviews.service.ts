@@ -71,11 +71,18 @@ export class InterviewsService {
     const candEmail = (dto as any).candidateEmail || candidate?.email || 'motesanika@gmail.com';
     const candName = candidate ? `${candidate.firstName} ${candidate.lastName}` : (dto as any).candidateName || 'Sanuu Mote';
     const format = dto.interviewFormat || 'Microsoft Teams';
+    const isOffline = dto.interviewMode === 'OFFLINE' || format === 'In-Person' || format === 'On-site';
+    const actualFormat = isOffline ? 'In-Person' : format;
+    const interviewMode = isOffline ? 'OFFLINE' : (dto.interviewMode || 'ONLINE');
 
     let allocatedLinkId: string | null = null;
     let meetingLink: string | null = null;
 
-    if (dto.meetingLink && dto.meetingLink.trim().length > 0) {
+    if (isOffline) {
+      // Offline/In-Person interview: meetingUrl is null, no Teams pool allocation!
+      allocatedLinkId = null;
+      meetingLink = null;
+    } else if (dto.meetingLink && dto.meetingLink.trim().length > 0) {
       meetingLink = dto.meetingLink.trim();
     } else if (format === 'Microsoft Teams' || (dto as any).createTeamsMeeting !== false) {
       // Allocate link from Teams Meeting Link Pool based on non-overlapping time slot
@@ -114,12 +121,16 @@ export class InterviewsService {
         startTime: dto.startTime,
         endTime: dto.endTime || null,
         durationMinutes: (dto as any).durationMinutes || 60,
-        interviewFormat: format,
-        meetingProvider: format,
+        interviewFormat: actualFormat,
+        meetingProvider: isOffline ? 'In-Person' : format,
         meetingLink,
         teamsMeetingLinkId: allocatedLinkId,
         teamsMeetingId: allocatedLinkId,
         teamsJoinUrl: meetingLink,
+        interviewMode,
+        location: dto.location || null,
+        building: dto.building || null,
+        room: dto.room || null,
         notes: dto.notes || null,
         status: 'SCHEDULED',
         createdById: dto.createdById || null,
@@ -185,7 +196,9 @@ export class InterviewsService {
           data: {
             taskCode,
             title: `[Interview Task] ${role}: ${candName} (${interview.position})`,
-            description: `You are assigned as ${role} for ${candName} (${interview.position}). Date: ${new Date(dto.interviewDate).toLocaleDateString('en-GB')} at ${dto.startTime}. Format: ${dto.interviewFormat}. Link: ${dto.meetingLink || 'N/A'}. Code: ${interviewCode}.`,
+            description: isOffline
+              ? `You are assigned as ${role} for ${candName} (${interview.position}). Date: ${new Date(dto.interviewDate).toLocaleDateString('en-GB')} at ${dto.startTime}. Type: In-Person. Location: ${dto.location || 'Company Venue'}, Room: ${dto.room || 'HR Room'}. Code: ${interviewCode}.`
+              : `You are assigned as ${role} for ${candName} (${interview.position}). Date: ${new Date(dto.interviewDate).toLocaleDateString('en-GB')} at ${dto.startTime}. Format: ${dto.interviewFormat}. Link: ${dto.meetingLink || 'N/A'}. Code: ${interviewCode}.`,
             priority: 'HIGH',
             status: 'ASSIGNED',
             taskType: 'INTERVIEW_PANEL',
@@ -215,6 +228,7 @@ export class InterviewsService {
   }
 
   async listInterviews(params?: {
+    companyId?: string;
     interviewerId?: string;
     candidateId?: string;
     status?: string;
@@ -222,6 +236,16 @@ export class InterviewsService {
     search?: string;
   }) {
     const whereClause: any = {};
+    const andConditions: any[] = [];
+
+    if (params?.companyId && params.companyId.trim()) {
+      andConditions.push({
+        OR: [
+          { jobOpening: { companyId: params.companyId } },
+          { candidate: { jobOpening: { companyId: params.companyId } } },
+        ],
+      });
+    }
 
     if (params?.candidateId) {
       whereClause.candidateId = params.candidateId;
@@ -261,14 +285,20 @@ export class InterviewsService {
 
     if (params?.search && params.search.trim()) {
       const searchStr = params.search.trim();
-      whereClause.OR = [
-        { interviewCode: { contains: searchStr } },
-        { position: { contains: searchStr } },
-        { requisitionCode: { contains: searchStr } },
-        { candidate: { firstName: { contains: searchStr } } },
-        { candidate: { lastName: { contains: searchStr } } },
-        { panelMembers: { some: { interviewerName: { contains: searchStr } } } },
-      ];
+      andConditions.push({
+        OR: [
+          { interviewCode: { contains: searchStr } },
+          { position: { contains: searchStr } },
+          { requisitionCode: { contains: searchStr } },
+          { candidate: { firstName: { contains: searchStr } } },
+          { candidate: { lastName: { contains: searchStr } } },
+          { panelMembers: { some: { interviewerName: { contains: searchStr } } } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      whereClause.AND = andConditions;
     }
 
     return this.prisma.candidateInterview.findMany({
@@ -390,6 +420,10 @@ export class InterviewsService {
     if (dto.startTime) updateData.startTime = dto.startTime;
     if (dto.endTime !== undefined) updateData.endTime = dto.endTime;
     if (dto.interviewFormat) updateData.interviewFormat = dto.interviewFormat;
+    if (dto.interviewMode) updateData.interviewMode = dto.interviewMode;
+    if (dto.location !== undefined) updateData.location = dto.location;
+    if (dto.building !== undefined) updateData.building = dto.building;
+    if (dto.room !== undefined) updateData.room = dto.room;
     if (dto.meetingLink !== undefined) updateData.meetingLink = dto.meetingLink;
     if (dto.notes !== undefined) updateData.notes = dto.notes;
 
@@ -607,8 +641,17 @@ export class InterviewsService {
     });
   }
 
-  async getDashboardSummary() {
+  async getDashboardSummary(companyId?: string) {
+    const where: any = {};
+    if (companyId && companyId.trim()) {
+      where.OR = [
+        { jobOpening: { companyId } },
+        { candidate: { jobOpening: { companyId } } },
+      ];
+    }
+
     const all = await this.prisma.candidateInterview.findMany({
+      where,
       select: { status: true, interviewDate: true },
     });
 
@@ -617,8 +660,12 @@ export class InterviewsService {
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
     const total = all.length;
+    const candWhere: any = { stage: { in: ['SHORTLISTED', 'INTERVIEW'] } };
+    if (companyId && companyId.trim()) {
+      candWhere.jobOpening = { companyId };
+    }
     const readyToSchedule = await this.prisma.candidate.count({
-      where: { stage: { in: ['SHORTLISTED', 'INTERVIEW'] } },
+      where: candWhere,
     });
     const scheduled = all.filter((i) => i.status === 'SCHEDULED' || i.status === 'IN_PROGRESS').length;
     const todaysInterviews = all.filter(
@@ -641,7 +688,8 @@ export class InterviewsService {
     };
   }
 
-  async getPanelReminders(interviewerId?: string) {
+  async getPanelReminders(interviewerId?: string, companyId?: string) {
+    const andConditions: any[] = [];
     const whereClause: any = {
       status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
     };
@@ -650,6 +698,19 @@ export class InterviewsService {
       whereClause.panelMembers = {
         some: { interviewerId },
       };
+    }
+
+    if (companyId && companyId.trim()) {
+      andConditions.push({
+        OR: [
+          { jobOpening: { companyId } },
+          { candidate: { jobOpening: { companyId } } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      whereClause.AND = andConditions;
     }
 
     const interviews = await this.prisma.candidateInterview.findMany({

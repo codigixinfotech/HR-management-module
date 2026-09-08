@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -26,6 +26,7 @@ import {
   Calendar,
   Layers,
   Brain,
+  Settings,
 } from 'lucide-react';
 import { jobOpeningsApi, candidatesApi, assessmentsApi } from '@/api/recruitment';
 import { AtsAnalysisCard } from '@/components/recruitment/AtsAnalysisCard';
@@ -52,13 +53,25 @@ import { Pagination } from '@/components/common/Pagination';
 import { CandidateFullFormModal } from '@/components/recruitment/CandidateFullFormModal';
 import { CandidateDetailsModal } from '@/components/recruitment/CandidateDetailsModal';
 import { CandidateDeleteModal } from '@/components/recruitment/CandidateDeleteModal';
+import { RecruitmentConfigurationModal } from './RecruitmentConfigurationModal';
+import { useCompany } from '@/context/CompanyContext';
+import { useRecruitmentConfig } from '@/hooks/useRecruitmentConfig';
 
 export function CandidatesTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
+  const { isAssessmentEnabled, isCandidateAssessmentApplicable } = useRecruitmentConfig();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStage, setSelectedStage] = useState<string>('all');
+
+  // If global assessment is turned off, reset stage if it was an assessment filter
+  useEffect(() => {
+    if (!isAssessmentEnabled && (selectedStage === 'assessment_assigned' || selectedStage === 'assessment_passed')) {
+      setSelectedStage('all');
+    }
+  }, [isAssessmentEnabled, selectedStage]);
 
   // Pagination State for Candidate Table
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -67,6 +80,9 @@ export function CandidatesTab() {
   // Modal State: Full Form Add / Edit Candidate
   const [isFullFormOpen, setIsFullFormOpen] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<any | null>(null);
+
+  // Modal State: Recruitment Configuration
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
   // Modal State: View Candidate Details
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
@@ -160,8 +176,8 @@ export function CandidatesTab() {
 
   // Fetch Job Openings & real candidate records
   const { data: openings = [] } = useQuery({
-    queryKey: ['job-openings'],
-    queryFn: () => jobOpeningsApi.list(),
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
 
   // Fetch Candidate Interview History for selected candidate
@@ -232,6 +248,8 @@ export function CandidatesTab() {
             resumePath: c.resumePath || null,
             latestScreening: c.screenings?.[0] || null,
             createdAt: c.createdAt,
+            jobOpening: job,
+            hasAssessment: job.hasAssessment,
           });
         });
       }
@@ -712,6 +730,14 @@ export function CandidatesTab() {
 
             <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
               <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5 font-semibold border-primary/30 text-primary hover:bg-primary/10 hover:text-primary shadow-2xs cursor-pointer"
+                onClick={() => setIsConfigModalOpen(true)}
+              >
+                <Settings className="h-3.5 w-3.5" /> Recruitment Configuration
+              </Button>
+              <Button
                 size="sm"
                 className="h-8 text-xs gap-1.5 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs cursor-pointer"
                 onClick={handleOpenAdd}
@@ -730,8 +756,12 @@ export function CandidatesTab() {
                 { id: 'applied', label: 'Applied' },
                 { id: 'screening', label: 'Screening' },
                 { id: 'shortlisted', label: 'Shortlisted' },
-                { id: 'assessment_assigned', label: 'Assessment Assigned' },
-                { id: 'assessment_passed', label: 'Assessment Passed' },
+                ...(isAssessmentEnabled
+                  ? [
+                      { id: 'assessment_assigned', label: 'Assessment Assigned' },
+                      { id: 'assessment_passed', label: 'Assessment Passed' },
+                    ]
+                  : []),
                 { id: 'interview', label: 'Interview' },
                 { id: 'offered', label: 'Offered' },
                 { id: 'rejected', label: 'Rejected' },
@@ -895,7 +925,13 @@ export function CandidatesTab() {
                         </Button>
 
                         {/* STAGE-SPECIFIC ASSESSMENT & INTERVIEW ACTIONS */}
-                        {(c.stage === 'SHORTLISTED' || c.stage === 'SCREENING' || c.stage === 'APPLIED') && (
+                        {/* 1. Send Assessment: Visible whenever Assessment = ON, Hidden when Assessment = OFF */}
+                        {isAssessmentEnabled &&
+                          (c.stage === 'SHORTLISTED' ||
+                            c.stage === 'SCREENING' ||
+                            c.stage === 'APPLIED' ||
+                            c.stage === 'INTERVIEW' ||
+                            ['SHORTLISTED', 'SCREENING', 'APPLIED', 'INTERVIEW'].includes(c.stage?.toUpperCase())) && (
                           <Button
                             size="sm"
                             className="h-7 text-[10.5px] px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1 shadow-2xs"
@@ -908,7 +944,8 @@ export function CandidatesTab() {
                           </Button>
                         )}
 
-                        {c.stage === 'ASSESSMENT_ASSIGNED' && (
+                        {/* 2. Assessment specific pipeline controls: ONLY when global Assessment = ON */}
+                        {isAssessmentEnabled && c.stage === 'ASSESSMENT_ASSIGNED' && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -938,7 +975,7 @@ export function CandidatesTab() {
                           </Button>
                         )}
 
-                        {c.stage === 'ASSESSMENT_COMPLETED' && (
+                        {isAssessmentEnabled && c.stage === 'ASSESSMENT_COMPLETED' && (
                           <Button
                             size="sm"
                             className="h-7 text-[10.5px] px-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1"
@@ -951,7 +988,7 @@ export function CandidatesTab() {
                           </Button>
                         )}
 
-                        {c.stage === 'ASSESSMENT_PASSED' && (
+                        {isAssessmentEnabled && c.stage === 'ASSESSMENT_PASSED' && (
                           <Button
                             size="sm"
                             className="h-7 text-[10.5px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1 shadow-2xs"
@@ -964,7 +1001,7 @@ export function CandidatesTab() {
                           </Button>
                         )}
 
-                        {c.stage === 'ASSESSMENT_FAILED' && (
+                        {isAssessmentEnabled && c.stage === 'ASSESSMENT_FAILED' && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -981,7 +1018,8 @@ export function CandidatesTab() {
                           </Button>
                         )}
 
-                        {(c.stage === 'APPLIED' || c.stage === 'INTERVIEW') && (
+                        {/* 3. Schedule Interview: Always visible for APPLIED, INTERVIEW, SHORTLISTED, and SCREENING */}
+                        {(c.stage === 'APPLIED' || c.stage === 'INTERVIEW' || c.stage === 'SHORTLISTED' || c.stage === 'SCREENING') && (
                           <Button
                             size="sm"
                             className="h-7 text-[10.5px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1"
@@ -1734,6 +1772,16 @@ export function CandidatesTab() {
         }}
         candidate={sendAssessmentCandidate}
         onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+        }}
+      />
+
+      {/* RECRUITMENT CONFIGURATION MODAL */}
+      <RecruitmentConfigurationModal
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
+        onConfigSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ['portal-config'] });
           queryClient.invalidateQueries({ queryKey: ['job-openings'] });
         }}
       />

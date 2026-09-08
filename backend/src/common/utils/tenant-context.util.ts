@@ -21,7 +21,6 @@ export function getTenantCompanyId(
 
   if (isSuperAdmin) {
     if (queryCompanyId && queryCompanyId.trim()) return queryCompanyId;
-    if (user.companyId) return user.companyId;
     return '';
   }
 

@@ -514,6 +514,7 @@ export default function CreateJobRequisitionPage() {
 
   const [interviewProcess, setInterviewProcess] = useState('Screening → Technical Assessment → Interview → HR Round');
   const [numInterviewRounds, setNumInterviewRounds] = useState(3);
+  const [hasAssessment, setHasAssessment] = useState<boolean>(true);
   const [internalJustification, setInternalJustification] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
 
@@ -639,6 +640,9 @@ export default function CreateJobRequisitionPage() {
     if (existingJob.hiringManagerId) setHiringManagerId(existingJob.hiringManagerId);
     if (existingJob.recruiterId) setRecruiterId(existingJob.recruiterId);
     if (existingJob.hrbpId) setHrbpId(existingJob.hrbpId);
+    if (existingJob.hasAssessment !== undefined && existingJob.hasAssessment !== null) {
+      setHasAssessment(Boolean(existingJob.hasAssessment));
+    }
   }, [isEditMode, existingJob, branches, departments, costCenters]);
 
   // Professional Job Description & Template Auto-Generator
@@ -947,6 +951,7 @@ Key Focus Areas:
 
       interviewProcess: interviewProcess.trim() || undefined,
       numInterviewRounds: Number(numInterviewRounds),
+      hasAssessment: hasAssessment,
       internalJustification: internalJustification.trim() || undefined,
       internalNotes: internalNotes.trim() || undefined,
 
@@ -2559,7 +2564,7 @@ Key Focus Areas:
                   <Sparkles className="h-4 w-4 text-primary" /> Interview Process & Evaluation Setup
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label className="font-semibold text-xs">Interview Process Stages</Label>
                     <Input
@@ -2581,6 +2586,26 @@ Key Focus Areas:
                       onChange={(e) => setNumInterviewRounds(Number(e.target.value))}
                       className="h-9 text-xs font-mono bg-background"
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs">Assessment Required</Label>
+                    <Select
+                      value={hasAssessment ? 'YES' : 'NO'}
+                      onValueChange={(val) => setHasAssessment(val === 'YES')}
+                    >
+                      <SelectTrigger className="h-9 text-xs font-semibold bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="YES" className="text-xs font-semibold text-emerald-600">
+                          YES (Required)
+                        </SelectItem>
+                        <SelectItem value="NO" className="text-xs font-semibold text-muted-foreground">
+                          NO (Skip)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

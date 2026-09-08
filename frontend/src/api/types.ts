@@ -1117,7 +1117,9 @@ export interface ManpowerPlan {
   id: string;
   code?: string | null;
   companyId?: string | null;
+  company?: Company | null;
   branchId?: string | null;
+  branch?: Branch | null;
   departmentId?: string | null;
   designationId?: string | null;
   departmentName: string;
@@ -1126,6 +1128,7 @@ export interface ManpowerPlan {
   budgeted: number;
   active: number;
   plannedHires: number;
+  mrRaisedHires?: number;
   quarter: string;
   reason: string;
   status: 'UNDER-STAFFED' | 'CAP-REACHED' | 'ON-TRACK';

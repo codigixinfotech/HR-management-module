@@ -5,6 +5,7 @@ import { getModulesForRole, isSuperAdminUser, type HcmModule, type SubModuleItem
 import { useAuthStore } from '@/stores/auth-store';
 import { useCompany } from '@/context/CompanyContext';
 import { subscriptionsApi } from '@/api/plansApi';
+import { useRecruitmentConfig } from '@/hooks/useRecruitmentConfig';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { activeCompanyId } = useCompany();
+  const { isAssessmentEnabled } = useRecruitmentConfig();
   const [menuSearch, setMenuSearch] = useState('');
 
   const modulesForRole = useMemo(() => getModulesForRole(user), [user]);
@@ -48,21 +50,41 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
   }, [subData]);
 
   const companyModules = useMemo(() => {
-    if (isSuperAdmin || !enabledModuleKeysSet) return modulesForRole;
+    let base = modulesForRole;
 
-    return modulesForRole.filter((mod) => {
-      // Always allow Dashboard, Settings/Administration, and Landing Page Demo
-      if (mod.key === 'dashboard' || mod.key === 'administration' || mod.key === 'landing-page') {
-        return true;
-      }
-      let catalogKey = mod.key;
-      if (mod.key === 'employees' || mod.key === 'tasks') catalogKey = 'employee-management';
-      if (mod.key === 'ehs') catalogKey = 'safety-ehs';
-      if (mod.key === 'iot-devices') catalogKey = 'integrations-iot';
+    if (!isSuperAdmin && enabledModuleKeysSet) {
+      base = modulesForRole.filter((mod) => {
+        // Always allow Dashboard, Settings/Administration, and Landing Page Demo
+        if (mod.key === 'dashboard' || mod.key === 'administration' || mod.key === 'landing-page') {
+          return true;
+        }
+        let catalogKey = mod.key;
+        if (mod.key === 'employees' || mod.key === 'tasks') catalogKey = 'employee-management';
+        if (mod.key === 'ehs') catalogKey = 'safety-ehs';
+        if (mod.key === 'iot-devices') catalogKey = 'integrations-iot';
 
-      return enabledModuleKeysSet.has(catalogKey);
-    });
-  }, [modulesForRole, enabledModuleKeysSet, isSuperAdmin]);
+        return enabledModuleKeysSet.has(catalogKey);
+      });
+    }
+
+    // Global Recruitment Assessment Feature Toggle:
+    // If Assessment is OFF -> Hide "Assessments & Question Bank" from Recruitment navigation
+    if (!isAssessmentEnabled) {
+      base = base.map((mod) => {
+        if (mod.key === 'recruitment' && mod.subItems) {
+          return {
+            ...mod,
+            subItems: mod.subItems.filter(
+              (sub) => sub.key !== 'assessments' && !sub.path.includes('/assessments')
+            ),
+          };
+        }
+        return mod;
+      });
+    }
+
+    return base;
+  }, [modulesForRole, enabledModuleKeysSet, isSuperAdmin, isAssessmentEnabled]);
 
   // Track expanded parent sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});

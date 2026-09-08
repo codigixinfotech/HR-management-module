@@ -79,6 +79,22 @@ export class CreateInterviewDto {
   @IsString()
   @IsOptional()
   createdByName?: string;
+
+  @IsString()
+  @IsOptional()
+  interviewMode?: string; // 'ONLINE' | 'OFFLINE'
+
+  @IsString()
+  @IsOptional()
+  location?: string;
+
+  @IsString()
+  @IsOptional()
+  building?: string;
+
+  @IsString()
+  @IsOptional()
+  room?: string;
 }
 
 export class UpdateInterviewScheduleDto {
@@ -111,6 +127,22 @@ export class UpdateInterviewScheduleDto {
   @IsString()
   @IsOptional()
   interviewFormat?: string;
+
+  @IsString()
+  @IsOptional()
+  interviewMode?: string;
+
+  @IsString()
+  @IsOptional()
+  location?: string;
+
+  @IsString()
+  @IsOptional()
+  building?: string;
+
+  @IsString()
+  @IsOptional()
+  room?: string;
 
   @IsString()
   @IsOptional()

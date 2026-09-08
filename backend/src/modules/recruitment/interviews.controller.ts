@@ -14,6 +14,8 @@ import {
   UpdateInterviewStatusDto,
   SubmitEvaluationDto,
 } from './dto/interview.dto';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('recruitment/interviews')
 export class InterviewsController {
@@ -26,13 +28,17 @@ export class InterviewsController {
 
   @Get()
   list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
     @Query('interviewerId') interviewerId?: string,
     @Query('candidateId') candidateId?: string,
     @Query('status') status?: string,
     @Query('filterTab') filterTab?: string,
     @Query('search') search?: string,
   ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
     return this.interviewsService.listInterviews({
+      companyId: tenantCompanyId,
       interviewerId,
       candidateId,
       status,
@@ -42,8 +48,12 @@ export class InterviewsController {
   }
 
   @Get('dashboard-summary')
-  getDashboardSummary() {
-    return this.interviewsService.getDashboardSummary();
+  getDashboardSummary(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.interviewsService.getDashboardSummary(tenantCompanyId);
   }
 
   @Get('candidate/:candidateId/history')
@@ -52,8 +62,13 @@ export class InterviewsController {
   }
 
   @Get('reminders/my')
-  getReminders(@Query('interviewerId') interviewerId?: string) {
-    return this.interviewsService.getPanelReminders(interviewerId);
+  getReminders(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('interviewerId') interviewerId?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.interviewsService.getPanelReminders(interviewerId, tenantCompanyId);
   }
 
   @Get(':id')

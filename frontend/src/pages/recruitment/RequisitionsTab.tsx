@@ -36,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import type { ManpowerRequisition, JobOpening, Branch } from '@/api/types';
 import { Pagination } from '@/components/common/Pagination';
+import { useCompany } from '@/context/CompanyContext';
 
 interface RequisitionsTabProps {
   isStandaloneOpen?: boolean;
@@ -45,6 +46,7 @@ interface RequisitionsTabProps {
 export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: RequisitionsTabProps = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState<string>('all');
@@ -118,7 +120,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
 
   const [interviewProcess, setInterviewProcess] = useState('Application Screening → HR Screening → Technical Assessment → Technical Interview → Managerial Round → HR Offer');
   const [numInterviewRounds, setNumInterviewRounds] = useState(3);
-  const [hasAssessment, setHasAssessment] = useState(false);
+  const [hasAssessment, setHasAssessment] = useState(true);
 
   const [internalNotes, setInternalNotes] = useState('');
   const [internalJustification, setInternalJustification] = useState('');
@@ -133,12 +135,12 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
     queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
   });
   const { data: openings = [], isLoading: isOpeningsLoading } = useQuery({
-    queryKey: ['job-openings'],
-    queryFn: () => jobOpeningsApi.list(),
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
   const { data: requisitions = [], isLoading: isMrsLoading } = useQuery({
-    queryKey: ['manpower-requisitions'],
-    queryFn: () => manpowerRequisitionsApi.list(),
+    queryKey: ['manpower-requisitions', activeCompanyId],
+    queryFn: () => manpowerRequisitionsApi.list(activeCompanyId),
   });
 
   // Dependent organization filters
@@ -1950,7 +1952,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                     <Sparkles className="h-3.5 w-3.5 text-primary" /> Interview Process & Evaluation Setup
                   </h4>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="font-semibold text-xs">Interview Process Stages</Label>
                       <Input
@@ -1972,6 +1974,26 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                         onChange={(e) => setNumInterviewRounds(Number(e.target.value))}
                         className="h-8 text-xs font-mono bg-background"
                       />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="font-semibold text-xs">Assessment Required</Label>
+                      <Select
+                        value={hasAssessment ? 'YES' : 'NO'}
+                        onValueChange={(val) => setHasAssessment(val === 'YES')}
+                      >
+                        <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="YES" className="text-xs font-semibold text-emerald-600">
+                            YES (Required)
+                          </SelectItem>
+                          <SelectItem value="NO" className="text-xs font-semibold text-muted-foreground">
+                            NO (Skip)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>

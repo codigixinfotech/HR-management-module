@@ -3,6 +3,7 @@ import type { CandidateInterview, InterviewSummary, InterviewReminderItem } from
 
 export const interviewsApi = {
   list: async (params?: {
+    companyId?: string;
     interviewerId?: string;
     candidateId?: string;
     status?: string;
@@ -10,11 +11,11 @@ export const interviewsApi = {
     search?: string;
   }) => (await apiClient.get<CandidateInterview[]>('/recruitment/interviews', { params })).data,
 
-  getSummary: async () =>
-    (await apiClient.get<InterviewSummary>('/recruitment/interviews/dashboard-summary')).data,
+  getSummary: async (companyId?: string) =>
+    (await apiClient.get<InterviewSummary>('/recruitment/interviews/dashboard-summary', { params: { companyId } })).data,
 
-  getReminders: async (interviewerId?: string) =>
-    (await apiClient.get<InterviewReminderItem[]>('/recruitment/interviews/reminders/my', { params: { interviewerId } })).data,
+  getReminders: async (interviewerId?: string, companyId?: string) =>
+    (await apiClient.get<InterviewReminderItem[]>('/recruitment/interviews/reminders/my', { params: { interviewerId, companyId } })).data,
 
   get: async (id: string) =>
     (await apiClient.get<CandidateInterview>(`/recruitment/interviews/${id}`)).data,

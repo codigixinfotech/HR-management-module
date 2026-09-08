@@ -32,11 +32,13 @@ import { useAuthStore } from '@/stores/auth-store';
 import { InterviewReminderNotifier, InterviewReminderBanner } from '@/components/recruitment/InterviewReminderNotifier';
 import { Pagination } from '@/components/common/Pagination';
 import { toast } from 'sonner';
+import { useCompany } from '@/context/CompanyContext';
 
 export function InterviewsTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const { activeCompanyId } = useCompany();
 
   // Active persona selection for testing interviewer vs HR view
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>('');
@@ -57,8 +59,8 @@ export function InterviewsTab() {
 
   // Fetch Master Employees List to choose active interviewer persona
   const { data: employeesData } = useQuery({
-    queryKey: ['employees-master-list'],
-    queryFn: () => employeesApi.list({ pageSize: 100 }),
+    queryKey: ['employees-master-list', activeCompanyId],
+    queryFn: () => employeesApi.list({ pageSize: 100, companyId: activeCompanyId }),
   });
 
   const employeesList = useMemo(() => {
@@ -90,23 +92,24 @@ export function InterviewsTab() {
 
   // Fetch active interview reminders for active persona
   const { data: reminders = [] } = useQuery({
-    queryKey: ['interview-reminders', activeEmployee?.id],
-    queryFn: () => (activeEmployee?.id ? interviewsApi.getReminders(activeEmployee.id) : []),
+    queryKey: ['interview-reminders', activeCompanyId, activeEmployee?.id],
+    queryFn: () => (activeEmployee?.id ? interviewsApi.getReminders(activeEmployee.id, activeCompanyId) : []),
     enabled: Boolean(activeEmployee?.id),
     refetchInterval: 15000,
   });
 
   // Fetch Dashboard Summary KPIs
   const { data: summary } = useQuery({
-    queryKey: ['interviews-summary'],
-    queryFn: () => interviewsApi.getSummary(),
+    queryKey: ['interviews-summary', activeCompanyId],
+    queryFn: () => interviewsApi.getSummary(activeCompanyId),
   });
 
   // Fetch Interviews List from Backend API
   const { data: interviewsList = [], isLoading } = useQuery({
-    queryKey: ['interviews-list', viewScope, activeEmployee?.id, activeTabFilter, searchQuery, selectedFormat],
+    queryKey: ['interviews-list', activeCompanyId, viewScope, activeEmployee?.id, activeTabFilter, searchQuery, selectedFormat],
     queryFn: () =>
       interviewsApi.list({
+        companyId: activeCompanyId,
         interviewerId: viewScope === 'MY_INTERVIEWS' ? activeEmployee?.id : undefined,
         status: activeTabFilter !== 'ALL' && activeTabFilter !== 'TODAY' && activeTabFilter !== 'UPCOMING' ? activeTabFilter : undefined,
         filterTab: activeTabFilter === 'TODAY' ? 'today' : activeTabFilter === 'UPCOMING' ? 'upcoming' : undefined,
