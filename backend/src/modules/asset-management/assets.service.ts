@@ -16,7 +16,7 @@ export class AssetsService {
 
   list(companyId?: string) {
     return this.prisma.asset.findMany({
-      where: companyId ? { companyId } : undefined,
+      where: companyId && companyId !== 'ALL' ? { companyId } : undefined,
       include: this.listInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -76,19 +76,31 @@ export class AssetsService {
     }
 
     let targetStatus: AssetStatus = AssetStatus.IN_STOCK;
+    let computedEmployeeId: string | null = dto.currentEmployeeId || null;
+    let computedAssetType: string = dto.assignmentType || dto.assetType || 'LOCATION';
+
+    if (dto.assignmentType === 'EMPLOYEE') {
+      targetStatus = AssetStatus.ALLOCATED;
+    } else if (dto.assignmentType === 'LOCATION' || dto.assignmentType === 'DEPARTMENT' || dto.assignmentType === 'UNASSIGNED') {
+      computedEmployeeId = null;
+      targetStatus = AssetStatus.IN_STOCK;
+    }
+
     if (dto.status === 'ALLOCATED') targetStatus = AssetStatus.ALLOCATED;
     else if (dto.status === 'UNDER_MAINTENANCE') targetStatus = AssetStatus.UNDER_MAINTENANCE;
-    else if (dto.status === 'RETIRED' || dto.status === 'DISPOSED') targetStatus = AssetStatus.RETIRED;
+    else if (dto.status === 'RETIRED' || dto.status === 'DISPOSED' || dto.status === 'DAMAGED') targetStatus = AssetStatus.RETIRED;
+    else if (dto.status === 'IN_STOCK' || dto.status === 'AVAILABLE' || dto.status === 'IN_USE') targetStatus = AssetStatus.IN_STOCK;
 
     return this.prisma.asset.create({
       data: {
         companyId: dto.companyId,
         branchId: dto.branchId || null,
         departmentId: dto.departmentId || null,
+        currentEmployeeId: computedEmployeeId,
         assetTag,
         name: dto.name,
         category: dto.category,
-        assetType: dto.assetType || 'Hardware',
+        assetType: computedAssetType,
         physicalLocation: dto.physicalLocation || null,
         vendor: dto.vendor || null,
         invoiceNumber: dto.invoiceNumber || null,
@@ -131,30 +143,42 @@ export class AssetsService {
       }
     }
 
-    if (existingAsset.status === AssetStatus.ALLOCATED) {
-      if (dto.branchId && dto.branchId !== existingAsset.branchId) {
-        throw new BadRequestException('This asset is currently allocated. Please use Asset Allocation/Transfer workflow to change ownership or location.');
-      }
-      if (dto.departmentId && dto.departmentId !== existingAsset.departmentId) {
-        throw new BadRequestException('This asset is currently allocated. Please use Asset Allocation/Transfer workflow to change ownership or location.');
-      }
-      if (dto.status && dto.status !== 'ALLOCATED') {
-        throw new BadRequestException('This asset is currently allocated. Please use Asset Allocation/Return workflow to change lifecycle status.');
+    const { companyId, status, purchaseDate, warrantyStart, warrantyExpiry, assignmentType, currentEmployeeId, ...rest } = dto;
+
+    let targetStatus: AssetStatus | undefined = undefined;
+    let updateEmployeeId: string | null | undefined = currentEmployeeId !== undefined ? currentEmployeeId || null : undefined;
+    let updateDepartmentId: string | null | undefined = rest.departmentId !== undefined ? rest.departmentId || null : undefined;
+    let computedAssetType: string | undefined = assignmentType || rest.assetType;
+
+    if (assignmentType === 'LOCATION') {
+      updateEmployeeId = null;
+      targetStatus = AssetStatus.IN_STOCK;
+    } else if (assignmentType === 'DEPARTMENT') {
+      updateEmployeeId = null;
+      targetStatus = AssetStatus.IN_STOCK;
+    } else if (assignmentType === 'UNASSIGNED') {
+      updateEmployeeId = null;
+      updateDepartmentId = null;
+      targetStatus = AssetStatus.IN_STOCK;
+    } else if (assignmentType === 'EMPLOYEE') {
+      targetStatus = AssetStatus.ALLOCATED;
+      if (currentEmployeeId !== undefined) {
+        updateEmployeeId = currentEmployeeId || null;
       }
     }
 
-    const { companyId, status, purchaseDate, warrantyStart, warrantyExpiry, ...rest } = dto;
-
-    let targetStatus: AssetStatus | undefined = undefined;
     if (status === 'ALLOCATED') targetStatus = AssetStatus.ALLOCATED;
     else if (status === 'UNDER_MAINTENANCE') targetStatus = AssetStatus.UNDER_MAINTENANCE;
-    else if (status === 'RETIRED' || status === 'DISPOSED') targetStatus = AssetStatus.RETIRED;
-    else if (status === 'IN_STOCK' || status === 'AVAILABLE') targetStatus = AssetStatus.IN_STOCK;
+    else if (status === 'RETIRED' || status === 'DISPOSED' || status === 'DAMAGED') targetStatus = AssetStatus.RETIRED;
+    else if (status === 'IN_STOCK' || status === 'AVAILABLE' || status === 'IN_USE') targetStatus = AssetStatus.IN_STOCK;
 
     return this.prisma.asset.update({
       where: { id },
       data: {
         ...rest,
+        ...(computedAssetType ? { assetType: computedAssetType } : {}),
+        ...(updateEmployeeId !== undefined ? { currentEmployeeId: updateEmployeeId } : {}),
+        ...(updateDepartmentId !== undefined ? { departmentId: updateDepartmentId } : {}),
         ...(companyId ? { companyId } : {}),
         ...(targetStatus ? { status: targetStatus } : {}),
         purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
@@ -284,6 +308,93 @@ export class AssetsService {
           ]
         : []),
     ]);
+
+    // Check if the employee who returned this asset has an active exit in progress
+    const returnedEmployeeId = asset.currentEmployeeId || openAllocation?.employeeId;
+    if (returnedEmployeeId) {
+      try {
+        const activeExit = await this.prisma.employeeExit.findFirst({
+          where: {
+            employeeId: returnedEmployeeId,
+            status: { notIn: ['EXITED', 'OFFBOARDING_COMPLETED', 'REJECTED', 'WITHDRAWN'] },
+          },
+          include: { clearanceItems: true },
+        });
+
+        if (activeExit) {
+          const assetName = (asset.name || '').toLowerCase();
+          const assetCat = (asset.category || '').toLowerCase();
+          const isLaptop =
+            assetName.includes('laptop') ||
+            assetName.includes('macbook') ||
+            assetName.includes('notebook') ||
+            assetCat.includes('computer') ||
+            assetCat.includes('it');
+          const isTool =
+            assetName.includes('tool') ||
+            assetName.includes('gauge') ||
+            assetName.includes('kit') ||
+            assetCat.includes('tool') ||
+            assetCat.includes('instrument');
+          const isMobile =
+            assetName.includes('mobile') ||
+            assetName.includes('phone') ||
+            assetName.includes('sim') ||
+            assetCat.includes('mobile') ||
+            assetCat.includes('telecom');
+          const isPPE =
+            assetName.includes('ppe') ||
+            assetName.includes('helmet') ||
+            assetName.includes('harness') ||
+            assetName.includes('boot') ||
+            assetCat.includes('ppe') ||
+            assetCat.includes('safety');
+
+          const matchingItem = activeExit.clearanceItems.find((item) => {
+            const k = item.itemKey.toLowerCase();
+            if (isLaptop && (k.includes('laptop') || k.includes('hardware'))) return true;
+            if (isTool && (k.includes('tool') || k.includes('crib'))) return true;
+            if (isMobile && (k.includes('mobile') || k.includes('sim'))) return true;
+            if (isPPE && (k.includes('ppe') || k.includes('helmet'))) return true;
+            return false;
+          });
+
+          if (matchingItem && matchingItem.status !== 'CLEARED') {
+            await this.prisma.exitClearanceItem.update({
+              where: { id: matchingItem.id },
+              data: {
+                status: 'CLEARED',
+                verifiedBy: dto?.returnedBy || 'Asset Return Module (System)',
+                verifiedAt: returnDate,
+                remarks: `Auto-cleared via Asset Return: ${asset.name} (${asset.assetTag}) in ${condition} condition`,
+              },
+            });
+
+            // Re-evaluate overall exit clearance status
+            const allItems = await this.prisma.exitClearanceItem.findMany({
+              where: { exitId: activeExit.id },
+            });
+            const pendingMandatory = allItems.filter(
+              (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
+            );
+            const hasResolved = allItems.some(
+              (i) => i.status === 'CLEARED' || i.status === 'WAIVED',
+            );
+            let overallStatus = 'PENDING';
+            if (pendingMandatory.length === 0) overallStatus = 'COMPLETED';
+            else if (hasResolved) overallStatus = 'IN_PROGRESS';
+
+            await this.prisma.employeeExit.update({
+              where: { id: activeExit.id },
+              data: { clearanceStatus: overallStatus },
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Failed to auto-clear exit clearance task on asset return:', e);
+      }
+    }
+
     return updated;
   }
 }

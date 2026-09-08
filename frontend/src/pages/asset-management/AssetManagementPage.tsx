@@ -1,10 +1,12 @@
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Boxes, Laptop, UserCheck, Wrench } from 'lucide-react';
-import { companiesApi } from '@/api/organization';
 import { assetsApi } from '@/api/asset-management';
+import { useCompany } from '@/context/CompanyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { AssetsTab } from './AssetsTab';
@@ -12,13 +14,33 @@ import { AllocationTab } from './AllocationTab';
 import { ReturnTab } from './ReturnTab';
 import { MaintenanceTab } from './MaintenanceTab';
 import { AssetReportsTab } from './AssetReportsTab';
+import { getCompanyCategoryConfig } from './assetCategoryConfig';
 
 export default function AssetManagementPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'dashboard';
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const companyId = companies?.[0]?.id;
+  const { activeCompanyId, setActiveCompanyId, companies } = useCompany();
+  const currentCompany = companies.find((c) => c.id === activeCompanyId) || companies[0];
+  const companyId = activeCompanyId || currentCompany?.id;
+  const companyEntityType = currentCompany?.entityType;
+
+  const [activeSectorName, setActiveSectorName] = useState(() =>
+    getCompanyCategoryConfig(companyId, companyEntityType).sectorName
+  );
+
+  useEffect(() => {
+    const cfg = getCompanyCategoryConfig(companyId, companyEntityType);
+    setActiveSectorName(cfg.sectorName);
+
+    const onUpdate = (e: any) => {
+      if (!companyId || e.detail?.companyId === companyId) {
+        setActiveSectorName(e.detail?.config?.sectorName || cfg.sectorName);
+      }
+    };
+    window.addEventListener('ehcm_asset_category_updated', onUpdate);
+    return () => window.removeEventListener('ehcm_asset_category_updated', onUpdate);
+  }, [companyId, companyEntityType]);
 
   const { data: assets } = useQuery({
     queryKey: ['assets', companyId],
@@ -45,23 +67,59 @@ export default function AssetManagementPage() {
     <div className="space-y-6">
       <PageHeader
         icon={Boxes}
-        title="IT & Physical Asset Management"
-        description="Track hardware asset lifecycle, employee allocations and maintenance schedules"
-        badge={`${assets?.length ?? 0} Total Tags`}
+        title={`Asset Management — ${activeSectorName}`}
+        description="Manage organizational assets, employee allocations, returns, maintenance and asset lifecycle."
+        badge={`${activeSectorName} · ${assets?.length ?? 0} Total Asset Tags`}
         badgeVariant="info"
+        actions={
+          companies && companies.length > 0 ? (
+            <div className="w-64">
+              <Select value={companyId} onValueChange={setActiveCompanyId}>
+                <SelectTrigger className="h-9 text-xs bg-background">
+                  <SelectValue placeholder="Select Company" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {c.name} ({c.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : undefined
+        }
       />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
           icon={Boxes}
-          label="Total Asset Register Value"
+          label="Total Asset Value"
           value={`₹${totalValue.toLocaleString('en-IN')}`}
-          hint={`${assets?.length ?? 0} Total Hardware Tags`}
+          hint={`${assets?.length ?? 0} Total Asset Tags`}
           accent="info"
         />
-        <StatCard icon={Laptop} label="Allocated Devices" value={`${allocatedCount} Items`} accent="success" />
-        <StatCard icon={UserCheck} label="Available Stock" value={`${inStockCount} Items`} hint="Ready for New Joiners" accent="primary" />
-        <StatCard icon={Wrench} label="Under Maintenance" value={`${maintenanceCount} Devices`} accent="warning" />
+        <StatCard
+          icon={Laptop}
+          label="Allocated Assets"
+          value={`${allocatedCount} Assets`}
+          hint="Assigned to Employees"
+          accent="success"
+        />
+        <StatCard
+          icon={UserCheck}
+          label="Available Assets"
+          value={`${inStockCount} Assets`}
+          hint="Ready for Allocation"
+          accent="primary"
+        />
+        <StatCard
+          icon={Wrench}
+          label="Under Maintenance"
+          value={`${maintenanceCount} Assets`}
+          hint="Under Service / Repair"
+          accent="warning"
+        />
       </div>
 
       <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="w-full">
@@ -79,8 +137,8 @@ export default function AssetManagementPage() {
             <CardHeader>
               <CardTitle className="text-base font-semibold">Asset Portfolio Snapshot</CardTitle>
               <CardDescription>
-                Quick pulse on device categories, allocation and stock health. Head to Asset Master for the full
-                device directory and registration.
+                Quick pulse on asset categories, allocation and operational health. Head to Asset Master for the full
+                asset directory and registration.
               </CardDescription>
             </CardHeader>
             <CardContent>

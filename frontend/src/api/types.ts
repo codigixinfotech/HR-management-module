@@ -980,7 +980,16 @@ export interface ComplianceSetupRecord {
   updatedAt: string;
 }
 
-export type AssetStatus = 'IN_STOCK' | 'AVAILABLE' | 'ALLOCATED' | 'UNDER_MAINTENANCE' | 'RETIRED' | 'DISPOSED' | string;
+export type AssetStatus =
+  | 'IN_STOCK'
+  | 'AVAILABLE'
+  | 'IN_USE'
+  | 'ALLOCATED'
+  | 'UNDER_MAINTENANCE'
+  | 'RETIRED'
+  | 'DAMAGED'
+  | 'DISPOSED'
+  | string;
 
 export interface Asset {
   id: string;
@@ -991,6 +1000,7 @@ export interface Asset {
   name: string;
   category: string;
   assetType?: string | null;
+  assignmentType?: 'LOCATION' | 'DEPARTMENT' | 'EMPLOYEE' | 'UNASSIGNED' | string | null;
   physicalLocation?: string | null;
   vendor?: string | null;
   invoiceNumber?: string | null;

@@ -9,8 +9,8 @@ export class AssetMaintenanceController {
 
   @Get()
   @Permissions('asset_management.read')
-  list(@Query('assetId') assetId?: string) {
-    return this.assetMaintenanceService.list(assetId);
+  list(@Query('assetId') assetId?: string, @Query('companyId') companyId?: string) {
+    return this.assetMaintenanceService.list(assetId, companyId);
   }
 
   @Post()

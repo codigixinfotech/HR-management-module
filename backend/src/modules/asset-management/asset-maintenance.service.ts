@@ -7,9 +7,12 @@ import { CreateAssetMaintenanceDto, CompleteAssetMaintenanceDto } from './dto/as
 export class AssetMaintenanceService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(assetId?: string) {
+  list(assetId?: string, companyId?: string) {
     return this.prisma.assetMaintenanceRecord.findMany({
-      where: assetId ? { assetId } : undefined,
+      where: {
+        ...(assetId ? { assetId } : {}),
+        ...(companyId ? { asset: { companyId } } : {}),
+      },
       include: {
         asset: {
           select: {
@@ -18,6 +21,7 @@ export class AssetMaintenanceService {
             name: true,
             category: true,
             serialNumber: true,
+            companyId: true,
             company: { select: { id: true, name: true } },
             branch: { select: { id: true, name: true } },
             department: { select: { id: true, name: true } },

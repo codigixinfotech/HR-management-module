@@ -13,101 +13,14 @@ import {
   UpdateClearanceItemDto,
   UpdateExitStatusDto,
 } from './dto/exit.dto';
-
-export function getClearanceTemplateForEmployee(deptName: string = '', exitType: string = '') {
-  const norm = deptName.toLowerCase();
-
-  // 1. Manufacturing / Operations / Plant / Quality Template
-  if (
-    norm.includes('manufactur') ||
-    norm.includes('product') ||
-    norm.includes('operat') ||
-    norm.includes('plant') ||
-    norm.includes('quality') ||
-    norm.includes('maintenan') ||
-    norm.includes('machin')
-  ) {
-    return [
-      { department: 'Production & Operations', itemKey: 'shift_handoff', itemLabel: 'Shift Operations Handoff & Job Orders Closure' },
-      { department: 'Production & Operations', itemKey: 'ppe_tools', itemLabel: 'Tool Crib, Safety Helmet & PPE Return' },
-      { department: 'Stores & Inventory', itemKey: 'inventory_custody', itemLabel: 'Material Requisition & Consumables Clearance' },
-      { department: 'Maintenance & EHS', itemKey: 'ehs_safety', itemLabel: 'Hazard Safety & LOTO Protocol Clearance' },
-      { department: 'Security & Gate', itemKey: 'gate_pass', itemLabel: 'Factory Gate Pass & Physical Access Badge' },
-      { department: 'Security & Gate', itemKey: 'vehicle_locker', itemLabel: 'Plant Locker Key & Vehicle Parking Pass' },
-      { department: 'Finance', itemKey: 'salary_dues', itemLabel: 'Salary & Shift Allowance Dues Reconciliation' },
-      { department: 'Finance', itemKey: 'loan_advance', itemLabel: 'Travel Advance & Loan Recovery Audit' },
-      { department: 'HR', itemKey: 'attendance_punch', itemLabel: 'Biometric Attendance Audit & Leave Balance' },
-      { department: 'HR', itemKey: 'service_bond', itemLabel: 'Employment Agreement & Service Bond Clearance' },
-      { department: 'IT', itemKey: 'terminal_access', itemLabel: 'Plant Terminal Account & Biometric De-registration' },
-      { department: 'Assets', itemKey: 'assigned_assets', itemLabel: 'Assigned Factory Equipment, Gauges & Radio Unit' },
-    ];
-  }
-
-  // 2. Healthcare / Hospital / Clinical Template
-  if (
-    norm.includes('health') ||
-    norm.includes('medic') ||
-    norm.includes('nurs') ||
-    norm.includes('clinic') ||
-    norm.includes('pharm') ||
-    norm.includes('doctor')
-  ) {
-    return [
-      { department: 'Clinical Dept', itemKey: 'patient_handoff', itemLabel: 'Patient File & Clinical Case Handover' },
-      { department: 'Nursing & Wards', itemKey: 'ward_log', itemLabel: 'Ward Custody, Equipment & Shift Duty Signoff' },
-      { department: 'Pharmacy & Custody', itemKey: 'narcotics_keys', itemLabel: 'Schedule Drug & Narcotics Cabinet Key Return' },
-      { department: 'Medical Records', itemKey: 'ehr_access', itemLabel: 'Electronic Health Record (EHR) & HIPAA Access Revocation' },
-      { department: 'Admin & Facilities', itemKey: 'scrubs_locker', itemLabel: 'Hospital Smart Badge, Scrubs & Locker Keys' },
-      { department: 'Finance', itemKey: 'duty_allowances', itemLabel: 'On-Call / Shift Allowance Dues & Advance Clearance' },
-      { department: 'HR', itemKey: 'license_records', itemLabel: 'Medical Registration Verification & Exit Clearance' },
-      { department: 'IT', itemKey: 'hospital_system', itemLabel: 'Hospital Information System (HIS) Access Deactivation' },
-      { department: 'Assets', itemKey: 'medical_devices', itemLabel: 'Assigned Diagnostic Tools, Tablet & Pager Return' },
-    ];
-  }
-
-  // 3. IT & Software / Technology Template
-  if (
-    norm.includes('tech') ||
-    norm.includes('software') ||
-    norm.includes('it') ||
-    norm.includes('develop') ||
-    norm.includes('engineer') ||
-    norm.includes('data')
-  ) {
-    return [
-      { department: 'Reporting Manager', itemKey: 'work_handover', itemLabel: 'Sprint Backlog & Task Work Handover' },
-      { department: 'Reporting Manager', itemKey: 'code_kt', itemLabel: 'Knowledge Transfer & Repository / Git Access Transfer' },
-      { department: 'IT Department', itemKey: 'laptop_hardware', itemLabel: 'Company Laptop, Charger & Peripheral Hardware' },
-      { department: 'IT Department', itemKey: 'email_archival', itemLabel: 'Email Account, Slack / Teams & Cloud Archival' },
-      { department: 'IT Department', itemKey: 'vpn_cloud', itemLabel: 'VPN Keys, AWS/GCP IAM & Token Revocation' },
-      { department: 'Admin', itemKey: 'id_badge', itemLabel: 'Employee Physical ID Badge & Smartcard' },
-      { department: 'Admin', itemKey: 'facility_keys', itemLabel: 'Office Access Card, Pedestal Key & Parking Pass' },
-      { department: 'Finance', itemKey: 'salary_dues', itemLabel: 'Salary & Variable Pay Dues Reconciliation' },
-      { department: 'Finance', itemKey: 'advance_recovery', itemLabel: 'Travel Advance & Loan Recovery Clearance' },
-      { department: 'HR', itemKey: 'bond_clearance', itemLabel: 'HR Service Agreement & Bond Clearance' },
-      { department: 'HR', itemKey: 'leave_audit', itemLabel: 'Unavailed Leave Balance Encashment Audit' },
-      { department: 'Assets', itemKey: 'assigned_assets', itemLabel: 'Assigned Monitor, Ergonomic Accessories & Tech Peripherals' },
-      { department: 'Assets', itemKey: 'corporate_mobile', itemLabel: 'Corporate Mobile Handset & SIM Return' },
-    ];
-  }
-
-  // 4. General / Corporate / Banking / Retail (Default)
-  return [
-    { department: 'Reporting Manager', itemKey: 'work_handover', itemLabel: 'Project & Client Deliverables Handover' },
-    { department: 'Reporting Manager', itemKey: 'kt_completion', itemLabel: 'Knowledge Transfer & Operational Files Deposit' },
-    { department: 'IT', itemKey: 'workstation_it', itemLabel: 'Workstation Laptop & Peripheral Hardware' },
-    { department: 'IT', itemKey: 'email_sso', itemLabel: 'Email Account, Single Sign-On (SSO) & Network Access' },
-    { department: 'Admin', itemKey: 'id_card', itemLabel: 'Company ID Card, RFID Access Card & Office Keys' },
-    { department: 'Finance', itemKey: 'salary_dues', itemLabel: 'Salary & Incentive Reconciliation' },
-    { department: 'Finance', itemKey: 'advance_recovery', itemLabel: 'Travel Advance, Loan & Credit Card Dues' },
-    { department: 'HR', itemKey: 'service_agreement', itemLabel: 'Service Agreement Clearance & Leave Encashment Audit' },
-    { department: 'Assets', itemKey: 'company_property', itemLabel: 'Return of Company Assigned Assets & Mobile SIM' },
-  ];
-}
+import { ExitClearanceMasterService } from './exit-clearance-master.service';
 
 @Injectable()
 export class ExitsService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clearanceMasterService: ExitClearanceMasterService,
+  ) {}
 
   async onModuleInit() {
     try {
@@ -139,6 +52,19 @@ export class ExitsService implements OnModuleInit {
             remarks: 'Relocating to another city.',
             companyId: employees[1].companyId,
           });
+        }
+      } else {
+        // Automatically reconcile existing exit records against the Dynamic Clearance Master
+        // to purge legacy unverified static items and align with company industry blueprints
+        const allExits = await this.prisma.employeeExit.findMany({
+          select: { id: true, exitCode: true },
+        });
+        for (const e of allExits) {
+          try {
+            await this.recalculateClearance(e.id, 'System Master Alignment');
+          } catch (err) {
+            console.error(`Failed to reconcile clearance for exit ${e.exitCode}:`, err);
+          }
         }
       }
     } catch (e) {
@@ -286,7 +212,13 @@ export class ExitsService implements OnModuleInit {
 
     const exitType = dto.exitType || 'RESIGNATION';
     const isInterviewAutoWaived = ['ABSCONDING', 'DEATH'].includes(exitType);
-    const templateItems = getClearanceTemplateForEmployee(employee.department?.name, exitType);
+
+    // Dynamic Intelligent Clearance Engine evaluation based on Company Industry & Employee Master
+    const evaluatedTasks = await this.clearanceMasterService.evaluateClearanceForEmployee(
+      employee,
+      exitType,
+      dto.companyId || employee.companyId,
+    );
 
     // Business Rule: DO NOT deactivate employee master upon resignation initiation!
     // Employee remains ACTIVE during notice period.
@@ -307,11 +239,14 @@ export class ExitsService implements OnModuleInit {
         fnfStatus: 'PENDING',
         exitInterviewStatus: isInterviewAutoWaived ? 'WAIVED' : 'PENDING',
         clearanceItems: {
-          create: templateItems.map((item) => ({
-            department: item.department,
-            itemKey: item.itemKey,
-            itemLabel: item.itemLabel,
-            status: 'PENDING',
+          create: evaluatedTasks.map((t) => ({
+            department: t.department,
+            itemKey: t.ruleKey,
+            itemLabel: t.itemLabel,
+            status: t.status,
+            remarks: t.exclusionReason
+              ? `[${t.mandatoryType}] ${t.exclusionReason}`
+              : `[${t.mandatoryType}] Required clearance`,
           })),
         },
         fnfSettlement: {
@@ -415,30 +350,218 @@ export class ExitsService implements OnModuleInit {
         status: dto.status,
         verifiedBy: dto.verifiedBy || 'Department Lead',
         verifiedAt: new Date(),
-        remarks: dto.remarks,
+        remarks: dto.remarks !== undefined ? dto.remarks : item.remarks,
       },
     });
 
     // Recheck overall exit clearance status
+    // Only mandatory / conditional items that are applicable block completion
     const allItems = await this.prisma.exitClearanceItem.findMany({
       where: { exitId: item.exitId },
     });
-    const allCleared = allItems.every((i) => i.status === 'CLEARED' || i.status === 'WAIVED');
-    const anyInFilter = allItems.some((i) => i.status === 'CLEARED' || i.status === 'VERIFIED' || i.status === 'WAIVED');
+    const blockingPending = allItems.filter(
+      (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
+    );
+    const anyResolved = allItems.some(
+      (i) => i.status === 'CLEARED' || i.status === 'VERIFIED' || i.status === 'WAIVED',
+    );
 
     let overallClearanceStatus = 'PENDING';
-    if (allCleared) overallClearanceStatus = 'COMPLETED';
-    else if (anyInFilter) overallClearanceStatus = 'IN_PROGRESS';
+    if (blockingPending.length === 0) overallClearanceStatus = 'COMPLETED';
+    else if (anyResolved) overallClearanceStatus = 'IN_PROGRESS';
 
     await this.prisma.employeeExit.update({
       where: { id: item.exitId },
       data: {
         clearanceStatus: overallClearanceStatus,
-        status: overallClearanceStatus === 'COMPLETED' ? 'CLEARANCE_COMPLETED' : item.exit.status,
+        status: overallClearanceStatus === 'COMPLETED' && item.exit.status === 'CLEARANCE_PENDING'
+          ? 'CLEARANCE_COMPLETED'
+          : item.exit.status,
       },
     });
 
     return updatedItem;
+  }
+
+  /**
+   * Audit-safe clearance re-evaluation:
+   * 1. Preserves existing CLEARED and WAIVED task statuses, verifiers, dates, and audit history
+   * 2. Maps legacy item keys to master ruleKeys for seamless historical continuity
+   * 3. Creates new applicable tasks from Company Clearance Master
+   * 4. Updates newly excluded conditional tasks to NOT_APPLICABLE
+   * 5. Purges unverified PENDING legacy tasks that do not belong to the Company Master
+   */
+  async recalculateClearance(id: string, performedBy?: string) {
+    const exit = await this.findOne(id);
+    const evaluatedTasks = await this.clearanceMasterService.evaluateClearanceForEmployee(
+      exit.employee,
+      exit.exitType,
+      exit.companyId || undefined,
+    );
+
+    const existingItems = exit.clearanceItems || [];
+    const existingMap = new Map<string, typeof existingItems[0]>();
+    for (const item of existingItems) {
+      existingMap.set(item.itemKey.toLowerCase(), item);
+    }
+
+    // Mapping of legacy item keys to master rule keys for seamless history preservation
+    const legacyKeyAliases: Record<string, string[]> = {
+      admin_id_card: ['id_badge', 'admin_id_badge', 'admin_id_access_card'],
+      it_laptop_return: ['laptop_hardware', 'it_laptop_hardware', 'it_workstation_hardware'],
+      admin_mobile_return: ['mobile_sim', 'assets_mobile_sim'],
+      prod_tool_kit_return: ['assigned_assets', 'tools_return'],
+      ehs_ppe_return: ['ppe_return'],
+      ops_shift_handover: ['work_handover'],
+      prod_dept_handover: ['pending_tasks', 'kt_completion'],
+      hr_service_closure: ['document_clearance'],
+      hr_attendance_closure: ['attendance_closure', 'leave_encashment'],
+      hr_exit_survey: ['exit_interview'],
+    };
+
+    const matchedExistingItemIds = new Set<string>();
+
+    for (const task of evaluatedTasks) {
+      // Find matching item by exact ruleKey, itemKey, or legacy alias
+      let existing =
+        existingMap.get(task.ruleKey.toLowerCase()) ||
+        existingMap.get(task.itemKey.toLowerCase());
+
+      if (!existing && legacyKeyAliases[task.ruleKey.toLowerCase()]) {
+        for (const alias of legacyKeyAliases[task.ruleKey.toLowerCase()]) {
+          const candidate = existingMap.get(alias.toLowerCase());
+          if (candidate) {
+            existing = candidate;
+            break;
+          }
+        }
+      }
+
+      if (existing) {
+        matchedExistingItemIds.add(existing.id);
+
+        // If already CLEARED or WAIVED, preserve status, verifiedBy, verifiedAt, and remarks!
+        if (existing.status === 'CLEARED' || existing.status === 'WAIVED') {
+          // Normalize itemKey and label to current master rule
+          if (existing.itemKey !== task.ruleKey) {
+            await this.prisma.exitClearanceItem.update({
+              where: { id: existing.id },
+              data: {
+                itemKey: task.ruleKey,
+                itemLabel: task.itemLabel,
+                department: task.department,
+              },
+            });
+          }
+          continue;
+        }
+
+        // If PENDING and now not applicable, mark NOT_APPLICABLE
+        if (!task.isApplicable) {
+          await this.prisma.exitClearanceItem.update({
+            where: { id: existing.id },
+            data: {
+              itemKey: task.ruleKey,
+              itemLabel: task.itemLabel,
+              department: task.department,
+              status: 'NOT_APPLICABLE',
+              remarks: `[${task.mandatoryType}] ${task.exclusionReason || 'Not required for employee profile'}`,
+            },
+          });
+        } else {
+          // Task is applicable -> set to PENDING
+          await this.prisma.exitClearanceItem.update({
+            where: { id: existing.id },
+            data: {
+              itemKey: task.ruleKey,
+              itemLabel: task.itemLabel,
+              department: task.department,
+              status: 'PENDING',
+              remarks: `[${task.mandatoryType}] Required clearance`,
+            },
+          });
+        }
+      } else {
+        // Create new task from evaluated master rule
+        const created = await this.prisma.exitClearanceItem.create({
+          data: {
+            exitId: id,
+            department: task.department,
+            itemKey: task.ruleKey,
+            itemLabel: task.itemLabel,
+            status: task.status,
+            remarks: task.exclusionReason
+              ? `[${task.mandatoryType}] ${task.exclusionReason}`
+              : `[${task.mandatoryType}] Required clearance`,
+          },
+        });
+        matchedExistingItemIds.add(created.id);
+      }
+    }
+
+    // Unmatched legacy items:
+    // If completed (CLEARED / WAIVED): preserve as historical audit records
+    // If unverified PENDING: purge so irrelevant tasks (SaaS, VPN, etc.) are NOT GENERATED!
+    for (const item of existingItems) {
+      if (!matchedExistingItemIds.has(item.id)) {
+        if (item.status === 'CLEARED' || item.status === 'WAIVED') {
+          // Historical completed item: keep it
+        } else {
+          // Unverified legacy task not in the Company Master: delete
+          await this.prisma.exitClearanceItem.delete({
+            where: { id: item.id },
+          });
+        }
+      }
+    }
+
+    // Refresh items to compute overall clearance status
+    const allItems = await this.prisma.exitClearanceItem.findMany({
+      where: { exitId: id },
+    });
+
+    const pendingMandatory = allItems.filter(
+      (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
+    );
+    const hasResolved = allItems.some(
+      (i) => i.status === 'CLEARED' || i.status === 'WAIVED',
+    );
+
+    let overallClearanceStatus = 'PENDING';
+    if (pendingMandatory.length === 0) overallClearanceStatus = 'COMPLETED';
+    else if (hasResolved) overallClearanceStatus = 'IN_PROGRESS';
+
+    const updated = await this.prisma.employeeExit.update({
+      where: { id },
+      data: {
+        clearanceStatus: overallClearanceStatus,
+        status:
+          overallClearanceStatus === 'COMPLETED' && exit.status === 'CLEARANCE_PENDING'
+            ? 'CLEARANCE_COMPLETED'
+            : exit.status,
+        auditLogs: {
+          create: {
+            action: 'CLEARANCE_RULES_RECALCULATED',
+            previousStatus: exit.status,
+            newStatus: exit.status,
+            performedBy: performedBy || 'HR Admin',
+            remarks: `Clearance matrix re-evaluated against Company Clearance Master. ${pendingMandatory.length} mandatory tasks pending.`,
+          },
+        },
+      },
+      include: {
+        clearanceItems: { orderBy: [{ department: 'asc' }, { createdAt: 'asc' }] },
+        auditLogs: { orderBy: { createdAt: 'desc' } },
+        employee: {
+          include: {
+            department: true,
+            designation: true,
+          },
+        },
+      },
+    });
+
+    return updated;
   }
 
   async saveExitInterview(exitId: string, dto: SaveExitInterviewDto) {
@@ -578,15 +701,32 @@ export class ExitsService implements OnModuleInit {
 
   async completeExit(id: string, performedBy?: string) {
     const exit = await this.findOne(id);
-    
-    if (exit.clearanceStatus !== 'COMPLETED') {
-      throw new BadRequestException('Cannot grant Final Exit Approval: Department clearances are not 100% completed.');
+
+    // Gate 1: Check Mandatory / Required Clearance Items
+    const pendingMandatory = (exit.clearanceItems || []).filter(
+      (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
+    );
+    if (pendingMandatory.length > 0) {
+      const itemsList = pendingMandatory
+        .map((i) => `• ${i.itemLabel} — ${i.department}`)
+        .join('\n');
+      throw new BadRequestException(
+        `FINAL SIGNOFF BLOCKED\n\n${pendingMandatory.length} mandatory clearance item(s) pending:\n${itemsList}`,
+      );
     }
+
+    // Gate 2: Check Exit Interview questionnaire
     if (exit.exitInterviewStatus !== 'COMPLETED' && exit.exitInterviewStatus !== 'WAIVED') {
-      throw new BadRequestException('Cannot grant Final Exit Approval: Exit Interview questionnaire has not been completed or waived.');
+      throw new BadRequestException(
+        'FINAL SIGNOFF BLOCKED: Required Exit Interview questionnaire has not been completed or waived.',
+      );
     }
+
+    // Gate 3: Check Full & Final Settlement (F&F)
     if (exit.fnfStatus !== 'COMPLETED') {
-      throw new BadRequestException('Cannot grant Final Exit Approval: Full & Final Settlement (F&F) is pending finance approval.');
+      throw new BadRequestException(
+        'FINAL SIGNOFF BLOCKED: Full & Final Settlement (F&F) is pending Finance approval.',
+      );
     }
 
     const lastWorkingDay = exit.adjustedLwd || exit.lastWorkingDay;

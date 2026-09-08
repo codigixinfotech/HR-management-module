@@ -65,7 +65,8 @@ export function ReturnTab({ companyId }: { companyId?: string }) {
     queryFn: () => assetsApi.list(companyId),
   });
 
-  const allocatedAssets = assets.filter((a) => a.status === 'ALLOCATED');
+  // Only assets allocated to employees appear in Employee Asset Return / Exit Clearance
+  const allocatedAssets = assets.filter((a) => a.status === 'ALLOCATED' && (a.currentEmployeeId || (a as any).currentEmployee));
 
   const openReturnModal = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -159,7 +160,7 @@ export function ReturnTab({ companyId }: { companyId?: string }) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Undo2 className="h-4 w-4 text-amber-600" /> Allocated Devices Available for Return
+                <Undo2 className="h-4 w-4 text-amber-600" /> Allocated Assets Available for Return
               </CardTitle>
               <CardDescription className="text-xs">
                 Assets currently held by employees. Click <strong>"Return"</strong> to inspect condition and close allocation.
@@ -193,7 +194,7 @@ export function ReturnTab({ companyId }: { companyId?: string }) {
               ) : allocatedAssets.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">
-                    No allocated devices found requiring return processing.
+                    No allocated assets found requiring return processing.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -252,7 +253,7 @@ export function ReturnTab({ companyId }: { companyId?: string }) {
                 </Badge>
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Inspect physical asset condition, record return rationale, and update corporate inventory status
+                Inspect physical asset condition, record return rationale, and update organizational asset status
               </DialogDescription>
             </DialogHeader>
 

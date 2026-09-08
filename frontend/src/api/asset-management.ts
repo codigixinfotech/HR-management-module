@@ -35,8 +35,8 @@ export const assetsApi = {
 };
 
 export const assetMaintenanceApi = {
-  list: async (assetId?: string) =>
-    (await apiClient.get<AssetMaintenanceRecord[]>('/asset-management/maintenance', { params: { assetId } })).data,
+  list: async (assetId?: string, companyId?: string) =>
+    (await apiClient.get<AssetMaintenanceRecord[]>('/asset-management/maintenance', { params: { assetId, companyId } })).data,
   create: async (payload: {
     assetId: string;
     issue: string;

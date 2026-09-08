@@ -140,9 +140,36 @@ export interface ExitKpis {
   avgExitDays: number;
 }
 
+export interface ClearanceMasterRule {
+  ruleKey: string;
+  itemLabel: string;
+  department: string;
+  taskCategory: string;
+  mandatoryType: 'MANDATORY' | 'CONDITIONAL' | 'OPTIONAL';
+  applicableScope: 'ALL' | 'DEPARTMENT' | 'ROLE' | 'CONDITION_DRIVEN' | 'EXIT_TYPE_DRIVEN';
+  applicableDepartments?: string[];
+  applicableDesignations?: string[];
+  applicableExitTypes?: string[];
+  conditionTrigger: string;
+  evidenceRequired?: boolean;
+  isActive: boolean;
+}
+
 export const exitsApi = {
   getKpis: async (companyId?: string) =>
     (await apiClient.get<ExitKpis>('/employees/exits/kpis', { params: { companyId } })).data,
+
+  getClearanceMaster: async (companyId?: string) =>
+    (await apiClient.get<{ sector: string; rules: ClearanceMasterRule[] }>('/employees/exits/clearance-master', { params: { companyId } })).data,
+
+  saveClearanceMaster: async (payload: { companyId?: string; sector: string; rules: ClearanceMasterRule[] }) =>
+    (await apiClient.put<{ sector: string; rules: ClearanceMasterRule[] }>('/employees/exits/clearance-master', payload)).data,
+
+  resetClearanceMasterToPreset: async (payload: { companyId?: string; sector: string }) =>
+    (await apiClient.post<{ sector: string; rules: ClearanceMasterRule[] }>('/employees/exits/clearance-master/reset-preset', payload)).data,
+
+  recalculateClearance: async (id: string, performedBy?: string) =>
+    (await apiClient.post<EmployeeExit>(`/employees/exits/${id}/recalculate-clearance`, { performedBy })).data,
 
   list: async (params?: { search?: string; status?: string; companyId?: string }) =>
     (await apiClient.get<EmployeeExit[]>('/employees/exits', { params })).data,
