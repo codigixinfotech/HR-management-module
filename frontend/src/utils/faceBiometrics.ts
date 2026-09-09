@@ -1,6 +1,6 @@
 /**
  * Production Browser Deep Facial Landmark & Neural Biometric Embedding Engine
- * Powered by @vladmandic/face-api (TensorFlow.js / ResNet-34 FaceRecognitionNet)
+ * Powered by @vladmandic/face-api (TensorFlow.js / faceRecognitionNet)
  * Standardized across Face Registration and Live Attendance Verification.
  */
 
@@ -16,6 +16,11 @@ export interface FaceDetectionResult {
 
 let modelsLoaded = false;
 let modelLoadingPromise: Promise<void> | null = null;
+
+// Application verification threshold for this faceRecognitionNet pipeline.
+// Threshold should be validated against production camera conditions.
+export const MAX_EUCLIDEAN_DISTANCE = 0.60;
+export const MATCH_THRESHOLD = 75.0; // Mathematically synchronized: distance <= 0.60 <=> matchScore >= 75.0%
 
 /**
  * Loads the face-api neural network models from the local /models endpoint.
@@ -49,7 +54,7 @@ export async function loadFaceRecognitionModels(): Promise<void> {
 }
 
 /**
- * Extracts a 128-dimensional deep face embedding (ResNet-34 feature vector)
+ * Extracts a 128-dimensional deep face embedding
  * and verifies face count using the loaded neural networks.
  */
 export async function extractFaceEmbedding(
@@ -90,6 +95,24 @@ export async function extractFaceEmbedding(
   const box = primary.detection.box;
   const descriptorArray = Array.from(primary.descriptor);
 
+  if (
+    descriptorArray.length !== 128 ||
+    descriptorArray.some((v) => !Number.isFinite(v))
+  ) {
+    return {
+      faceCount: 1,
+      descriptor: null,
+      landmarksFound: true,
+      boundingBox: {
+        x: Math.round(box.x),
+        y: Math.round(box.y),
+        width: Math.round(box.width),
+        height: Math.round(box.height),
+      },
+      message: 'Invalid 128-D face descriptor generated',
+    };
+  }
+
   return {
     faceCount: 1,
     descriptor: descriptorArray,
@@ -107,7 +130,7 @@ export async function extractFaceEmbedding(
 /**
  * Standardized interface used by Face Registration and Face Attendance Modal.
  */
-export async function extractFacialLandmarkDescriptor(
+export async function extractFaceDescriptor(
   canvas: HTMLCanvasElement,
   video?: HTMLVideoElement | null
 ): Promise<FaceDetectionResult> {
@@ -115,12 +138,20 @@ export async function extractFacialLandmarkDescriptor(
   return extractFaceEmbedding(target);
 }
 
+// Backward-compatible alias
+export const extractFacialLandmarkDescriptor = extractFaceDescriptor;
+
 /**
- * Calculates Euclidean Distance between two 128-D neural face embeddings.
- * In ResNet face recognition:
- * - Distance <= 0.55: Strong match (Same identity)
- * - Distance 0.55 - 0.65: Borderline / uncertain
- * - Distance > 0.65: Different individuals
+ * Calculates Euclidean Distance between two 128-D face embeddings.
+ *
+ * Application decision threshold:
+ * - <= 0.40: strong match
+ * - 0.40 - 0.60: acceptable / verified range
+ * - > 0.60: rejected by application threshold
+ *
+ * NOTE:
+ * The 0.60 value is an application verification threshold,
+ * not a mathematical guarantee of identity.
  */
 export function calculateEuclideanDistance(descA: number[], descB: number[]): number {
   if (!descA || !descB || descA.length !== descB.length || descA.length === 0) {
@@ -135,33 +166,41 @@ export function calculateEuclideanDistance(descA: number[], descB: number[]): nu
 }
 
 /**
- * Calculates a calibrated Match Confidence percentage between two 128-d face embeddings.
- * Maps cosine similarity and Euclidean distance to a 0.0% - 100.0% confidence score.
+ * Calculates a calibrated Biometric Match Score percentage directly from Euclidean Distance.
+ * 
+ * Calibration properties:
+ * - Distance = 0.00 -> 100.0% Match Score
+ * - Distance <= 0.60 (application cutoff) -> >= 75.0% Match Score (MATCH)
+ * - Distance > 0.60 -> < 75.0% Match Score (REJECTED)
+ * - Distance >= 1.00 -> 0.0% Match Score
+ * 
+ * Piecewise linear formulation guarantees that:
+ * distance <= MAX_EUCLIDEAN_DISTANCE (0.60) <=> matchScore >= MATCH_THRESHOLD (75.0%)
+ */
+export function calculateConfidenceFromDistance(distance: number): number {
+  if (distance <= 0) return 100.0;
+  if (distance >= 1.0) return 0.0;
+
+  let score: number;
+  if (distance <= MAX_EUCLIDEAN_DISTANCE) {
+    // Maps [0, 0.60] to [100.0%, 75.0%]
+    score = 100.0 - (distance / MAX_EUCLIDEAN_DISTANCE) * (100.0 - MATCH_THRESHOLD);
+  } else {
+    // Maps (0.60, 1.0] to (75.0%, 0.0%]
+    score = MATCH_THRESHOLD - ((distance - MAX_EUCLIDEAN_DISTANCE) / (1.0 - MAX_EUCLIDEAN_DISTANCE)) * MATCH_THRESHOLD;
+  }
+  return parseFloat(Math.max(0, Math.min(100, score)).toFixed(1));
+}
+
+/**
+ * Calculates a calibrated Biometric Match Score percentage between two 128-D face embeddings.
+ * Derived directly from Euclidean distance so the displayed score and verification rule are 100% synchronized.
  */
 export function calculateSimilarityPercentage(descA: number[], descB: number[]): number {
   if (!descA || !descB || descA.length !== descB.length || descA.length === 0) {
     return 0;
   }
-
-  let dotProduct = 0;
-  let normASq = 0;
-  let normBSq = 0;
-
-  for (let i = 0; i < descA.length; i++) {
-    dotProduct += descA[i] * descB[i];
-    normASq += descA[i] * descA[i];
-    normBSq += descB[i] * descB[i];
-  }
-
-  const denominator = Math.sqrt(normASq) * Math.sqrt(normBSq);
-  if (denominator === 0) return 0;
-
-  const cosineSim = Math.max(0, Math.min(1, dotProduct / denominator));
-  
-  // Calibrated biometric confidence:
-  // For ResNet unit embeddings, cosine similarity typically ranges from ~0.3 (unrelated) to ~0.95 (identical).
-  // A cosine similarity of >= 0.78 corresponds to Euclidean distance <= 0.60.
-  // We map cosine similarity to confidence percentage:
-  const confidence = Math.max(0, Math.min(100, parseFloat((cosineSim * 100).toFixed(1))));
-  return confidence;
+  const distance = calculateEuclideanDistance(descA, descB);
+  return calculateConfidenceFromDistance(distance);
 }
+

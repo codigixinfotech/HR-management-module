@@ -45,6 +45,9 @@ import {
   loadFaceRecognitionModels,
   calculateEuclideanDistance,
   calculateSimilarityPercentage,
+  calculateConfidenceFromDistance,
+  MAX_EUCLIDEAN_DISTANCE,
+  MATCH_THRESHOLD,
 } from '@/utils/faceBiometrics';
 
 interface FaceAttendanceModalProps {
@@ -109,9 +112,7 @@ export function FaceAttendanceModal({
   const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
-  // Calibrated ResNet-34 Face Recognition Thresholds
-  const MATCH_THRESHOLD = 75.0;
-  const MAX_EUCLIDEAN_DISTANCE = 0.55;
+  // Canonical faceRecognitionNet Biometric Thresholds (imported from @/utils/faceBiometrics as single source of truth: MAX_EUCLIDEAN_DISTANCE = 0.60, MATCH_THRESHOLD = 75.0)
 
   // Real Biometric Verification States — Auto Capture Workflow
   const [workflowStep, setWorkflowStep] = useState<'SCAN' | 'COMPARE' | 'VERIFIED'>('SCAN');
@@ -165,6 +166,12 @@ export function FaceAttendanceModal({
       } catch {
         return null;
       }
+    }
+    // Support rich persistent metadata wrapper: { model, version, dimension, embedding: [...] }
+    if (arr && typeof arr === 'object' && !Array.isArray(arr)) {
+      if (Array.isArray(arr.embedding)) arr = arr.embedding;
+      else if (Array.isArray(arr.descriptor)) arr = arr.descriptor;
+      else if (Array.isArray(arr.template)) arr = arr.template;
     }
     if (!Array.isArray(arr) || arr.length !== 128) return null;
     if (arr.some((v: any) => typeof v !== 'number' || !isFinite(v))) return null;
@@ -470,13 +477,18 @@ export function FaceAttendanceModal({
       return { best: null, runnerUp: null, totalCandidates: 0 };
     }
 
-    const scored = employeeEmbeddingsCache.map((item) => ({
-      employee: item.employee,
-      distance: calculateEuclideanDistance(liveDescriptor, item.descriptor),
-      similarity: calculateSimilarityPercentage(liveDescriptor, item.descriptor),
-    }));
+    const scored = employeeEmbeddingsCache.map((item) => {
+      const distance = calculateEuclideanDistance(liveDescriptor, item.descriptor);
+      const similarity = calculateConfidenceFromDistance(distance);
+      return {
+        employee: item.employee,
+        distance,
+        similarity,
+      };
+    });
 
-    scored.sort((a, b) => b.similarity - a.similarity);
+    // Primary ranking by canonical Euclidean distance (lowest distance first)
+    scored.sort((a, b) => a.distance - b.distance);
     const best = scored[0];
     const runnerUp = scored.find((c) => c.employee.id !== best.employee.id) || null;
 
@@ -559,10 +571,10 @@ export function FaceAttendanceModal({
           }
         } catch {}
 
-        // Check if this frame is a valid match
-        if (best && bestScore >= MATCH_THRESHOLD && bestDistance <= MAX_EUCLIDEAN_DISTANCE) {
+        // Check if this frame is a valid match (canonical threshold distance <= 0.60 / score >= 75%)
+        if (best && bestDistance <= MAX_EUCLIDEAN_DISTANCE && bestScore >= MATCH_THRESHOLD) {
           // Check for close ambiguous tie with a different employee
-          if (runnerUp && runnerUpScore >= MATCH_THRESHOLD && margin < 2.0) {
+          if (runnerUp && runnerUp.distance <= MAX_EUCLIDEAN_DISTANCE && margin < 2.0) {
             if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
             consensusFramesRef.current = [];
             setFrameScanProgress(null);
@@ -993,8 +1005,8 @@ export function FaceAttendanceModal({
           ) : (
             <>
 
-          {/* Employee & Mode Switchers (ADMIN ONLY) */}
-          {isAdmin && (
+          {/* Employee & Mode Switchers (ADMIN ONLY) - Hidden on UI per user request */}
+          {false && isAdmin && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -1451,8 +1463,11 @@ export function FaceAttendanceModal({
                         Employee: <span className="text-white font-bold text-sm block mt-0.5">{matchedEmployee.firstName} {matchedEmployee.lastName}</span>
                       </div>
                       {calculatedSimilarity !== null && (
-                        <div className="text-[11px] font-mono text-cyan-300 font-bold">
-                          Match Confidence: <span className="text-emerald-400 text-xs font-bold">{calculatedSimilarity}%</span>
+                        <div className="text-[11px] font-mono text-cyan-300 font-bold space-x-2">
+                          <span>Match Score: <span className="text-emerald-400 text-xs font-bold">{calculatedSimilarity}%</span></span>
+                          {calculatedDistance !== null && (
+                            <span className="text-slate-400 font-normal">| Dist: <span className="text-emerald-400 font-mono font-semibold">{calculatedDistance}</span></span>
+                          )}
                         </div>
                       )}
                       <div className="inline-block text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider bg-emerald-950/80 px-3 py-1 rounded-full border border-emerald-500/40">
@@ -1493,10 +1508,10 @@ export function FaceAttendanceModal({
                         <AlertCircle className="w-7 h-7" />
                       </div>
                       <Badge className="bg-amber-500/20 text-amber-300 border-amber-400/50 border text-xs py-0.5 px-3 font-bold">
-                        ⚠ Low Confidence
+                        ⚠ Low Match Score
                       </Badge>
                       <p className="text-xs text-slate-200 max-w-[240px] mx-auto">
-                        Face confidence is below the required threshold.
+                        Face match score is below the required threshold.
                         <br />
                         <span className="text-slate-400 text-[11px]">Please ensure good lighting and look directly at camera.</span>
                       </p>
@@ -2082,13 +2097,13 @@ export function FaceAttendanceModal({
                       <div>
                         <span className="text-slate-500">Euclidean Distance:</span>{' '}
                         <strong className={isFaceVerified ? 'text-emerald-400' : 'text-rose-400'}>
-                          {calculatedDistance !== null ? `${calculatedDistance} (Max Cutoff 0.40)` : '--'}
+                          {calculatedDistance !== null ? `${calculatedDistance} (Max Cutoff ${MAX_EUCLIDEAN_DISTANCE})` : '--'}
                         </strong>
                       </div>
                       <div>
-                        <span className="text-slate-500">Descriptor Similarity:</span>{' '}
+                        <span className="text-slate-500">Biometric Match Score:</span>{' '}
                         <strong className={isFaceVerified ? 'text-emerald-400' : 'text-rose-400'}>
-                          {calculatedSimilarity !== null ? `${calculatedSimilarity}% (Cutoff 70.0%)` : '--'}
+                          {calculatedSimilarity !== null ? `${calculatedSimilarity}% (Cutoff ${MATCH_THRESHOLD}%)` : '--'}
                         </strong>
                       </div>
                     </div>

@@ -109,12 +109,28 @@ export function RegisterFaceModal({
         if (ctx) ctx.drawImage(video, 0, 0, 640, 480);
       }
 
-      // Extract real deep facial embedding from canvas/video frame
-      const result = await extractFacialLandmarkDescriptor(canvas, video);
+      // Multi-sample canonical embedding extraction (samples 3 frames to cancel sensor noise)
+      const samples: number[][] = [];
+      let lastValidResult = null;
 
-      console.log(`[Face Registration] Detection Result:`, result);
+      for (let i = 0; i < 3; i++) {
+        if (video) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.drawImage(video, 0, 0, 640, 480);
+        }
+        const sampleResult = await extractFacialLandmarkDescriptor(canvas, video);
+        if (sampleResult.faceCount === 1 && sampleResult.descriptor && sampleResult.descriptor.length === 128) {
+          samples.push(sampleResult.descriptor);
+          lastValidResult = sampleResult;
+        }
+        if (i < 2) await new Promise((r) => setTimeout(r, 120));
+      }
 
-      if (result.faceCount === 0) {
+      const result = lastValidResult;
+
+      console.log(`[Face Registration] Detection Result across ${samples.length} samples:`, result);
+
+      if (!result || samples.length === 0) {
         toast.error('No face detected in camera frame. Please position your face inside the frame.');
         setIsCapturing(false);
         return;
@@ -126,25 +142,53 @@ export function RegisterFaceModal({
         return;
       }
 
-      if (!result.descriptor || result.descriptor.length === 0) {
-        toast.error('Failed to extract facial descriptor. Please adjust lighting and try again.');
-        setIsCapturing(false);
-        return;
+      // Compute canonical averaged 128-D vector
+      const averagedVector = new Array(128).fill(0);
+      for (const s of samples) {
+        for (let j = 0; j < 128; j++) {
+          averagedVector[j] += s[j];
+        }
+      }
+      for (let j = 0; j < 128; j++) {
+        averagedVector[j] /= samples.length;
       }
 
-      const templateString = JSON.stringify(result.descriptor);
+      // L2 Re-normalization (||V||_2 = 1.0) for optimal cosine/Euclidean distance matching
+      let sumSq = 0;
+      for (let j = 0; j < 128; j++) {
+        sumSq += averagedVector[j] * averagedVector[j];
+      }
+      const norm = Math.sqrt(sumSq) || 1.0;
+      const canonicalDescriptor = averagedVector.map((v) => parseFloat((v / norm).toFixed(6)));
+
+      // Rich persistent metadata schema
+      const templateMetadata = {
+        model: 'face-api-faceRecognitionNet',
+        version: '1.0',
+        dimension: canonicalDescriptor.length,
+        samplesCount: samples.length,
+        registeredAt: new Date().toISOString(),
+        registeredBy: 'HR Administrator (System)',
+        status: 'ACTIVE',
+        embedding: canonicalDescriptor,
+      };
+
+      const templateString = JSON.stringify(templateMetadata);
       const facePhotoDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-      console.log(`[Face Registration] Real Descriptor Generated (Dim: ${result.descriptor.length})`);
-      console.log(`[Face Registration] First 5 descriptor values:`, result.descriptor.slice(0, 5));
-      console.log(`[Face Registration] Face Photo snapshot length: ${facePhotoDataUrl.length}`);
-      console.log(`[Face Registration] Saving for Employee ID: ${employeeId}`);
+      console.log(`[Face Registration] Canonical Deep Biometric Template Generated:`, {
+        model: templateMetadata.model,
+        version: templateMetadata.version,
+        dimension: templateMetadata.dimension,
+        samples: samples.length,
+        first5: canonicalDescriptor.slice(0, 5),
+      });
 
       const payload = {
         faceTemplate: templateString,
         facePhoto: facePhotoDataUrl,
-        faceRegisteredAt: new Date().toISOString(),
-        faceRegisteredBy: 'HR Administrator (System)',
+        faceRegisteredAt: templateMetadata.registeredAt,
+        faceRegisteredBy: templateMetadata.registeredBy,
       };
 
       const res = await employeesApi.update(employeeId, payload as any);
