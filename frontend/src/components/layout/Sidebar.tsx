@@ -105,8 +105,13 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       const [subBasePath, subQuery] = subPath.split('?');
       const normSubBase = subBasePath === '/profile' ? '/employees/detail/me' : subBasePath;
 
-      // Base path must match
-      if (normCurrent !== normSubBase) return false;
+      // Base path must match (handle /attendance-leave and /attendance-leave/live equivalency)
+      const isPathMatch =
+        normCurrent === normSubBase ||
+        (normCurrent === '/attendance-leave/live' && normSubBase === '/attendance-leave') ||
+        (normCurrent === '/attendance-leave' && normSubBase === '/attendance-leave/live');
+
+      if (!isPathMatch) return false;
 
       // If subPath specifies a query string (e.g. ?tab=apply or ?details=me)
       if (subQuery) {
@@ -331,6 +336,11 @@ function SidebarTreeContent({
                 onClick={() => {
                   if (hasSubItems) {
                     toggleSection(mod.key);
+                    if (mod.path) {
+                      navigate(mod.path);
+                      onCloseMobile?.();
+                      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
                   } else {
                     navigate(mod.path);
                     onCloseMobile?.();

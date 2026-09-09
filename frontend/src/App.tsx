@@ -64,6 +64,9 @@ export default function App() {
           <Route path="/landing/:tab" element={<LandingPage />} />
 
           <Route element={<ProtectedRoute />}>
+            {/* Redirect any legacy /mobile-punch links directly to canonical /attendance-leave */}
+            <Route path="/mobile-punch" element={<Navigate to="/attendance-leave" replace />} />
+
             <Route element={<AppLayout />}>
               
               {/* Dashboard Routes */}

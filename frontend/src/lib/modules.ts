@@ -128,7 +128,7 @@ export const HCM_MODULES: HcmModule[] = [
     status: 'active',
     icon: Clock,
     subItems: [
-      { key: 'live', label: 'Live Attendance', path: '/attendance-leave/live' },
+      { key: 'live', label: 'Live Attendance', path: '/attendance-leave' },
       { key: 'register', label: 'Attendance Register', path: '/attendance-leave/register' },
       { key: 'leave', label: 'Leave Management', path: '/attendance-leave/leave' },
       { key: 'roster', label: 'Shift & Roster', path: '/attendance-leave/roster' },
@@ -415,14 +415,14 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
   {
     key: 'my-attendance',
     label: 'My Attendance',
-    path: '/attendance-leave/live',
+    path: '/attendance-leave',
     phase: 1,
     status: 'active',
     icon: Clock,
     subItems: [
-      { key: 'attendance', label: 'Attendance', path: '/attendance-leave/live' },
+      { key: 'attendance', label: 'Attendance', path: '/attendance-leave' },
       { key: 'attendance-history', label: 'Attendance History', path: '/attendance-leave/register' },
-      { key: 'my-attendance-details', label: 'My Attendance Details', path: '/attendance-leave/live?details=me' },
+      { key: 'my-attendance-details', label: 'My Attendance Details', path: '/attendance-leave?details=me' },
     ],
   },
   {

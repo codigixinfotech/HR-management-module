@@ -39,6 +39,7 @@ import { employeesApi } from '@/api/employees';
 import { useAuthStore } from '@/stores/auth-store';
 import { isHrOrAdminUser } from '@/lib/modules';
 import { attendanceApi } from '@/api/attendance-leave';
+import { InstallMobilePunch } from '@/modules/mobile-punch/InstallMobilePunch';
 import {
   extractFacialLandmarkDescriptor,
   extractFaceEmbedding,
@@ -55,6 +56,7 @@ interface FaceAttendanceModalProps {
   onClose: () => void;
   employees?: any[];
   onPunchSuccess?: (punchRecord: any) => void;
+  isFullPage?: boolean;
 }
 
 type FaceVerificationState =
@@ -71,6 +73,7 @@ export function FaceAttendanceModal({
   onClose,
   employees = [],
   onPunchSuccess,
+  isFullPage = false,
 }: FaceAttendanceModalProps) {
   const queryClient = useQueryClient();
   const authUser = useAuthStore((s) => s.user);
@@ -889,12 +892,9 @@ export function FaceAttendanceModal({
   const isAttendanceCompletedToday = Boolean(todayRecord?.checkIn && todayRecord?.checkOut);
   const isAdmin = isHrOrAdminUser(authUser);
 
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCloseModal(); }}>
-      <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100vw-24px)] max-w-md sm:max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden custom-scrollbar p-0 rounded-2xl border border-indigo-100 dark:border-slate-800 shadow-2xl bg-gradient-to-b from-indigo-50/60 via-slate-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-100 font-sans transition-all">
-        <DialogTitle className="sr-only">Live Face ID Attendance Verification</DialogTitle>
-        
-        {/* ── MOBILE APP STYLE COMPACT TOP HEADER ── */}
+  const modalInnerContent = (
+    <>
+      {/* ── MOBILE APP STYLE COMPACT TOP HEADER ── */}
         <div className="relative bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 text-white p-3.5 sm:p-4 pt-4 sm:pt-4.5 rounded-t-2xl shadow-sm">
           <div className="flex items-center justify-between pr-8">
             <div className="flex items-center gap-2.5">
@@ -959,6 +959,9 @@ export function FaceAttendanceModal({
 
         {/* ── MAIN BODY CONTENT ── */}
         <div className="p-3.5 sm:p-4 space-y-3 overflow-x-hidden">
+          {/* PWA Install Prompt */}
+          <InstallMobilePunch />
+
           {punchConfirmation ? (
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-emerald-500/40 shadow-xl text-center space-y-4 animate-in zoom-in-95 duration-200 my-2">
               <div className="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/30">
@@ -1210,31 +1213,35 @@ export function FaceAttendanceModal({
 
               {/* Successful employee identification */}
               {workflowStep === 'VERIFIED' && isFaceMatched && matchedEmployee && (
-                <div className="mt-3 flex items-center gap-3 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-emerald-200 dark:border-emerald-800 p-2.5">
+                <div className="mt-3 flex items-center gap-3 rounded-xl bg-white/90 dark:bg-slate-800/80 border border-emerald-200 dark:border-emerald-800 p-2.5 shadow-2xs">
                   {matchedEmployee.facePhoto ? (
                     <img
                       src={matchedEmployee.facePhoto}
                       alt=""
-                      className="w-10 h-10 rounded-full object-cover border-2 border-emerald-400"
+                      className="w-11 h-11 rounded-full object-cover border-2 border-emerald-500 shrink-0"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-xs">
+                    <div className="w-11 h-11 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-xs shrink-0">
                       {`${matchedEmployee.firstName?.[0] || ''}${matchedEmployee.lastName?.[0] || ''}`}
                     </div>
                   )}
 
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
-                      {matchedEmployee.firstName} {matchedEmployee.lastName}
+                      {matchedEmployee.salutation || 'Mr.'} {matchedEmployee.firstName} {matchedEmployee.lastName}
                     </p>
 
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                      {matchedEmployee.employeeCode || 'Employee'}
+                    <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold truncate">
+                      {matchedEmployee.company?.name || authUser?.company?.name || 'MONTANARI LIFTS COMPONENTS PVT. LTD – LIVE'}
+                    </p>
+
+                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 truncate">
+                      {matchedEmployee.officeLocation || matchedEmployee.branch?.name || (matchedEmployee.employeeCode ? `${matchedEmployee.employeeCode} • PLOT C-3 MIDC-001` : 'PLOT C-3 MIDC-001')}
                     </p>
                   </div>
 
                   {calculatedSimilarity !== null && (
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <p className="text-[10px] text-slate-500 dark:text-slate-400">
                         Match
                       </p>
@@ -2178,17 +2185,50 @@ export function FaceAttendanceModal({
         {/* ── 3. FIXED BOTTOM FOOTER (ACCESSIBLE WHILE SCROLLING) ── */}
         <div className="shrink-0 px-5 py-3 bg-slate-100/90 dark:bg-slate-950 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between z-30">
           <span className="text-xs text-slate-500 font-medium">EHCM Biometric Terminal #01</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="text-xs font-semibold rounded-xl"
-          >
-            Close
-          </Button>
+          {isFullPage ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                stopCamera();
+                onClose();
+              }}
+              className="text-xs font-semibold rounded-xl gap-1.5 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              Close Live View
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCloseModal}
+              disabled={isSubmitting}
+              className="text-xs font-semibold rounded-xl cursor-pointer"
+            >
+              Close
+            </Button>
+          )}
         </div>
+    </>
+  );
+
+  if (isFullPage) {
+    return (
+      <div className="w-full min-h-[calc(100vh-100px)] flex flex-col items-center justify-start py-2 sm:py-4 px-2 sm:px-4">
+        <div className="w-full max-w-xl mx-auto rounded-3xl border border-indigo-100 dark:border-slate-800 shadow-2xl bg-gradient-to-b from-indigo-50/60 via-slate-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-100 font-sans transition-all overflow-hidden my-2">
+          {modalInnerContent}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCloseModal(); }}>
+      <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100vw-24px)] max-w-md sm:max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden custom-scrollbar p-0 rounded-2xl border border-indigo-100 dark:border-slate-800 shadow-2xl bg-gradient-to-b from-indigo-50/60 via-slate-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-100 font-sans transition-all">
+        <DialogTitle className="sr-only">Live Face ID Attendance Verification</DialogTitle>
+        {modalInnerContent}
       </DialogContent>
     </Dialog>
   );
