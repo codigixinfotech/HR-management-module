@@ -36,7 +36,7 @@ jobs:
             npm ci
             npx prisma generate
             npm run build
-            pm2 restart hr-backend || pm2 start dist/src/main.js --name hr-backend
+            pm2 restart hr-backend || pm2 start dist/main.js --name hr-backend
 
             # 4. Build Frontend
             echo "🌐 Deploying Frontend..."
