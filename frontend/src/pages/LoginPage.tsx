@@ -159,7 +159,9 @@ export default function LoginPage() {
       setIsSuccessTransitioning(true);
       toast.success(`Welcome back, ${res.me.email.split('@')[0]}! Redirecting...`);
       setTimeout(() => {
-        navigate('/dashboard');
+        const fromPath = (location.state as any)?.from?.pathname;
+        const defaultPath = window.innerWidth < 768 ? '/attendance-leave/live' : '/dashboard';
+        navigate(fromPath || defaultPath);
       }, 600);
     },
     onError: (err: any) => {

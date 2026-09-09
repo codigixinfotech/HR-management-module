@@ -39,6 +39,7 @@ import { employeesApi } from '@/api/employees';
 import { useAuthStore } from '@/stores/auth-store';
 import { isHrOrAdminUser } from '@/lib/modules';
 import { attendanceApi } from '@/api/attendance-leave';
+import { logout as logoutApi } from '@/api/auth';
 import { InstallMobilePunch } from '@/modules/mobile-punch/InstallMobilePunch';
 import {
   extractFacialLandmarkDescriptor,
@@ -401,6 +402,16 @@ export function FaceAttendanceModal({
     isOpenRef.current = false;
     stopCamera();
     onClose();
+  };
+
+  const handleLogout = async () => {
+    const refreshToken = useAuthStore.getState().refreshToken;
+    if (refreshToken) {
+      await logoutApi(refreshToken).catch(() => undefined);
+    }
+    useAuthStore.getState().clear();
+    stopCamera();
+    navigate('/login');
   };
 
   const acquireRealGpsLocation = () => {
@@ -928,6 +939,16 @@ export function FaceAttendanceModal({
                 <span className="absolute top-0.5 right-0.5 w-3 h-3 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-indigo-600">
                   3
                 </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-1.5 rounded-full bg-white/15 hover:bg-white/25 transition-colors cursor-pointer text-white flex items-center justify-center shadow-xs"
+                title="Log Out"
+                aria-label="Log Out"
+              >
+                <LogOut className="w-3.5 h-3.5 text-white" />
               </button>
             </div>
           </div>
