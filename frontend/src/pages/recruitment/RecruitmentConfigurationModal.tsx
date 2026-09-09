@@ -20,6 +20,10 @@ import {
   Radio,
   FileCheck,
   Eye,
+  MapPin,
+  DoorOpen,
+  Video,
+  PhoneCall,
 } from 'lucide-react';
 import {
   Dialog,
@@ -33,6 +37,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { jobOpeningsApi } from '@/api/recruitment';
 
@@ -44,6 +49,11 @@ export interface IndustryConfigPreset {
   defaultTemplateId: string;
   defaultTemplateName: string;
   defaultAssessmentRequired: boolean;
+  // Interview configuration defaults
+  defaultInterviewMode: 'OFFLINE' | 'ONLINE' | 'BOTH';
+  defaultInterviewLocation: string;
+  defaultInterviewBuilding: string;
+  defaultInterviewRoom: string;
   icon: any;
   description: string;
   examples: string[];
@@ -58,6 +68,10 @@ export const INDUSTRY_CONFIG_PRESETS: IndustryConfigPreset[] = [
     defaultTemplateId: 'TST-MFG-01',
     defaultTemplateName: 'Manufacturing Technical & Machine Practical Assessment',
     defaultAssessmentRequired: true,
+    defaultInterviewMode: 'OFFLINE',
+    defaultInterviewLocation: 'Pune Manufacturing Plant',
+    defaultInterviewBuilding: 'Administration Block',
+    defaultInterviewRoom: 'HR Interview Room 1',
     icon: Factory,
     description: 'Practical floor tests, machine operation, blueprint reading & safety compliance for plant roles.',
     examples: ['CNC machine practical test', 'Machine operation test', 'Blueprint reading', 'Measuring instrument test', 'Safety & quality audit'],
@@ -70,6 +84,10 @@ export const INDUSTRY_CONFIG_PRESETS: IndustryConfigPreset[] = [
     defaultTemplateId: 'TST-HC-01',
     defaultTemplateName: 'Clinical Scenario & Medical Protocol Practical',
     defaultAssessmentRequired: true,
+    defaultInterviewMode: 'OFFLINE',
+    defaultInterviewLocation: 'Hospital Main Campus',
+    defaultInterviewBuilding: 'Clinical Block B',
+    defaultInterviewRoom: 'Medical Board Room',
     icon: HeartPulse,
     description: 'Patient care simulation, hygiene protocol practicals, and equipment operation evaluation.',
     examples: ['Clinical practical', 'Medical records test', 'Sterilization protocol', 'Emergency response test'],
@@ -82,6 +100,10 @@ export const INDUSTRY_CONFIG_PRESETS: IndustryConfigPreset[] = [
     defaultTemplateId: 'TST-201',
     defaultTemplateName: 'React Architecture & State Challenge',
     defaultAssessmentRequired: true,
+    defaultInterviewMode: 'ONLINE',
+    defaultInterviewLocation: 'Global Tech Park, Tower 3',
+    defaultInterviewBuilding: 'Software Engineering Wing',
+    defaultInterviewRoom: 'Conference Room 402',
     icon: Laptop,
     description: 'Online coding challenges, algorithm assessments, system design reviews & DevOps MCQ tests.',
     examples: ['Full stack coding test', 'System design interview', 'DevOps Kubernetes quiz', 'SQL database challenge'],
@@ -94,6 +116,10 @@ export const INDUSTRY_CONFIG_PRESETS: IndustryConfigPreset[] = [
     defaultTemplateId: 'TST-FIN-01',
     defaultTemplateName: 'Financial Analytics & Audit Compliance Test',
     defaultAssessmentRequired: true,
+    defaultInterviewMode: 'ONLINE',
+    defaultInterviewLocation: 'Financial Towers HQ',
+    defaultInterviewBuilding: 'Corporate Floor 12',
+    defaultInterviewRoom: 'Executive Boardroom',
     icon: Landmark,
     description: 'Quantitative aptitude, financial modeling, accounting standards & fraud detection quizzes.',
     examples: ['Financial spreadsheet test', 'Risk analysis MCQ', 'AML/KYC compliance assessment'],
@@ -106,6 +132,10 @@ export const INDUSTRY_CONFIG_PRESETS: IndustryConfigPreset[] = [
     defaultTemplateId: 'TST-RET-01',
     defaultTemplateName: 'Customer Service & Inventory Floor Practical',
     defaultAssessmentRequired: false,
+    defaultInterviewMode: 'BOTH',
+    defaultInterviewLocation: 'Central Flagship Store',
+    defaultInterviewBuilding: 'Store Operations Office',
+    defaultInterviewRoom: 'Interview Office 2',
     icon: ShoppingBag,
     description: 'Blended store floor simulation, point-of-sale practicals and customer communication aptitude.',
     examples: ['Customer handling simulation', 'POS terminal test', 'Store merchandising practical'],
@@ -118,6 +148,10 @@ export const INDUSTRY_CONFIG_PRESETS: IndustryConfigPreset[] = [
     defaultTemplateId: 'TST-204',
     defaultTemplateName: 'HR Compliance Scenario Analysis',
     defaultAssessmentRequired: false,
+    defaultInterviewMode: 'BOTH',
+    defaultInterviewLocation: 'Corporate HQ',
+    defaultInterviewBuilding: 'Main Complex',
+    defaultInterviewRoom: 'HR Interview Suite A',
     icon: Building2,
     description: 'Verbal reasoning, behavioral situational judgment, and management scenario tests.',
     examples: ['Management scenario analysis', 'Verbal reasoning quiz', 'Office software proficiency'],
@@ -151,12 +185,34 @@ export function RecruitmentConfigurationModal({
 }: RecruitmentConfigurationModalProps) {
   const queryClient = useQueryClient();
 
-  // Configuration States
-  const [assessmentEnabled, setAssessmentEnabled] = useState<boolean>(true);
+  // Helper: apply a config object into local state
+  const applyConfig = (cfg: Record<string, any>) => {
+    // assessmentEnabled: always use the explicit saved value (false must be respected)
+    setAssessmentEnabled(cfg.assessmentEnabled === true);
+    if (cfg.assessmentMode) setAssessmentMode(cfg.assessmentMode);
+    if (cfg.industry) setIndustry(cfg.industry);
+    if (cfg.defaultAssessmentTemplateId) setDefaultTemplateId(cfg.defaultAssessmentTemplateId);
+    setAssessmentRequired(cfg.assessmentRequired === true);
+
+    // Interview config
+    if (cfg.interviewMode) setInterviewMode(cfg.interviewMode);
+    if (cfg.defaultInterviewLocation) setDefaultInterviewLocation(cfg.defaultInterviewLocation);
+    if (cfg.defaultInterviewBuilding) setDefaultInterviewBuilding(cfg.defaultInterviewBuilding);
+    if (cfg.defaultInterviewRoom) setDefaultInterviewRoom(cfg.defaultInterviewRoom);
+  };
+
+  // Configuration States — default false so we never flash ON before config loads
+  const [assessmentEnabled, setAssessmentEnabled] = useState<boolean>(false);
   const [assessmentMode, setAssessmentMode] = useState<'ONLINE' | 'OFFLINE' | 'BOTH'>('OFFLINE');
   const [industry, setIndustry] = useState<string>('Manufacturing & Industrial');
   const [defaultTemplateId, setDefaultTemplateId] = useState<string>('TST-MFG-01');
   const [assessmentRequired, setAssessmentRequired] = useState<boolean>(true);
+
+  // Interview Configuration States
+  const [interviewMode, setInterviewMode] = useState<'ONLINE' | 'OFFLINE' | 'BOTH'>('OFFLINE');
+  const [defaultInterviewLocation, setDefaultInterviewLocation] = useState<string>('Pune Manufacturing Plant');
+  const [defaultInterviewBuilding, setDefaultInterviewBuilding] = useState<string>('Administration Block');
+  const [defaultInterviewRoom, setDefaultInterviewRoom] = useState<string>('HR Interview Room 1');
 
   // Fetch current portal / recruitment configuration from backend
   const { data: dbConfig } = useQuery({
@@ -164,16 +220,36 @@ export function RecruitmentConfigurationModal({
     queryFn: () => jobOpeningsApi.getPortalConfig(),
   });
 
-  // Sync state on load
+  // Every time the modal opens, load the persisted config.
+  // Priority: 1) backend dbConfig (authoritative), 2) localStorage cache (instant fallback).
   useEffect(() => {
+    if (!isOpen) return; // only act when modal is opening
+
     if (dbConfig) {
-      if (dbConfig.assessmentEnabled !== undefined) setAssessmentEnabled(Boolean(dbConfig.assessmentEnabled));
-      if (dbConfig.assessmentMode) setAssessmentMode(dbConfig.assessmentMode);
-      if (dbConfig.industry) setIndustry(dbConfig.industry);
-      if (dbConfig.defaultAssessmentTemplateId) setDefaultTemplateId(dbConfig.defaultAssessmentTemplateId);
-      if (dbConfig.assessmentRequired !== undefined) setAssessmentRequired(Boolean(dbConfig.assessmentRequired));
+      // Backend config is available — it is always the source of truth
+      applyConfig(dbConfig);
+    } else {
+      // API hasn't resolved yet — use the localStorage cache written during the last Save
+      try {
+        const cached = localStorage.getItem('ehcm_recruitment_config');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          applyConfig(parsed);
+        }
+      } catch {
+        // ignore parse errors; defaults remain in place
+      }
     }
-  }, [dbConfig, isOpen]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Also sync whenever the backend data arrives/changes while the modal is open
+  useEffect(() => {
+    if (dbConfig && isOpen) {
+      applyConfig(dbConfig);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbConfig]);
 
   // Handle Industry change: Auto-apply smart industry defaults
   const handleIndustryChange = (newIndustryId: string) => {
@@ -184,6 +260,12 @@ export function RecruitmentConfigurationModal({
       setAssessmentMode(preset.defaultAssessmentMode);
       setDefaultTemplateId(preset.defaultTemplateId);
       setAssessmentRequired(preset.defaultAssessmentRequired);
+
+      if (preset.defaultInterviewMode) setInterviewMode(preset.defaultInterviewMode);
+      if (preset.defaultInterviewLocation) setDefaultInterviewLocation(preset.defaultInterviewLocation);
+      if (preset.defaultInterviewBuilding) setDefaultInterviewBuilding(preset.defaultInterviewBuilding);
+      if (preset.defaultInterviewRoom) setDefaultInterviewRoom(preset.defaultInterviewRoom);
+
       toast.info(`Applied default settings for ${preset.name}`);
     }
   };
@@ -199,6 +281,10 @@ export function RecruitmentConfigurationModal({
         defaultAssessmentTemplateId: defaultTemplateId,
         defaultAssessmentName: updated.defaultAssessmentName || 'Manufacturing Technical & Machine Practical Assessment',
         assessmentRequired,
+        interviewMode,
+        defaultInterviewLocation,
+        defaultInterviewBuilding,
+        defaultInterviewRoom,
       };
       // Cache in localStorage for instant synchronization across tabs and page reloads
       localStorage.setItem('ehcm_recruitment_config', JSON.stringify(configObj));
@@ -224,6 +310,10 @@ export function RecruitmentConfigurationModal({
       defaultAssessmentTemplateId: defaultTemplateId,
       defaultAssessmentName: selectedTemplate?.name || 'Manufacturing Technical & Machine Practical Assessment',
       assessmentRequired,
+      interviewMode,
+      defaultInterviewLocation,
+      defaultInterviewBuilding,
+      defaultInterviewRoom,
     });
   };
 
@@ -233,6 +323,10 @@ export function RecruitmentConfigurationModal({
     setIndustry('Manufacturing & Industrial');
     setDefaultTemplateId('TST-MFG-01');
     setAssessmentRequired(true);
+    setInterviewMode('OFFLINE');
+    setDefaultInterviewLocation('Pune Manufacturing Plant');
+    setDefaultInterviewBuilding('Administration Block');
+    setDefaultInterviewRoom('HR Interview Room 1');
     toast.info('Reset to Manufacturing & Industrial standard defaults.');
   };
 
@@ -495,6 +589,142 @@ export function RecruitmentConfigurationModal({
               checked={assessmentRequired}
               onCheckedChange={setAssessmentRequired}
             />
+          </div>
+
+          {/* 6. INTERVIEW MODE CONFIGURATION */}
+          <div className="space-y-3 pt-2 border-t border-border/70">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Sliders className="h-4 w-4 text-primary" /> Interview Mode Policy
+                </Label>
+                <span className="text-[11px] text-muted-foreground block">
+                  Controls visible interview types and venue scheduling options in Candidate Interview Schedule modal.
+                </span>
+              </div>
+              <Badge variant="outline" className="text-[11px] font-bold">
+                Current: {interviewMode === 'OFFLINE' ? 'In-Person / Offline' : interviewMode === 'ONLINE' ? 'Online' : 'Both (Hybrid)'}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Mode: OFFLINE */}
+              <button
+                type="button"
+                onClick={() => setInterviewMode('OFFLINE')}
+                className={`p-3.5 rounded-xl border text-left flex flex-col justify-between gap-2 transition-all cursor-pointer relative ${
+                  interviewMode === 'OFFLINE'
+                    ? 'bg-emerald-500/10 border-emerald-600 shadow-xs ring-1 ring-emerald-600'
+                    : 'bg-background hover:bg-muted/50 border-border'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                    <Factory className="h-4 w-4 text-emerald-600" /> In-Person / Offline
+                  </span>
+                  <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${interviewMode === 'OFFLINE' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}>
+                    {interviewMode === 'OFFLINE' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Locks interview type to In-Person / Offline. Hides online meeting links. Demands physical plant/office location and room.
+                </p>
+                {industry === 'Manufacturing & Industrial' && (
+                  <Badge className="bg-emerald-600 text-white text-[9px] font-semibold py-0 px-1.5 self-start mt-1">
+                    Manufacturing Default
+                  </Badge>
+                )}
+              </button>
+
+              {/* Mode: ONLINE */}
+              <button
+                type="button"
+                onClick={() => setInterviewMode('ONLINE')}
+                className={`p-3.5 rounded-xl border text-left flex flex-col justify-between gap-2 transition-all cursor-pointer ${
+                  interviewMode === 'ONLINE'
+                    ? 'bg-primary/10 border-primary shadow-xs ring-1 ring-primary'
+                    : 'bg-background hover:bg-muted/50 border-border'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                    <Video className="h-4 w-4 text-blue-500" /> Online
+                  </span>
+                  <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${interviewMode === 'ONLINE' ? 'border-primary bg-primary text-white' : 'border-slate-300'}`}>
+                    {interviewMode === 'ONLINE' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Online only (Microsoft Teams link pool, Google Meet, Phone Call). Hides offline venue fields.
+                </p>
+              </button>
+
+              {/* Mode: BOTH */}
+              <button
+                type="button"
+                onClick={() => setInterviewMode('BOTH')}
+                className={`p-3.5 rounded-xl border text-left flex flex-col justify-between gap-2 transition-all cursor-pointer ${
+                  interviewMode === 'BOTH'
+                    ? 'bg-primary/10 border-primary shadow-xs ring-1 ring-primary'
+                    : 'bg-background hover:bg-muted/50 border-border'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                    <Radio className="h-4 w-4 text-indigo-500" /> Both (Hybrid)
+                  </span>
+                  <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${interviewMode === 'BOTH' ? 'border-primary bg-primary text-white' : 'border-slate-300'}`}>
+                    {interviewMode === 'BOTH' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Allows selecting between Teams, Google Meet, In-Person / Offline, or Phone Call per candidate.
+                </p>
+              </button>
+            </div>
+
+            {/* Default Offline Venue Fields (Used for OFFLINE or BOTH) */}
+            {(interviewMode === 'OFFLINE' || interviewMode === 'BOTH') && (
+              <div className="p-3.5 bg-amber-50/50 dark:bg-amber-950/15 rounded-xl border border-amber-200/80 dark:border-amber-800/60 space-y-3">
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="h-4 w-4 text-amber-600" />
+                  <Label className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                    Default In-Person Interview Venue
+                  </Label>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground">Default Location *</Label>
+                  <Input
+                    value={defaultInterviewLocation}
+                    onChange={(e) => setDefaultInterviewLocation(e.target.value)}
+                    placeholder="Pune Manufacturing Plant"
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Default Building / Area</Label>
+                    <Input
+                      value={defaultInterviewBuilding}
+                      onChange={(e) => setDefaultInterviewBuilding(e.target.value)}
+                      placeholder="Administration Block"
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Default Room *</Label>
+                    <Input
+                      value={defaultInterviewRoom}
+                      onChange={(e) => setDefaultInterviewRoom(e.target.value)}
+                      placeholder="HR Interview Room 1"
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

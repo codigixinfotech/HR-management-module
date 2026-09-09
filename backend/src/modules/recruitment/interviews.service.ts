@@ -71,8 +71,12 @@ export class InterviewsService {
     const candEmail = (dto as any).candidateEmail || candidate?.email || 'motesanika@gmail.com';
     const candName = candidate ? `${candidate.firstName} ${candidate.lastName}` : (dto as any).candidateName || 'Sanuu Mote';
     const format = dto.interviewFormat || 'Microsoft Teams';
-    const isOffline = dto.interviewMode === 'OFFLINE' || format === 'In-Person' || format === 'On-site';
-    const actualFormat = isOffline ? 'In-Person' : format;
+    const isOffline =
+      dto.interviewMode === 'OFFLINE' ||
+      format === 'In-Person / Offline' ||
+      format === 'In-Person' ||
+      format === 'On-site';
+    const actualFormat = isOffline ? 'In-Person / Offline' : format;
     const interviewMode = isOffline ? 'OFFLINE' : (dto.interviewMode || 'ONLINE');
 
     let allocatedLinkId: string | null = null;
@@ -755,37 +759,201 @@ export class InterviewsService {
   }
 
   /**
-   * Reschedules an existing interview and updates Microsoft Teams calendar event
+   * Reschedules an existing interview without creating duplicates,
+   * validates slot & room availability, records audit history, and dispatches updates.
    */
-  async rescheduleInterview(id: string, dto: { interviewDate: string; startTime: string; durationMinutes?: number }) {
+  async rescheduleInterview(id: string, dto: UpdateInterviewScheduleDto) {
     const interview: any = await this.prisma.candidateInterview.findUnique({
       where: { id },
-      include: { candidate: true },
+      include: {
+        candidate: true,
+        jobOpening: true,
+        panelMembers: true,
+      },
     });
 
     if (!interview) {
       throw new NotFoundException(`Interview with ID ${id} not found`);
     }
 
-    if (interview.calendarEventId) {
-      await this.teamsInterviewService.updateTeamsInterview(interview.calendarEventId, {
-        candidateName: `${interview.candidate?.firstName} ${interview.candidate?.lastName}`,
-        candidateEmail: interview.candidateEmail || interview.candidate?.email || '',
-        position: interview.position,
-        interviewDate: dto.interviewDate,
-        startTime: dto.startTime,
-        durationMinutes: dto.durationMinutes || 60,
-      });
+    // 1. Date & Time validation
+    const rawNewDate = dto.interviewDate || interview.interviewDate;
+    const newDate = new Date(rawNewDate);
+    if (isNaN(newDate.getTime())) {
+      throw new BadRequestException('A valid interview date is required');
     }
 
-    return this.prisma.candidateInterview.update({
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(newDate);
+    checkDate.setHours(0, 0, 0, 0);
+    if (checkDate < today) {
+      throw new BadRequestException('Rescheduled interview date cannot be in the past');
+    }
+
+    const newStartTime = dto.startTime ? dto.startTime.trim() : interview.startTime;
+    if (!newStartTime) {
+      throw new BadRequestException('Start time is required for rescheduling');
+    }
+
+    // 2. Conflict validation: Ensure candidate does not already have another active interview at the exact same slot
+    const candidateConflict = await this.prisma.candidateInterview.findFirst({
+      where: {
+        id: { not: id },
+        candidateId: interview.candidateId,
+        interviewDate: newDate,
+        startTime: newStartTime,
+        status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
+      },
+    });
+    if (candidateConflict) {
+      throw new BadRequestException(
+        `Candidate is already scheduled for interview ${candidateConflict.interviewCode} on this date and time.`
+      );
+    }
+
+    // 3. Mode & Venue Validation (Offline room availability check)
+    const targetFormat = dto.interviewFormat || interview.interviewFormat || 'In-Person / Offline';
+    const isOffline =
+      dto.interviewMode === 'OFFLINE' ||
+      targetFormat === 'In-Person / Offline' ||
+      targetFormat === 'In-Person' ||
+      targetFormat === 'On-site';
+    const actualFormat = isOffline ? 'In-Person / Offline' : targetFormat;
+    const actualMode = isOffline ? 'OFFLINE' : (dto.interviewMode || interview.interviewMode || 'ONLINE');
+
+    const targetRoom = isOffline ? (dto.room || interview.room) : null;
+    const targetLocation = isOffline ? (dto.location || interview.location) : null;
+    const targetBuilding = isOffline ? (dto.building || interview.building) : null;
+
+    if (isOffline && targetRoom) {
+      const roomConflict = await this.prisma.candidateInterview.findFirst({
+        where: {
+          id: { not: id },
+          interviewDate: newDate,
+          startTime: newStartTime,
+          room: targetRoom,
+          status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
+        },
+      });
+      if (roomConflict) {
+        throw new BadRequestException(
+          `Interview room '${targetRoom}' is already booked for interview ${roomConflict.interviewCode} at this time.`
+        );
+      }
+    }
+
+    // 4. Meeting link handling
+    let meetingLink: string | null = null;
+    let teamsMeetingLinkId: string | null = interview.teamsMeetingLinkId;
+    if (isOffline) {
+      meetingLink = null;
+      teamsMeetingLinkId = null;
+    } else if (dto.meetingLink !== undefined) {
+      meetingLink = dto.meetingLink && dto.meetingLink.trim().length > 0 ? dto.meetingLink.trim() : null;
+    } else {
+      meetingLink = interview.meetingLink;
+    }
+
+    // 5. Update panel members if provided
+    if (dto.panelMemberIds && dto.panelMemberIds.length > 0) {
+      await this.prisma.candidateInterviewPanel.deleteMany({
+        where: { interviewId: id },
+      });
+
+      const realDbEmployees = await this.prisma.employee.findMany({
+        where: { id: { in: dto.panelMemberIds } },
+      });
+
+      for (const emp of realDbEmployees) {
+        const role = dto.panelMemberRoles?.[emp.id] || 'Interviewer';
+        await this.prisma.candidateInterviewPanel.create({
+          data: {
+            interviewId: id,
+            interviewerId: emp.id,
+            interviewerName: `${emp.firstName} ${emp.lastName}`,
+            panelRole: role,
+          },
+        });
+      }
+    }
+
+    // 6. Audit trail generation
+    const origDateStr = dto.originalInterviewDate ||
+      new Date(interview.interviewDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const origTimeStr = dto.originalStartTime || interview.startTime;
+    const newDateStr = newDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const reasonStr = dto.reason || 'Panel member unavailable';
+    const rescheduledByStr = dto.rescheduledByName || 'HR Administrator';
+    const nowIso = new Date().toISOString();
+
+    const auditPayload = {
+      originalDate: origDateStr,
+      originalTime: origTimeStr,
+      newDate: newDateStr,
+      newTime: newStartTime,
+      reason: reasonStr,
+      remarks: dto.remarks || '',
+      rescheduledBy: rescheduledByStr,
+      rescheduledAt: nowIso,
+    };
+
+    // Embed structured audit in notes
+    const cleanOldNotes = (interview.notes || '').replace(/<!--RESCHEDULE_AUDIT:.*?-->/gs, '').trim();
+    const updatedNotes = `${cleanOldNotes}\n\n<!--RESCHEDULE_AUDIT:${JSON.stringify(auditPayload)}-->\n[Audit: Rescheduled by ${rescheduledByStr} on ${new Date().toLocaleDateString('en-GB')}. Reason: ${reasonStr}. Original: ${origDateStr} ${origTimeStr} → New: ${newDateStr} ${newStartTime}${dto.remarks ? `. Remarks: ${dto.remarks}` : ''}]`.trim();
+
+    // 7. Update the same existing interview record with status 'SCHEDULED'
+    const updated = await this.prisma.candidateInterview.update({
       where: { id },
       data: {
-        interviewDate: new Date(dto.interviewDate),
-        startTime: dto.startTime,
-        status: 'RESCHEDULED',
+        interviewDate: newDate,
+        startTime: newStartTime,
+        durationMinutes: dto.durationMinutes || interview.durationMinutes || 60,
+        interviewFormat: actualFormat,
+        interviewMode: actualMode,
+        meetingProvider: isOffline ? 'In-Person' : actualFormat,
+        meetingLink,
+        teamsMeetingLinkId,
+        teamsJoinUrl: meetingLink,
+        location: targetLocation,
+        building: targetBuilding,
+        room: targetRoom,
+        notes: updatedNotes,
+        status: 'SCHEDULED', // Preserved as SCHEDULED with reschedule audit
       } as any,
+      include: {
+        candidate: true,
+        jobOpening: true,
+        panelMembers: true,
+      },
     });
+
+    // 8. Update calendar event if present
+    if (interview.calendarEventId) {
+      try {
+        await this.teamsInterviewService.updateTeamsInterview(interview.calendarEventId, {
+          candidateName: `${interview.candidate?.firstName} ${interview.candidate?.lastName}`,
+          candidateEmail: dto.candidateEmail || interview.candidateEmail || interview.candidate?.email || '',
+          position: interview.position,
+          interviewDate: rawNewDate,
+          startTime: newStartTime,
+          durationMinutes: dto.durationMinutes || 60,
+        });
+      } catch (e) {
+        // Ignore external calendar failure
+      }
+    }
+
+    // 9. Dispatch notification email if requested
+    if (dto.notifyCandidate !== false) {
+      try {
+        await this.sendInterviewEmail(id);
+      } catch (err) {
+        // Ignore notification failure
+      }
+    }
+
+    return updated;
   }
 
   /**

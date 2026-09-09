@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { employeesApi } from '@/api/employees';
-import { extractFacialLandmarkDescriptor } from '@/utils/faceBiometrics';
+import { extractFacialLandmarkDescriptor, loadFaceRecognitionModels } from '@/utils/faceBiometrics';
 
 interface RegisterFaceModalProps {
   isOpen: boolean;
@@ -44,6 +44,7 @@ export function RegisterFaceModal({
   useEffect(() => {
     if (isOpen) {
       startCamera();
+      loadFaceRecognitionModels().catch((e) => console.warn('[Face Registration] Model preload warning:', e));
     } else {
       stopCamera();
     }
@@ -108,8 +109,8 @@ export function RegisterFaceModal({
         if (ctx) ctx.drawImage(video, 0, 0, 640, 480);
       }
 
-      // Extract real facial landmark descriptor from canvas frame
-      const result = extractFacialLandmarkDescriptor(canvas, video);
+      // Extract real deep facial embedding from canvas/video frame
+      const result = await extractFacialLandmarkDescriptor(canvas, video);
 
       console.log(`[Face Registration] Detection Result:`, result);
 

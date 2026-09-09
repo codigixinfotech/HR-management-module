@@ -22,6 +22,7 @@ import {
   PauseCircle,
   AlertCircle,
   FileSignature,
+  Sparkles,
 } from 'lucide-react';
 import {
   Dialog,
@@ -49,6 +50,7 @@ interface InterviewDetailsModalProps {
   onClose: () => void;
   activeEmployeeId?: string;
   activeEmployeeName?: string;
+  initialTab?: 'overview' | 'scorecard' | 'evaluations-breakdown';
   onEditSchedule?: (interview: CandidateInterview) => void;
   onScheduleNextRoundSuccess?: (newInterviewId: string) => void;
 }
@@ -59,6 +61,7 @@ export function InterviewDetailsModal({
   onClose,
   activeEmployeeId,
   activeEmployeeName,
+  initialTab = 'overview',
   onEditSchedule,
   onScheduleNextRoundSuccess,
 }: InterviewDetailsModalProps) {
@@ -66,7 +69,13 @@ export function InterviewDetailsModal({
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab || 'overview');
+    }
+  }, [isOpen, initialTab]);
 
   // HR Decision Modals State
   const [isNextRoundModalOpen, setIsNextRoundModalOpen] = useState(false);
@@ -161,6 +170,16 @@ export function InterviewDetailsModal({
     return Math.round((sum / interview.evaluations.length) * 10) / 10;
   }, [interview]);
 
+  // Panel Members & Evaluation counts
+  const totalPanelMembers = interview?.panelMembers?.length || 0;
+  const submittedEvaluationsCount = interview?.evaluations?.length || 0;
+  const isAllEvaluationsSubmitted =
+    (totalPanelMembers > 0 && submittedEvaluationsCount >= totalPanelMembers) ||
+    interview?.status === 'EVALUATED';
+  const isDecisionMade = ['SELECTED', 'REJECTED', 'NEXT_ROUND', 'ON_HOLD'].includes(
+    interview?.status || '',
+  );
+
   // Submit Evaluation Mutation
   const submitEvaluationMutation = useMutation({
     mutationFn: (payload: any) => interviewsApi.submitEvaluation(interview!.id, payload),
@@ -191,8 +210,8 @@ export function InterviewDetailsModal({
       if (data.status === 'SELECTED') {
         const candName = interview?.candidate
           ? `${interview.candidate.firstName} ${interview.candidate.lastName}`
-          : 'Casey Stone';
-        toast.success(`Candidate ${candName} SELECTED! Redirecting to Offers & Joining...`);
+          : 'Candidate';
+        toast.success(`Candidate ${candName} Selected for Offer! Redirecting to Offers & Onboarding...`);
 
         onClose();
 
@@ -200,7 +219,7 @@ export function InterviewDetailsModal({
           autoCreate: 'true',
           candidateId: interview?.candidateId || '',
           candidateName: candName,
-          candidateEmail: interview?.candidate?.email || 'candidate34@example-mail.com',
+          candidateEmail: interview?.candidate?.email || 'candidate@example.com',
           position: interview?.position || 'Product Designer',
           requisitionCode: interview?.requisitionCode || 'JR-2026-001',
           interviewCode: interview?.interviewCode || 'INT-2026-001',
@@ -209,11 +228,11 @@ export function InterviewDetailsModal({
         navigate(`/recruitment/offers?${urlParams.toString()}`);
       } else if (data.status === 'REJECTED') {
         toast.error(
-          `Candidate ${interview?.candidate ? `${interview.candidate.firstName} ${interview.candidate.lastName}` : 'Candidate'} REJECTED.`,
+          `Candidate ${interview?.candidate ? `${interview.candidate.firstName} ${interview.candidate.lastName}` : 'Candidate'} REJECTED. Recruitment closed.`,
         );
       } else if (data.status === 'ON_HOLD') {
         toast.warning(
-          `Candidate ${interview?.candidate ? `${interview.candidate.firstName} ${interview.candidate.lastName}` : 'Candidate'} placed ON HOLD.`,
+          `Candidate ${interview?.candidate ? `${interview.candidate.firstName} ${interview.candidate.lastName}` : 'Candidate'} placed ON HOLD (Can resume later).`,
         );
       } else if (data.status === 'NEXT_ROUND') {
         toast.info(
@@ -392,6 +411,14 @@ export function InterviewDetailsModal({
                       Mandatory Interview Panel: <strong>{interview.panelMembers.map((p) => p.interviewerName).join(', ')}</strong>
                     </span>
                   </div>
+
+                  <Button
+                    size="sm"
+                    onClick={() => setActiveTab('scorecard')}
+                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1"
+                  >
+                    <FileCheck className="h-3.5 w-3.5" /> Evaluate Candidate
+                  </Button>
                 </div>
               )}
             </div>
@@ -441,23 +468,25 @@ export function InterviewDetailsModal({
             </div>
 
             {/* HR FINAL REVIEW & DECISION CARD */}
-            {(interview.status === 'EVALUATED' ||
-              interview.status === 'SELECTED' ||
-              interview.status === 'REJECTED' ||
-              interview.status === 'NEXT_ROUND' ||
-              interview.status === 'ON_HOLD' ||
-              interview.evaluations.length > 0) && (
+            {(isDecisionMade ||
+              isAllEvaluationsSubmitted ||
+              interview.status === 'EVALUATED' ||
+              submittedEvaluationsCount > 0) && (
               <div className="mx-6 mt-4 p-4 rounded-xl border-2 border-primary/40 bg-gradient-to-r from-primary/5 via-card to-background space-y-3 shadow-xs">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
                   <div>
                     <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-primary" /> HR Final Review & Decision Workflow
                       <Badge className="bg-primary/20 text-primary text-[10px]">
-                        Evaluated → HR Final Review → Final Decision
+                        {isAllEvaluationsSubmitted
+                          ? 'Evaluated → HR Final Review → Final Decision'
+                          : `Panel Evaluations in Progress (${submittedEvaluationsCount}/${totalPanelMembers})`}
                       </Badge>
                     </h3>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Review overall panel scorecards ({interview.evaluations.length}/{interview.panelMembers.length} submitted) and execute final hiring decision.
+                      {isAllEvaluationsSubmitted
+                        ? `All panel scorecards submitted (${submittedEvaluationsCount}/${totalPanelMembers}). Review ratings and execute final decision.`
+                        : `Awaiting panel scorecards (${submittedEvaluationsCount}/${totalPanelMembers} submitted). Decision buttons unlock once all evaluations are submitted.`}
                     </p>
                   </div>
 
@@ -471,49 +500,135 @@ export function InterviewDetailsModal({
 
                     <div className="text-right">
                       <span className="text-[10px] text-muted-foreground block font-semibold">Consensus Recommendation</span>
-                      <Badge className="bg-emerald-600 text-white font-bold text-xs">
-                        {interview.evaluations.some((e) => e.recommendation === 'Strong Hire')
+                      <Badge
+                        className={`font-bold text-xs ${
+                          interview.evaluations.some((e) => e.recommendation === 'Strong Hire')
+                            ? 'bg-emerald-600 text-white'
+                            : interview.evaluations.some((e) => e.recommendation === 'Hire')
+                            ? 'bg-emerald-600 text-white'
+                            : interview.evaluations.some((e) => e.recommendation === 'Do Not Hire' || e.recommendation === 'Reject')
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-amber-600 text-white'
+                        }`}
+                      >
+                        {interview.evaluations.length === 0
+                          ? 'Pending'
+                          : interview.evaluations.some((e) => e.recommendation === 'Strong Hire')
                           ? 'Strong Hire'
-                          : 'Hire'}
+                          : interview.evaluations.some((e) => e.recommendation === 'Hire')
+                          ? 'Hire'
+                          : interview.evaluations.some((e) => e.recommendation === 'Do Not Hire' || e.recommendation === 'Reject')
+                          ? 'Do Not Hire'
+                          : 'Under Review'}
                       </Badge>
                     </div>
                   </div>
                 </div>
 
-                {/* HR ACTION BUTTONS / SELECTED STATE */}
+                {/* POST-DECISION STATES OR DECISION BUTTONS */}
                 {interview.status === 'SELECTED' ? (
                   <div className="pt-2 pb-1 space-y-3">
-                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-bold text-xs bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/30">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span>Candidate Selected – Ready for Offers & Joining</span>
-                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                      <div className="flex items-center gap-2.5 text-emerald-800 dark:text-emerald-200">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="font-bold text-xs block">Candidate Selected for Offer</span>
+                          <span className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
+                            Workflow: Selected for Offer → Offer Generation & Release → Joining / Onboarding
+                          </span>
+                        </div>
+                      </div>
 
-                    <div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="h-8 px-3.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-sm"
+                          onClick={() => {
+                            onClose();
+                            const candName = interview.candidate
+                              ? `${interview.candidate.firstName} ${interview.candidate.lastName}`
+                              : 'Selected Candidate';
+                            const urlParams = new URLSearchParams({
+                              autoCreate: 'true',
+                              candidateId: interview.candidateId || '',
+                              candidateName: candName,
+                              candidateEmail: interview.candidate?.email || 'candidate@example.com',
+                              position: interview.position || 'Product Designer',
+                              requisitionCode: interview.requisitionCode || 'JR-2026-001',
+                              interviewCode: interview.interviewCode || 'INT-2026-001',
+                            });
+                            navigate(`/recruitment/offers?${urlParams.toString()}`);
+                          }}
+                        >
+                          <FileSignature className="h-4 w-4" /> Proceed to Offers & Joining →
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : interview.status === 'REJECTED' ? (
+                  <div className="pt-2 pb-1 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-rose-500/10 p-3 rounded-xl border border-rose-500/30">
+                      <div className="flex items-center gap-2.5 text-rose-800 dark:text-rose-200">
+                        <XCircle className="h-5 w-5 text-rose-600 shrink-0" />
+                        <div>
+                          <span className="font-bold text-xs block">Candidate Rejected – Recruitment Closed</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            Candidate did not meet criteria for this requisition. Recruitment workflow closed.
+                          </span>
+                        </div>
+                      </div>
                       <Button
                         size="sm"
-                        className="h-9 px-4 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 shadow-md hover:scale-[1.01] transition-all cursor-pointer"
-                        onClick={() => {
-                          onClose();
-                          const candName = interview.candidate
-                            ? `${interview.candidate.firstName} ${interview.candidate.lastName}`
-                            : 'Selected Candidate';
-                          const urlParams = new URLSearchParams({
-                            autoCreate: 'true',
-                            candidateId: interview.candidateId || '',
-                            candidateName: candName,
-                            candidateEmail: interview.candidate?.email || 'candidate@example.com',
-                            position: interview.position || 'Product Designer',
-                            requisitionCode: interview.requisitionCode || 'JR-2026-001',
-                            interviewCode: interview.interviewCode || 'INT-2026-001',
-                          });
-                          navigate(`/recruitment/offers?${urlParams.toString()}`);
-                        }}
+                        variant="outline"
+                        className="h-7 text-xs text-rose-700 border-rose-300 hover:bg-rose-50 gap-1 font-semibold"
+                        onClick={() => updateStatusMutation.mutate({ status: 'EVALUATED' })}
+                        disabled={updateStatusMutation.isPending}
                       >
-                        <FileSignature className="h-4 w-4" /> Proceed to Offers & Joining →
+                        <RotateCcw className="h-3.5 w-3.5" /> Reopen HR Review
                       </Button>
                     </div>
                   </div>
-                ) : (
+                ) : interview.status === 'ON_HOLD' ? (
+                  <div className="pt-2 pb-1 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30">
+                      <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-200">
+                        <PauseCircle className="h-5 w-5 text-amber-600 shrink-0" />
+                        <div>
+                          <span className="font-bold text-xs block">Candidate Placed On Hold</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            Candidate is kept pending without rejecting or selecting. You can resume at any time.
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1 font-semibold"
+                        onClick={() => updateStatusMutation.mutate({ status: 'EVALUATED' })}
+                        disabled={updateStatusMutation.isPending}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" /> Resume Evaluation
+                      </Button>
+                    </div>
+                  </div>
+                ) : interview.status === 'NEXT_ROUND' ? (
+                  <div className="pt-2 pb-1 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-blue-500/10 p-3 rounded-xl border border-blue-500/30">
+                      <div className="flex items-center gap-2.5 text-blue-800 dark:text-blue-200">
+                        <ArrowRight className="h-5 w-5 text-blue-600 shrink-0" />
+                        <div>
+                          <span className="font-bold text-xs block">Next Round Scheduled</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            Candidate has been advanced to a subsequent interview round.
+                          </span>
+                        </div>
+                      </div>
+                      <Badge className="bg-blue-600 text-white text-xs px-3 py-1 font-bold">
+                        ➔ Round Initiated
+                      </Badge>
+                    </div>
+                  </div>
+                ) : isAllEvaluationsSubmitted ? (
+                  /* FINAL DECISION BUTTONS (Visible ONLY when all 2/2 panel evaluations submitted) */
                   <div className="pt-1 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
                       {/* 1. SELECT CANDIDATE */}
@@ -521,7 +636,8 @@ export function InterviewDetailsModal({
                         size="sm"
                         onClick={() => setIsSelectConfirmOpen(true)}
                         disabled={updateStatusMutation.isPending}
-                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-xs"
+                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-xs cursor-pointer"
+                        title="Selected for Offer → Move to Offers & Onboarding"
                       >
                         <CheckCircle2 className="h-4 w-4" /> Select Candidate
                       </Button>
@@ -535,7 +651,8 @@ export function InterviewDetailsModal({
                           setIsRejectDialogOpen(true);
                         }}
                         disabled={updateStatusMutation.isPending}
-                        className="h-8 text-xs font-bold gap-1.5 shadow-xs"
+                        className="h-8 text-xs font-bold gap-1.5 shadow-xs cursor-pointer"
+                        title="Reject Candidate → Recruitment Closed"
                       >
                         <XCircle className="h-4 w-4" /> Reject Candidate
                       </Button>
@@ -546,7 +663,8 @@ export function InterviewDetailsModal({
                         variant="outline"
                         onClick={() => setIsNextRoundModalOpen(true)}
                         disabled={updateStatusMutation.isPending}
-                        className="h-8 text-xs font-bold gap-1.5 text-blue-600 border-blue-300 hover:bg-blue-50"
+                        className="h-8 text-xs font-bold gap-1.5 text-blue-600 border-blue-300 hover:bg-blue-50 cursor-pointer"
+                        title="Create Next Interview Round → Schedule → Panel Evaluation"
                       >
                         <ArrowRight className="h-4 w-4" /> Schedule Next Round
                       </Button>
@@ -560,27 +678,52 @@ export function InterviewDetailsModal({
                           setIsHoldDialogOpen(true);
                         }}
                         disabled={updateStatusMutation.isPending}
-                        className="h-8 text-xs font-bold gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+                        className="h-8 text-xs font-bold gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 cursor-pointer"
+                        title="On Hold → Resume Later"
                       >
                         <PauseCircle className="h-4 w-4" /> Put On Hold
                       </Button>
                     </div>
 
-                    {interview.status === 'REJECTED' && (
-                      <Badge variant="destructive" className="text-xs px-3 py-1 font-bold">
-                        ✗ Candidate Rejected
-                      </Badge>
-                    )}
-                    {interview.status === 'ON_HOLD' && (
-                      <Badge className="bg-amber-500 text-white text-xs px-3 py-1 font-bold">
-                        ⏸ Candidate Placed On Hold
-                      </Badge>
-                    )}
-                    {interview.status === 'NEXT_ROUND' && (
-                      <Badge className="bg-blue-600 text-white text-xs px-3 py-1 font-bold">
-                        ➔ Next Round Scheduled
-                      </Badge>
-                    )}
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
+                      <Check className="h-3.5 w-3.5 text-emerald-600" />
+                      All {submittedEvaluationsCount}/{totalPanelMembers} scorecards submitted. Ready for final HR decision.
+                    </span>
+                  </div>
+                ) : (
+                  /* BEFORE EVALUATION COMPLETION: Only show evaluation/review actions, NO decision buttons! */
+                  <div className="pt-1 flex flex-wrap items-center justify-between gap-3 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30">
+                    <div className="flex items-center gap-2 text-xs">
+                      <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                      <div>
+                        <strong className="text-amber-900 dark:text-amber-200 block">
+                          Awaiting Panel Evaluations ({submittedEvaluationsCount} of {totalPanelMembers} submitted)
+                        </strong>
+                        <span className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+                          Decision buttons (Select, Reject, Next Round, Hold) will unlock once all assigned panel scorecards are submitted.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => setActiveTab('scorecard')}
+                        className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1 cursor-pointer"
+                      >
+                        <FileCheck className="h-3.5 w-3.5" /> Evaluate Candidate
+                      </Button>
+                      {submittedEvaluationsCount > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setActiveTab('evaluations-breakdown')}
+                          className="h-7 text-xs gap-1 cursor-pointer"
+                        >
+                          <Users className="h-3.5 w-3.5" /> View Submitted ({submittedEvaluationsCount})
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -996,29 +1139,37 @@ export function InterviewDetailsModal({
       </DialogContent>
     </Dialog>
 
-      {/* CONFIRMATION DIALOG: SELECT CANDIDATE */}
+      {/* CONFIRMATION DIALOG: SELECT CANDIDATE FOR OFFER */}
       <Dialog open={isSelectConfirmOpen} onOpenChange={setIsSelectConfirmOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-emerald-600 flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5" /> Confirm Candidate Selection
+            <DialogTitle className="text-base font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Select Candidate for Offer
             </DialogTitle>
             <DialogDescription className="text-xs pt-1">
               Are you sure you want to select{' '}
               <strong>
                 {interview?.candidate
                   ? `${interview.candidate.firstName} ${interview.candidate.lastName}`
-                  : 'Casey Stone'}
+                  : 'Candidate'}
               </strong>{' '}
-              for the position of <strong>{interview?.position || 'Product Designer'}</strong>?
+              for the position of <strong>{interview?.position || 'Candidate Role'}</strong>?
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/30 text-xs text-emerald-900 dark:text-emerald-300 space-y-1">
-            <span className="font-semibold block">Workflow Progression:</span>
-            <span>Interview → Selected → Offer & Joining</span>
-            <p className="text-[11px] opacity-90">
-              The candidate will be moved to <strong>Selected</strong> stage and immediately made available in the <strong>Offers & Joining</strong> module for offer letter generation.
+          <div className="p-3.5 bg-emerald-500/10 rounded-xl border border-emerald-500/30 text-xs text-emerald-950 dark:text-emerald-200 space-y-2">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
+              <Sparkles className="h-4 w-4 text-emerald-600" />
+              <span>Recommended Workflow Progression</span>
+            </div>
+            <div className="font-mono text-[11px] bg-background/90 p-2 rounded-lg border border-emerald-500/20 text-foreground font-semibold">
+              Selected → Offer / Onboarding → Joining
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Selecting this candidate moves their profile to <strong>Selected for Offer</strong> and makes them available in the <strong>Offers & Digital Onboarding</strong> module for offer letter generation.
+            </p>
+            <p className="text-[10.5px] text-emerald-800/90 dark:text-emerald-300/90 italic">
+              * Note: Selection does not directly mark the candidate as Hired. Hiring is finalized once the offer is accepted and onboarding commences.
             </p>
           </div>
 
@@ -1035,13 +1186,13 @@ export function InterviewDetailsModal({
             <Button
               type="button"
               size="sm"
-              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1"
+              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1 shadow-xs cursor-pointer"
               onClick={() => {
                 setIsSelectConfirmOpen(false);
                 updateStatusMutation.mutate({ status: 'SELECTED' });
               }}
             >
-              <CheckCircle2 className="h-4 w-4" /> Confirm Selection
+              <CheckCircle2 className="h-4 w-4" /> Confirm Selection (Proceed to Offer)
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1063,6 +1214,16 @@ export function InterviewDetailsModal({
               </strong>:
             </DialogDescription>
           </DialogHeader>
+
+          <div className="p-3 bg-rose-500/10 rounded-xl border border-rose-500/20 text-xs space-y-1">
+            <span className="font-semibold text-rose-800 dark:text-rose-300 block">Workflow Progression:</span>
+            <div className="font-mono text-[11px] bg-background/90 p-1.5 rounded border border-rose-500/20 text-foreground font-semibold">
+              Rejected → Recruitment Closed
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Candidate status will be updated to <strong>REJECTED</strong> and their recruitment pipeline for this position will be closed.
+            </p>
+          </div>
 
           <div className="space-y-2 py-2">
             <Label className="text-xs font-semibold">Rejection Reason / Remarks</Label>
@@ -1088,13 +1249,13 @@ export function InterviewDetailsModal({
               type="button"
               variant="destructive"
               size="sm"
-              className="text-xs font-bold gap-1"
+              className="text-xs font-bold gap-1 cursor-pointer"
               onClick={() => {
                 setIsRejectDialogOpen(false);
                 updateStatusMutation.mutate({ status: 'REJECTED', remarks: rejectReason });
               }}
             >
-              <XCircle className="h-4 w-4" /> Confirm Rejection
+              <XCircle className="h-4 w-4" /> Confirm Rejection (Close Pipeline)
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1116,6 +1277,16 @@ export function InterviewDetailsModal({
               </strong>:
             </DialogDescription>
           </DialogHeader>
+
+          <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-xs space-y-1">
+            <span className="font-semibold text-amber-800 dark:text-amber-300 block">Workflow Progression:</span>
+            <div className="font-mono text-[11px] bg-background/90 p-1.5 rounded border border-amber-500/20 text-foreground font-semibold">
+              On Hold → Resume Later
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              The candidate will remain on hold without rejecting or selecting. HR can resume or reopen their evaluation at any time.
+            </p>
+          </div>
 
           <div className="space-y-2 py-2">
             <Label className="text-xs font-semibold">Hold Reason / Future Alignment Notes</Label>
@@ -1140,13 +1311,13 @@ export function InterviewDetailsModal({
             <Button
               type="button"
               size="sm"
-              className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1"
+              className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1 cursor-pointer"
               onClick={() => {
                 setIsHoldDialogOpen(false);
                 updateStatusMutation.mutate({ status: 'ON_HOLD', remarks: holdReason });
               }}
             >
-              <PauseCircle className="h-4 w-4" /> Confirm Hold
+              <PauseCircle className="h-4 w-4" /> Confirm Put On Hold
             </Button>
           </DialogFooter>
         </DialogContent>

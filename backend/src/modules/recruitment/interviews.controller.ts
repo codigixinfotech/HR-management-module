@@ -78,13 +78,13 @@ export class InterviewsController {
 
   @Patch(':id/schedule')
   updateSchedule(@Param('id') id: string, @Body() dto: UpdateInterviewScheduleDto) {
-    return this.interviewsService.updateSchedule(id, dto);
+    return this.interviewsService.rescheduleInterview(id, dto);
   }
 
   @Patch(':id/reschedule')
   rescheduleInterview(
     @Param('id') id: string,
-    @Body() dto: { interviewDate: string; startTime: string; durationMinutes?: number }
+    @Body() dto: UpdateInterviewScheduleDto
   ) {
     return this.interviewsService.rescheduleInterview(id, dto);
   }

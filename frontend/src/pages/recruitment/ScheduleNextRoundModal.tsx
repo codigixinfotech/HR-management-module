@@ -277,7 +277,7 @@ export function ScheduleNextRoundModal({
         <DialogHeader className="p-5 bg-gradient-to-r from-primary/10 via-primary/5 to-background border-b border-border/60">
           <div className="flex items-center gap-2 mb-1">
             <Badge className="bg-primary/20 text-primary text-[10px] font-bold">
-              Post-Evaluation Roster Flow
+              Create Next Round → Schedule → Panel Evaluation
             </Badge>
             <Badge variant="outline" className="text-[10px] font-mono">
               Prev ID: {previousInterview.interviewCode}

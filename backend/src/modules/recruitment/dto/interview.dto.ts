@@ -159,6 +159,32 @@ export class UpdateInterviewScheduleDto {
   @IsObject()
   @IsOptional()
   panelMemberRoles?: Record<string, string>;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
+
+  @IsString()
+  @IsOptional()
+  remarks?: string;
+
+  @IsOptional()
+  notifyCandidate?: boolean;
+
+  @IsOptional()
+  notifyPanel?: boolean;
+
+  @IsString()
+  @IsOptional()
+  rescheduledByName?: string;
+
+  @IsString()
+  @IsOptional()
+  originalInterviewDate?: string;
+
+  @IsString()
+  @IsOptional()
+  originalStartTime?: string;
 }
 
 export class UpdateInterviewStatusDto {

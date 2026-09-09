@@ -40,7 +40,29 @@ export const interviewsApi = {
     createdByName?: string;
   }) => (await apiClient.post<CandidateInterview>('/recruitment/interviews', payload)).data,
 
-  reschedule: async (id: string, payload: { interviewDate: string; startTime: string; durationMinutes?: number }) =>
+  reschedule: async (
+    id: string,
+    payload: {
+      interviewDate: string;
+      startTime: string;
+      durationMinutes?: number;
+      interviewFormat?: string;
+      interviewMode?: string;
+      location?: string;
+      building?: string;
+      room?: string;
+      meetingLink?: string;
+      reason?: string;
+      remarks?: string;
+      panelMemberIds?: string[];
+      panelMemberRoles?: Record<string, string>;
+      notifyCandidate?: boolean;
+      notifyPanel?: boolean;
+      rescheduledByName?: string;
+      originalInterviewDate?: string;
+      originalStartTime?: string;
+    },
+  ) =>
     (await apiClient.patch<CandidateInterview>(`/recruitment/interviews/${id}/reschedule`, payload)).data,
 
   cancel: async (id: string, comment?: string) =>
