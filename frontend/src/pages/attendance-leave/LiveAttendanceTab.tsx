@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { employeesApi } from '@/api/employees';
 import { attendanceApi } from '@/api/attendance-leave';
 import { useAuthStore } from '@/stores/auth-store';
@@ -8,12 +9,10 @@ import {
   Search,
   Wifi,
   MapPin,
-  Fingerprint,
-  Video,
-  Cpu,
   Brain,
-  User,
-  ExternalLink,
+  Calendar,
+  Clock,
+  UserCheck,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,9 +21,9 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
 import { VerificationDetailsModal } from '@/components/attendance/VerificationDetailsModal';
-
-import { useSearchParams } from 'react-router-dom';
 import { EmployeeAttendanceView } from '@/components/attendance/EmployeeAttendanceView';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { MobileLiveAttendanceView } from '@/components/attendance/MobileLiveAttendanceView';
 
 interface LivePunch {
   id: string;
@@ -60,13 +59,34 @@ interface LivePunch {
 export function LiveAttendanceTab() {
   const user = useAuthStore((s) => s.user);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const isDetailsMe = searchParams.get('details') === 'me';
-
   const queryClient = useQueryClient();
+
+  const location = useLocation();
+  const isLiveRoute = location.pathname.endsWith('/live');
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [isFaceAttendanceOpen, setIsFaceAttendanceOpen] = useState(false);
+  const [isFaceAttendanceOpen, setIsFaceAttendanceOpen] = useState(isLiveRoute);
   const [isVerificationDetailsOpen, setIsVerificationDetailsOpen] = useState(false);
   const [selectedRecordForDetails, setSelectedRecordForDetails] = useState<LivePunch | null>(null);
+
+  useEffect(() => {
+    if (isLiveRoute) {
+      setIsFaceAttendanceOpen(true);
+    }
+  }, [isLiveRoute]);
+
+  const handleFaceIdPunch = () => {
+    navigate('/attendance-leave/live');
+    setIsFaceAttendanceOpen(true);
+  };
+
+  const handleCloseFacePunch = () => {
+    setIsFaceAttendanceOpen(false);
+  };
+
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Check if logged-in user is Admin or HR
   const isHrOrAdmin = useMemo(() => {
@@ -82,11 +102,7 @@ export function LiveAttendanceTab() {
     return Boolean(isRoleAdmin || isPrimaryAdmin);
   }, [user]);
 
-  if (!isHrOrAdmin || isDetailsMe) {
-    return <EmployeeAttendanceView />;
-  }
-
-  // Fetch employees list for dropdown filter inside Face Modal
+  // Fetch employees list for dropdown & 1:N face matching
   const { data: rawEmployees } = useQuery({
     queryKey: ['employees-list'],
     queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
@@ -187,12 +203,36 @@ export function LiveAttendanceTab() {
     });
   }, [dbAttendanceRecords]);
 
-  const filteredPunches = punches.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.dept.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPunches = useMemo(() => {
+    return punches.filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.dept.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [punches, searchQuery]);
+
+  // Handle mobile viewport: Render the exact same FaceAttendanceModal responsively/full-screen
+  if (isMobile) {
+    return (
+      <div className="w-full min-h-screen bg-slate-50 text-slate-900 pb-20">
+        <FaceAttendanceModal
+          isOpen={true}
+          onClose={() => navigate('/attendance-leave')}
+          employees={employeeItems}
+          isFullPage={true}
+          onPunchSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['attendance-live-records'] });
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Handle employee personal view if requested
+  if (!isHrOrAdmin || isDetailsMe) {
+    return <EmployeeAttendanceView />;
+  }
 
   const handleOpenVerificationDetails = (record: LivePunch) => {
     setSelectedRecordForDetails(record);
@@ -221,7 +261,7 @@ export function LiveAttendanceTab() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Face ID Engine</p>
               <p className="text-2xl font-semibold text-purple-600 mt-0.5">Active</p>
-              <p className="text-[10px] text-muted-foreground mt-1">128-D HOG Biometric Descriptor</p>
+              <p className="text-[10px] text-muted-foreground mt-1">128-D Biometric Descriptor</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 shrink-0">
               <Brain className="h-5 w-5" />
@@ -265,7 +305,7 @@ export function LiveAttendanceTab() {
               Real-Time Biometric Punch Feed
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground mt-0.5">
-              Click any employee photo or Face ID verification entry to open complete Verification Details.
+              Click any employee row to inspect verification details, face match score & GPS logs.
             </CardDescription>
           </div>
 
@@ -280,8 +320,8 @@ export function LiveAttendanceTab() {
               />
             </div>
             <Button
-              onClick={() => setIsFaceAttendanceOpen(true)}
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-sm font-semibold text-xs gap-1.5 h-9"
+              onClick={handleFaceIdPunch}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-sm font-semibold text-xs gap-1.5 h-9 cursor-pointer"
             >
               <Brain className="h-3.5 w-3.5" /> Face ID Punch
             </Button>
@@ -311,7 +351,7 @@ export function LiveAttendanceTab() {
               {filteredPunches.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={10} className="h-32 text-center text-muted-foreground text-xs font-semibold">
-                    No attendance records found in database.
+                    No attendance records found in database. Click &ldquo;Face ID Punch&rdquo; above to record attendance.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -420,7 +460,7 @@ export function LiveAttendanceTab() {
       {/* ── Modals ── */}
       <FaceAttendanceModal
         isOpen={isFaceAttendanceOpen}
-        onClose={() => setIsFaceAttendanceOpen(false)}
+        onClose={handleCloseFacePunch}
         employees={employeeItems}
       />
 

@@ -102,8 +102,10 @@ export function DocumentVaultTab() {
           let friendlyType = doc.docType;
           if (doc.docType === 'ID_PROOF') friendlyType = 'Aadhaar Card';
           else if (doc.docType === 'ADDRESS_PROOF') friendlyType = 'PAN Card';
+          else if (doc.docType === 'PASSPORT' || doc.docType === 'Passport') friendlyType = 'Passport';
           else if (doc.docType === 'EDUCATION') friendlyType = 'Degree Certificate';
           else if (doc.docType === 'OFFER_LETTER') friendlyType = 'Offer Letter';
+          else if (doc.docType === 'JOINING_LETTER') friendlyType = 'Joining Letter';
 
           // Avoid duplicating if we already render the structural placeholder
           if (['Aadhaar Card', 'PAN Card', 'Passport'].includes(friendlyType)) {
@@ -180,6 +182,70 @@ export function DocumentVaultTab() {
       toast.error(err?.response?.data?.message ?? 'Upload failed');
     },
   });
+
+  const getServerUrl = () => {
+    if (import.meta.env.VITE_SERVER_URL) return import.meta.env.VITE_SERVER_URL.replace(/\/+$/, '');
+    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      return `http://${window.location.hostname}:3001`;
+    }
+    return 'http://localhost:3001';
+  };
+
+  const triggerBlobDownload = (blob: Blob, doc: FlatDocRecord) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    let fileName = doc.docNumber || `${doc.docType.replace(/\s+/g, '_')}_${doc.code}`;
+    if (!fileName.includes('.') && doc.filePath) {
+      const ext = doc.filePath.split('.').pop();
+      if (ext && ext.length <= 5) {
+        fileName = `${fileName}.${ext}`;
+      }
+    }
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownload = async (doc: FlatDocRecord) => {
+    if (!doc.filePath && !doc.fileId) {
+      toast.error('No attached document file found');
+      return;
+    }
+
+    const toastId = toast.loading(`Downloading ${doc.docNumber || doc.docType}...`);
+
+    try {
+      const serverBase = getServerUrl();
+      const directApiUrl = doc.fileId
+        ? `${serverBase}/api/employees/documents/${doc.fileId}/download`
+        : `${serverBase}/${(doc.filePath || '').replace(/\\/g, '/').replace(/^\.?\/?/, '')}`;
+
+      const res = await fetch(directApiUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      triggerBlobDownload(blob, doc);
+      toast.success('Document downloaded successfully!', { id: toastId });
+    } catch (err) {
+      console.warn('Direct fetch failed, trying direct browser navigation:', err);
+      const serverBase = getServerUrl();
+      const directUrl = doc.fileId
+        ? `${serverBase}/api/employees/documents/${doc.fileId}/download`
+        : `${serverBase}/${(doc.filePath || '').replace(/\\/g, '/').replace(/^\.?\/?/, '')}`;
+
+      const link = document.createElement('a');
+      link.href = directUrl;
+      link.target = '_blank';
+      link.download = doc.docNumber || `${doc.docType}_${doc.code}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.dismiss(toastId);
+    }
+  };
 
   const handleVerify = (employeeId: string) => {
     verifyMutation.mutate(employeeId);
@@ -450,22 +516,18 @@ export function DocumentVaultTab() {
                             Verify Doc
                           </Button>
                         )}
-                        {doc.filePath && (
+                        {(doc.filePath || doc.fileId) ? (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                            title="Download Document"
-                            onClick={() => {
-                              const serverBaseUrl =
-                                import.meta.env.VITE_SERVER_URL ||
-                                (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : typeof window !== 'undefined' ? window.location.origin : '');
-                              const normalizedPath = doc.filePath.startsWith('/') ? doc.filePath : `/${doc.filePath}`;
-                              window.open(`${serverBaseUrl}${normalizedPath}`, '_blank');
-                            }}
+                            className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10 transition-colors"
+                            title={`Download ${doc.docNumber || doc.docType}`}
+                            onClick={() => handleDownload(doc)}
                           >
-                            <Download className="h-3.5 w-3.5" />
+                            <Download className="h-4 w-4" />
                           </Button>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground italic px-1">No file</span>
                         )}
                       </div>
                     </TableCell>

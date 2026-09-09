@@ -25,23 +25,32 @@ import {
 } from './dto/hr-policy.dto';
 import { policyDocumentStorage } from './multer.config';
 
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
+
 @Controller('organization/hr-policies')
 export class HrPoliciesController {
   constructor(private readonly service: HrPoliciesService) {}
 
   @Get('kpis')
-  getKpis(@Query('companyId') companyId?: string) {
-    return this.service.getKpis(companyId);
+  getKpis(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.service.getKpis(tenantCompanyId);
   }
 
   @Get()
   findAll(
+    @CurrentUser() user: CurrentUserPayload,
     @Query('search') search?: string,
     @Query('category') category?: string,
     @Query('status') status?: string,
     @Query('companyId') companyId?: string,
   ) {
-    return this.service.findAll(search, category, status, companyId);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.service.findAll(search, category, status, tenantCompanyId);
   }
 
   @Post('upload')

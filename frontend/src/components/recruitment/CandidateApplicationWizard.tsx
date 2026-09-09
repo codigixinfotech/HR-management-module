@@ -139,20 +139,20 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
   const [expectedCtc, setExpectedCtc] = useState('');
 
   // ── Step 3: Education Details (MNC-Style Repeatable Qualification Card Pattern) ──
-  const [editingEduId, setEditingEduId] = useState<string | null>(null);
+  const [editingEduId, setEditingEduId] = useState<string | null>('edu-1');
   const [isAddingEdu, setIsAddingEdu] = useState<boolean>(false);
 
   const [educationList, setEducationList] = useState<EducationItem[]>([
     {
       id: 'edu-1',
       qualificationType: 'Undergraduate / Graduation',
-      degree: job.qualification || 'B.Tech / B.E.',
-      specialization: 'Computer Science & Engineering',
+      degree: '',
+      specialization: '',
       institution: '',
       universityOrBoard: '',
       affiliation: '',
-      startYear: '2022',
-      passingYear: '2026',
+      startYear: '',
+      passingYear: '',
       gradingSystem: 'CGPA / Percentage',
       score: '',
       educationMode: 'Full Time',
@@ -293,8 +293,30 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
   };
 
   const removeEducation = (id: string) => {
-    if (educationList.length === 1) {
-      toast.warning('At least one education record is required.');
+    if (educationList.length <= 1) {
+      const resetId = `edu-${Date.now()}`;
+      setEducationList([
+        {
+          id: resetId,
+          qualificationType: 'Undergraduate / Graduation',
+          degree: '',
+          specialization: '',
+          institution: '',
+          universityOrBoard: '',
+          affiliation: '',
+          startYear: '',
+          passingYear: '',
+          gradingSystem: 'CGPA / Percentage',
+          score: '',
+          educationMode: 'Full Time',
+          resultStatus: 'Passed',
+          country: 'India',
+          stateOrCity: '',
+        },
+      ]);
+      setEditingEduId(resetId);
+      setIsAddingEdu(false);
+      toast.info('Education details cleared.');
       return;
     }
     setEducationList((prev) => prev.filter((item) => item.id !== id));
@@ -392,33 +414,21 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
           if (!activeEdu.passingYear.trim()) {
             errs.passingYear = 'Passing Year is required.';
           }
-        }
-      }
-    }
-
-    if (currentStep === 4 && hasCertifications === 'YES') {
-      if (certificationList.length === 0) {
-        toast.error('You indicated you hold certifications. Please click "+ Add Another Certification" to add your details.');
-        return false;
-      }
-      if (editingCertId !== null) {
-        const activeCert = certificationList.find((c) => c.id === editingCertId);
-        if (activeCert) {
-          if (!activeCert.name.trim() || !activeCert.issuingOrganization.trim()) {
-            toast.error('Please save or complete your current certification details before proceeding.');
-            return false;
+          if (activeEdu.institution.trim() && activeEdu.passingYear.trim()) {
+            setEditingEduId(null);
+            setIsAddingEdu(false);
           }
         }
       }
     }
 
-    if (currentStep === 5) {
+    if (currentStep === 4) {
       if (!resumeFile && !resumePath) {
         errs.resume = 'Resume / CV document (PDF/DOC/DOCX) is required.';
       }
     }
 
-    if (currentStep === 6) {
+    if (currentStep === 5) {
       if (!agreeDeclaration) {
         errs.consent = 'You must confirm the Applicant Declaration & Consent before submitting.';
       }
@@ -434,7 +444,7 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
 
   const handleNext = () => {
     if (validateCurrentStep()) {
-      setCurrentStep((prev) => Math.min(prev + 1, 6));
+      setCurrentStep((prev) => Math.min(prev + 1, 5));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -507,9 +517,8 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
     { number: 1, title: '1. Personal Information', icon: User },
     { number: 2, title: '2. Experience Details', icon: Briefcase },
     { number: 3, title: '3. Education Details', icon: GraduationCap },
-    { number: 4, title: '4. Skills & Certifications', icon: Star },
-    { number: 5, title: '5. Resume & Documents', icon: FileText },
-    { number: 6, title: '6. Review & Submit', icon: CheckCircle2 },
+    { number: 4, title: '4. Resume & Documents', icon: FileText },
+    { number: 5, title: '5. Review & Submit', icon: CheckCircle2 },
   ];
 
   return (
@@ -705,22 +714,28 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center shrink-0">
-                    <GraduationCap className="h-5 w-5" />
+                    {currentStep === 1 && <User className="h-5 w-5" />}
+                    {currentStep === 2 && <Briefcase className="h-5 w-5" />}
+                    {currentStep === 3 && <GraduationCap className="h-5 w-5" />}
+                    {currentStep === 4 && <FileText className="h-5 w-5" />}
+                    {currentStep === 5 && <CheckCircle2 className="h-5 w-5" />}
                   </div>
                   <div>
                     <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                      {sidebarSteps[currentStep - 1].title}
+                      {sidebarSteps[currentStep - 1]?.title}
                     </h3>
                     <p className="text-xs text-slate-500">
-                      {currentStep === 3
-                        ? 'Add your complete academic qualification details.'
-                        : 'Enter your application details for this section.'}
+                      {currentStep === 1 && 'Enter your personal and contact details.'}
+                      {currentStep === 2 && 'Provide your employment and industry experience.'}
+                      {currentStep === 3 && 'Add your complete academic qualification details.'}
+                      {currentStep === 4 && 'Upload your resume and supporting documents.'}
+                      {currentStep === 5 && 'Review all details carefully before final submission.'}
                     </p>
                   </div>
                 </div>
 
                 <Badge variant="outline" className="text-xs font-semibold text-slate-600 border-slate-200 bg-slate-50 px-3 py-1">
-                  Step {currentStep} of 6
+                  Step {currentStep} of 5
                 </Badge>
               </div>
 
@@ -1485,388 +1500,8 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                 </div>
               )}
 
-              {/* STEP 4: SKILLS & CERTIFICATIONS (DYNAMIC YES/NO + REPEATABLE CERTIFICATION CARDS) */}
+              {/* STEP 4: RESUME & DOCUMENTS */}
               {currentStep === 4 && (
-                <div className="space-y-6">
-                  {/* Required Skills Card */}
-                  <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 space-y-2">
-                    <span className="font-bold text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
-                      <Award className="h-4 w-4" /> Required Job Skills (Read-Only)
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {jobRequiredSkillsArray.map((sk, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs font-semibold bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300">
-                          {sk}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Technical Skills Input */}
-                  <div className="space-y-1.5">
-                    <Label className="font-semibold text-xs">Technical Skills & Competencies</Label>
-                    <Textarea
-                      value={technicalSkills}
-                      onChange={(e) => setTechnicalSkills(e.target.value)}
-                      placeholder="e.g. React.js, Node.js, Docker, Kubernetes, AWS"
-                      className="text-xs min-h-[80px]"
-                    />
-                  </div>
-
-                  {/* Professional Certifications Dynamic Section */}
-                  <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-5 bg-white dark:bg-slate-900 space-y-5 shadow-2xs">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3 space-y-1">
-                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                        CERTIFICATIONS
-                      </h4>
-                      <Label className="font-semibold text-xs text-slate-700 dark:text-slate-300 block">
-                        Do you hold any professional certifications relevant to this position? *
-                      </Label>
-
-                      {/* Yes / No Radio Choice */}
-                      <div className="flex items-center gap-6 pt-2">
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="hasCertifications"
-                            value="YES"
-                            checked={hasCertifications === 'YES'}
-                            onChange={() => {
-                              setHasCertifications('YES');
-                              if (certificationList.length === 0) {
-                                addCertification();
-                              }
-                            }}
-                            className="h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                          />
-                          Yes
-                        </label>
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="hasCertifications"
-                            value="NO"
-                            checked={hasCertifications === 'NO'}
-                            onChange={() => {
-                              setHasCertifications('NO');
-                              setEditingCertId(null);
-                              setIsAddingCert(false);
-                            }}
-                            className="h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                          />
-                          No
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* IF NO CERTIFICATIONS SELECTED */}
-                    {hasCertifications === 'NO' && (
-                      <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500 italic">
-                        No certification details required.
-                      </div>
-                    )}
-
-                    {/* IF YES CERTIFICATIONS SELECTED */}
-                    {hasCertifications === 'YES' && (
-                      <div className="space-y-4 pt-1">
-                        {/* VIEW MODE: COMPACT SAVED CARDS */}
-                        {editingCertId === null && certificationList.length > 0 ? (
-                          <div className="space-y-4">
-                            <div className="space-y-3">
-                              {certificationList.map((cert, idx) => (
-                                <div
-                                  key={cert.id}
-                                  className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-white dark:bg-slate-900 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:border-indigo-300"
-                                >
-                                  <div className="space-y-1 flex-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <Badge className="bg-indigo-600 text-white font-bold text-xs gap-1 px-2.5 py-0.5">
-                                        Certification #{idx + 1}
-                                      </Badge>
-                                      <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                                        {cert.name || 'Certification Name Not Set'}
-                                      </span>
-                                      {cert.issuingOrganization && (
-                                        <span className="text-xs text-slate-500 font-semibold">• {cert.issuingOrganization}</span>
-                                      )}
-                                    </div>
-
-                                    <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-3 pt-1">
-                                      {cert.certificationType && (
-                                        <span>Type: <strong className="text-slate-700 dark:text-slate-300">{cert.certificationType}</strong></span>
-                                      )}
-                                      {cert.credentialId && (
-                                        <span>Credential ID: <strong className="font-mono text-slate-700 dark:text-slate-300">{cert.credentialId}</strong></span>
-                                      )}
-                                      {cert.issueDate && (
-                                        <span>Issued: <strong className="font-mono text-slate-700 dark:text-slate-300">{cert.issueDate}</strong></span>
-                                      )}
-                                      <span>
-                                        Expiry:{' '}
-                                        <strong className="font-mono text-slate-700 dark:text-slate-300">
-                                          {cert.hasExpiry && cert.expiryDate ? cert.expiryDate : 'No Expiry'}
-                                        </strong>
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        setEditingCertId(cert.id);
-                                        setIsAddingCert(false);
-                                      }}
-                                      className="h-8 text-xs font-semibold px-3 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeCertification(cert.id)}
-                                      className="h-8 text-xs font-semibold px-3 text-rose-600 hover:bg-rose-50"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* + Add Another Certification Button */}
-                            <div className="pt-2 text-center">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={addCertification}
-                                className="text-xs font-bold gap-2 px-6 h-9 border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950 shadow-2xs cursor-pointer"
-                              >
-                                <Plus className="h-4 w-4" /> + Add Another Certification
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          /* FORM ENTRY MODE FOR ACTIVE CERTIFICATION */
-                          (() => {
-                            const activeCert = certificationList.find((c) => c.id === editingCertId) || certificationList[0];
-                            if (!activeCert) return null;
-
-                            return (
-                              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4.5 bg-slate-50/50 dark:bg-slate-900/50 space-y-4">
-                                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
-                                  <span className="font-bold text-xs text-indigo-700 dark:text-indigo-300">
-                                    Certification Details Form
-                                  </span>
-                                  {certificationList.length > 1 && (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        if (isAddingCert) {
-                                          setCertificationList((prev) => prev.filter((c) => c.id !== activeCert.id));
-                                        }
-                                        setEditingCertId(null);
-                                        setIsAddingCert(false);
-                                      }}
-                                      className="h-6 text-xs text-slate-500 hover:bg-slate-200"
-                                    >
-                                      Cancel
-                                    </Button>
-                                  )}
-                                </div>
-
-                                {/* Row 1: Certification Name & Issuing Organization */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <div className="space-y-1.5">
-                                    <Label className="font-semibold text-xs">Certification Name *</Label>
-                                    <Input
-                                      type="text"
-                                      value={activeCert.name}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setCertificationList((prev) =>
-                                          prev.map((c) => (c.id === activeCert.id ? { ...c, name: val } : c))
-                                        );
-                                      }}
-                                      placeholder="e.g. AWS Certified Developer"
-                                      className="h-9 text-xs bg-white dark:bg-slate-900"
-                                    />
-                                  </div>
-
-                                  <div className="space-y-1.5">
-                                    <Label className="font-semibold text-xs">Issuing Organization *</Label>
-                                    <Input
-                                      type="text"
-                                      value={activeCert.issuingOrganization}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setCertificationList((prev) =>
-                                          prev.map((c) => (c.id === activeCert.id ? { ...c, issuingOrganization: val } : c))
-                                        );
-                                      }}
-                                      placeholder="e.g. Amazon Web Services / Microsoft"
-                                      className="h-9 text-xs bg-white dark:bg-slate-900"
-                                    />
-                                  </div>
-                                </div>
-
-                                {/* Row 2: Certification Type */}
-                                <div className="space-y-1.5 max-w-sm">
-                                  <Label className="font-semibold text-xs">Certification Type *</Label>
-                                  <Select
-                                    value={activeCert.certificationType || 'Professional'}
-                                    onValueChange={(val) => {
-                                      setCertificationList((prev) =>
-                                        prev.map((c) => (c.id === activeCert.id ? { ...c, certificationType: val } : c))
-                                      );
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200">
-                                      <SelectValue placeholder="Select Type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="Professional">Professional</SelectItem>
-                                      <SelectItem value="Technical">Technical</SelectItem>
-                                      <SelectItem value="Vendor / Industry">Vendor / Industry</SelectItem>
-                                      <SelectItem value="Compliance / Safety">Compliance / Safety</SelectItem>
-                                      <SelectItem value="Other">Other</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                {/* Row 3: Issue Date & Has Expiry Radio */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <div className="space-y-1.5">
-                                    <Label className="font-semibold text-xs">Issue Date *</Label>
-                                    <Input
-                                      type="text"
-                                      value={activeCert.issueDate || ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setCertificationList((prev) =>
-                                          prev.map((c) => (c.id === activeCert.id ? { ...c, issueDate: val } : c))
-                                        );
-                                      }}
-                                      placeholder="e.g. Jun 2026 / 2026-06"
-                                      className="h-9 text-xs bg-white dark:bg-slate-900 font-mono"
-                                    />
-                                  </div>
-
-                                  <div className="space-y-1.5">
-                                    <Label className="font-semibold text-xs">Does this certification have an expiry date? *</Label>
-                                    <div className="flex items-center gap-6 pt-2">
-                                      <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
-                                        <input
-                                          type="radio"
-                                          name={`hasExpiry-${activeCert.id}`}
-                                          checked={activeCert.hasExpiry === true}
-                                          onChange={() => {
-                                            setCertificationList((prev) =>
-                                              prev.map((c) => (c.id === activeCert.id ? { ...c, hasExpiry: true } : c))
-                                            );
-                                          }}
-                                          className="h-4 w-4 text-indigo-600"
-                                        />
-                                        Yes
-                                      </label>
-                                      <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
-                                        <input
-                                          type="radio"
-                                          name={`hasExpiry-${activeCert.id}`}
-                                          checked={activeCert.hasExpiry === false}
-                                          onChange={() => {
-                                            setCertificationList((prev) =>
-                                              prev.map((c) => (c.id === activeCert.id ? { ...c, hasExpiry: false, expiryDate: '' } : c))
-                                            );
-                                          }}
-                                          className="h-4 w-4 text-indigo-600"
-                                        />
-                                        No
-                                      </label>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Row 4: Expiry Date (If Has Expiry = Yes) */}
-                                {activeCert.hasExpiry && (
-                                  <div className="space-y-1.5 max-w-sm">
-                                    <Label className="font-semibold text-xs">Expiry Date</Label>
-                                    <Input
-                                      type="text"
-                                      value={activeCert.expiryDate || ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setCertificationList((prev) =>
-                                          prev.map((c) => (c.id === activeCert.id ? { ...c, expiryDate: val } : c))
-                                        );
-                                      }}
-                                      placeholder="e.g. Jun 2029 / 2029-06"
-                                      className="h-9 text-xs bg-white dark:bg-slate-900 font-mono"
-                                    />
-                                  </div>
-                                )}
-
-
-
-                                {/* Save & Cancel Certification Buttons */}
-                                <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
-                                  {certificationList.length > 1 && (
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        if (isAddingCert) {
-                                          setCertificationList((prev) => prev.filter((c) => c.id !== activeCert.id));
-                                        }
-                                        setEditingCertId(null);
-                                        setIsAddingCert(false);
-                                      }}
-                                      className="h-8 text-xs font-semibold px-4"
-                                    >
-                                      Cancel
-                                    </Button>
-                                  )}
-
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    onClick={() => {
-                                      if (!activeCert.name.trim()) {
-                                        toast.error('Certification Name is required.');
-                                        return;
-                                      }
-                                      if (!activeCert.issuingOrganization.trim()) {
-                                        toast.error('Issuing Organization is required.');
-                                        return;
-                                      }
-                                      setEditingCertId(null);
-                                      setIsAddingCert(false);
-                                      toast.success(`Certification "${activeCert.name}" saved successfully!`);
-                                    }}
-                                    className="h-8 text-xs font-bold px-6 bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
-                                  >
-                                    <Save className="h-3.5 w-3.5 mr-1.5" /> Save Certification
-                                  </Button>
-                                </div>
-                              </div>
-                            );
-                          })()
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 5: RESUME & DOCUMENTS */}
-              {currentStep === 5 && (
                 <div className="space-y-6">
                   {resumeFile || resumePath ? (
                     <div className="border border-emerald-300 rounded-xl p-4 bg-emerald-50/60 flex items-center justify-between">
@@ -1895,8 +1530,8 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                 </div>
               )}
 
-              {/* STEP 6: REVIEW & SUBMIT */}
-              {currentStep === 6 && (
+              {/* STEP 5: REVIEW & SUBMIT */}
+              {currentStep === 5 && (
                 <div className="space-y-6">
                   <div className="space-y-4">
                     {/* Personal Info Summary */}
@@ -1947,27 +1582,13 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                       ))}
                     </div>
 
-                    {/* Skills & Certifications Summary */}
-                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/70 dark:bg-slate-900/50 space-y-2 text-xs">
-                      <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
-                        <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[11px]">
-                          4. Skills & Certifications
-                        </span>
-                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(4)} className="h-6 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50">
-                          <Edit2 className="h-3 w-3 mr-1" /> Edit
-                        </Button>
-                      </div>
-                      <p><strong>Technical Skills:</strong> {technicalSkills || 'Not specified'}</p>
-                      <p><strong>Certifications:</strong> {hasCertifications === 'YES' ? `${certificationList.length} Certifications Saved` : 'No professional certifications'}</p>
-                    </div>
-
                     {/* Resume & Documents Summary */}
                     <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/70 dark:bg-slate-900/50 space-y-2 text-xs">
                       <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
                         <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[11px]">
-                          5. Resume & Attached Documents
+                          4. Resume & Attached Documents
                         </span>
-                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(5)} className="h-6 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50">
+                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep(4)} className="h-6 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50">
                           <Edit2 className="h-3 w-3 mr-1" /> Edit
                         </Button>
                       </div>
@@ -2035,7 +1656,7 @@ export const CandidateApplicationWizard: React.FC<CandidateApplicationWizardProp
                     &lt; Back
                   </Button>
 
-                  {currentStep < 6 ? (
+                  {currentStep < 5 ? (
                     <Button
                       type="button"
                       size="sm"

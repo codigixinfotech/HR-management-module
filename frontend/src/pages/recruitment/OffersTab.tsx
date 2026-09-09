@@ -30,6 +30,7 @@ import {
   MapPin,
   RefreshCw,
   AlertCircle,
+  Edit,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,8 +44,196 @@ import { Badge } from '@/components/ui/badge';
 import { jobOpeningsApi, candidatesApi, offersApi } from '@/api/recruitment';
 import type { CandidateStage } from '@/api/types';
 import { Pagination } from '@/components/common/Pagination';
+import { useCompany } from '@/context/CompanyContext';
 
-interface OfferItem {
+export type CtcUnit = 'YEAR' | 'LAKH' | 'CRORE';
+export type CtcDisplayFormat = 'STANDARD' | 'YEAR' | 'LAKH' | 'CRORE';
+
+/**
+ * Format number to standard Indian format: ₹24,00,000 / yr
+ */
+export function formatStandardCtc(amount: number): string {
+  const safe = Math.max(0, Math.round(amount || 0));
+  const formatted = new Intl.NumberFormat('en-IN').format(safe);
+  return `₹${formatted} / yr`;
+}
+
+/**
+ * Format number to standard Indian currency without period suffix: ₹24,00,000
+ */
+export function formatInrCurrency(amount: number): string {
+  const safe = Math.max(0, Math.round(amount || 0));
+  return `₹${new Intl.NumberFormat('en-IN').format(safe)}`;
+}
+
+/**
+ * Format number to Indian Lakh format: ₹24.00 Lakh / yr
+ */
+export function formatLakhCtc(amount: number): string {
+  const safe = Math.max(0, amount || 0);
+  const lakhs = safe / 100000;
+  const formatted = lakhs.toFixed(2);
+  return `₹${formatted} Lakh / yr`;
+}
+
+/**
+ * Format number to Indian Crore format: ₹0.24 Crore / yr
+ */
+export function formatCroreCtc(amount: number): string {
+  const safe = Math.max(0, amount || 0);
+  const crores = safe / 10000000;
+  const formatted = crores.toFixed(2);
+  return `₹${formatted} Crore / yr`;
+}
+
+export function formatCtcByFormat(amount: number, format: CtcDisplayFormat): string {
+  if (format === 'LAKH') return formatLakhCtc(amount);
+  if (format === 'CRORE') return formatCroreCtc(amount);
+  return formatStandardCtc(amount);
+}
+
+/**
+ * Format input value depending on unit dropdown selection:
+ * - 'YEAR': "12,00,000" or "24,00,000"
+ * - 'LAKH': "12.00" (or "12")
+ * - 'CRORE': "0.12" (or "0.24")
+ */
+export function formatInputValueForUnit(amount: number, unit: CtcUnit): string {
+  const safe = Math.max(0, amount || 0);
+  if (unit === 'LAKH') {
+    const val = safe / 100000;
+    return Number(val.toFixed(2)).toString();
+  }
+  if (unit === 'CRORE') {
+    const val = safe / 10000000;
+    return Number(val.toFixed(4)).toString();
+  }
+  return new Intl.NumberFormat('en-IN').format(Math.round(safe));
+}
+
+/**
+ * Parses user input value based on current selected unit dropdown:
+ * - If unit is 'YEAR': "12,00,000" -> 1200000
+ * - If unit is 'LAKH': "12" or "12.00" -> 1200000
+ * - If unit is 'CRORE': "0.12" -> 1200000
+ */
+export function parseCtcValueWithUnit(input: string, unit: CtcUnit): number {
+  if (!input) return 0;
+  const raw = input.trim().toLowerCase();
+
+  // If user typed or pasted explicit text with crore/cr
+  const croreMatch = raw.match(/([\d,.]+)\s*(?:crores?|cr\b)/i);
+  if (croreMatch) {
+    const val = parseFloat(croreMatch[1].replace(/,/g, ''));
+    if (!isNaN(val)) return Math.round(val * 10000000);
+  }
+
+  // If user typed or pasted explicit text with lakh/lac/lpa
+  const lakhMatch = raw.match(/([\d,.]+)\s*(?:lakhs?|lacs?|lpa\b)/i);
+  if (lakhMatch) {
+    const val = parseFloat(lakhMatch[1].replace(/,/g, ''));
+    if (!isNaN(val)) return Math.round(val * 100000);
+  }
+
+  // Standard numeric extraction based on selected unit
+  const cleaned = raw.replace(/[^\d.]/g, '');
+  if (!cleaned) return 0;
+  const val = parseFloat(cleaned);
+  if (isNaN(val)) return 0;
+
+  if (unit === 'LAKH') {
+    return Math.round(val * 100000);
+  }
+  if (unit === 'CRORE') {
+    return Math.round(val * 10000000);
+  }
+  return Math.round(val);
+}
+
+/**
+ * Parses user input string which may be in any of the formats:
+ * - "₹24,00,000 / yr", "2400000", "24,00,000"
+ * - "₹24 Lakh / yr", "24 Lakh", "24.00 Lakh", "24L", "24 lac", "24 LPA"
+ * - "₹0.24 Crore / yr", "0.24 Crore", "0.24 Cr", "0.24Cr"
+ *
+ * All three formats resolve to the identical canonical numeric amount (e.g. 2400000).
+ */
+export function parseCtcInput(input: string | number): number {
+  if (typeof input === 'number') {
+    return isNaN(input) || input < 0 ? 0 : Math.round(input);
+  }
+  if (!input || typeof input !== 'string') return 0;
+
+  const raw = input.trim().toLowerCase();
+
+  // 1. Check Crore format (e.g. "₹0.24 Crore / yr", "0.24 Crore", "0.24 Cr", "0.24cr")
+  const croreMatch = raw.match(/([\d,.]+)\s*(?:crores?|cr\b)/i);
+  if (croreMatch) {
+    const numStr = croreMatch[1].replace(/,/g, '');
+    const val = parseFloat(numStr);
+    if (!isNaN(val)) return Math.round(val * 10000000);
+  }
+
+  // 2. Check Lakh format (e.g. "₹24 Lakh / yr", "24.00 Lakh", "24 Lakh", "24L", "24 lac", "24 LPA")
+  const lakhMatch = raw.match(/([\d,.]+)\s*(?:lakhs?|lacs?|lpa\b|l\b)/i);
+  if (lakhMatch) {
+    const numStr = lakhMatch[1].replace(/,/g, '');
+    const val = parseFloat(numStr);
+    if (!isNaN(val)) return Math.round(val * 100000);
+  }
+
+  // 3. Clean all non-digit and non-decimal characters (e.g. "₹24,00,000 / yr" -> "2400000")
+  const cleaned = raw.replace(/[^\d.]/g, '');
+  if (!cleaned) return 0;
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : Math.round(parsed);
+}
+
+export interface SalaryBreakdown {
+  basic: number;
+  hra: number;
+  special: number;
+  pf: number;
+  basicPercent: number;
+  hraPercent: number;
+  specialPercent: number;
+  pfPercent: number;
+  totalAnnual: number;
+  totalMonthly: number;
+  isValid: boolean;
+}
+
+export function calculateSalaryBreakdown(
+  annualCtc: number,
+  percentages = { basic: 50, hra: 20, special: 20, pf: 10 }
+): SalaryBreakdown {
+  const safeCtc = Math.max(0, annualCtc || 0);
+  const basic = Math.round((safeCtc * percentages.basic) / 100);
+  const hra = Math.round((safeCtc * percentages.hra) / 100);
+  const special = Math.round((safeCtc * percentages.special) / 100);
+  const pf = Math.round((safeCtc * percentages.pf) / 100);
+  const totalAnnual = basic + hra + special + pf;
+  const totalMonthly = Math.round(totalAnnual / 12);
+  const isValid =
+    percentages.basic + percentages.hra + percentages.special + percentages.pf === 100 &&
+    (safeCtc === 0 || Math.abs(totalAnnual - safeCtc) <= 2);
+
+  return {
+    basic,
+    hra,
+    special,
+    pf,
+    basicPercent: percentages.basic,
+    hraPercent: percentages.hra,
+    specialPercent: percentages.special,
+    pfPercent: percentages.pf,
+    totalAnnual,
+    totalMonthly,
+    isValid,
+  };
+}
+
+export interface OfferItem {
   id: string;
   candidateId?: string;
   candidate: string;
@@ -56,8 +245,21 @@ interface OfferItem {
   employmentType?: string;
   requisitionCode?: string;
   interviewCode?: string;
-  ctc: string;
+  annualCTC: number; // Canonical numeric value (e.g. 2400000)
+  currency: string;  // e.g. 'INR'
+  ctcDisplayFormat: CtcDisplayFormat;
+  ctc: string;       // Formatted string according to ctcDisplayFormat, e.g. "₹24,00,000 / yr"
   salaryStructure?: string;
+  salaryBreakdown?: {
+    basic: number;
+    hra: number;
+    special: number;
+    pf: number;
+    basicPercent: number;
+    hraPercent: number;
+    specialPercent: number;
+    pfPercent: number;
+  };
   releaseDate: string;
   selectionDate?: string;
   joiningDate?: string;
@@ -82,8 +284,12 @@ const INITIAL_OFFERS: OfferItem[] = [
     employmentType: 'Full-time',
     requisitionCode: 'JR-2026-004',
     interviewCode: 'INT-2026-012',
+    annualCTC: 2200000,
+    currency: 'INR',
+    ctcDisplayFormat: 'STANDARD',
     ctc: '₹22,00,000 / yr',
     salaryStructure: 'Standard CTC (50% Basic, 20% HRA, 20% Special, 10% PF)',
+    salaryBreakdown: calculateSalaryBreakdown(2200000),
     releaseDate: '04 Aug 2026',
     selectionDate: '02 Aug 2026',
     expiryDate: '11 Aug 2026',
@@ -105,8 +311,12 @@ const INITIAL_OFFERS: OfferItem[] = [
     employmentType: 'Full-time',
     requisitionCode: 'JR-2026-003',
     interviewCode: 'INT-2026-014',
+    annualCTC: 1650000,
+    currency: 'INR',
+    ctcDisplayFormat: 'STANDARD',
     ctc: '₹16,50,000 / yr',
-    salaryStructure: 'Standard CTC',
+    salaryStructure: 'Standard CTC (50% Basic, 20% HRA, 20% Special, 10% PF)',
+    salaryBreakdown: calculateSalaryBreakdown(1650000),
     releaseDate: '05 Aug 2026',
     selectionDate: '03 Aug 2026',
     expiryDate: '12 Aug 2026',
@@ -128,8 +338,12 @@ const INITIAL_OFFERS: OfferItem[] = [
     employmentType: 'Full-time',
     requisitionCode: 'JR-2026-001',
     interviewCode: 'INT-2026-008',
+    annualCTC: 1800000,
+    currency: 'INR',
+    ctcDisplayFormat: 'STANDARD',
     ctc: '₹18,00,000 / yr',
-    salaryStructure: 'Standard CTC',
+    salaryStructure: 'Standard CTC (50% Basic, 20% HRA, 20% Special, 10% PF)',
+    salaryBreakdown: calculateSalaryBreakdown(1800000),
     releaseDate: '01 Aug 2026',
     selectionDate: '29 Jul 2026',
     expiryDate: '08 Aug 2026',
@@ -146,10 +360,25 @@ export function OffersTab() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [localOffers, setLocalOffers] = useState<OfferItem[]>(INITIAL_OFFERS);
+  const [localOffers, setLocalOffers] = useState<OfferItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('ehcm_recruitment_offers');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return INITIAL_OFFERS;
+  });
+
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ehcm_recruitment_offers', JSON.stringify(localOffers));
+    } catch {}
+  }, [localOffers]);
+
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
 
@@ -159,8 +388,8 @@ export function OffersTab() {
 
   // Fetch real Job Openings & candidates from DB
   const { data: openings = [] } = useQuery({
-    queryKey: ['job-openings'],
-    queryFn: () => jobOpeningsApi.list(),
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
 
   // Dynamically map DB candidates in OFFERED / HIRED / SELECTED stage
@@ -170,9 +399,9 @@ export function OffersTab() {
       if (job.candidates && job.candidates.length > 0) {
         job.candidates.forEach((c) => {
           if (c.stage === 'OFFERED' || c.stage === 'HIRED') {
-            const formattedCtc = c.expectedCtc
-              ? `₹${c.expectedCtc.toLocaleString()} / yr`
-              : '₹24,00,000 / yr';
+            const numericCtc = c.expectedCtc ? parseCtcInput(c.expectedCtc) : 2400000;
+            const safeCtc = numericCtc > 0 ? numericCtc : 2400000;
+            const formattedCtc = formatStandardCtc(safeCtc);
             list.push({
               id: `OFR-${c.id.substring(0, 6).toUpperCase()}`,
               candidateId: c.id,
@@ -184,7 +413,12 @@ export function OffersTab() {
               department: 'Product Design',
               employmentType: 'Full-time',
               requisitionCode: job.requisitionCode || 'JR-2026-001',
+              annualCTC: safeCtc,
+              currency: 'INR',
+              ctcDisplayFormat: 'STANDARD',
               ctc: formattedCtc,
+              salaryStructure: 'Standard CTC (50% Basic, 20% HRA, 20% Special, 10% PF)',
+              salaryBreakdown: calculateSalaryBreakdown(safeCtc),
               releaseDate: new Date().toLocaleDateString('en-GB'),
               selectionDate: new Date().toLocaleDateString('en-GB'),
               joiningDate: '20 Sep 2026',
@@ -202,15 +436,53 @@ export function OffersTab() {
     return list;
   }, [openings]);
 
-  // Combine DB candidates with local state (Preventing Duplicates)
+  // Combine DB candidates with local state (localOffers takes precedence for edited offers)
   const allOffers = useMemo(() => {
-    const combined = [...dbOfferedCandidates];
+    const result: OfferItem[] = [];
+    const localMapByCandidateId = new Map<string, OfferItem>();
+    const localMapByName = new Map<string, OfferItem>();
+    const localMapById = new Map<string, OfferItem>();
+
     localOffers.forEach((loc) => {
-      if (!combined.some((item) => (item.candidateId && item.candidateId === loc.candidateId) || item.candidate === loc.candidate)) {
-        combined.push(loc);
+      if (loc.id) localMapById.set(loc.id, loc);
+      if (loc.candidateId) localMapByCandidateId.set(loc.candidateId, loc);
+      if (loc.candidate) localMapByName.set(loc.candidate.toLowerCase().trim(), loc);
+    });
+
+    const processedCandidateIds = new Set<string>();
+    const processedNames = new Set<string>();
+
+    // 1. Process DB candidates: if a user-edited localOffer exists, use the localOffer!
+    dbOfferedCandidates.forEach((dbItem) => {
+      const match =
+        (dbItem.candidateId && localMapByCandidateId.get(dbItem.candidateId)) ||
+        (dbItem.id && localMapById.get(dbItem.id)) ||
+        (dbItem.candidate && localMapByName.get(dbItem.candidate.toLowerCase().trim()));
+
+      if (match) {
+        result.push(match);
+        if (match.candidateId) processedCandidateIds.add(match.candidateId);
+        if (match.candidate) processedNames.add(match.candidate.toLowerCase().trim());
+      } else {
+        result.push(dbItem);
+        if (dbItem.candidateId) processedCandidateIds.add(dbItem.candidateId);
+        if (dbItem.candidate) processedNames.add(dbItem.candidate.toLowerCase().trim());
       }
     });
-    return combined;
+
+    // 2. Also add any localOffers that were not in DB (e.g. newly created drafts, offline offers)
+    localOffers.forEach((loc) => {
+      const alreadyAdded =
+        (loc.candidateId && processedCandidateIds.has(loc.candidateId)) ||
+        (loc.candidate && processedNames.has(loc.candidate.toLowerCase().trim()));
+      if (!alreadyAdded) {
+        result.push(loc);
+        if (loc.candidateId) processedCandidateIds.add(loc.candidateId);
+        if (loc.candidate) processedNames.add(loc.candidate.toLowerCase().trim());
+      }
+    });
+
+    return result;
   }, [dbOfferedCandidates, localOffers]);
 
   // Stage Mutation for Triggering Onboarding -> HIRED
@@ -243,9 +515,11 @@ export function OffersTab() {
   const [formInterviewCode, setFormInterviewCode] = useState('INT-2026-005');
   const [formSelectionDate, setFormSelectionDate] = useState('20 Aug 2026');
 
-  // HR Configurable Offer Details States
-  const [formCtc, setFormCtc] = useState('₹24,00,000 / yr');
-  const [formSalaryStructure, setFormSalaryStructure] = useState('Standard CTC (50% Basic, 20% HRA, 20% Special, 10% PF)');
+  // HR Configurable Offer Details States with Canonical Numeric Storage
+  const [formAnnualCtc, setFormAnnualCtc] = useState<number>(2400000);
+  const [formCtcInput, setFormCtcInput] = useState<string>('24,00,000');
+  const [formCtcUnit, setFormCtcUnit] = useState<CtcUnit>('YEAR');
+
   const [formJoiningDate, setFormJoiningDate] = useState('20 Sep 2026');
   const [formProbation, setFormProbation] = useState('3 Months');
   const [formNoticePeriod, setFormNoticePeriod] = useState('30 Days');
@@ -253,6 +527,34 @@ export function OffersTab() {
   const [formLocation, setFormLocation] = useState('Pune HQ - Executive Suite');
   const [formManager, setFormManager] = useState('Rajesh Sharma (CTO)');
   const [formTerms, setFormTerms] = useState('Standard company policies, confidentiality agreement, and background verification apply.');
+
+  // Live Recalculated Salary Structure
+  const salaryBreakdown = useMemo(() => {
+    return calculateSalaryBreakdown(formAnnualCtc);
+  }, [formAnnualCtc]);
+
+  // Handle CTC user input changes (dynamic parsing according to selected unit)
+  const handleCtcInputChange = (val: string) => {
+    setFormCtcInput(val);
+    const parsed = parseCtcValueWithUnit(val, formCtcUnit);
+    if (parsed > 0) {
+      setFormAnnualCtc(parsed);
+    }
+  };
+
+  // Format on blur
+  const handleCtcInputBlur = () => {
+    const parsed = parseCtcValueWithUnit(formCtcInput, formCtcUnit);
+    const finalAmount = parsed > 0 ? parsed : formAnnualCtc;
+    setFormAnnualCtc(finalAmount);
+    setFormCtcInput(formatInputValueForUnit(finalAmount, formCtcUnit));
+  };
+
+  // Switch display unit dropdown (₹ / Year, ₹ Lakh / Year, ₹ Crore / Year)
+  const handleUnitChange = (newUnit: CtcUnit) => {
+    setFormCtcUnit(newUnit);
+    setFormCtcInput(formatInputValueForUnit(formAnnualCtc, newUnit));
+  };
 
   // AUTO-REDIRECT & PREVENT DUPLICATES LISTENER
   useEffect(() => {
@@ -280,6 +582,7 @@ export function OffersTab() {
         // Load existing offer without creating duplicate
         setCurrentOfferId(existingOffer.id);
         setFormCandidate(existingOffer.candidate);
+        setFormCandidateId(existingOffer.candidateId || candId || '');
         setFormEmail(existingOffer.email || decodedEmail);
         setFormPhone(existingOffer.phone || '+91 98230 44112');
         setFormApplicationId(existingOffer.applicationId || 'APP-2026-082');
@@ -288,17 +591,26 @@ export function OffersTab() {
         setFormEmploymentType(existingOffer.employmentType || 'Full-time Permanent');
         setFormRequisition(existingOffer.requisitionCode || decodedReq);
         setFormInterviewCode(existingOffer.interviewCode || decodedInt);
-        setFormCtc(existingOffer.ctc || '₹24,00,000 / yr');
+
+        // Canonical numeric CTC - when reopening, always display standard ₹... / yr
+        const numeric = existingOffer.annualCTC || parseCtcInput(existingOffer.ctc) || 2400000;
+        setFormAnnualCtc(numeric);
+        setFormCtcUnit('YEAR');
+        setFormCtcInput(formatInputValueForUnit(numeric, 'YEAR'));
+
         setFormJoiningDate(existingOffer.joiningDate || '20 Sep 2026');
         setFormExpiry(existingOffer.expiryDate || '27 Aug 2026');
         setFormLocation(existingOffer.location || 'Pune HQ');
         setFormManager(existingOffer.manager || 'Rajesh Sharma (CTO)');
 
         setIsOpen(true);
-        toast.info(`Loaded existing Offer Draft (${existingOffer.id}) for ${decodedName}. No duplicate created.`);
+        toast.info(`Loaded existing Offer Draft (${existingOffer.id}) for ${decodedName}.`);
+        navigate('/recruitment/offers', { replace: true });
       } else {
         // Create single new draft offer record
         const newId = `OFR-${Math.floor(700 + Math.random() * 99)}`;
+        const defaultCtc = 2400000;
+
         setCurrentOfferId(newId);
         setFormCandidate(decodedName);
         setFormCandidateId(candId || '');
@@ -310,7 +622,11 @@ export function OffersTab() {
         setFormEmploymentType('Full-time Permanent');
         setFormRequisition(decodedReq);
         setFormInterviewCode(decodedInt);
-        setFormCtc('₹24,00,000 / yr');
+
+        setFormAnnualCtc(defaultCtc);
+        setFormCtcUnit('YEAR');
+        setFormCtcInput(formatInputValueForUnit(defaultCtc, 'YEAR'));
+
         setFormJoiningDate('20 Sep 2026');
         setFormProbation('3 Months');
         setFormNoticePeriod('30 Days');
@@ -330,8 +646,12 @@ export function OffersTab() {
           employmentType: 'Full-time Permanent',
           requisitionCode: decodedReq,
           interviewCode: decodedInt,
-          ctc: '₹24,00,000 / yr',
-          salaryStructure: 'Standard CTC',
+          annualCTC: defaultCtc,
+          currency: 'INR',
+          ctcDisplayFormat: 'STANDARD',
+          ctc: formatStandardCtc(defaultCtc),
+          salaryStructure: 'Standard CTC (50% Basic, 20% HRA, 20% Special, 10% PF)',
+          salaryBreakdown: calculateSalaryBreakdown(defaultCtc),
           releaseDate: new Date().toLocaleDateString('en-GB'),
           selectionDate: new Date().toLocaleDateString('en-GB'),
           joiningDate: '20 Sep 2026',
@@ -346,6 +666,7 @@ export function OffersTab() {
         setLocalOffers((prev) => [newDraft, ...prev]);
         setIsOpen(true);
         toast.success(`Auto-Fetched recruitment data & created Offer Draft (${newId}) for ${decodedName}!`);
+        navigate('/recruitment/offers', { replace: true });
       }
     }
   }, [searchParams]);
@@ -353,49 +674,123 @@ export function OffersTab() {
   const openAddModal = () => {
     const newId = `OFR-${Math.floor(700 + Math.random() * 99)}`;
     setCurrentOfferId(newId);
+    setFormCandidateId('');
     setFormCandidate('Casey Stone');
     setFormEmail('candidate34@example-mail.com');
+    setFormPhone('+91 98230 44112');
+    setFormApplicationId('APP-2026-082');
     setFormRole('Product Designer');
+    setFormDepartment('Product Design');
+    setFormEmploymentType('Full-time Permanent');
     setFormRequisition('JR-2026-001');
     setFormInterviewCode('INT-2026-005');
-    setFormCtc('₹24,00,000 / yr');
+
+    setFormAnnualCtc(2400000);
+    setFormCtcUnit('YEAR');
+    setFormCtcInput(formatInputValueForUnit(2400000, 'YEAR'));
+
     setFormExpiry('27 Aug 2026');
     setFormJoiningDate('20 Sep 2026');
+    setFormProbation('3 Months');
+    setFormNoticePeriod('30 Days');
+    setFormLocation('Pune HQ - Executive Suite');
+    setFormManager('Rajesh Sharma (CTO)');
+    setIsOpen(true);
+  };
+
+  const openEditModal = (o: OfferItem) => {
+    setCurrentOfferId(o.id);
+    setFormCandidateId(o.candidateId || '');
+    setFormCandidate(o.candidate);
+    setFormEmail(o.email || 'candidate@example.com');
+    setFormPhone(o.phone || '+91 98230 44112');
+    setFormApplicationId(o.applicationId || 'APP-2026-082');
+    setFormRole(o.role);
+    setFormDepartment(o.department || 'Product Design');
+    setFormEmploymentType(o.employmentType || 'Full-time Permanent');
+    setFormRequisition(o.requisitionCode || 'JR-2026-001');
+    setFormInterviewCode(o.interviewCode || 'INT-2026-005');
+
+    const numeric = o.annualCTC || parseCtcInput(o.ctc) || 2400000;
+    setFormAnnualCtc(numeric);
+    setFormCtcUnit('YEAR');
+    setFormCtcInput(formatInputValueForUnit(numeric, 'YEAR'));
+
+    setFormJoiningDate(o.joiningDate || '20 Sep 2026');
+    setFormProbation(o.probation || '3 Months');
+    setFormNoticePeriod(o.noticePeriod || '30 Days');
+    setFormExpiry(o.expiryDate || '27 Aug 2026');
+    setFormLocation(o.location || 'Pune HQ - Executive Suite');
+    setFormManager(o.manager || 'Rajesh Sharma (CTO)');
+    setFormTerms(o.terms || 'Standard company policies, confidentiality agreement, and background verification apply.');
     setIsOpen(true);
   };
 
   // Helper to construct current OfferItem state
-  const getCurrentOfferObject = (status: OfferItem['status']): OfferItem => ({
-    id: currentOfferId || `OFR-${Math.floor(700 + Math.random() * 99)}`,
-    candidateId: formCandidateId || undefined,
-    candidate: formCandidate,
-    email: formEmail,
-    phone: formPhone,
-    applicationId: formApplicationId,
-    role: formRole,
-    department: formDepartment,
-    employmentType: formEmploymentType,
-    requisitionCode: formRequisition,
-    interviewCode: formInterviewCode,
-    ctc: formCtc,
-    salaryStructure: formSalaryStructure,
-    releaseDate: new Date().toLocaleDateString('en-GB'),
-    selectionDate: formSelectionDate,
-    joiningDate: formJoiningDate,
-    expiryDate: formExpiry,
-    status,
-    probation: formProbation,
-    noticePeriod: formNoticePeriod,
-    location: formLocation,
-    manager: formManager,
-    terms: formTerms,
-  });
+  const getCurrentOfferObject = (status: OfferItem['status']): OfferItem => {
+    const formatted = formatStandardCtc(formAnnualCtc);
+    return {
+      id: currentOfferId || `OFR-${Math.floor(700 + Math.random() * 99)}`,
+      candidateId: formCandidateId || undefined,
+      candidate: formCandidate,
+      email: formEmail,
+      phone: formPhone,
+      applicationId: formApplicationId,
+      role: formRole,
+      department: formDepartment,
+      employmentType: formEmploymentType,
+      requisitionCode: formRequisition,
+      interviewCode: formInterviewCode,
+      annualCTC: formAnnualCtc,
+      currency: 'INR',
+      ctcDisplayFormat: formCtcUnit,
+      ctc: formatted,
+      salaryStructure: 'Standard CTC (50% Basic, 20% HRA, 20% Special, 10% PF)',
+      salaryBreakdown: {
+        basic: salaryBreakdown.basic,
+        hra: salaryBreakdown.hra,
+        special: salaryBreakdown.special,
+        pf: salaryBreakdown.pf,
+        basicPercent: salaryBreakdown.basicPercent,
+        hraPercent: salaryBreakdown.hraPercent,
+        specialPercent: salaryBreakdown.specialPercent,
+        pfPercent: salaryBreakdown.pfPercent,
+      },
+      releaseDate: new Date().toLocaleDateString('en-GB'),
+      selectionDate: formSelectionDate,
+      joiningDate: formJoiningDate,
+      expiryDate: formExpiry,
+      status,
+      probation: formProbation,
+      noticePeriod: formNoticePeriod,
+      location: formLocation,
+      manager: formManager,
+      terms: formTerms,
+    };
+  };
 
-  // ACTION 1: SAVE DRAFT
+  // ACTION 1: SAVE DRAFT / UPDATE OFFER
   const handleSaveDraft = () => {
-    const offer = getCurrentOfferObject('DRAFT');
+    if (!salaryBreakdown.isValid) {
+      toast.error('Cannot save: Salary structure components do not equal Annual CTC.');
+      return;
+    }
+    const existing = allOffers.find(
+      (o) =>
+        (currentOfferId && o.id === currentOfferId) ||
+        (formCandidateId && o.candidateId === formCandidateId) ||
+        (formCandidate && o.candidate.toLowerCase().trim() === formCandidate.toLowerCase().trim())
+    );
+    const targetStatus = existing?.status || 'DRAFT';
+    const offer = getCurrentOfferObject(targetStatus);
+
     setLocalOffers((prev) => {
-      const idx = prev.findIndex((o) => o.id === offer.id || o.candidate === offer.candidate);
+      const idx = prev.findIndex(
+        (o) =>
+          (offer.id && o.id === offer.id) ||
+          (offer.candidateId && o.candidateId === offer.candidateId) ||
+          (offer.candidate && o.candidate.toLowerCase().trim() === offer.candidate.toLowerCase().trim())
+      );
       if (idx >= 0) {
         const copy = [...prev];
         copy[idx] = offer;
@@ -403,21 +798,57 @@ export function OffersTab() {
       }
       return [offer, ...prev];
     });
-    toast.success(`Offer Draft (${offer.id}) saved for ${formCandidate}!`);
+
+    if (formCandidateId) {
+      candidatesApi
+        .update(formCandidateId, { expectedCtc: formatStandardCtc(formAnnualCtc) })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+        })
+        .catch((err) => {
+          console.error('Failed to sync expectedCtc to DB', err);
+        });
+    }
+
+    toast.success(`Offer package (${offer.id}) updated with CTC ${formatStandardCtc(formAnnualCtc)}!`);
     setIsOpen(false);
   };
 
-  // ACTION 2: GENERATE OFFER LETTER
+  // ACTION 2: GENERATE OFFER LETTER / UPDATE AND PREVIEW
   const handleGenerateOffer = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formCandidate || !formCtc) {
+    if (!formCandidate || !formAnnualCtc) {
       toast.error('Candidate name and Offered CTC are required.');
       return;
     }
 
-    const offer = getCurrentOfferObject('GENERATED');
+    // Validate: Basic + HRA + Special + PF = Annual CTC
+    if (!salaryBreakdown.isValid) {
+      toast.error(
+        `Validation failed: Salary components (${formatStandardCtc(salaryBreakdown.totalAnnual)}) do not equal Annual CTC (${formatStandardCtc(formAnnualCtc)}).`
+      );
+      return;
+    }
+
+    const existing = allOffers.find(
+      (o) =>
+        (currentOfferId && o.id === currentOfferId) ||
+        (formCandidateId && o.candidateId === formCandidateId) ||
+        (formCandidate && o.candidate.toLowerCase().trim() === formCandidate.toLowerCase().trim())
+    );
+    const targetStatus =
+      existing?.status === 'PENDING_SIGNATURE' || existing?.status === 'ACCEPTED'
+        ? existing.status
+        : 'GENERATED';
+
+    const offer = getCurrentOfferObject(targetStatus);
     setLocalOffers((prev) => {
-      const idx = prev.findIndex((o) => o.id === offer.id || o.candidate === offer.candidate);
+      const idx = prev.findIndex(
+        (o) =>
+          (offer.id && o.id === offer.id) ||
+          (offer.candidateId && o.candidateId === offer.candidateId) ||
+          (offer.candidate && o.candidate.toLowerCase().trim() === offer.candidate.toLowerCase().trim())
+      );
       if (idx >= 0) {
         const copy = [...prev];
         copy[idx] = offer;
@@ -425,12 +856,23 @@ export function OffersTab() {
       }
       return [offer, ...prev];
     });
+
+    if (formCandidateId) {
+      candidatesApi
+        .update(formCandidateId, { expectedCtc: formatStandardCtc(formAnnualCtc) })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+        })
+        .catch((err) => {
+          console.error('Failed to sync expectedCtc to DB', err);
+        });
+    }
 
     setIsOpen(false);
     setSelectedOfferForPreview(offer);
     setIsPreviewOpen(true);
 
-    toast.success(`Offer Letter (${offer.id}) Generated for ${formCandidate}! Previewing document...`);
+    toast.success(`Offer Letter (${offer.id}) Updated & Generated for ${formCandidate}! CTC: ${formatStandardCtc(formAnnualCtc)}.`);
   };
 
   // ACTION 3: PREVIEW OFFER LETTER
@@ -718,7 +1160,8 @@ export function OffersTab() {
                 <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="text-base font-bold flex items-center gap-2">
-                      <FileSignature className="h-5 w-5 text-primary" /> Auto-Populated Job Offer Letter Generator
+                      <FileSignature className="h-5 w-5 text-primary" />
+                      {currentOfferId ? `Edit Job Offer & Compensation (${currentOfferId})` : 'Auto-Populated Job Offer Letter Generator'}
                     </DialogTitle>
                     <CardDescription className="text-xs">
                       Recruitment & Candidate data automatically fetched from database. Confirm offer-specific salary & terms below.
@@ -781,23 +1224,167 @@ export function OffersTab() {
                     </div>
 
                     {/* SECTION 2: HR OFFER-SPECIFIC INPUT FIELDS */}
-                    <div className="space-y-3 pt-1">
+                    <div className="space-y-4 pt-1">
                       <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5 border-b pb-1">
                         <DollarSign className="h-4 w-4 text-emerald-600" /> Offer-Specific Compensation & Terms
                       </h4>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold">Offered Annual Salary (CTC) *</Label>
+                      {/* OFFERED ANNUAL SALARY (CTC) FIELD + UNIT DROPDOWN */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-foreground">
+                          Offered Annual Salary (CTC) *
+                        </Label>
+
+                        {/* Compound Input: [ ₹ 12 ] │ [ ₹ Lakh / Year ▼ ] */}
+                        <div className="relative flex items-center rounded-lg border border-border/80 bg-background shadow-2xs focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary transition-all">
+                          <span className="pl-3.5 pr-2 text-sm font-bold text-foreground select-none">
+                            ₹
+                          </span>
                           <Input
-                            value={formCtc}
-                            onChange={(e) => setFormCtc(e.target.value)}
-                            placeholder="e.g. ₹24,00,000 / yr"
-                            className="h-9 text-xs font-mono font-bold"
+                            type="text"
+                            value={formCtcInput}
+                            onChange={(e) => handleCtcInputChange(e.target.value)}
+                            onBlur={handleCtcInputBlur}
+                            placeholder={
+                              formCtcUnit === 'LAKH'
+                                ? '12'
+                                : formCtcUnit === 'CRORE'
+                                ? '0.12'
+                                : '12,00,000'
+                            }
+                            className="border-0 shadow-none focus-visible:ring-0 px-1 text-sm font-bold font-mono h-10 flex-1 bg-transparent text-foreground"
                             required
                           />
+                          <div className="h-6 w-px bg-border/80 my-auto shrink-0" />
+                          <div className="pr-1.5 pl-1 shrink-0">
+                            <Select
+                              value={formCtcUnit}
+                              onValueChange={(val: CtcUnit) => handleUnitChange(val)}
+                            >
+                              <SelectTrigger className="h-8 border-0 bg-transparent hover:bg-muted/60 text-xs font-semibold px-2.5 rounded-md gap-1.5 focus:ring-0 focus:ring-offset-0 cursor-pointer text-foreground">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent align="end">
+                                <SelectItem value="YEAR" className="text-xs font-semibold font-mono">
+                                  ₹ / Year
+                                </SelectItem>
+                                <SelectItem value="LAKH" className="text-xs font-semibold font-mono">
+                                  ₹ Lakh / Year
+                                </SelectItem>
+                                <SelectItem value="CRORE" className="text-xs font-semibold font-mono">
+                                  ₹ Crore / Year
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
 
+                        {/* Annualized + Multi-Format Summary Display */}
+                        <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                          <div>
+                            <span className="text-muted-foreground font-sans">Annualized: </span>
+                            <strong className="text-primary font-bold text-sm">{formatStandardCtc(formAnnualCtc)}</strong>
+                          </div>
+                          <div className="flex items-center gap-3 text-muted-foreground text-[11px]">
+                            <span>Lakh: <strong className="text-emerald-700 dark:text-emerald-400 font-semibold">{formatLakhCtc(formAnnualCtc)}</strong></span>
+                            <span>Crore: <strong className="text-blue-700 dark:text-blue-400 font-semibold">{formatCroreCtc(formAnnualCtc)}</strong></span>
+                            <span className="text-[10px] text-muted-foreground/80 font-sans">(Canonical: {formAnnualCtc})</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* DYNAMIC SALARY STRUCTURE BREAKDOWN CARD */}
+                      <div className="p-3.5 bg-card rounded-xl border border-border/70 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <Building2 className="h-4 w-4 text-primary" /> Salary Structure Breakdown (Auto-Calculated)
+                          </Label>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] font-mono font-bold ${
+                              salaryBreakdown.isValid
+                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                                : 'bg-rose-500/10 text-rose-700 border-rose-500/30'
+                            }`}
+                          >
+                            {salaryBreakdown.isValid ? '✓ 100% CTC Validated' : '⚠ Validation Mismatch'}
+                          </Badge>
+                        </div>
+
+                        <div className="border rounded-lg overflow-hidden">
+                          <Table className="text-xs font-mono">
+                            <TableHeader className="bg-muted/40">
+                              <TableRow>
+                                <TableHead className="text-[11px] py-1.5">Component</TableHead>
+                                <TableHead className="text-[11px] text-right py-1.5">Percentage</TableHead>
+                                <TableHead className="text-[11px] text-right py-1.5">Annualized (₹ / yr)</TableHead>
+                                <TableHead className="text-[11px] text-right py-1.5">Monthly (₹ / mo)</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              <TableRow>
+                                <TableCell className="py-1.5 font-semibold">Basic Salary</TableCell>
+                                <TableCell className="py-1.5 text-right text-muted-foreground font-mono">50%</TableCell>
+                                <TableCell className="py-1.5 text-right font-bold text-foreground font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.basic)} / yr
+                                </TableCell>
+                                <TableCell className="py-1.5 text-right text-muted-foreground font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(Math.round(salaryBreakdown.basic / 12))} / mo
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell className="py-1.5 font-semibold">House Rent Allowance (HRA)</TableCell>
+                                <TableCell className="py-1.5 text-right text-muted-foreground font-mono">20%</TableCell>
+                                <TableCell className="py-1.5 text-right font-bold text-foreground font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.hra)} / yr
+                                </TableCell>
+                                <TableCell className="py-1.5 text-right text-muted-foreground font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(Math.round(salaryBreakdown.hra / 12))} / mo
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell className="py-1.5 font-semibold">Special Allowance</TableCell>
+                                <TableCell className="py-1.5 text-right text-muted-foreground font-mono">20%</TableCell>
+                                <TableCell className="py-1.5 text-right font-bold text-foreground font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.special)} / yr
+                                </TableCell>
+                                <TableCell className="py-1.5 text-right text-muted-foreground font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(Math.round(salaryBreakdown.special / 12))} / mo
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell className="py-1.5 font-semibold">Employer PF Contribution</TableCell>
+                                <TableCell className="py-1.5 text-right text-muted-foreground font-mono">10%</TableCell>
+                                <TableCell className="py-1.5 text-right font-bold text-foreground font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.pf)} / yr
+                                </TableCell>
+                                <TableCell className="py-1.5 text-right text-muted-foreground font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(Math.round(salaryBreakdown.pf / 12))} / mo
+                                </TableCell>
+                              </TableRow>
+                              <TableRow className="bg-primary/5 font-bold border-t-2 border-primary/20">
+                                <TableCell className="py-2 text-primary font-bold">TOTAL ANNUAL CTC</TableCell>
+                                <TableCell className="py-2 text-right text-primary font-bold font-mono">100%</TableCell>
+                                <TableCell className="py-2 text-right text-primary font-bold text-sm font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.totalAnnual)} / yr
+                                </TableCell>
+                                <TableCell className="py-2 text-right text-primary font-bold font-mono">
+                                  ₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.totalMonthly)} / mo
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </div>
+
+                        <div className="text-[10.5px] text-muted-foreground flex items-center justify-between pt-1">
+                          <span>
+                            Validation: Basic (₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.basic)}) + HRA (₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.hra)}) + Special (₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.special)}) + PF (₹{new Intl.NumberFormat('en-IN').format(salaryBreakdown.pf)}) = ₹{new Intl.NumberFormat('en-IN').format(formAnnualCtc)}
+                          </span>
+                          <span className="text-emerald-600 font-semibold font-mono">Stored numeric: {formAnnualCtc}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-xs font-bold">Joining Date *</Label>
                           <Input
@@ -808,15 +1395,15 @@ export function OffersTab() {
                             required
                           />
                         </div>
-                      </div>
 
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold">Salary Structure Breakdown</Label>
-                        <Input
-                          value={formSalaryStructure}
-                          onChange={(e) => setFormSalaryStructure(e.target.value)}
-                          className="h-8 text-xs font-mono"
-                        />
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-semibold">Offer Expiry Date</Label>
+                          <Input
+                            value={formExpiry}
+                            onChange={(e) => setFormExpiry(e.target.value)}
+                            className="h-9 text-xs font-mono"
+                          />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-3">
@@ -879,7 +1466,7 @@ export function OffersTab() {
                           onClick={handleSaveDraft}
                           className="h-8 text-xs gap-1"
                         >
-                          <Save className="h-3.5 w-3.5" /> Save Draft
+                          <Save className="h-3.5 w-3.5" /> {currentOfferId ? 'Save Changes' : 'Save Draft'}
                         </Button>
                         <Button
                           type="button"
@@ -903,7 +1490,7 @@ export function OffersTab() {
                           Cancel
                         </Button>
                         <Button type="submit" size="sm" className="h-8 text-xs font-bold bg-primary gap-1">
-                          <FileCheck className="h-3.5 w-3.5" /> Generate Offer Letter
+                          <FileCheck className="h-3.5 w-3.5" /> {currentOfferId ? 'Save & Update Offer Letter' : 'Generate Offer Letter'}
                         </Button>
                       </div>
                     </DialogFooter>
@@ -943,13 +1530,31 @@ export function OffersTab() {
                       <span className="text-[10px] text-muted-foreground font-mono">{o.email || 'candidate@example.com'}</span>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground font-semibold">{o.role}</TableCell>
-                    <TableCell className="text-xs font-mono font-semibold text-foreground">{o.ctc}</TableCell>
+                    <TableCell className="text-xs font-mono">
+                      <div className="font-semibold text-foreground">
+                        {formatStandardCtc(o.annualCTC || parseCtcInput(o.ctc))}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-normal">
+                        {formatLakhCtc(o.annualCTC || parseCtcInput(o.ctc))} • {formatCroreCtc(o.annualCTC || parseCtcInput(o.ctc))}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-xs font-mono">{o.releaseDate}</TableCell>
                     <TableCell className="text-xs font-mono">{o.joiningDate || '20 Sep 2026'}</TableCell>
                     <TableCell className="text-xs">
                       {offerStatusBadge(o.status)}
                     </TableCell>
                     <TableCell className="text-right flex items-center justify-end gap-1.5">
+                      {/* Action to edit/reopen offer */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs gap-1 font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                        onClick={() => openEditModal(o)}
+                        title="Edit Offer Terms and CTC"
+                      >
+                        <Edit className="h-3.5 w-3.5" /> Edit
+                      </Button>
+
                       {/* Action to preview generated offer letter */}
                       <Button
                         variant="ghost"
@@ -1120,7 +1725,9 @@ export function OffersTab() {
                     </div>
                     <div>
                       <span className="text-muted-foreground block text-[11px]">Annual CTC:</span>
-                      <strong className="text-primary font-mono text-sm">{selectedOfferForPreview.ctc}</strong>
+                      <strong className="text-primary font-mono text-sm">
+                        {formatStandardCtc(selectedOfferForPreview.annualCTC || parseCtcInput(selectedOfferForPreview.ctc))}
+                      </strong>
                     </div>
                     <div>
                       <span className="text-muted-foreground block text-[11px]">Proposed Joining Date:</span>
@@ -1144,44 +1751,62 @@ export function OffersTab() {
                 {/* Salary Breakdown Table */}
                 <div className="space-y-2">
                   <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                    <DollarSign className="h-4 w-4 text-emerald-600" /> Salary Compensation Breakup
+                    <DollarSign className="h-4 w-4 text-emerald-600" /> Salary Compensation Breakup (Standard Formula: 50% Basic, 20% HRA, 20% Special, 10% PF)
                   </h4>
-                  <Table className="border rounded-lg text-xs font-mono">
-                    <TableHeader className="bg-muted/30">
-                      <TableRow>
-                        <TableHead className="text-xs">Component</TableHead>
-                        <TableHead className="text-xs text-right">Monthly (₹)</TableHead>
-                        <TableHead className="text-xs text-right">Annualized (₹)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>Basic Salary</TableCell>
-                        <TableCell className="text-right">₹83,333</TableCell>
-                        <TableCell className="text-right">₹10,00,000</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>House Rent Allowance (HRA)</TableCell>
-                        <TableCell className="text-right">₹33,333</TableCell>
-                        <TableCell className="text-right">₹4,00,000</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Special & Performance Allowance</TableCell>
-                        <TableCell className="text-right">₹66,667</TableCell>
-                        <TableCell className="text-right">₹8,00,000</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Employer Provident Fund (PF)</TableCell>
-                        <TableCell className="text-right">₹16,667</TableCell>
-                        <TableCell className="text-right">₹2,00,000</TableCell>
-                      </TableRow>
-                      <TableRow className="bg-muted/40 font-bold">
-                        <TableCell className="text-primary font-bold">TOTAL ANNUAL CTC</TableCell>
-                        <TableCell className="text-right text-primary">₹2,00,000 / mo</TableCell>
-                        <TableCell className="text-right text-primary">{selectedOfferForPreview.ctc}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
+                  {(() => {
+                    const previewNumeric = selectedOfferForPreview.annualCTC || parseCtcInput(selectedOfferForPreview.ctc) || 2400000;
+                    const breakdown = selectedOfferForPreview.salaryBreakdown || calculateSalaryBreakdown(previewNumeric);
+                    const monthlyBasic = Math.round(breakdown.basic / 12);
+                    const monthlyHra = Math.round(breakdown.hra / 12);
+                    const monthlySpecial = Math.round(breakdown.special / 12);
+                    const monthlyPf = Math.round(breakdown.pf / 12);
+                    const monthlyTotal = Math.round(previewNumeric / 12);
+
+                    return (
+                      <Table className="border rounded-lg text-xs font-mono">
+                        <TableHeader className="bg-muted/30">
+                          <TableRow>
+                            <TableHead className="text-xs">Component</TableHead>
+                            <TableHead className="text-xs text-right">Percentage</TableHead>
+                            <TableHead className="text-xs text-right">Monthly (₹)</TableHead>
+                            <TableHead className="text-xs text-right">Annualized (₹)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-sans">Basic Salary</TableCell>
+                            <TableCell className="text-right text-muted-foreground">50%</TableCell>
+                            <TableCell className="text-right">{formatInrCurrency(monthlyBasic)}</TableCell>
+                            <TableCell className="text-right font-semibold">{formatInrCurrency(breakdown.basic)}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-sans">House Rent Allowance (HRA)</TableCell>
+                            <TableCell className="text-right text-muted-foreground">20%</TableCell>
+                            <TableCell className="text-right">{formatInrCurrency(monthlyHra)}</TableCell>
+                            <TableCell className="text-right font-semibold">{formatInrCurrency(breakdown.hra)}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-sans">Special & Performance Allowance</TableCell>
+                            <TableCell className="text-right text-muted-foreground">20%</TableCell>
+                            <TableCell className="text-right">{formatInrCurrency(monthlySpecial)}</TableCell>
+                            <TableCell className="text-right font-semibold">{formatInrCurrency(breakdown.special)}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-sans">Employer Provident Fund (PF)</TableCell>
+                            <TableCell className="text-right text-muted-foreground">10%</TableCell>
+                            <TableCell className="text-right">{formatInrCurrency(monthlyPf)}</TableCell>
+                            <TableCell className="text-right font-semibold">{formatInrCurrency(breakdown.pf)}</TableCell>
+                          </TableRow>
+                          <TableRow className="bg-muted/40 font-bold">
+                            <TableCell className="text-primary font-bold font-sans">TOTAL ANNUAL CTC</TableCell>
+                            <TableCell className="text-right text-primary font-sans">100%</TableCell>
+                            <TableCell className="text-right text-primary">{formatInrCurrency(monthlyTotal)} / mo</TableCell>
+                            <TableCell className="text-right text-primary">{formatStandardCtc(previewNumeric)}</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    );
+                  })()}
                 </div>
 
                 {/* Terms and Offer Validity */}

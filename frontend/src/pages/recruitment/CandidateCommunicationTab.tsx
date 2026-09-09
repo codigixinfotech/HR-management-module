@@ -53,9 +53,11 @@ import { ResumeViewerModal } from '@/components/recruitment/ResumeViewerModal';
 import { ScheduleInterviewModal } from './ScheduleInterviewModal';
 import { SendAssessmentModal } from './SendAssessmentModal';
 import { TeamsLinkPoolManagementModal } from '@/components/recruitment/TeamsLinkPoolManagementModal';
+import { useCompany } from '@/context/CompanyContext';
 
 export function CandidateCommunicationTab() {
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
 
   // Filters & Selection State
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,8 +95,8 @@ export function CandidateCommunicationTab() {
 
   // Fetch Job Openings & Candidates
   const { data: openings, isLoading: isJobsLoading, refetch: refetchJobs } = useQuery({
-    queryKey: ['job-openings'],
-    queryFn: () => jobOpeningsApi.list(),
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
 
   // Fetch Interviews list

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -27,6 +27,18 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Public()
+  @Get('invitation/validate')
+  validateInvitation(@Query('token') token: string) {
+    return this.authService.validateInvitation(token);
+  }
+
+  @Public()
+  @Post('set-password')
+  setPassword(@Body() dto: { token: string; newPassword: string }) {
+    return this.authService.setPassword(dto.token, dto.newPassword);
   }
 
   @Public()

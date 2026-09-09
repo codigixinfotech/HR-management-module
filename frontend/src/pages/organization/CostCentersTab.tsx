@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -146,7 +146,8 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   const [ccBranchId, setCcBranchId] = useState('');
   const [ccManagerId, setCcManagerId] = useState('');
   const [ccManagerName, setCcManagerName] = useState('');
-  const [ccBudget, setCcBudget] = useState(25000000);
+  const [ccBudgetValue, setCcBudgetValue] = useState<string | number>(25);
+  const [ccBudgetUnit, setCcBudgetUnit] = useState<'Lakh' | 'Crore'>('Lakh');
   const [ccCapacity, setCcCapacity] = useState(15);
   const [ccEffectiveFrom, setCcEffectiveFrom] = useState('');
   const [ccStatus, setCcStatus] = useState<'Active' | 'Inactive'>('Active');
@@ -164,15 +165,37 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   const [gradeCategory, setGradeCategory] = useState('Professional');
   const [gradeJobFamily, setGradeJobFamily] = useState('');
   const [gradeDepartmentId, setGradeDepartmentId] = useState('');
-  const [gradeMinSalary, setGradeMinSalary] = useState(30000);
-  const [gradeMaxSalary, setGradeMaxSalary] = useState(60000);
+  const [gradeSalaryMode, setGradeSalaryMode] = useState<'monthly' | 'annual'>('monthly');
+
+  // Monthly Values
+  const [gradeMinSalary, setGradeMinSalary] = useState<number | string>(20000);
+  const [gradeMaxSalary, setGradeMaxSalary] = useState<number | string>(27000);
+
+  // Annual Values & Units
+  type SalaryUnit = '₹' | 'Thousand' | 'Lakh' | 'Crore';
+  const [gradeMinAnnualVal, setGradeMinAnnualVal] = useState<number | string>(2.40);
+  const [gradeMinAnnualUnit, setGradeMinAnnualUnit] = useState<SalaryUnit>('Lakh');
+  const [gradeMaxAnnualVal, setGradeMaxAnnualVal] = useState<number | string>(3.24);
+  const [gradeMaxAnnualUnit, setGradeMaxAnnualUnit] = useState<SalaryUnit>('Lakh');
+
   const [gradeCurrency, setGradeCurrency] = useState('INR');
   const [gradeEffectiveFrom, setGradeEffectiveFrom] = useState('');
   const [gradeStatus, setGradeStatus] = useState<'Active' | 'Inactive'>('Active');
   const [gradeDescription, setGradeDescription] = useState('');
 
-  // Currency Formatter
+  // Currency Formatter (displays in ₹ Crore or ₹ Lakh)
   const formatCurrency = (val: number) => {
+    if (!val) return '₹0';
+    if (val >= 10000000) {
+      const cr = val / 10000000;
+      const formatted = cr % 1 === 0 ? cr.toString() : cr.toFixed(2).replace(/\.?0+$/, '');
+      return `₹${formatted} Crore`;
+    }
+    if (val >= 100000) {
+      const lakh = val / 100000;
+      const formatted = lakh % 1 === 0 ? lakh.toString() : lakh.toFixed(2).replace(/\.?0+$/, '');
+      return `₹${formatted} Lakh`;
+    }
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
@@ -184,7 +207,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   const formatSalaryRange = (min: number, max: number) => {
     const formatK = (val: number) => {
       if (val >= 100000) {
-        return `₹${(val / 100000).toFixed(0)}L`;
+        return `₹${(val / 100000).toFixed(2).replace(/\.?0+$/, '')}L`;
       }
       if (val >= 1000) {
         return `₹${(val / 1000).toFixed(0)}K`;
@@ -192,6 +215,112 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
       return `₹${val}`;
     };
     return `${formatK(min)}–${formatK(max)}`;
+  };
+
+  // Annual CTC Formatter (e.g. ₹2.40 Lakh, ₹1.50 Crore)
+  const formatCtc = (annualAmount: number) => {
+    if (!annualAmount || isNaN(annualAmount)) return '₹0.00';
+    if (annualAmount >= 10000000) {
+      const cr = annualAmount / 10000000;
+      return `₹${cr.toFixed(2)} Crore`;
+    }
+    if (annualAmount >= 100000) {
+      const lakh = annualAmount / 100000;
+      return `₹${lakh.toFixed(2)} Lakh`;
+    }
+    return `₹${annualAmount.toLocaleString('en-IN')}`;
+  };
+
+  const getSalaryUnitMultiplier = (u: '₹' | 'Thousand' | 'Lakh' | 'Crore') => {
+    switch (u) {
+      case 'Thousand': return 1000;
+      case 'Lakh': return 100000;
+      case 'Crore': return 10000000;
+      default: return 1;
+    }
+  };
+
+  // Cross-sync helper handlers
+  const handleMinMonthlyChange = (val: string) => {
+    setGradeMinSalary(val);
+    const num = Number(val);
+    if (!isNaN(num) && num > 0) {
+      const annualInr = num * 12;
+      if (annualInr >= 10000000) {
+        setGradeMinAnnualUnit('Crore');
+        setGradeMinAnnualVal(Number((annualInr / 10000000).toFixed(2)));
+      } else if (annualInr >= 100000) {
+        setGradeMinAnnualUnit('Lakh');
+        setGradeMinAnnualVal(Number((annualInr / 100000).toFixed(2)));
+      } else if (annualInr >= 1000) {
+        setGradeMinAnnualUnit('Thousand');
+        setGradeMinAnnualVal(Number((annualInr / 1000).toFixed(2)));
+      } else {
+        setGradeMinAnnualUnit('₹');
+        setGradeMinAnnualVal(annualInr);
+      }
+    }
+  };
+
+  const handleMaxMonthlyChange = (val: string) => {
+    setGradeMaxSalary(val);
+    const num = Number(val);
+    if (!isNaN(num) && num > 0) {
+      const annualInr = num * 12;
+      if (annualInr >= 10000000) {
+        setGradeMaxAnnualUnit('Crore');
+        setGradeMaxAnnualVal(Number((annualInr / 10000000).toFixed(2)));
+      } else if (annualInr >= 100000) {
+        setGradeMaxAnnualUnit('Lakh');
+        setGradeMaxAnnualVal(Number((annualInr / 100000).toFixed(2)));
+      } else if (annualInr >= 1000) {
+        setGradeMaxAnnualUnit('Thousand');
+        setGradeMaxAnnualVal(Number((annualInr / 1000).toFixed(2)));
+      } else {
+        setGradeMaxAnnualUnit('₹');
+        setGradeMaxAnnualVal(annualInr);
+      }
+    }
+  };
+
+  const handleMinAnnualChange = (val: string, unit = gradeMinAnnualUnit) => {
+    setGradeMinAnnualVal(val);
+    const num = Number(val);
+    if (!isNaN(num) && num > 0) {
+      const mult = getSalaryUnitMultiplier(unit);
+      const annualInr = num * mult;
+      setGradeMinSalary(Math.round(annualInr / 12));
+    }
+  };
+
+  const handleMinAnnualUnitChange = (unit: '₹' | 'Thousand' | 'Lakh' | 'Crore') => {
+    setGradeMinAnnualUnit(unit);
+    const num = Number(gradeMinAnnualVal);
+    if (!isNaN(num) && num > 0) {
+      const mult = getSalaryUnitMultiplier(unit);
+      const annualInr = num * mult;
+      setGradeMinSalary(Math.round(annualInr / 12));
+    }
+  };
+
+  const handleMaxAnnualChange = (val: string, unit = gradeMaxAnnualUnit) => {
+    setGradeMaxAnnualVal(val);
+    const num = Number(val);
+    if (!isNaN(num) && num > 0) {
+      const mult = getSalaryUnitMultiplier(unit);
+      const annualInr = num * mult;
+      setGradeMaxSalary(Math.round(annualInr / 12));
+    }
+  };
+
+  const handleMaxAnnualUnitChange = (unit: '₹' | 'Thousand' | 'Lakh' | 'Crore') => {
+    setGradeMaxAnnualUnit(unit);
+    const num = Number(gradeMaxAnnualVal);
+    if (!isNaN(num) && num > 0) {
+      const mult = getSalaryUnitMultiplier(unit);
+      const annualInr = num * mult;
+      setGradeMaxSalary(Math.round(annualInr / 12));
+    }
   };
 
   // Fetch all cost centers across companies for global code uniqueness
@@ -211,9 +340,16 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     return code;
   };
 
+  // Fetch all pay grades across companies for global grade code uniqueness
+  const { data: allPayGradesForCodes = [] } = useQuery({
+    queryKey: ['pay-grades-all-codes'],
+    queryFn: () => payGradesApi.list(),
+  });
+
   const generateUniqueGradeCode = () => {
-    const existingCodes = new Set(payGrades.map((g) => g.gradeCode));
-    let count = payGrades.length + 1;
+    const listToUse = allPayGradesForCodes.length > 0 ? allPayGradesForCodes : payGrades;
+    const existingCodes = new Set(listToUse.map((g: any) => g.gradeCode));
+    let count = listToUse.length + 1;
     let code = `GR-${String(count).padStart(2, '0')}`;
     while (existingCodes.has(code)) {
       count++;
@@ -221,6 +357,13 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     }
     return code;
   };
+
+  // Auto-generate Grade Code if empty when modal opens or in create mode
+  useEffect(() => {
+    if (isGradeOpen && !editingGrade && (!gradeCode || gradeCode.trim() === '')) {
+      setGradeCode(generateUniqueGradeCode());
+    }
+  }, [isGradeOpen, editingGrade, gradeCode, payGrades, allPayGradesForCodes]);
 
   // Cost Center Actions
   const openAddCc = () => {
@@ -233,7 +376,8 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setCcBranchId(branches?.[0]?.id ?? '');
     setCcManagerId('');
     setCcManagerName('');
-    setCcBudget(25000000);
+    setCcBudgetValue(25);
+    setCcBudgetUnit('Lakh');
     setCcCapacity(15);
     setCcEffectiveFrom(new Date().toISOString().split('T')[0]);
     setCcStatus('Active');
@@ -251,7 +395,16 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setCcBranchId(item.branchId ?? '');
     setCcManagerId(item.managerId ?? '');
     setCcManagerName(item.managerName ?? '');
-    setCcBudget(Number(item.budget));
+
+    const rawBudget = Number(item.budget) || 0;
+    if (rawBudget >= 10000000) {
+      setCcBudgetUnit('Crore');
+      setCcBudgetValue(Number((rawBudget / 10000000).toFixed(2)));
+    } else {
+      setCcBudgetUnit('Lakh');
+      setCcBudgetValue(Number((rawBudget / 100000).toFixed(2)));
+    }
+
     setCcCapacity(item.headcountCapacity);
     setCcEffectiveFrom(item.effectiveFrom?.split('T')[0] ?? '');
     setCcStatus(item.isActive ? 'Active' : 'Inactive');
@@ -264,6 +417,9 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     if (!ccName) { toast.error('Cost Center Name is required'); return; }
     const managerEmployee = employees?.items?.find((emp: any) => emp.id === ccManagerId);
     
+    const multiplier = ccBudgetUnit === 'Crore' ? 10000000 : 100000;
+    const computedBudgetInr = Math.round((Number(ccBudgetValue) || 0) * multiplier);
+
     const payloadData: any = {
       name:              ccName,
       type:              ccType,
@@ -271,7 +427,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
       departmentId:      ccDeptId || undefined,
       managerId:         ccManagerId || undefined,
       managerName:       managerEmployee ? `${managerEmployee.firstName} ${managerEmployee.lastName}` : ccManagerName || undefined,
-      budget:            Number(ccBudget),
+      budget:            computedBudgetInr,
       headcountCapacity: Number(ccCapacity),
       effectiveFrom:     ccEffectiveFrom || new Date().toISOString().split('T')[0],
       description:       ccDescription,
@@ -303,11 +459,16 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setGradeCode(generateUniqueGradeCode());
     setGradeName('');
     setGradeLevel('L1');
-    setGradeCategory('Professional');
-    setGradeJobFamily('Engineering');
+    setGradeCategory('Worker');
+    setGradeJobFamily('Production');
     setGradeDepartmentId(departments?.[0]?.id ?? '');
-    setGradeMinSalary(30000);
-    setGradeMaxSalary(60000);
+    setGradeSalaryMode('monthly');
+    setGradeMinSalary(20000);
+    setGradeMaxSalary(27000);
+    setGradeMinAnnualVal(2.40);
+    setGradeMinAnnualUnit('Lakh');
+    setGradeMaxAnnualVal(3.24);
+    setGradeMaxAnnualUnit('Lakh');
     setGradeCurrency(companies?.[0]?.currency ?? 'INR');
     setGradeEffectiveFrom(new Date().toISOString().split('T')[0]);
     setGradeStatus('Active');
@@ -325,8 +486,47 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setGradeCategory(item.category ?? 'Professional');
     setGradeJobFamily(item.jobFamily ?? '');
     setGradeDepartmentId(item.departmentId ?? '');
-    setGradeMinSalary(Number(item.minSalary));
-    setGradeMaxSalary(Number(item.maxSalary));
+    setGradeSalaryMode('monthly');
+
+    const rawMin = Number(item.minSalary) || 0;
+    const rawMax = Number(item.maxSalary) || 0;
+    const monthlyMin = rawMin >= 500000 ? Math.round(rawMin / 12) : rawMin;
+    const monthlyMax = rawMax >= 500000 ? Math.round(rawMax / 12) : rawMax;
+
+    setGradeMinSalary(monthlyMin);
+    setGradeMaxSalary(monthlyMax);
+
+    const annualMin = monthlyMin * 12;
+    const annualMax = monthlyMax * 12;
+
+    if (annualMin >= 10000000) {
+      setGradeMinAnnualUnit('Crore');
+      setGradeMinAnnualVal(Number((annualMin / 10000000).toFixed(2)));
+    } else if (annualMin >= 100000) {
+      setGradeMinAnnualUnit('Lakh');
+      setGradeMinAnnualVal(Number((annualMin / 100000).toFixed(2)));
+    } else if (annualMin >= 1000) {
+      setGradeMinAnnualUnit('Thousand');
+      setGradeMinAnnualVal(Number((annualMin / 1000).toFixed(2)));
+    } else {
+      setGradeMinAnnualUnit('₹');
+      setGradeMinAnnualVal(annualMin);
+    }
+
+    if (annualMax >= 10000000) {
+      setGradeMaxAnnualUnit('Crore');
+      setGradeMaxAnnualVal(Number((annualMax / 10000000).toFixed(2)));
+    } else if (annualMax >= 100000) {
+      setGradeMaxAnnualUnit('Lakh');
+      setGradeMaxAnnualVal(Number((annualMax / 100000).toFixed(2)));
+    } else if (annualMax >= 1000) {
+      setGradeMaxAnnualUnit('Thousand');
+      setGradeMaxAnnualVal(Number((annualMax / 1000).toFixed(2)));
+    } else {
+      setGradeMaxAnnualUnit('₹');
+      setGradeMaxAnnualVal(annualMax);
+    }
+
     setGradeCurrency(item.currency ?? 'INR');
     setGradeEffectiveFrom(item.effectiveFrom?.split('T')[0] ?? '');
     setGradeStatus(item.isActive ? 'Active' : 'Inactive');
@@ -407,8 +607,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   }, [costCenters]);
 
   const formattedTotalBudget = useMemo(() => {
-    const budgetInLakh = totalBudget / 100000;
-    return `₹${budgetInLakh.toFixed(2)} Lakh`;
+    return formatCurrency(totalBudget);
   }, [totalBudget]);
 
   return (
@@ -474,7 +673,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-primary" /> Corporate Financial Cost Centers
+                <ShieldCheck className="h-4 w-4 text-primary" /> Financial Cost Centers
               </CardTitle>
               <CardDescription className="text-xs">
                 Allocate departmental budgets, cost center managers, headcount limits and financial accountability
@@ -552,31 +751,14 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Cost Center Name *</Label>
-                        <Input
-                          placeholder="e.g. R&D Infrastructure"
-                          value={ccName}
-                          onChange={e => setCcName(e.target.value)}
-                          className="h-9 text-xs"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Cost Center Type *</Label>
-                        <Select value={ccType} onValueChange={setCcType}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Department" className="text-xs">Department</SelectItem>
-                            <SelectItem value="Project" className="text-xs">Project</SelectItem>
-                            <SelectItem value="Production" className="text-xs">Production</SelectItem>
-                            <SelectItem value="Support" className="text-xs">Support</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Cost Center Name *</Label>
+                      <Input
+                        placeholder="e.g. R&D Infrastructure"
+                        value={ccName}
+                        onChange={e => setCcName(e.target.value)}
+                        className="h-9 text-xs"
+                      />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -631,13 +813,26 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       </div>
 
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Annual Allocation Budget (INR) *</Label>
-                        <Input
-                          type="number"
-                          value={ccBudget}
-                          onChange={e => setCcBudget(Number(e.target.value))}
-                          className="h-9 text-xs font-mono"
-                        />
+                        <Label className="text-[11px] font-semibold">Annual Allocation Budget *</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="e.g. 25.00"
+                            value={ccBudgetValue}
+                            onChange={e => setCcBudgetValue(e.target.value)}
+                            className="h-9 text-xs font-mono flex-1"
+                          />
+                          <Select value={ccBudgetUnit} onValueChange={(v: 'Lakh' | 'Crore') => setCcBudgetUnit(v)}>
+                            <SelectTrigger className="h-9 text-xs w-[105px] shrink-0 font-semibold bg-muted/20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Lakh" className="text-xs font-medium">₹ Lakh</SelectItem>
+                              <SelectItem value="Crore" className="text-xs font-medium">₹ Crore</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
 
@@ -915,9 +1110,9 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Grade Code *</Label>
+                        <Label className="text-[11px] font-semibold">Grade Code (Auto Generated) *</Label>
                         <Input
-                          placeholder="e.g. E2"
+                          placeholder="e.g. GR-05"
                           value={gradeCode}
                           onChange={e => setGradeCode(e.target.value)}
                           className="h-9 text-xs font-mono"
@@ -999,35 +1194,148 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="space-y-1 col-span-1">
-                        <Label className="text-[11px] font-semibold">Currency</Label>
-                        <Input
-                          readOnly
-                          value={gradeCurrency}
-                          className="h-9 text-xs font-mono bg-muted/40 cursor-not-allowed text-muted-foreground"
-                        />
+                    {/* Salary Configuration Block */}
+                    <div className="space-y-3 rounded-xl border border-border/80 p-3 bg-muted/20">
+                      <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                        <Label className="text-[11px] font-semibold text-foreground">Salary Input Type *</Label>
+                        <div className="flex items-center gap-4 text-xs font-medium">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-foreground">
+                            <input
+                              type="radio"
+                              name="salaryMode"
+                              value="monthly"
+                              checked={gradeSalaryMode === 'monthly'}
+                              onChange={() => setGradeSalaryMode('monthly')}
+                              className="accent-primary h-3.5 w-3.5"
+                            />
+                            <span>Monthly Salary</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-foreground">
+                            <input
+                              type="radio"
+                              name="salaryMode"
+                              value="annual"
+                              checked={gradeSalaryMode === 'annual'}
+                              onChange={() => setGradeSalaryMode('annual')}
+                              className="accent-primary h-3.5 w-3.5"
+                            />
+                            <span>Annual CTC</span>
+                          </label>
+                        </div>
                       </div>
 
-                      <div className="space-y-1 col-span-1">
-                        <Label className="text-[11px] font-semibold">Min Salary (CTC) *</Label>
-                        <Input
-                          type="number"
-                          value={gradeMinSalary}
-                          onChange={e => setGradeMinSalary(Number(e.target.value))}
-                          className="h-9 text-xs font-mono"
-                        />
-                      </div>
+                      {/* MODE 1: Monthly Salary View */}
+                      {gradeSalaryMode === 'monthly' && (
+                        <div className="space-y-2">
+                          <Label className="text-[11px] font-semibold flex items-center justify-between">
+                            <span>Monthly Salary Range (₹ / Month) *</span>
+                            <span className="text-[10px] text-muted-foreground font-normal">Currency: {gradeCurrency}</span>
+                          </Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <span className="text-[10px] text-muted-foreground font-medium">Min Monthly Salary</span>
+                              <Input
+                                type="number"
+                                placeholder="e.g. 30000"
+                                value={gradeMinSalary}
+                                onChange={e => handleMinMonthlyChange(e.target.value)}
+                                className="h-9 text-xs font-mono bg-background"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-[10px] text-muted-foreground font-medium">Max Monthly Salary</span>
+                              <Input
+                                type="number"
+                                placeholder="e.g. 60000"
+                                value={gradeMaxSalary}
+                                onChange={e => handleMaxMonthlyChange(e.target.value)}
+                                className="h-9 text-xs font-mono bg-background"
+                              />
+                            </div>
+                          </div>
 
-                      <div className="space-y-1 col-span-1">
-                        <Label className="text-[11px] font-semibold">Max Salary (CTC) *</Label>
-                        <Input
-                          type="number"
-                          value={gradeMaxSalary}
-                          onChange={e => setGradeMaxSalary(Number(e.target.value))}
-                          className="h-9 text-xs font-mono"
-                        />
-                      </div>
+                          <div className="rounded-lg bg-primary/5 p-2 border border-primary/20 text-xs flex items-center justify-between mt-2">
+                            <span className="text-muted-foreground font-medium text-[11px]">Annual CTC Reference:</span>
+                            <span className="font-mono font-semibold text-primary">
+                              {formatCtc((Number(gradeMinSalary) || 0) * 12)} – {formatCtc((Number(gradeMaxSalary) || 0) * 12)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* MODE 2: Annual CTC View */}
+                      {gradeSalaryMode === 'annual' && (
+                        <div className="space-y-2">
+                          <Label className="text-[11px] font-semibold flex items-center justify-between">
+                            <span>Annual CTC Range *</span>
+                            <span className="text-[10px] text-muted-foreground font-normal">Currency: {gradeCurrency}</span>
+                          </Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <span className="text-[10px] text-muted-foreground font-medium">Min Annual CTC</span>
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="e.g. 4.50"
+                                  value={gradeMinAnnualVal}
+                                  onChange={e => handleMinAnnualChange(e.target.value)}
+                                  className="h-9 text-xs font-mono bg-background flex-1"
+                                />
+                                <Select
+                                  value={gradeMinAnnualUnit}
+                                  onValueChange={(v: any) => handleMinAnnualUnitChange(v)}
+                                >
+                                  <SelectTrigger className="h-9 text-xs w-[95px] shrink-0 font-semibold bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="₹" className="text-xs">₹</SelectItem>
+                                    <SelectItem value="Thousand" className="text-xs">Thousand</SelectItem>
+                                    <SelectItem value="Lakh" className="text-xs">₹ Lakh</SelectItem>
+                                    <SelectItem value="Crore" className="text-xs">₹ Crore</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className="text-[10px] text-muted-foreground font-medium">Max Annual CTC</span>
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="e.g. 7.50"
+                                  value={gradeMaxAnnualVal}
+                                  onChange={e => handleMaxAnnualChange(e.target.value)}
+                                  className="h-9 text-xs font-mono bg-background flex-1"
+                                />
+                                <Select
+                                  value={gradeMaxAnnualUnit}
+                                  onValueChange={(v: any) => handleMaxAnnualUnitChange(v)}
+                                >
+                                  <SelectTrigger className="h-9 text-xs w-[95px] shrink-0 font-semibold bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="₹" className="text-xs">₹</SelectItem>
+                                    <SelectItem value="Thousand" className="text-xs">Thousand</SelectItem>
+                                    <SelectItem value="Lakh" className="text-xs">₹ Lakh</SelectItem>
+                                    <SelectItem value="Crore" className="text-xs">₹ Crore</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-emerald-500/10 p-2 border border-emerald-500/20 text-xs flex items-center justify-between mt-2">
+                            <span className="text-muted-foreground font-medium text-[11px]">Monthly Equivalent:</span>
+                            <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                              ₹{(Number(gradeMinSalary) || 0).toLocaleString('en-IN')} – ₹{(Number(gradeMaxSalary) || 0).toLocaleString('en-IN')} / month
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1106,7 +1414,16 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                     <TableCell className="text-xs text-muted-foreground">
                       {departments?.find((d: any) => d.id === g.departmentId)?.name ?? 'Global'}
                     </TableCell>
-                    <TableCell className="text-xs font-mono font-semibold text-primary">{formatSalaryRange(g.minSalary, g.maxSalary)}</TableCell>
+                    <TableCell className="text-xs font-mono">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-foreground">
+                          {formatSalaryRange(g.minSalary, g.maxSalary)} / mo
+                        </span>
+                        <span className="text-[10px] text-primary font-medium">
+                          CTC: {formatCtc(g.minSalary >= 100000 ? g.minSalary : g.minSalary * 12)} – {formatCtc(g.maxSalary >= 100000 ? g.maxSalary : g.maxSalary * 12)}
+                        </span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-xs font-mono font-semibold text-center text-muted-foreground">
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] text-foreground font-semibold">
                         {count}

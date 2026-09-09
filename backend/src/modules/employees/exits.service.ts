@@ -13,48 +13,23 @@ import {
   UpdateClearanceItemDto,
   UpdateExitStatusDto,
 } from './dto/exit.dto';
-
-const DEFAULT_CLEARANCE_ITEMS = [
-  // Reporting Manager
-  { department: 'Reporting Manager', itemKey: 'work_handover', itemLabel: 'Project & Task Work Handover' },
-  { department: 'Reporting Manager', itemKey: 'pending_tasks', itemLabel: 'Pending Operations & Client Handoff' },
-  { department: 'Reporting Manager', itemKey: 'kt_completion', itemLabel: 'Knowledge Transfer & Code/Doc Deposit' },
-  
-  // IT Department
-  { department: 'IT', itemKey: 'laptop_hardware', itemLabel: 'Company Laptop & Peripheral Hardware' },
-  { department: 'IT', itemKey: 'email_access', itemLabel: 'Email Account & Inbox Archival' },
-  { department: 'IT', itemKey: 'system_licenses', itemLabel: 'SaaS Software Licenses & Cloud Revocation' },
-  { department: 'IT', itemKey: 'vpn_security', itemLabel: 'VPN Keys, Tokens & Security Credential Revocation' },
-
-  // Admin Department
-  { department: 'Admin', itemKey: 'id_badge', itemLabel: 'Employee Physical ID Badge & Smartcard' },
-  { department: 'Admin', itemKey: 'building_keys', itemLabel: 'Access Cards, Office Keys & Drawers' },
-  { department: 'Admin', itemKey: 'office_property', itemLabel: 'Company Vehicle / Parking Sticker Return' },
-
-  // Finance Department
-  { department: 'Finance', itemKey: 'salary_dues', itemLabel: 'Salary & Variable Pay Dues Reconciliation' },
-  { department: 'Finance', itemKey: 'advance_recovery', itemLabel: 'Travel Advance & Loan Recovery Clearance' },
-  { department: 'Finance', itemKey: 'expense_claims', itemLabel: 'Outstanding Expense Reimbursement Audit' },
-
-  // HR Department
-  { department: 'HR', itemKey: 'document_clearance', itemLabel: 'HR Service Agreement & Bond Clearance' },
-  { department: 'HR', itemKey: 'exit_interview', itemLabel: 'Formal Exit Interview Completion' },
-  { department: 'HR', itemKey: 'leave_encashment', itemLabel: 'Unavailed Leave Balance Encashment Audit' },
-
-  // Assets
-  { department: 'Assets', itemKey: 'assigned_assets', itemLabel: 'Assigned Hardware, Monitor & Tools Audit' },
-  { department: 'Assets', itemKey: 'mobile_sim', itemLabel: 'Corporate Mobile Handset & SIM Return' },
-];
+import { ExitClearanceMasterService } from './exit-clearance-master.service';
 
 @Injectable()
 export class ExitsService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clearanceMasterService: ExitClearanceMasterService,
+  ) {}
 
   async onModuleInit() {
     try {
       const count = await this.prisma.employeeExit.count();
       if (count === 0) {
-        const employees = await this.prisma.employee.findMany({ take: 3 });
+        const employees = await this.prisma.employee.findMany({
+          take: 3,
+          include: { department: true },
+        });
         if (employees.length >= 2) {
           await this.create({
             employeeId: employees[0].id,
@@ -62,7 +37,7 @@ export class ExitsService implements OnModuleInit {
             noticePeriodDays: 60,
             lastWorkingDay: '2026-08-31',
             exitType: 'RESIGNATION',
-            exitReason: 'Better Career Opportunity',
+            exitReason: 'Career Growth',
             remarks: 'Initiated voluntary resignation.',
             companyId: employees[0].companyId,
           });
@@ -73,10 +48,23 @@ export class ExitsService implements OnModuleInit {
             noticePeriodDays: 90,
             lastWorkingDay: '2026-10-15',
             exitType: 'RESIGNATION',
-            exitReason: 'Personal Reasons / Relocation',
+            exitReason: 'Relocation',
             remarks: 'Relocating to another city.',
             companyId: employees[1].companyId,
           });
+        }
+      } else {
+        // Automatically reconcile existing exit records against the Dynamic Clearance Master
+        // to purge legacy unverified static items and align with company industry blueprints
+        const allExits = await this.prisma.employeeExit.findMany({
+          select: { id: true, exitCode: true },
+        });
+        for (const e of allExits) {
+          try {
+            await this.recalculateClearance(e.id, 'System Master Alignment');
+          } catch (err) {
+            console.error(`Failed to reconcile clearance for exit ${e.exitCode}:`, err);
+          }
         }
       }
     } catch (e) {
@@ -188,6 +176,11 @@ export class ExitsService implements OnModuleInit {
             branch: { select: { id: true, name: true } },
             reportingManager: { select: { id: true, firstName: true, lastName: true } },
             positionHistory: { orderBy: { effectiveDate: 'desc' } },
+            assetAllocations: {
+              where: { returnedAt: null },
+              include: { asset: true },
+              orderBy: { allocatedAt: 'desc' },
+            },
           },
         },
         clearanceItems: { orderBy: [{ department: 'asc' }, { createdAt: 'asc' }] },
@@ -204,6 +197,7 @@ export class ExitsService implements OnModuleInit {
   async create(dto: CreateExitDto) {
     const employee = await this.prisma.employee.findUnique({
       where: { id: dto.employeeId },
+      include: { department: true },
     });
     if (!employee) throw new NotFoundException('Employee record not found');
 
@@ -216,6 +210,16 @@ export class ExitsService implements OnModuleInit {
       ? new Date(dto.lastWorkingDay)
       : new Date(resignationDate.getTime() + noticeDays * 24 * 60 * 60 * 1000);
 
+    const exitType = dto.exitType || 'RESIGNATION';
+    const isInterviewAutoWaived = ['ABSCONDING', 'DEATH'].includes(exitType);
+
+    // Dynamic Intelligent Clearance Engine evaluation based on Company Industry & Employee Master
+    const evaluatedTasks = await this.clearanceMasterService.evaluateClearanceForEmployee(
+      employee,
+      exitType,
+      dto.companyId || employee.companyId,
+    );
+
     // Business Rule: DO NOT deactivate employee master upon resignation initiation!
     // Employee remains ACTIVE during notice period.
     const exit = await this.prisma.employeeExit.create({
@@ -226,20 +230,23 @@ export class ExitsService implements OnModuleInit {
         resignationDate,
         noticePeriodDays: noticeDays,
         lastWorkingDay,
-        exitType: dto.exitType || 'RESIGNATION',
+        exitType,
         exitReason: dto.exitReason,
         resignationLetterUrl: dto.resignationLetterUrl,
         remarks: dto.remarks,
         status: 'INITIATED',
         clearanceStatus: 'PENDING',
         fnfStatus: 'PENDING',
-        exitInterviewStatus: 'PENDING',
+        exitInterviewStatus: isInterviewAutoWaived ? 'WAIVED' : 'PENDING',
         clearanceItems: {
-          create: DEFAULT_CLEARANCE_ITEMS.map((item) => ({
-            department: item.department,
-            itemKey: item.itemKey,
-            itemLabel: item.itemLabel,
-            status: 'PENDING',
+          create: evaluatedTasks.map((t) => ({
+            department: t.department,
+            itemKey: t.ruleKey,
+            itemLabel: t.itemLabel,
+            status: t.status,
+            remarks: t.exclusionReason
+              ? `[${t.mandatoryType}] ${t.exclusionReason}`
+              : `[${t.mandatoryType}] Required clearance`,
           })),
         },
         fnfSettlement: {
@@ -263,7 +270,7 @@ export class ExitsService implements OnModuleInit {
             action: 'RESIGNATION_INITIATED',
             newStatus: 'INITIATED',
             performedBy: 'HR System',
-            remarks: `Resignation submitted. Notice period: ${noticeDays} days. LWD: ${lastWorkingDay.toISOString().split('T')[0]}.`,
+            remarks: `Exit initiated (${exitType}). Reason: ${dto.exitReason}. Notice period: ${noticeDays} days. LWD: ${lastWorkingDay.toISOString().split('T')[0]}.`,
           },
         },
       },
@@ -343,34 +350,224 @@ export class ExitsService implements OnModuleInit {
         status: dto.status,
         verifiedBy: dto.verifiedBy || 'Department Lead',
         verifiedAt: new Date(),
-        remarks: dto.remarks,
+        remarks: dto.remarks !== undefined ? dto.remarks : item.remarks,
       },
     });
 
     // Recheck overall exit clearance status
+    // Only mandatory / conditional items that are applicable block completion
     const allItems = await this.prisma.exitClearanceItem.findMany({
       where: { exitId: item.exitId },
     });
-    const allCleared = allItems.every((i) => i.status === 'CLEARED');
-    const anyInFilter = allItems.some((i) => i.status === 'CLEARED' || i.status === 'VERIFIED');
+    const blockingPending = allItems.filter(
+      (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
+    );
+    const anyResolved = allItems.some(
+      (i) => i.status === 'CLEARED' || i.status === 'VERIFIED' || i.status === 'WAIVED',
+    );
 
     let overallClearanceStatus = 'PENDING';
-    if (allCleared) overallClearanceStatus = 'COMPLETED';
-    else if (anyInFilter) overallClearanceStatus = 'IN_PROGRESS';
+    if (blockingPending.length === 0) overallClearanceStatus = 'COMPLETED';
+    else if (anyResolved) overallClearanceStatus = 'IN_PROGRESS';
 
     await this.prisma.employeeExit.update({
       where: { id: item.exitId },
       data: {
         clearanceStatus: overallClearanceStatus,
-        status: overallClearanceStatus === 'COMPLETED' ? 'CLEARANCE_COMPLETED' : item.exit.status,
+        status: overallClearanceStatus === 'COMPLETED' && item.exit.status === 'CLEARANCE_PENDING'
+          ? 'CLEARANCE_COMPLETED'
+          : item.exit.status,
       },
     });
 
     return updatedItem;
   }
 
+  /**
+   * Audit-safe clearance re-evaluation:
+   * 1. Preserves existing CLEARED and WAIVED task statuses, verifiers, dates, and audit history
+   * 2. Maps legacy item keys to master ruleKeys for seamless historical continuity
+   * 3. Creates new applicable tasks from Company Clearance Master
+   * 4. Updates newly excluded conditional tasks to NOT_APPLICABLE
+   * 5. Purges unverified PENDING legacy tasks that do not belong to the Company Master
+   */
+  async recalculateClearance(id: string, performedBy?: string) {
+    const exit = await this.findOne(id);
+    const evaluatedTasks = await this.clearanceMasterService.evaluateClearanceForEmployee(
+      exit.employee,
+      exit.exitType,
+      exit.companyId || undefined,
+    );
+
+    const existingItems = exit.clearanceItems || [];
+    const existingMap = new Map<string, typeof existingItems[0]>();
+    for (const item of existingItems) {
+      existingMap.set(item.itemKey.toLowerCase(), item);
+    }
+
+    // Mapping of legacy item keys to master rule keys for seamless history preservation
+    const legacyKeyAliases: Record<string, string[]> = {
+      admin_id_card: ['id_badge', 'admin_id_badge', 'admin_id_access_card'],
+      it_laptop_return: ['laptop_hardware', 'it_laptop_hardware', 'it_workstation_hardware'],
+      admin_mobile_return: ['mobile_sim', 'assets_mobile_sim'],
+      prod_tool_kit_return: ['assigned_assets', 'tools_return'],
+      ehs_ppe_return: ['ppe_return'],
+      ops_shift_handover: ['work_handover'],
+      prod_dept_handover: ['pending_tasks', 'kt_completion'],
+      hr_service_closure: ['document_clearance'],
+      hr_attendance_closure: ['attendance_closure', 'leave_encashment'],
+      hr_exit_survey: ['exit_interview'],
+    };
+
+    const matchedExistingItemIds = new Set<string>();
+
+    for (const task of evaluatedTasks) {
+      // Find matching item by exact ruleKey, itemKey, or legacy alias
+      let existing =
+        existingMap.get(task.ruleKey.toLowerCase()) ||
+        existingMap.get(task.itemKey.toLowerCase());
+
+      if (!existing && legacyKeyAliases[task.ruleKey.toLowerCase()]) {
+        for (const alias of legacyKeyAliases[task.ruleKey.toLowerCase()]) {
+          const candidate = existingMap.get(alias.toLowerCase());
+          if (candidate) {
+            existing = candidate;
+            break;
+          }
+        }
+      }
+
+      if (existing) {
+        matchedExistingItemIds.add(existing.id);
+
+        // If already CLEARED or WAIVED, preserve status, verifiedBy, verifiedAt, and remarks!
+        if (existing.status === 'CLEARED' || existing.status === 'WAIVED') {
+          // Normalize itemKey and label to current master rule
+          if (existing.itemKey !== task.ruleKey) {
+            await this.prisma.exitClearanceItem.update({
+              where: { id: existing.id },
+              data: {
+                itemKey: task.ruleKey,
+                itemLabel: task.itemLabel,
+                department: task.department,
+              },
+            });
+          }
+          continue;
+        }
+
+        // If PENDING and now not applicable, mark NOT_APPLICABLE
+        if (!task.isApplicable) {
+          await this.prisma.exitClearanceItem.update({
+            where: { id: existing.id },
+            data: {
+              itemKey: task.ruleKey,
+              itemLabel: task.itemLabel,
+              department: task.department,
+              status: 'NOT_APPLICABLE',
+              remarks: `[${task.mandatoryType}] ${task.exclusionReason || 'Not required for employee profile'}`,
+            },
+          });
+        } else {
+          // Task is applicable -> set to PENDING
+          await this.prisma.exitClearanceItem.update({
+            where: { id: existing.id },
+            data: {
+              itemKey: task.ruleKey,
+              itemLabel: task.itemLabel,
+              department: task.department,
+              status: 'PENDING',
+              remarks: `[${task.mandatoryType}] Required clearance`,
+            },
+          });
+        }
+      } else {
+        // Create new task from evaluated master rule
+        const created = await this.prisma.exitClearanceItem.create({
+          data: {
+            exitId: id,
+            department: task.department,
+            itemKey: task.ruleKey,
+            itemLabel: task.itemLabel,
+            status: task.status,
+            remarks: task.exclusionReason
+              ? `[${task.mandatoryType}] ${task.exclusionReason}`
+              : `[${task.mandatoryType}] Required clearance`,
+          },
+        });
+        matchedExistingItemIds.add(created.id);
+      }
+    }
+
+    // Unmatched legacy items:
+    // If completed (CLEARED / WAIVED): preserve as historical audit records
+    // If unverified PENDING: purge so irrelevant tasks (SaaS, VPN, etc.) are NOT GENERATED!
+    for (const item of existingItems) {
+      if (!matchedExistingItemIds.has(item.id)) {
+        if (item.status === 'CLEARED' || item.status === 'WAIVED') {
+          // Historical completed item: keep it
+        } else {
+          // Unverified legacy task not in the Company Master: delete
+          await this.prisma.exitClearanceItem.delete({
+            where: { id: item.id },
+          });
+        }
+      }
+    }
+
+    // Refresh items to compute overall clearance status
+    const allItems = await this.prisma.exitClearanceItem.findMany({
+      where: { exitId: id },
+    });
+
+    const pendingMandatory = allItems.filter(
+      (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
+    );
+    const hasResolved = allItems.some(
+      (i) => i.status === 'CLEARED' || i.status === 'WAIVED',
+    );
+
+    let overallClearanceStatus = 'PENDING';
+    if (pendingMandatory.length === 0) overallClearanceStatus = 'COMPLETED';
+    else if (hasResolved) overallClearanceStatus = 'IN_PROGRESS';
+
+    const updated = await this.prisma.employeeExit.update({
+      where: { id },
+      data: {
+        clearanceStatus: overallClearanceStatus,
+        status:
+          overallClearanceStatus === 'COMPLETED' && exit.status === 'CLEARANCE_PENDING'
+            ? 'CLEARANCE_COMPLETED'
+            : exit.status,
+        auditLogs: {
+          create: {
+            action: 'CLEARANCE_RULES_RECALCULATED',
+            previousStatus: exit.status,
+            newStatus: exit.status,
+            performedBy: performedBy || 'HR Admin',
+            remarks: `Clearance matrix re-evaluated against Company Clearance Master. ${pendingMandatory.length} mandatory tasks pending.`,
+          },
+        },
+      },
+      include: {
+        clearanceItems: { orderBy: [{ department: 'asc' }, { createdAt: 'asc' }] },
+        auditLogs: { orderBy: { createdAt: 'desc' } },
+        employee: {
+          include: {
+            department: true,
+            designation: true,
+          },
+        },
+      },
+    });
+
+    return updated;
+  }
+
   async saveExitInterview(exitId: string, dto: SaveExitInterviewDto) {
     const exit = await this.findOne(exitId);
+    const isWaived = dto.isWaived || false;
+    const interviewStatus = isWaived ? 'WAIVED' : 'COMPLETED';
 
     const interview = await this.prisma.exitInterview.upsert({
       where: { exitId },
@@ -384,7 +581,7 @@ export class ExitsService implements OnModuleInit {
         compensationRating: dto.compensationRating ?? 5,
         recommendCompany: dto.recommendCompany ?? true,
         rehireEligible: dto.rehireEligible ?? true,
-        hrRemarks: dto.hrRemarks,
+        hrRemarks: isWaived && dto.waiverReason ? `[WAIVED]: ${dto.waiverReason}` : dto.hrRemarks,
         completedAt: new Date(),
       },
       update: {
@@ -396,7 +593,7 @@ export class ExitsService implements OnModuleInit {
         compensationRating: dto.compensationRating ?? 5,
         recommendCompany: dto.recommendCompany ?? true,
         rehireEligible: dto.rehireEligible ?? true,
-        hrRemarks: dto.hrRemarks,
+        hrRemarks: isWaived && dto.waiverReason ? `[WAIVED]: ${dto.waiverReason}` : dto.hrRemarks,
         completedAt: new Date(),
       },
     });
@@ -404,15 +601,17 @@ export class ExitsService implements OnModuleInit {
     await this.prisma.employeeExit.update({
       where: { id: exitId },
       data: {
-        exitInterviewStatus: 'COMPLETED',
+        exitInterviewStatus: interviewStatus,
         status: exit.status === 'CLEARANCE_COMPLETED' ? 'EXIT_INTERVIEW' : exit.status,
         auditLogs: {
           create: {
-            action: 'EXIT_INTERVIEW_COMPLETED',
+            action: isWaived ? 'EXIT_INTERVIEW_WAIVED' : 'EXIT_INTERVIEW_COMPLETED',
             previousStatus: exit.status,
             newStatus: 'EXIT_INTERVIEW',
             performedBy: 'HR Manager',
-            remarks: `Exit interview recorded. Primary reason: ${dto.primaryReason}`,
+            remarks: isWaived
+              ? `Exit interview marked as waived. Reason: ${dto.waiverReason || 'Waived by HR Policy'}`
+              : `Exit interview recorded. Primary reason: ${dto.primaryReason}`,
           },
         },
       },
@@ -428,13 +627,14 @@ export class ExitsService implements OnModuleInit {
     const leaveEncashment = dto.leaveEncashment ?? 0;
     const incentives = dto.incentives ?? 0;
     const reimbursements = dto.reimbursements ?? 0;
+    const gratuity = dto.gratuity ?? 0;
 
     const noticeRecovery = dto.noticeRecovery ?? 0;
     const loanAdvanceRecovery = dto.loanAdvanceRecovery ?? 0;
     const assetRecovery = dto.assetRecovery ?? 0;
     const otherDeductions = dto.otherDeductions ?? 0;
 
-    const grossPayable = salaryPayable + leaveEncashment + incentives + reimbursements;
+    const grossPayable = salaryPayable + leaveEncashment + incentives + reimbursements + gratuity;
     const totalDeductions = noticeRecovery + loanAdvanceRecovery + assetRecovery + otherDeductions;
     const netPayable = grossPayable - totalDeductions;
 
@@ -501,18 +701,36 @@ export class ExitsService implements OnModuleInit {
 
   async completeExit(id: string, performedBy?: string) {
     const exit = await this.findOne(id);
-    
-    if (exit.clearanceStatus !== 'COMPLETED') {
-      throw new BadRequestException('Cannot grant Final Exit Approval: Department clearances are not 100% completed.');
+
+    // Gate 1: Check Mandatory / Required Clearance Items
+    const pendingMandatory = (exit.clearanceItems || []).filter(
+      (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
+    );
+    if (pendingMandatory.length > 0) {
+      const itemsList = pendingMandatory
+        .map((i) => `• ${i.itemLabel} — ${i.department}`)
+        .join('\n');
+      throw new BadRequestException(
+        `FINAL SIGNOFF BLOCKED\n\n${pendingMandatory.length} mandatory clearance item(s) pending:\n${itemsList}`,
+      );
     }
-    if (exit.exitInterviewStatus !== 'COMPLETED') {
-      throw new BadRequestException('Cannot grant Final Exit Approval: Exit Interview questionnaire has not been completed.');
+
+    // Gate 2: Check Exit Interview questionnaire
+    if (exit.exitInterviewStatus !== 'COMPLETED' && exit.exitInterviewStatus !== 'WAIVED') {
+      throw new BadRequestException(
+        'FINAL SIGNOFF BLOCKED: Required Exit Interview questionnaire has not been completed or waived.',
+      );
     }
+
+    // Gate 3: Check Full & Final Settlement (F&F)
     if (exit.fnfStatus !== 'COMPLETED') {
-      throw new BadRequestException('Cannot grant Final Exit Approval: Full & Final Settlement (F&F) is pending finance approval.');
+      throw new BadRequestException(
+        'FINAL SIGNOFF BLOCKED: Full & Final Settlement (F&F) is pending Finance approval.',
+      );
     }
 
     const lastWorkingDay = exit.adjustedLwd || exit.lastWorkingDay;
+    const nextEmpStatus = exit.exitType === 'TERMINATION' ? 'TERMINATED' : 'EXITED';
 
     // Transition Exit status to EXITED
     const updatedExit = await this.prisma.employeeExit.update({
@@ -525,7 +743,7 @@ export class ExitsService implements OnModuleInit {
             previousStatus: exit.status,
             newStatus: 'EXITED',
             performedBy: performedBy || 'HR Director',
-            remarks: `Final Exit Approval granted. Employee status updated to EXITED as of LWD ${lastWorkingDay.toISOString().split('T')[0]}.`,
+            remarks: `Final Exit Approval granted. Employee status updated to ${nextEmpStatus} (Separated) as of LWD ${lastWorkingDay.toISOString().split('T')[0]}.`,
           },
         },
       },
@@ -535,13 +753,14 @@ export class ExitsService implements OnModuleInit {
     await this.prisma.employee.update({
       where: { id: exit.employeeId },
       data: {
-        status: 'EXITED',
+        status: nextEmpStatus as any,
         dateOfExit: lastWorkingDay,
       },
     });
 
     return updatedExit;
   }
+
 
   async remove(id: string) {
     await this.findOne(id);

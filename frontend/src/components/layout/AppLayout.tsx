@@ -23,37 +23,33 @@ export function AppLayout() {
     setIsMobileMenuOpen((prev) => !prev);
   }, []);
 
-  const bottomNavItems = isHrOrAdmin
-    ? [
-        { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-        { label: 'Employees', path: '/employees/directory', icon: User },
-        { label: 'Attendance', path: '/attendance-leave/live', icon: Clock },
-        { label: 'Tasks', path: '/tasks', icon: CheckSquare },
-        { label: 'Payroll', path: '/payroll', icon: CalendarClock },
-      ]
-    : [
-        { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-        { label: 'Attendance', path: '/attendance-leave/live', icon: Clock },
-        { label: 'Leave', path: '/attendance-leave/leave', icon: CalendarClock },
-        { label: 'Tasks', path: '/tasks/my-tasks', icon: CheckSquare },
-        { label: 'Profile', path: '/employees/detail/me', icon: User },
-      ];
+  // Mobile Bottom Navigation: only show Attendance option per user request
+  const bottomNavItems = [
+    { label: 'Attendance', path: '/attendance-leave', icon: Clock },
+  ];
 
   return (
     <div className="flex h-screen w-full bg-background relative overflow-hidden">
+      {/* Hide ERP Sidebar on mobile */}
       {!isLandingPage && (
-        <Sidebar
-          isOpenOnMobile={isMobileMenuOpen}
-          onCloseMobile={handleCloseMobile}
-        />
+        <div className="hidden md:block h-full shrink-0">
+          <Sidebar
+            isOpenOnMobile={false}
+            onCloseMobile={handleCloseMobile}
+          />
+        </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
-        {!isLandingPage && <Topbar onToggleMobileMenu={handleToggleMobileMenu} />}
+        {!isLandingPage && (
+          <div className="hidden md:block">
+            <Topbar onToggleMobileMenu={handleToggleMobileMenu} />
+          </div>
+        )}
 
         <main className={cn(
-          "flex-1 min-h-0 overflow-y-auto bg-background pb-24 md:pb-8",
-          isLandingPage ? "p-2 sm:p-3 lg:p-4" : "p-4 sm:p-6 lg:p-8"
+          "flex-1 min-h-0 overflow-y-auto bg-background pb-20 md:pb-8",
+          isLandingPage ? "p-2 sm:p-3 lg:p-4" : "p-0 md:p-6 lg:p-8"
         )}>
           <div className={cn("mx-auto w-full", isLandingPage ? "max-w-full" : "max-w-[1600px]")}>
             <Outlet />
@@ -61,9 +57,9 @@ export function AppLayout() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (PWA Mobile Experience) */}
+      {/* Mobile Bottom Navigation Bar: Only Attendance per user request */}
       {!isLandingPage && (
-        <nav className="fixed bottom-0 inset-x-0 h-16 bg-card/95 border-t border-border/80 backdrop-blur-lg z-40 flex items-center justify-around md:hidden px-2">
+        <nav className="fixed bottom-0 inset-x-0 h-16 bg-white/95 border-t border-slate-200 backdrop-blur-lg z-40 flex items-center justify-center md:hidden px-4 shadow-lg">
           {bottomNavItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -80,12 +76,17 @@ export function AppLayout() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className={cn(
-                  'flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-semibold transition-colors cursor-pointer',
-                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                  'flex flex-col items-center justify-center py-1 text-xs font-bold transition-colors cursor-pointer',
+                  isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900',
                 )}
               >
-                <Icon className={cn('h-5 w-5 mb-0.5 transition-transform', isActive && 'scale-110')} />
-                <span className="truncate max-w-[64px] text-center">{item.label}</span>
+                <div className={cn(
+                  'flex items-center justify-center w-10 h-10 rounded-full transition-all mb-0.5',
+                  isActive ? 'bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-2xs' : 'text-slate-500'
+                )}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <span className="text-[11px] font-bold">{item.label}</span>
               </NavLink>
             );
           })}

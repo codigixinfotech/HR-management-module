@@ -76,10 +76,13 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
   }, [user?.name]);
 
   const roleDisplay = useMemo(() => {
-    if (isSuperAdmin) return 'Super Admin';
+    if (isSuperAdmin || user?.role === 'Super Admin' || user?.primaryRole?.toUpperCase().includes('ADMIN')) return 'Super Admin';
     if (user?.role) return user.role;
+    if (user?.primaryRole) return user.primaryRole;
+    if (user?.roles && user.roles.length > 0) return user.roles[0];
+    if (user?.name?.toLowerCase().includes('admin') || user?.email?.toLowerCase().includes('admin')) return 'Super Admin';
     return 'Employee';
-  }, [isSuperAdmin, user?.role]);
+  }, [isSuperAdmin, user]);
 
   const departmentName = useMemo(() => {
     if (user?.departmentName) return user.departmentName;
@@ -131,10 +134,11 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
     <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b bg-background/95 px-4 backdrop-blur-xs">
       {/* Breadcrumb / Left Side Header */}
       <div className="flex items-center gap-2">
+        {/* Mobile menu toggle hidden per user request to hide ERP sidebar on mobile */}
         <button
           type="button"
           onClick={onToggleMobileMenu}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border text-muted-foreground md:hidden hover:bg-accent"
+          className="hidden h-9 w-9 items-center justify-center rounded-lg border text-muted-foreground hover:bg-accent"
           title="Open Menu"
         >
           <Menu className="h-5 w-5" />

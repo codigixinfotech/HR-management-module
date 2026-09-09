@@ -100,6 +100,14 @@ export class CreateAssetDto {
   @IsOptional()
   @IsString()
   photoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  assignmentType?: string;
+
+  @IsOptional()
+  @IsString()
+  currentEmployeeId?: string;
 }
 
 export class UpdateAssetDto extends PartialType(CreateAssetDto) {}

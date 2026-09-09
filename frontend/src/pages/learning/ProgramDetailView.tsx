@@ -35,7 +35,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { type TrainingProgram, type EmployeeProgramStatus } from './mockTrainingData';
+import { type TrainingProgram, type EmployeeProgramStatus } from './types';
 import { notificationStore, type PortalNotification, type EmailDispatchLog } from '@/utils/notificationStore';
 
 interface ProgramDetailViewProps {

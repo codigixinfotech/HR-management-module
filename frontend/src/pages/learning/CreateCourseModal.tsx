@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { type CourseItem, type CourseModule } from './mockTrainingData';
+import type { CourseItem, CourseModule } from './types';
 
 interface CreateCourseModalProps {
   isOpen: boolean;

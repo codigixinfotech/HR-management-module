@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   FileCheck,
   Plus,
@@ -21,12 +21,40 @@ import {
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { INITIAL_ASSESSMENTS, type AssessmentItem } from './mockTrainingData';
+import { apiClient } from '@/lib/api-client';
+import type { AssessmentItem } from './types';
 import { CreateAssessmentModal } from './CreateAssessmentModal';
 
 export function AssessmentsTab() {
-  const [assessments, setAssessments] = useState<AssessmentItem[]>(INITIAL_ASSESSMENTS);
+  const [assessments, setAssessments] = useState<AssessmentItem[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    apiClient
+      .get<any[]>('/learning/catalog-courses')
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        const mapped: AssessmentItem[] = list
+          .filter((c: any) => c.assessmentIncluded)
+          .map((c: any) => ({
+            id: `ASM-${c.code || c.id}`,
+            code: `ASM-${c.code || c.id}`,
+            courseId: c.id || c.code,
+            courseTitle: c.title,
+            name: `${c.title} Evaluation & Exam`,
+            title: `${c.title} Evaluation & Exam`,
+            type: 'Final Exam',
+            durationMinutes: 45,
+            passingScore: 70,
+            totalQuestions: 15,
+            attemptsAllowed: 3,
+            questions: [],
+            status: 'Published',
+          }));
+        setAssessments(mapped);
+      })
+      .catch((err) => console.warn('Failed to load assessments from catalog:', err));
+  }, []);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');

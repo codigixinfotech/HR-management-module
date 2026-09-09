@@ -117,6 +117,14 @@ export class SaveExitInterviewDto {
   @IsOptional()
   @IsString()
   hrRemarks?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isWaived?: boolean;
+
+  @IsOptional()
+  @IsString()
+  waiverReason?: string;
 }
 
 export class SaveFnfSettlementDto {
@@ -135,6 +143,10 @@ export class SaveFnfSettlementDto {
   @IsOptional()
   @IsNumber()
   reimbursements?: number;
+
+  @IsOptional()
+  @IsNumber()
+  gratuity?: number;
 
   @IsOptional()
   @IsNumber()

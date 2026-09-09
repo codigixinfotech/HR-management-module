@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X,
   Plus,
@@ -43,11 +43,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import {
-  MOCK_EMPLOYEES,
-  type TrainingBatch,
-  type TrainingProgram,
-} from './mockTrainingData';
+import { employeesApi } from '@/api/employees';
+import type { TrainingBatch, TrainingProgram } from './types';
 
 interface CreateProgramFormProps {
   initialData?: TrainingProgram | null;
@@ -56,6 +53,34 @@ interface CreateProgramFormProps {
 }
 
 export function CreateProgramForm({ initialData, onBack, onSave }: CreateProgramFormProps) {
+  const [employees, setEmployees] = useState<any[]>([]);
+
+  useEffect(() => {
+    employeesApi.list({ pageSize: 1000 }).then((res: any) => {
+      const rawList: any[] = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.items)
+        ? res.items
+        : Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.items)
+        ? res.data.items
+        : [];
+
+      if (rawList.length > 0) {
+        const mapped = rawList.map((e: any) => ({
+          id: e.id,
+          name: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.name || e.employeeCode || 'Employee',
+          department: typeof e.department === 'string' ? e.department : e.department?.name || 'Operations',
+          designation: typeof e.designation === 'string' ? e.designation : e.designation?.title || 'Staff',
+          company: e.company?.name || 'EHCM Enterprise Corp',
+          grade: e.grade?.name || 'G3',
+          location: e.branch?.name || 'Main Campus',
+        }));
+        setEmployees(mapped);
+      }
+    }).catch((err) => console.warn('Failed to load employees in CreateProgramModal:', err));
+  }, []);
   const [activeSection, setActiveSection] = useState<number>(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,7 +111,7 @@ export function CreateProgramForm({ initialData, onBack, onSave }: CreateProgram
 
   // Filtered internal trainers from Employee Master
   const filteredInternalTrainers = useMemo(() => {
-    return MOCK_EMPLOYEES.filter((emp) => {
+    return employees.filter((emp) => {
       if (selectedCompany !== 'All' && emp.company && emp.company !== selectedCompany) return false;
       if (!trainerSearchQuery) return true;
       const q = trainerSearchQuery.toLowerCase();
@@ -98,7 +123,7 @@ export function CreateProgramForm({ initialData, onBack, onSave }: CreateProgram
         (emp.company && emp.company.toLowerCase().includes(q))
       );
     });
-  }, [trainerSearchQuery, selectedCompany]);
+  }, [employees, trainerSearchQuery, selectedCompany]);
 
   // ③ Target Employees with Search & Company-wise Filtering
   const [assignBy, setAssignBy] = useState<string>(initialData?.assignBy || 'Department');
@@ -113,7 +138,7 @@ export function CreateProgramForm({ initialData, onBack, onSave }: CreateProgram
 
   // Filtered employees roster from Employee Master
   const filteredEmployees = useMemo(() => {
-    return MOCK_EMPLOYEES.filter((e) => {
+    return employees.filter((e) => {
       if (selectedCompany !== 'All' && e.company && e.company !== selectedCompany) return false;
       if (selectedDept !== 'All' && e.department !== selectedDept) return false;
       if (selectedLocation !== 'All' && e.location !== selectedLocation) return false;
@@ -127,7 +152,7 @@ export function CreateProgramForm({ initialData, onBack, onSave }: CreateProgram
       }
       return true;
     });
-  }, [selectedCompany, selectedDept, selectedLocation, targetEmpSearch]);
+  }, [employees, selectedCompany, selectedDept, selectedLocation, targetEmpSearch]);
 
   // ④ Schedule & Sessions
   const todayStr = new Date().toISOString().split('T')[0];
@@ -393,7 +418,7 @@ export function CreateProgramForm({ initialData, onBack, onSave }: CreateProgram
       employeeStatuses: selectedEmpIds.map((empId) => {
         const existing = initialData?.employeeStatuses?.find((e) => e.employeeId === empId);
         if (existing) return existing;
-        const emp = MOCK_EMPLOYEES.find((e) => e.id === empId);
+        const emp = employees.find((e) => e.id === empId);
         return {
           employeeId: empId,
           employeeName: emp?.name || 'Employee',

@@ -1,7 +1,11 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { getModulesForRole, type HcmModule, type SubModuleItem } from '@/lib/modules';
+import { useQuery } from '@tanstack/react-query';
+import { getModulesForRole, isSuperAdminUser, type HcmModule, type SubModuleItem } from '@/lib/modules';
 import { useAuthStore } from '@/stores/auth-store';
+import { useCompany } from '@/context/CompanyContext';
+import { subscriptionsApi } from '@/api/plansApi';
+import { useRecruitmentConfig } from '@/hooks/useRecruitmentConfig';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -23,9 +27,64 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const { activeCompanyId } = useCompany();
+  const { isAssessmentEnabled } = useRecruitmentConfig();
   const [menuSearch, setMenuSearch] = useState('');
 
   const modulesForRole = useMemo(() => getModulesForRole(user), [user]);
+  const isSuperAdmin = useMemo(() => isSuperAdminUser(user), [user]);
+
+  // Fetch active company's subscription modules
+  const { data: subData } = useQuery({
+    queryKey: ['company-subscription', activeCompanyId],
+    queryFn: () => (activeCompanyId ? subscriptionsApi.getCompanySubscription(activeCompanyId) : null),
+    enabled: Boolean(activeCompanyId),
+  });
+
+  const enabledModuleKeysSet = useMemo(() => {
+    if (!subData?.moduleEntitlementMatrix) return null;
+    const enabledKeys = subData.moduleEntitlementMatrix
+      .filter((m: any) => m.isEnabled)
+      .map((m: any) => m.key);
+    return new Set(enabledKeys);
+  }, [subData]);
+
+  const companyModules = useMemo(() => {
+    let base = modulesForRole;
+
+    if (!isSuperAdmin && enabledModuleKeysSet) {
+      base = modulesForRole.filter((mod) => {
+        // Always allow Dashboard, Settings/Administration, and Landing Page Demo
+        if (mod.key === 'dashboard' || mod.key === 'administration' || mod.key === 'landing-page') {
+          return true;
+        }
+        let catalogKey = mod.key;
+        if (mod.key === 'employees' || mod.key === 'tasks') catalogKey = 'employee-management';
+        if (mod.key === 'ehs') catalogKey = 'safety-ehs';
+        if (mod.key === 'iot-devices') catalogKey = 'integrations-iot';
+
+        return enabledModuleKeysSet.has(catalogKey);
+      });
+    }
+
+    // Global Recruitment Assessment Feature Toggle:
+    // If Assessment is OFF -> Hide "Assessments & Question Bank" from Recruitment navigation
+    if (!isAssessmentEnabled) {
+      base = base.map((mod) => {
+        if (mod.key === 'recruitment' && mod.subItems) {
+          return {
+            ...mod,
+            subItems: mod.subItems.filter(
+              (sub) => sub.key !== 'assessments' && !sub.path.includes('/assessments')
+            ),
+          };
+        }
+        return mod;
+      });
+    }
+
+    return base;
+  }, [modulesForRole, enabledModuleKeysSet, isSuperAdmin, isAssessmentEnabled]);
 
   // Track expanded parent sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -46,8 +105,13 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       const [subBasePath, subQuery] = subPath.split('?');
       const normSubBase = subBasePath === '/profile' ? '/employees/detail/me' : subBasePath;
 
-      // Base path must match
-      if (normCurrent !== normSubBase) return false;
+      // Base path must match (handle /attendance-leave and /attendance-leave/live equivalency)
+      const isPathMatch =
+        normCurrent === normSubBase ||
+        (normCurrent === '/attendance-leave/live' && normSubBase === '/attendance-leave') ||
+        (normCurrent === '/attendance-leave' && normSubBase === '/attendance-leave/live');
+
+      if (!isPathMatch) return false;
 
       // If subPath specifies a query string (e.g. ?tab=apply or ?details=me)
       if (subQuery) {
@@ -76,7 +140,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
 
   // Auto-expand section containing the active route/tab
   useEffect(() => {
-    const matchedModule = modulesForRole.find(
+    const matchedModule = companyModules.find(
       (m) =>
         m.subItems?.some((sub) => isSubItemActive(sub.path)) ||
         (!m.subItems?.length && isSubItemActive(m.path)),
@@ -85,7 +149,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
     if (matchedModule) {
       setOpenSections((prev) => ({ ...prev, [matchedModule.key]: true }));
     }
-  }, [modulesForRole, isSubItemActive]);
+  }, [companyModules, isSubItemActive]);
 
   const toggleSection = (key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -93,11 +157,11 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
 
   // Filter modules and subItems by search query
   const filteredModules = useMemo(() => {
-    if (!menuSearch.trim()) return modulesForRole;
+    if (!menuSearch.trim()) return companyModules;
 
     const query = menuSearch.toLowerCase();
 
-    return modulesForRole
+    return companyModules
       .map((mod) => {
         const parentMatches = mod.label.toLowerCase().includes(query);
         const matchedSubs = mod.subItems?.filter((sub) => sub.label.toLowerCase().includes(query)) || [];
@@ -111,7 +175,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
         return null;
       })
       .filter(Boolean) as HcmModule[];
-  }, [menuSearch, modulesForRole]);
+  }, [menuSearch, companyModules]);
 
   return (
     <>
@@ -125,6 +189,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           toggleSection={toggleSection}
           isSubItemActive={isSubItemActive}
           navigate={navigate}
+          enabledModulesCount={subData?.enabledModulesCount}
         />
       </aside>
 
@@ -154,6 +219,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           navigate={navigate}
           onCloseMobile={onCloseMobile}
           isMobileDrawer
+          enabledModulesCount={subData?.enabledModulesCount}
         />
       </aside>
     </>
@@ -170,6 +236,7 @@ interface SidebarTreeContentProps {
   navigate: (path: string) => void;
   onCloseMobile?: () => void;
   isMobileDrawer?: boolean;
+  enabledModulesCount?: number;
 }
 
 function SidebarTreeContent({
@@ -182,6 +249,7 @@ function SidebarTreeContent({
   navigate,
   onCloseMobile,
   isMobileDrawer,
+  enabledModulesCount,
 }: SidebarTreeContentProps) {
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -248,7 +316,7 @@ function SidebarTreeContent({
         <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 flex items-center justify-between">
           <span>Main Navigation</span>
           <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-mono text-[9px] font-semibold">
-            {filteredModules.length} Modules
+            {enabledModulesCount ?? filteredModules.length} Modules
           </span>
         </div>
 
@@ -268,6 +336,11 @@ function SidebarTreeContent({
                 onClick={() => {
                   if (hasSubItems) {
                     toggleSection(mod.key);
+                    if (mod.path) {
+                      navigate(mod.path);
+                      onCloseMobile?.();
+                      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
                   } else {
                     navigate(mod.path);
                     onCloseMobile?.();

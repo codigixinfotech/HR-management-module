@@ -66,7 +66,7 @@ function OrgTreeNode({ node, toggleNode, expandedNodes }: OrgTreeNodeProps) {
 
         <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2 text-[10px]">
           <span className="text-muted-foreground flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> {node.location.split(' ')[0]}
+            <MapPin className="h-3 w-3" /> {node.location ? node.location.replace(/\s+Office$/i, '').replace(/\s+Manufacturing Plant$/i, '').trim() : 'Pune'}
           </span>
           {hasChildren && (
             <span className="flex items-center gap-0.5 text-primary font-semibold">
@@ -186,15 +186,19 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
       (emp: any) => !emp.reportingManagerId || !employeeIds.has(emp.reportingManagerId)
     );
 
-    // Identify primary executive leader (CEO / MD / Founder / Chief Officer / Top Manager)
+    // Identify primary executive leader (Managing Director / CEO / Founder / Chief Officer / Top Manager)
     let primaryRoot = rootCandidates.find((emp: any) => {
       const title = (emp.designation?.title || '').toLowerCase();
+      const code = (emp.employeeCode || '').toLowerCase();
       return (
+        title.includes('director') ||
+        title.includes('founder') ||
+        title.includes('owner') ||
+        title.includes('managing director') ||
         title.includes('ceo') ||
         title.includes('chief executive') ||
-        title.includes('managing director') ||
-        title.includes('founder') ||
-        title.includes('president')
+        title.includes('president') ||
+        code.endsWith('-001')
       );
     });
 
@@ -224,15 +228,19 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
 
       const childNodes = directReports.map(buildNode);
 
+      const cleanFirst = (emp.firstName || '').replace(/^(mr\.|mrs\.|ms\.|dr\.)\s*/i, '');
+      const firstInitial = cleanFirst[0] || emp.firstName?.[0] || 'E';
+      const lastInitial = emp.lastName?.[0] || '';
+
       return {
         id: emp.id,
-        name: `${emp.firstName} ${emp.lastName}`,
-        title: emp.designation?.title ?? 'Associate',
-        dept: emp.department?.name ?? 'General Corporate',
+        name: `${emp.firstName || ''} ${emp.lastName || ''}`.replace(/\s+/g, ' ').trim(),
+        title: emp.designation?.title ?? (emp.id === primaryRoot!.id ? 'Managing Director & Founder' : 'Executive'),
+        dept: emp.department?.name ?? 'Executive Management',
         code: emp.employeeCode,
-        avatar: `${emp.firstName[0] || 'E'}${emp.lastName[0] || 'E'}`.toUpperCase(),
+        avatar: `${firstInitial}${lastInitial}`.toUpperCase(),
         reportsCount: childNodes.length,
-        location: emp.location ?? 'Head Office',
+        location: emp.location || emp.branch?.city || 'Pune',
         email: emp.workEmail ?? '',
         children: childNodes.length > 0 ? childNodes : undefined,
       };
@@ -333,10 +341,10 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
             <span className="text-xs text-muted-foreground">Dynamic Database Flow</span>
           </div>
           <h2 className="text-xl font-semibold text-foreground mt-1">
-            Enterprise Organization Structure & Reporting Tree
+            Organization Structure & Reporting
           </h2>
           <p className="text-xs text-muted-foreground">
-            Visual hierarchy of executive leadership, department leads, reporting lines & span of control.
+            Manage organizational hierarchy, reporting relationships, and workforce structure.
           </p>
         </div>
 
@@ -378,9 +386,9 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
         <Card className="shadow-2xs">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Managing Director / CEO</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">ORGANIZATION HEAD</p>
               <p className="text-sm font-semibold text-foreground mt-0.5">{activeTree?.name ?? 'Not Assigned'}</p>
-              <p className="text-[10px] text-primary font-semibold truncate max-w-[150px]">{activeTree?.title ?? '-'}</p>
+              <p className="text-[10px] text-primary font-semibold truncate max-w-[150px]">{activeTree?.title ?? 'Organization Head'}</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Building2 className="h-5 w-5" />
@@ -391,8 +399,8 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
         <Card className="shadow-2xs">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Executive Officers</p>
-              <p className="text-sm font-semibold text-foreground mt-0.5">{(activeTree?.children?.length ?? 0)} Direct Reports</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">DIRECT REPORTS</p>
+              <p className="text-sm font-semibold text-foreground mt-0.5">{(activeTree?.children?.length ?? 0)} Employees</p>
               <p className="text-[10px] text-emerald-600 font-semibold">100% Dynamic</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
@@ -404,9 +412,9 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
         <Card className="shadow-2xs">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Span of Control</p>
-              <p className="text-sm font-semibold text-foreground mt-0.5">{spanRatio} Ratio</p>
-              <p className="text-[10px] text-violet-600 font-semibold">Managers: {managersCount}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">REPORTING STRUCTURE</p>
+              <p className="text-sm font-semibold text-foreground mt-0.5">{managersCount} Managers</p>
+              <p className="text-[10px] text-violet-600 font-semibold">{(activeTree?.children?.length ?? 0)} Direct Reports</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600">
               <Network className="h-5 w-5" />
@@ -417,7 +425,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
         <Card className="shadow-2xs">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Managed Staff</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">TOTAL EMPLOYEES</p>
               <p className="text-sm font-semibold text-foreground mt-0.5">{totalEmployeesCount} Headcount</p>
               <p className="text-[10px] text-amber-600 font-semibold">Real-time DB sync</p>
             </div>

@@ -1,8 +1,12 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class CreateRoleDto {
   @IsString()
   name: string;
+
+  @IsOptional()
+  @IsString()
+  type?: string;
 
   @IsOptional()
   @IsString()
@@ -11,6 +15,14 @@ export class CreateRoleDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  dataScope?: string;
+
+  @IsOptional()
+  @IsObject()
+  loginAccess?: Record<string, boolean>;
 
   @IsOptional()
   @IsArray()

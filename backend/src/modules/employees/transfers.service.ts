@@ -5,10 +5,15 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 export class TransfersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list() {
-    const transfers: any[] = await this.prisma.$queryRawUnsafe(
-      'SELECT * FROM employee_transfers ORDER BY createdAt DESC'
-    );
+  async list(companyId?: string) {
+    const transfers: any[] = companyId
+      ? await this.prisma.$queryRawUnsafe(
+          'SELECT t.* FROM employee_transfers t JOIN employees e ON t.employeeId = e.id WHERE e.companyId = ? ORDER BY t.createdAt DESC',
+          companyId,
+        )
+      : await this.prisma.$queryRawUnsafe(
+          'SELECT * FROM employee_transfers ORDER BY createdAt DESC',
+        );
     
     const enriched: any[] = [];
     for (const t of transfers) {

@@ -44,8 +44,40 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user }),
       clear: () => set({ accessToken: null, refreshToken: null, user: null }),
       hasPermission: (code) => {
-        const permissions = get().user?.permissions ?? [];
-        return permissions.includes('*') || permissions.includes(code);
+        const user = get().user;
+        if (!user) return false;
+        const permissions = user.permissions ?? [];
+        if (permissions.includes('*')) return true;
+        if (permissions.includes(code)) return true;
+
+        const parts = code.split('.');
+        const mod = parts[0];
+        const act = parts[1] || 'view';
+
+        const normMod = mod.toLowerCase().replace(/[-_]/g, '');
+
+        return permissions.some((p) => {
+          if (p === '*') return true;
+          const pParts = p.toLowerCase().split('.');
+          const normPMod = pParts[0]?.replace(/[-_]/g, '');
+          const pAct = pParts[1] || '';
+
+          const isSameModule =
+            normPMod === normMod ||
+            (normMod === 'performance' && normPMod === 'performancemanagement') ||
+            (normMod === 'employees' && normPMod === 'employeemanagement') ||
+            (normMod === 'tasks' && normPMod === 'employeemanagement') ||
+            (normMod === 'compliance' && (normPMod === 'statutorytaxes' || normPMod === 'labourcompliance')) ||
+            (normMod === 'learning' && normPMod === 'lms');
+
+          if (!isSameModule) return false;
+
+          if (!pAct || pAct === '*' || pAct === 'manage' || pAct === act) return true;
+          if (act === 'view' && (pAct === 'read' || pAct === 'view')) return true;
+          if ((act === 'create' || act === 'edit' || act === 'delete') && (pAct === 'write' || pAct === act)) return true;
+
+          return false;
+        });
       },
     }),
     { name: 'ehcm-auth' },

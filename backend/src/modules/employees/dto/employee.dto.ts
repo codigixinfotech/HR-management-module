@@ -67,12 +67,12 @@ export class CreateEmployeeDto {
   dateOfJoining?: string;
 
   @IsOptional()
-  @IsEnum(EmploymentType)
-  employmentType?: EmploymentType;
+  @IsString()
+  employmentType?: string;
 
   @IsOptional()
-  @IsEnum(EmployeeStatus)
-  status?: EmployeeStatus;
+  @IsString()
+  status?: string;
 
   @IsOptional()
   @IsString()
@@ -115,8 +115,84 @@ export class CreateEmployeeDto {
   probationPeriod?: string;
 
   @IsOptional()
-  @IsDateString()
+  @IsString()
   confirmationDate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  probationApplicable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  probationStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  probationEndDate?: string;
+
+  @IsOptional()
+  @IsNumber()
+  confirmationNoticeDays?: number;
+
+  @IsOptional()
+  @IsString()
+  confirmationReviewBy?: string;
+
+  @IsOptional()
+  @IsString()
+  contractType?: string;
+
+  @IsOptional()
+  @IsString()
+  contractNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  contractStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  contractEndDate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  contractProbationApplicable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  contractProbationPeriod?: string;
+
+  @IsOptional()
+  @IsString()
+  contractDuration?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  contractRenewalAllowed?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  contractRenewalNoticeDays?: number;
+
+  @IsOptional()
+  @IsString()
+  contractReviewDate?: string;
+
+  @IsOptional()
+  @IsNumber()
+  contractNoticePeriod?: number;
+
+  @IsOptional()
+  @IsString()
+  contractDocument?: string;
+
+  @IsOptional()
+  @IsString()
+  contractRemarks?: string;
+
+  @IsOptional()
+  @IsString()
+  autoRenewalReminderDate?: string;
 
   @IsOptional()
   @IsString()
@@ -371,4 +447,4 @@ export class CreateEmployeeDto {
   faceRegisteredBy?: string;
 }
 
-export class UpdateEmployeeDto extends PartialType(CreateEmployeeDto) {}
+export class UpdateEmployeeDto extends PartialType(CreateEmployeeDto) { }

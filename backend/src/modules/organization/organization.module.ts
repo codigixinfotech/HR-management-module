@@ -13,6 +13,10 @@ import { PayGradesController } from './pay-grades.controller';
 import { PayGradesService } from './pay-grades.service';
 import { HrPoliciesController } from './hr-policies.controller';
 import { HrPoliciesService } from './hr-policies.service';
+import { PlansController } from './plans.controller';
+import { PlansService } from './plans.service';
+import { SubscriptionsController } from './subscriptions.controller';
+import { SubscriptionsService } from './subscriptions.service';
 
 @Module({
   controllers: [
@@ -23,6 +27,8 @@ import { HrPoliciesService } from './hr-policies.service';
     CostCentersController,
     PayGradesController,
     HrPoliciesController,
+    PlansController,
+    SubscriptionsController,
   ],
   providers: [
     CompaniesService,
@@ -32,6 +38,8 @@ import { HrPoliciesService } from './hr-policies.service';
     CostCentersService,
     PayGradesService,
     HrPoliciesService,
+    PlansService,
+    SubscriptionsService,
   ],
   exports: [
     CompaniesService,
@@ -41,6 +49,8 @@ import { HrPoliciesService } from './hr-policies.service';
     CostCentersService,
     PayGradesService,
     HrPoliciesService,
+    PlansService,
+    SubscriptionsService,
   ],
 })
 export class OrganizationModule {}

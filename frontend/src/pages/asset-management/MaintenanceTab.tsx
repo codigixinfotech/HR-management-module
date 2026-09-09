@@ -81,10 +81,20 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
     queryFn: () => assetsApi.list(companyId),
   });
 
-  const { data: records = [], isLoading: isLoadingRecords } = useQuery({
-    queryKey: ['asset-maintenance'],
-    queryFn: () => assetMaintenanceApi.list(),
+  const { data: rawRecords = [], isLoading: isLoadingRecords } = useQuery({
+    queryKey: ['asset-maintenance', companyId],
+    queryFn: () => assetMaintenanceApi.list(undefined, companyId),
   });
+
+  // Strict tenant boundary: only records whose asset belongs to this active company
+  const records = useMemo(() => {
+    if (!companyId) return rawRecords;
+    return rawRecords.filter((r) => {
+      const recCompId = r.asset?.company?.id || (r.asset as any)?.companyId;
+      if (recCompId) return recCompId === companyId;
+      return assets.some((a) => a.id === r.assetId);
+    });
+  }, [rawRecords, companyId, assets]);
 
   // Selected Target Asset for Create Modal
   const selectedTargetAsset = useMemo(() => {
@@ -146,7 +156,7 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
       // If no active record existed for this asset, create a record first then complete it so history is saved
       const createdRec = await assetMaintenanceApi.create({
         assetId: selectedAssetForCompletion!.id,
-        issue: selectedAssetForCompletion!.remarks || 'Hardware Repair & Service',
+        issue: selectedAssetForCompletion!.remarks || 'Asset Repair & Maintenance',
         startDate: selectedAssetForCompletion!.updatedAt ? new Date(selectedAssetForCompletion!.updatedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         cost: payload.actualCost,
       });
@@ -189,8 +199,8 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
     setFinalCondition('GOOD');
     setActualCost(activeRec?.cost !== undefined && activeRec?.cost !== null ? String(activeRec.cost) : '4500');
     setCompletionVendor(activeRec?.vendor || asset.vendor || 'Apple Authorized Care');
-    setWorkPerformed('Hardware diagnostic, component replacement and testing');
-    setPartsUsed('Display Cable & Battery Module');
+    setWorkPerformed('Asset diagnostic, maintenance service and operational testing');
+    setPartsUsed('Replacement Components & Consumables');
     setQcStatus('PASS');
     setRepairNotes('');
   };
@@ -384,7 +394,7 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-xs text-muted-foreground">
                       <div className="space-y-3">
-                        <p>No active work orders. All corporate assets are operational in stock or allocated.</p>
+                        <p>No active work orders. All organizational assets are operational in stock or allocated.</p>
                         {completedRecords.length > 0 && (
                           <div>
                             <Button
@@ -426,7 +436,7 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
                           {activeRecord?.vendor || a.vendor || 'In-House Tech'}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                          {activeRecord?.issue || a.remarks || 'Hardware Repair & Service'}
+                          {activeRecord?.issue || a.remarks || 'Asset Repair & Maintenance'}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {activeRecord?.startDate ? new Date(activeRecord.startDate).toLocaleDateString() : 'Active'}
@@ -577,7 +587,7 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
               <Wrench className="h-4 w-4 text-amber-600" /> Create Work Order / Send to Maintenance
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Issue an official maintenance work order for hardware repair, warranty claim, or routine service
+              Issue an official maintenance work order for asset repair, warranty claim, or routine service
             </DialogDescription>
           </DialogHeader>
 
@@ -787,7 +797,7 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
                   </Badge>
                 </div>
                 <div className="text-[11px] flex items-center justify-between">
-                  <span><strong>Issue:</strong> {activeRecordForCompletion?.issue || selectedAssetForCompletion.remarks || 'Hardware Repair'}</span>
+                  <span><strong>Issue:</strong> {activeRecordForCompletion?.issue || selectedAssetForCompletion.remarks || 'Asset Repair & Maintenance'}</span>
                   <span><strong>Start Date:</strong> {activeRecordForCompletion?.startDate ? new Date(activeRecordForCompletion.startDate).toLocaleDateString() : 'Active'}</span>
                 </div>
               </div>

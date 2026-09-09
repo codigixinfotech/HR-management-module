@@ -14,6 +14,7 @@ import {
   Eye,
   FileCheck,
   FileSignature,
+  History,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { employeesApi } from '@/api/employees';
 import { interviewsApi } from '@/api/interviews';
 import { ScheduleInterviewModal } from './ScheduleInterviewModal';
+import { RescheduleInterviewModal } from './RescheduleInterviewModal';
 import { InterviewDetailsModal } from './InterviewDetailsModal';
 import { TeamsLinkPoolManagementModal } from '@/components/recruitment/TeamsLinkPoolManagementModal';
 import { useAuthStore } from '@/stores/auth-store';
@@ -32,11 +34,13 @@ import { useAuthStore } from '@/stores/auth-store';
 import { InterviewReminderNotifier, InterviewReminderBanner } from '@/components/recruitment/InterviewReminderNotifier';
 import { Pagination } from '@/components/common/Pagination';
 import { toast } from 'sonner';
+import { useCompany } from '@/context/CompanyContext';
 
 export function InterviewsTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const { activeCompanyId } = useCompany();
 
   // Active persona selection for testing interviewer vs HR view
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>('');
@@ -53,12 +57,27 @@ export function InterviewsTab() {
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isPoolModalOpen, setIsPoolModalOpen] = useState(false);
   const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
+  const [detailsInitialTab, setDetailsInitialTab] = useState<'overview' | 'scorecard' | 'evaluations-breakdown'>('overview');
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [interviewForReschedule, setInterviewForReschedule] = useState<any>(null);
+
+  // Helper to parse reschedule audit history from notes
+  const parseRescheduleAudit = (notes?: string | null) => {
+    if (!notes) return null;
+    const match = notes.match(/<!--RESCHEDULE_AUDIT:(.*?)-->/);
+    if (!match || !match[1]) return null;
+    try {
+      return JSON.parse(match[1]);
+    } catch {
+      return null;
+    }
+  };
 
   // Fetch Master Employees List to choose active interviewer persona
   const { data: employeesData } = useQuery({
-    queryKey: ['employees-master-list'],
-    queryFn: () => employeesApi.list({ pageSize: 100 }),
+    queryKey: ['employees-master-list', activeCompanyId],
+    queryFn: () => employeesApi.list({ pageSize: 100, companyId: activeCompanyId }),
   });
 
   const employeesList = useMemo(() => {
@@ -90,23 +109,24 @@ export function InterviewsTab() {
 
   // Fetch active interview reminders for active persona
   const { data: reminders = [] } = useQuery({
-    queryKey: ['interview-reminders', activeEmployee?.id],
-    queryFn: () => (activeEmployee?.id ? interviewsApi.getReminders(activeEmployee.id) : []),
+    queryKey: ['interview-reminders', activeCompanyId, activeEmployee?.id],
+    queryFn: () => (activeEmployee?.id ? interviewsApi.getReminders(activeEmployee.id, activeCompanyId) : []),
     enabled: Boolean(activeEmployee?.id),
     refetchInterval: 15000,
   });
 
   // Fetch Dashboard Summary KPIs
   const { data: summary } = useQuery({
-    queryKey: ['interviews-summary'],
-    queryFn: () => interviewsApi.getSummary(),
+    queryKey: ['interviews-summary', activeCompanyId],
+    queryFn: () => interviewsApi.getSummary(activeCompanyId),
   });
 
   // Fetch Interviews List from Backend API
   const { data: interviewsList = [], isLoading } = useQuery({
-    queryKey: ['interviews-list', viewScope, activeEmployee?.id, activeTabFilter, searchQuery, selectedFormat],
+    queryKey: ['interviews-list', activeCompanyId, viewScope, activeEmployee?.id, activeTabFilter, searchQuery, selectedFormat],
     queryFn: () =>
       interviewsApi.list({
+        companyId: activeCompanyId,
         interviewerId: viewScope === 'MY_INTERVIEWS' ? activeEmployee?.id : undefined,
         status: activeTabFilter !== 'ALL' && activeTabFilter !== 'TODAY' && activeTabFilter !== 'UPCOMING' ? activeTabFilter : undefined,
         filterTab: activeTabFilter === 'TODAY' ? 'today' : activeTabFilter === 'UPCOMING' ? 'upcoming' : undefined,
@@ -117,11 +137,24 @@ export function InterviewsTab() {
   // Filter list by format if needed
   const filteredInterviews = useMemo(() => {
     if (selectedFormat === 'ALL') return interviewsList;
+    if (selectedFormat === 'In-Person' || selectedFormat === 'On-site') {
+      return interviewsList.filter(
+        (i) =>
+          i.interviewFormat === 'In-Person / Offline' ||
+          i.interviewFormat === 'In-Person' ||
+          i.interviewFormat === 'On-site' ||
+          i.interviewMode === 'OFFLINE',
+      );
+    }
     return interviewsList.filter((i) => i.interviewFormat === selectedFormat);
   }, [interviewsList, selectedFormat]);
 
-  const handleOpenDetails = (id: string) => {
+  const handleOpenDetails = (
+    id: string,
+    tab: 'overview' | 'scorecard' | 'evaluations-breakdown' = 'overview',
+  ) => {
     setSelectedInterviewId(id);
+    setDetailsInitialTab(tab);
     setIsDetailsOpen(true);
   };
 
@@ -353,7 +386,7 @@ export function InterviewsTab() {
                 <SelectItem value="ALL" className="text-xs">All Formats</SelectItem>
                 <SelectItem value="Google Meet" className="text-xs">Google Meet</SelectItem>
                 <SelectItem value="Microsoft Teams" className="text-xs">Microsoft Teams</SelectItem>
-                <SelectItem value="On-site" className="text-xs">On-site HQ</SelectItem>
+                <SelectItem value="In-Person" className="text-xs">In-Person / Offline</SelectItem>
                 <SelectItem value="Phone" className="text-xs">Phone</SelectItem>
               </SelectContent>
             </Select>
@@ -447,12 +480,27 @@ export function InterviewsTab() {
                         </TableCell>
 
                         <TableCell className="py-3 px-4">
-                          <div className="font-mono text-[11px]">
+                          <div className="font-mono text-[11px] font-semibold text-foreground">
                             {new Date(item.interviewDate).toLocaleDateString('en-GB')}
                           </div>
                           <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                             <Clock className="h-3 w-3" /> {item.startTime}
                           </div>
+                          {(() => {
+                            const audit = parseRescheduleAudit(item.notes);
+                            if (!audit) return null;
+                            return (
+                              <div className="mt-1.5 p-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-[9px] text-amber-800 dark:text-amber-300 space-y-0.5 max-w-[145px]">
+                                <span className="font-bold flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                                  <History className="h-2.5 w-2.5" /> Rescheduled
+                                </span>
+                                <div className="text-[8.5px] leading-tight text-muted-foreground">
+                                  <div>Orig: {audit.originalDate} {audit.originalTime}</div>
+                                  <div>New: {audit.newDate} {audit.newTime}</div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
 
                         <TableCell className="py-3 px-4">
@@ -479,8 +527,12 @@ export function InterviewsTab() {
 
                         <TableCell className="py-3 px-4">
                           {avgRating > 0 ? (
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1 font-mono font-bold text-amber-600 dark:text-amber-400 text-xs">
+                            <div
+                              onClick={() => handleOpenDetails(item.id, 'evaluations-breakdown')}
+                              className="space-y-0.5 cursor-pointer group hover:opacity-85 transition-opacity"
+                              title="Click to view panel evaluations feedback"
+                            >
+                              <div className="flex items-center gap-1 font-mono font-bold text-amber-600 dark:text-amber-400 text-xs group-hover:underline">
                                 <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
                                 <span>{avgRating}/5.0</span>
                               </div>
@@ -536,7 +588,7 @@ export function InterviewsTab() {
                               variant="ghost"
                               size="sm"
                               className="h-7 px-2 text-xs gap-1"
-                              onClick={() => handleOpenDetails(item.id)}
+                              onClick={() => handleOpenDetails(item.id, 'overview')}
                             >
                               <Eye className="h-3.5 w-3.5" /> View
                             </Button>
@@ -546,20 +598,11 @@ export function InterviewsTab() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={async () => {
-                                    const newDate = prompt('Enter new Interview Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-                                    const newTime = prompt('Enter new Start Time (e.g. 02:00 PM):', '02:00 PM');
-                                    if (newDate && newTime) {
-                                      try {
-                                        await interviewsApi.reschedule(item.id, { interviewDate: newDate, startTime: newTime });
-                                        queryClient.invalidateQueries({ queryKey: ['interviews-list'] });
-                                        toast.success('Interview rescheduled & Teams calendar invite updated!');
-                                      } catch (err) {
-                                        toast.error('Failed to reschedule interview');
-                                      }
-                                    }
+                                  onClick={() => {
+                                    setInterviewForReschedule(item);
+                                    setIsRescheduleOpen(true);
                                   }}
-                                  className="h-7 px-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50"
+                                  className="h-7 px-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50 cursor-pointer"
                                 >
                                   Reschedule
                                 </Button>
@@ -585,14 +628,43 @@ export function InterviewsTab() {
                               </>
                             )}
 
-                            {isAssigned && item.status !== 'SELECTED' && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleOpenDetails(item.id)}
-                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold"
-                              >
-                                <FileCheck className="h-3.5 w-3.5" /> Evaluate
-                              </Button>
+                            {/* EVALUATE & FEEDBACK ACTIONS FOR ALL INTERVIEWS (OFFLINE & ONLINE) */}
+                            {item.status !== 'SELECTED' && item.status !== 'CANCELLED' && (
+                              <>
+                                {evalCount > 0 ? (
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleOpenDetails(item.id, 'evaluations-breakdown')}
+                                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1 font-semibold cursor-pointer shadow-xs"
+                                      title="View submitted feedback and scorecards"
+                                    >
+                                      <Star className="h-3.5 w-3.5 fill-amber-300 text-amber-300" /> View Feedback
+                                    </Button>
+
+                                    {evalCount < panelCount && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleOpenDetails(item.id, 'scorecard')}
+                                        className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:text-emerald-400 gap-1 font-semibold cursor-pointer"
+                                        title="Submit evaluation as another panelist"
+                                      >
+                                        <FileCheck className="h-3.5 w-3.5 text-emerald-600" /> Evaluate
+                                      </Button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleOpenDetails(item.id, 'scorecard')}
+                                    className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold cursor-pointer shadow-xs"
+                                    title="Conduct candidate evaluation and log scorecard"
+                                  >
+                                    <FileCheck className="h-3.5 w-3.5" /> Evaluate
+                                  </Button>
+                                )}
+                              </>
                             )}
                           </div>
                         </TableCell>
@@ -638,16 +710,36 @@ export function InterviewsTab() {
         }}
       />
 
+      {/* RESCHEDULE INTERVIEW MODAL */}
+      <RescheduleInterviewModal
+        isOpen={isRescheduleOpen}
+        interview={interviewForReschedule}
+        onClose={() => {
+          setIsRescheduleOpen(false);
+          setInterviewForReschedule(null);
+        }}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['interviews-list'] });
+          queryClient.invalidateQueries({ queryKey: ['interviews-summary'] });
+        }}
+      />
+
       {/* INTERVIEW DETAILS & EVALUATION MODAL */}
       <InterviewDetailsModal
         interviewId={selectedInterviewId}
         isOpen={isDetailsOpen}
+        initialTab={detailsInitialTab}
         onClose={() => {
           setIsDetailsOpen(false);
           setSelectedInterviewId(null);
         }}
         activeEmployeeId={activeEmployee?.id}
         activeEmployeeName={activeEmployeeName}
+        onEditSchedule={(itw) => {
+          setIsDetailsOpen(false);
+          setInterviewForReschedule(itw);
+          setIsRescheduleOpen(true);
+        }}
         onScheduleNextRoundSuccess={(newInterviewId) => {
           setIsDetailsOpen(false);
           queryClient.invalidateQueries({ queryKey: ['interviews-list'] });

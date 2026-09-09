@@ -107,8 +107,28 @@ export class ManpowerPlansService implements OnModuleInit {
           p.designationId || undefined,
           p.branchId || undefined,
         );
+
+        // Fetch real active, non-rejected requisitions linked to this plan
+        const linkedMrs = await this.prisma.manpowerRequisition.findMany({
+          where: {
+            manpowerPlanId: p.id,
+            isActive: true,
+            status: { not: 'REJECTED' },
+          },
+          select: { numOpenings: true },
+        });
+        const actualRaisedHires = linkedMrs.reduce((acc, r) => acc + (r.numOpenings || 1), 0);
+
+        // If plan's stored mrRaisedHires is out of sync, silently correct it
+        if (p.mrRaisedHires !== actualRaisedHires) {
+          await this.prisma.manpowerPlan.update({
+            where: { id: p.id },
+            data: { mrRaisedHires: actualRaisedHires },
+          }).catch(() => {});
+        }
+
         const rawPlannedHires = Math.max(0, p.budgeted - activeCount);
-        const availableOpenings = Math.max(0, rawPlannedHires - (p.mrRaisedHires || 0));
+        const availableOpenings = Math.max(0, rawPlannedHires - actualRaisedHires);
         let status = p.status;
         if (activeCount >= p.budgeted || availableOpenings === 0) {
           status = 'CAP-REACHED';
@@ -122,6 +142,7 @@ export class ManpowerPlansService implements OnModuleInit {
           ...p,
           code: formattedCode,
           active: activeCount,
+          mrRaisedHires: actualRaisedHires,
           plannedHires: availableOpenings,
           status,
         };
@@ -141,8 +162,19 @@ export class ManpowerPlansService implements OnModuleInit {
       plan.designationId || undefined,
       plan.branchId || undefined,
     );
+
+    const linkedMrs = await this.prisma.manpowerRequisition.findMany({
+      where: {
+        manpowerPlanId: plan.id,
+        isActive: true,
+        status: { not: 'REJECTED' },
+      },
+      select: { numOpenings: true },
+    });
+    const actualRaisedHires = linkedMrs.reduce((acc, r) => acc + (r.numOpenings || 1), 0);
+
     const rawPlannedHires = Math.max(0, plan.budgeted - activeCount);
-    const availableOpenings = Math.max(0, rawPlannedHires - (plan.mrRaisedHires || 0));
+    const availableOpenings = Math.max(0, rawPlannedHires - actualRaisedHires);
     let status = plan.status;
     if (activeCount >= plan.budgeted || availableOpenings === 0) {
       status = 'CAP-REACHED';
@@ -153,6 +185,7 @@ export class ManpowerPlansService implements OnModuleInit {
     return {
       ...plan,
       active: activeCount,
+      mrRaisedHires: actualRaisedHires,
       plannedHires: availableOpenings,
       status,
     };

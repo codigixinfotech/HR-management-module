@@ -35,10 +35,20 @@ export function AssetReportsTab({ companyId }: { companyId?: string }) {
     queryFn: () => assetsApi.list(companyId),
   });
 
-  const { data: records = [] } = useQuery({
-    queryKey: ['asset-maintenance'],
-    queryFn: () => assetMaintenanceApi.list(),
+  const { data: rawRecords = [] } = useQuery({
+    queryKey: ['asset-maintenance', companyId],
+    queryFn: () => assetMaintenanceApi.list(undefined, companyId),
   });
+
+  // Strict tenant boundary: only records whose asset belongs to this active company
+  const records = useMemo(() => {
+    if (!companyId) return rawRecords;
+    return rawRecords.filter((r) => {
+      const recCompId = r.asset?.company?.id || (r.asset as any)?.companyId;
+      if (recCompId) return recCompId === companyId;
+      return assets.some((a) => a.id === r.assetId);
+    });
+  }, [rawRecords, companyId, assets]);
 
   const { data: employeesPage } = useQuery({
     queryKey: ['employees', 'asset-reports-count', companyId],
@@ -191,13 +201,13 @@ export function AssetReportsTab({ companyId }: { companyId?: string }) {
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-muted-foreground text-[10.5px] font-semibold uppercase tracking-wider block">
-                  Total Asset Register Value
+                  Total Asset Value
                 </span>
                 <strong className="text-xl sm:text-2xl font-extrabold text-foreground mt-1 block">
                   ₹{metrics.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </strong>
                 <span className="text-[11px] text-muted-foreground mt-0.5 block">
-                  {metrics.totalAssets} Total Hardware Tags
+                  {metrics.totalAssets} Total Asset Tags
                 </span>
               </div>
               <div className="h-10 w-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-between justify-center shrink-0">
@@ -210,16 +220,16 @@ export function AssetReportsTab({ companyId }: { companyId?: string }) {
           </CardContent>
         </Card>
 
-        {/* Card 2: Allocated Devices */}
+        {/* Card 2: Allocated Assets */}
         <Card className="shadow-2xs border-border/80 relative overflow-hidden">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-muted-foreground text-[10.5px] font-semibold uppercase tracking-wider block">
-                  Allocated Devices
+                  Allocated Assets
                 </span>
                 <strong className="text-xl sm:text-2xl font-extrabold text-foreground mt-1 block">
-                  {metrics.allocated} Items
+                  {metrics.allocated} Assets
                 </strong>
                 <span className="text-[11px] text-muted-foreground mt-0.5 block">0% vs last month</span>
               </div>
@@ -233,18 +243,18 @@ export function AssetReportsTab({ companyId }: { companyId?: string }) {
           </CardContent>
         </Card>
 
-        {/* Card 3: Available Stock */}
+        {/* Card 3: Available Assets */}
         <Card className="shadow-2xs border-border/80 relative overflow-hidden">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-muted-foreground text-[10.5px] font-semibold uppercase tracking-wider block">
-                  Available Stock
+                  Available Assets
                 </span>
                 <strong className="text-xl sm:text-2xl font-extrabold text-foreground mt-1 block">
-                  {metrics.inStock} Items
+                  {metrics.inStock} Assets
                 </strong>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">Ready for New Joiners</span>
+                <span className="text-[11px] text-muted-foreground mt-0.5 block">Ready for Allocation</span>
               </div>
               <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-between justify-center shrink-0">
                 <Package className="h-5 w-5" />
@@ -265,9 +275,9 @@ export function AssetReportsTab({ companyId }: { companyId?: string }) {
                   Under Maintenance
                 </span>
                 <strong className="text-xl sm:text-2xl font-extrabold text-foreground mt-1 block">
-                  {metrics.underMaintenance} Devices
+                  {metrics.underMaintenance} Assets
                 </strong>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">Hardware service queue</span>
+                <span className="text-[11px] text-muted-foreground mt-0.5 block">Asset maintenance queue</span>
               </div>
               <div className="h-10 w-10 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 flex items-center justify-between justify-center shrink-0">
                 <Wrench className="h-5 w-5" />

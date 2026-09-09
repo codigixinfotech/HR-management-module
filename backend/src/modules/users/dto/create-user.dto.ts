@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
@@ -22,4 +23,21 @@ export class CreateUserDto {
   @IsArray()
   @IsString({ each: true })
   roleIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  mustResetPassword?: boolean;
+
+  @IsOptional()
+  @IsString()
+  employeeName?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  departmentId?: string;
 }
+

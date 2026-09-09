@@ -3,13 +3,18 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import { existsSync } from 'fs';
+import { join, isAbsolute } from 'path';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApprovalStatus } from '@prisma/client';
 import { EmployeesService } from './employees.service';
@@ -21,10 +26,12 @@ import {
 } from './dto/employee.dto';
 import { CreateOnboardingTaskDto } from './dto/onboarding-task.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { employeeDocumentStorage } from './multer.config';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('employees')
 export class EmployeesController {
@@ -35,8 +42,12 @@ export class EmployeesController {
 
   @Get()
   @Permissions('employees.read')
-  list(@Query() query: ListEmployeesQueryDto) {
-    return this.employeesService.list(query, query.companyId);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: ListEmployeesQueryDto,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, query.companyId);
+    return this.employeesService.list(query, tenantCompanyId);
   }
 
   @Get('skills/competencies')
@@ -132,6 +143,25 @@ export class EmployeesController {
     @Param('documentId') documentId: string,
   ) {
     return this.employeesService.removeDocument(id, documentId);
+  }
+
+  @Public()
+  @Get('documents/:documentId/download')
+  async downloadDocument(
+    @Param('documentId') documentId: string,
+    @Res() res: Response,
+  ) {
+    const doc = await this.employeesService.getDocument(documentId);
+    const cleanPath = (doc.filePath || '').replace(/\\/g, '/');
+    const absolutePath = isAbsolute(cleanPath)
+      ? cleanPath
+      : join(process.cwd(), cleanPath);
+
+    if (!existsSync(absolutePath)) {
+      throw new NotFoundException('Document file not found on disk');
+    }
+
+    return res.download(absolutePath, doc.fileName);
   }
 
   @Get(':id/onboarding-tasks')

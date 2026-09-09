@@ -62,7 +62,7 @@ export class EmployeesService implements OnModuleInit {
     reportingManager: { select: { id: true, firstName: true, lastName: true } },
     documents: true,
     onboardingTasks: { orderBy: { createdAt: 'asc' as const } },
-    courseEnrollments: { orderBy: { enrollmentDate: 'desc' as const } },
+    courseEnrollments: { orderBy: { createdAt: 'desc' as const } },
     kpis: { orderBy: { createdAt: 'desc' as const } },
     hrNotes: { orderBy: { createdDate: 'desc' as const } },
     timelineEvents: { orderBy: { date: 'asc' as const } },
@@ -182,6 +182,36 @@ export class EmployeesService implements OnModuleInit {
       }
     }
     return parsed;
+  }
+
+  private stripUnmappedFields(data: any) {
+    const validKeys = new Set([
+      'companyId', 'branchId', 'departmentId', 'designationId', 'userId', 'reportingManagerId',
+      'employeeCode', 'firstName', 'middleName', 'lastName', 'gender', 'dateOfBirth',
+      'personalEmail', 'workEmail', 'phone', 'emergencyContactName', 'emergencyContactPhone',
+      'emergencyContactRelationship', 'dateOfJoining', 'employmentType', 'status', 'dateOfExit',
+      'businessUnit', 'location', 'grade', 'level', 'shift', 'costCenter', 'employeeCategory',
+      'workPhone', 'workMode', 'probationPeriod', 'confirmationDate', 'maritalStatus',
+      'nationality', 'bloodGroup', 'religion', 'currentAddress', 'permanentAddress',
+      'familyMemberName', 'familyRelationship', 'familyDob', 'familyContact', 'nomineeName',
+      'nomineeRelationship', 'nomineeShare', 'educationQualification', 'educationSpecialization',
+      'educationInstitution', 'educationUniversity', 'educationPassingYear', 'educationPercentage',
+      'prevCompany', 'prevJobTitle', 'prevStartDate', 'prevEndDate', 'prevTotalExp',
+      'prevReasonForLeaving', 'bankName', 'bankAccountNumber', 'bankIfscCode', 'bankBranchName',
+      'bankAccountHolderName', 'aadhaarNumber', 'panNumber', 'passportNumber', 'kycStatus',
+      'kycVerificationDate', 'uanNumber', 'pfMemberId', 'esicNumber', 'pfApplicable',
+      'esicApplicable', 'pfEsicJoiningDate', 'salaryGrade', 'salaryBand', 'basicSalary',
+      'hra', 'conveyance', 'specialAllowance', 'otherAllowances', 'grossSalary', 'annualCtc',
+      'salaryEffectiveFrom', 'addressLine1', 'addressLine2', 'city', 'state', 'country', 'pincode',
+      'faceTemplate', 'facePhoto', 'faceRegisteredAt', 'faceRegisteredBy'
+    ]);
+    const clean: any = {};
+    for (const key of Object.keys(data)) {
+      if (validKeys.has(key)) {
+        clean[key] = data[key];
+      }
+    }
+    return clean;
   }
 
   private isUserHrOrAdmin(user?: any): boolean {
@@ -453,9 +483,24 @@ export class EmployeesService implements OnModuleInit {
 
     const parsedData = this.parseDates(dto);
     await this.sanitizeForeignKeys(parsedData);
+    const cleanData = this.stripUnmappedFields(parsedData);
+
+    if (cleanData.employmentType) {
+      if (['CONTRACT_FIXED', 'CONTRACT_PROJECT', 'TEMPORARY'].includes(cleanData.employmentType)) {
+        cleanData.employmentType = 'CONTRACT';
+      }
+    }
+    if (cleanData.status) {
+      if (cleanData.status === 'CONFIRMED' || cleanData.status === 'CONTRACT_ACTIVE') {
+        cleanData.status = 'ACTIVE';
+      }
+    }
+    if (cleanData.gender === '') {
+      cleanData.gender = null;
+    }
 
     const employee = await this.prisma.employee.create({
-      data: parsedData,
+      data: cleanData,
       include: this.listInclude,
     });
 
@@ -481,6 +526,21 @@ export class EmployeesService implements OnModuleInit {
     await this.findById(id);
     const parsedData = this.parseDates(dto);
     await this.sanitizeForeignKeys(parsedData);
+    const cleanData = this.stripUnmappedFields(parsedData);
+
+    if (cleanData.employmentType) {
+      if (['CONTRACT_FIXED', 'CONTRACT_PROJECT', 'TEMPORARY'].includes(cleanData.employmentType)) {
+        cleanData.employmentType = 'CONTRACT';
+      }
+    }
+    if (cleanData.status) {
+      if (cleanData.status === 'CONFIRMED' || cleanData.status === 'CONTRACT_ACTIVE') {
+        cleanData.status = 'ACTIVE';
+      }
+    }
+    if (cleanData.gender === '') {
+      cleanData.gender = null;
+    }
 
     if (parsedData.faceTemplate) {
       console.log(`[Face Registration] Saving face biometric template for Employee ID: ${id}`);
@@ -488,7 +548,7 @@ export class EmployeesService implements OnModuleInit {
     }
     const updated = await this.prisma.employee.update({
       where: { id },
-      data: parsedData,
+      data: cleanData,
       include: this.listInclude,
     });
     if (parsedData.faceTemplate) {
@@ -510,9 +570,18 @@ export class EmployeesService implements OnModuleInit {
     filePath: string,
   ) {
     await this.findById(employeeId);
+    const normalizedFilePath = (filePath || '').replace(/\\/g, '/');
     return this.prisma.employeeDocument.create({
-      data: { employeeId, docType, fileName, filePath },
+      data: { employeeId, docType, fileName, filePath: normalizedFilePath },
     });
+  }
+
+  async getDocument(documentId: string) {
+    const doc = await this.prisma.employeeDocument.findUnique({
+      where: { id: documentId },
+    });
+    if (!doc) throw new NotFoundException('Document not found');
+    return doc;
   }
 
   async listDocuments(employeeId: string) {
@@ -540,10 +609,10 @@ export class EmployeesService implements OnModuleInit {
     const enrollment = await this.prisma.courseEnrollment.create({
       data: {
         employeeId,
-        courseName: dto.courseName,
-        courseType: dto.courseType,
+        courseId: `CRS-${Date.now().toString().slice(-4)}`,
+        courseCode: dto.courseType || 'CRS-GEN',
+        courseTitle: dto.courseName,
         status: dto.status ?? 'In Progress',
-        certification: dto.certification ?? null,
       },
     });
 

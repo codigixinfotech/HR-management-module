@@ -695,13 +695,43 @@ export interface DashboardSummary {
   modules: { key: string; label: string; path: string; phase: number; status: string }[];
 }
 
+export type RoleType = 'CUSTOM_ROLE' | 'SYSTEM_ROLE' | 'INDUSTRY_TEMPLATE';
+export type RoleDataScope = 'OWN' | 'TEAM' | 'DEPARTMENT' | 'LOCATION' | 'PLANT' | 'COMPANY';
+
+export interface LoginAccessConfig {
+  web: boolean;
+  mobile: boolean;
+  ess: boolean;
+  admin: boolean;
+  reports: boolean;
+}
+
+export interface RoleUserAssignment {
+  user: {
+    id: string;
+    email: string;
+    employee?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      employeeCode: string;
+    } | null;
+  };
+}
+
 export interface Role {
   id: string;
   companyId?: string | null;
   name: string;
+  type: RoleType;
   description?: string | null;
   isSystem: boolean;
+  dataScope: RoleDataScope;
+  loginAccess?: LoginAccessConfig | null;
   permissions: { permission: { id: string; code: string; module: string; action: string; description?: string | null } }[];
+  users?: RoleUserAssignment[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Permission {
@@ -950,7 +980,16 @@ export interface ComplianceSetupRecord {
   updatedAt: string;
 }
 
-export type AssetStatus = 'IN_STOCK' | 'AVAILABLE' | 'ALLOCATED' | 'UNDER_MAINTENANCE' | 'RETIRED' | 'DISPOSED' | string;
+export type AssetStatus =
+  | 'IN_STOCK'
+  | 'AVAILABLE'
+  | 'IN_USE'
+  | 'ALLOCATED'
+  | 'UNDER_MAINTENANCE'
+  | 'RETIRED'
+  | 'DAMAGED'
+  | 'DISPOSED'
+  | string;
 
 export interface Asset {
   id: string;
@@ -961,6 +1000,7 @@ export interface Asset {
   name: string;
   category: string;
   assetType?: string | null;
+  assignmentType?: 'LOCATION' | 'DEPARTMENT' | 'EMPLOYEE' | 'UNASSIGNED' | string | null;
   physicalLocation?: string | null;
   vendor?: string | null;
   invoiceNumber?: string | null;
@@ -1077,7 +1117,9 @@ export interface ManpowerPlan {
   id: string;
   code?: string | null;
   companyId?: string | null;
+  company?: Company | null;
   branchId?: string | null;
+  branch?: Branch | null;
   departmentId?: string | null;
   designationId?: string | null;
   departmentName: string;
@@ -1086,6 +1128,7 @@ export interface ManpowerPlan {
   budgeted: number;
   active: number;
   plannedHires: number;
+  mrRaisedHires?: number;
   quarter: string;
   reason: string;
   status: 'UNDER-STAFFED' | 'CAP-REACHED' | 'ON-TRACK';

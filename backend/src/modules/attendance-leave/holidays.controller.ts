@@ -11,6 +11,8 @@ import {
 import { HolidaysService } from './holidays.service';
 import { CreateHolidayDto, UpdateHolidayDto } from './dto/holiday.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('attendance-leave/holidays')
 export class HolidaysController {
@@ -18,9 +20,14 @@ export class HolidaysController {
 
   @Get()
   @Permissions('attendance_leave.read')
-  list(@Query('companyId') companyId?: string, @Query('year') year?: string) {
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+    @Query('year') year?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
     return this.holidaysService.list(
-      companyId,
+      tenantCompanyId,
       year ? Number(year) : undefined,
     );
   }

@@ -14,6 +14,8 @@ import {
   Search,
   Grid,
   List,
+  Building2,
+  Layers,
 } from 'lucide-react';
 import { branchesApi, locationsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
@@ -36,7 +38,7 @@ const branchSchema = z.object({
   code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
   businessUnit: z.string().optional(),
-  branchType: z.string().min(1, 'Branch Type is required'),
+  branchType: z.string().optional().default('Branch'),
   addressLine1: z.string().min(1, 'Address Line 1 is required'),
   addressLine2: z.string().optional(),
   city: z.string().min(1, 'City is required'),
@@ -59,7 +61,7 @@ const branchSteps: StepConfig<BranchFormValues>[] = [
   {
     id: 'org',
     label: 'Organization',
-    fields: ['companyId', 'code', 'name', 'branchType', 'businessUnit'],
+    fields: ['companyId', 'code', 'name'],
   },
   {
     id: 'address',
@@ -83,7 +85,7 @@ const DEFAULT_BRANCH_VALUES: BranchFormValues = {
   code: '',
   name: '',
   businessUnit: '',
-  branchType: 'Branch Office',
+  branchType: 'Branch',
   addressLine1: '',
   addressLine2: '',
   city: '',
@@ -112,61 +114,27 @@ const SHIFT_MASTER: Record<string, { label: string; workingHours: string; note?:
 
 // ── 2. LOCATION SCHEMA ──
 const locationSchema = z.object({
-  branchId: z.string().min(1, 'Branch is required'),
+  companyId: z.string().min(1, 'Company Entity is required'),
   code: z.string().min(1, 'Location Code is required'),
   name: z.string().min(1, 'Location Name is required'),
-  buildingName: z.string().optional(),
-  floor: z.string().optional(),
-  wing: z.string().optional(),
-  roomCabin: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  country: z.string().optional(),
-  pincode: z.string().optional(),
-  gps: z.string().optional(),
-  workingHours: z.string().optional(),
-  shift: z.string().optional(),
+  branchId: z.string().optional(),
+  parentLocationId: z.string().optional(),
+  effectiveFrom: z.string().min(1, 'Effective date is required'),
   isActive: z.boolean().default(true),
+  description: z.string().optional(),
 });
 
 type LocationFormValues = z.infer<typeof locationSchema>;
 
-const locationSteps: StepConfig<LocationFormValues>[] = [
-  {
-    id: 'info',
-    label: 'General Info',
-    fields: ['branchId', 'code', 'name'],
-  },
-  {
-    id: 'building',
-    label: 'Building Details',
-    fields: ['buildingName', 'floor', 'wing', 'roomCabin', 'address', 'city', 'state', 'country', 'pincode'],
-  },
-  {
-    id: 'ops',
-    label: 'Operations',
-    fields: ['workingHours', 'shift', 'gps', 'isActive'],
-  },
-];
-
 const DEFAULT_LOCATION_VALUES: LocationFormValues = {
-  branchId: '',
+  companyId: '',
   code: '',
   name: '',
-  buildingName: '',
-  floor: '',
-  wing: '',
-  roomCabin: '',
-  address: '',
-  city: '',
-  state: '',
-  country: '',
-  pincode: '',
-  gps: '',
-  workingHours: '',
-  shift: '',
+  branchId: '',
+  parentLocationId: '',
+  effectiveFrom: new Date().toISOString().split('T')[0],
   isActive: true,
+  description: '',
 };
 
 export function BranchesTab({
@@ -221,10 +189,6 @@ export function BranchesTab({
     defaultValues: DEFAULT_LOCATION_VALUES,
   });
 
-  const locationMultiStep = useMultiStepForm<LocationFormValues>({
-    steps: locationSteps,
-    form: locationForm,
-  });
 
   const closeBranchModal = () => {
     setOpen(false);
@@ -239,7 +203,7 @@ export function BranchesTab({
     setLocationOpen(false);
     setActiveBranchForLocation(null);
     setAddressOverridden(false);
-    locationMultiStep.resetMultiStepForm(DEFAULT_LOCATION_VALUES);
+    locationForm.reset(DEFAULT_LOCATION_VALUES);
   };
 
   useEffect(() => {
@@ -324,7 +288,8 @@ export function BranchesTab({
       const payload = Object.fromEntries(
         Object.entries(values).map(([k, v]) => [k, v === '' ? null : v])
       ) as any;
-      return locationsApi.create(values.branchId, payload);
+      const targetId = values.branchId || values.companyId;
+      return locationsApi.create(targetId, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
@@ -339,7 +304,8 @@ export function BranchesTab({
       const payload = Object.fromEntries(
         Object.entries(values).map(([k, v]) => [k, v === '' ? null : v])
       ) as any;
-      return locationsApi.create(values.branchId, payload);
+      const targetId = values.branchId || values.companyId;
+      return locationsApi.create(targetId, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
@@ -350,23 +316,15 @@ export function BranchesTab({
       const updatedBranch = activeBranchForLocation ? { ...activeBranchForLocation, locations: updatedLocs } : null;
       setActiveBranchForLocation(updatedBranch as any);
 
-      locationMultiStep.resetMultiStepForm({
+      locationForm.reset({
+        companyId: locationForm.getValues('companyId') || (companyId ?? companies[0]?.id ?? ''),
         branchId: locationForm.getValues('branchId'),
         code: generateUniqueLocationCode(updatedBranch as any),
         name: '',
-        buildingName: '',
-        floor: '',
-        wing: '',
-        roomCabin: '',
-        address: activeBranchForLocation?.addressLine1 ?? '',
-        city: activeBranchForLocation?.city ?? '',
-        state: activeBranchForLocation?.state ?? '',
-        country: activeBranchForLocation?.country ?? '',
-        pincode: activeBranchForLocation?.pincode ?? '',
-        gps: '',
-        workingHours: '09:00 AM - 06:00 PM',
-        shift: '',
+        parentLocationId: '',
+        effectiveFrom: new Date().toISOString().split('T')[0],
         isActive: true,
+        description: '',
       });
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
@@ -374,23 +332,15 @@ export function BranchesTab({
 
   const triggerAddLocation = (branch: Branch) => {
     setActiveBranchForLocation(branch);
-    locationMultiStep.resetMultiStepForm({
+    locationForm.reset({
+      companyId: branch.companyId || companyId || companies[0]?.id || '',
       branchId: branch.id,
       code: generateUniqueLocationCode(branch),
       name: '',
-      buildingName: '',
-      floor: '',
-      wing: '',
-      roomCabin: '',
-      address: branch.addressLine1 ?? '',
-      city: branch.city ?? '',
-      state: branch.state ?? '',
-      country: branch.country ?? '',
-      pincode: branch.pincode ?? '',
-      gps: '',
-      workingHours: '09:00 AM - 06:00 PM',
-      shift: '',
+      parentLocationId: branch.id,
+      effectiveFrom: new Date().toISOString().split('T')[0],
       isActive: true,
+      description: '',
     });
     setLocationOpen(true);
   };
@@ -415,7 +365,7 @@ export function BranchesTab({
       code: branch.code,
       name: branch.name,
       businessUnit: branch.businessUnit ?? '',
-      branchType: branch.branchType ?? 'Branch Office',
+      branchType: (branch.branchType === 'Branch Office' || !branch.branchType) ? 'Branch' : branch.branchType,
       addressLine1: branch.addressLine1 ?? '',
       addressLine2: branch.addressLine2 ?? '',
       city: branch.city ?? '',
@@ -517,510 +467,333 @@ export function BranchesTab({
                 <DialogHeader>
                   <DialogTitle>{editing ? 'Edit Branch Facility' : 'Create New Branch Facility'}</DialogTitle>
                 </DialogHeader>
-                <form className="space-y-4 text-xs" onSubmit={handleBranchSubmit}>
-                  <Tabs value={branchMultiStep.activeStepId} className="w-full">
-                    <MultiStepTabsHeader
-                      steps={branchSteps}
-                      currentStep={branchMultiStep.currentStep}
-                      onSelectStep={(idx) => branchMultiStep.goToStep(idx)}
-                    />
-
-                    {/* STEP 1: ORGANIZATION */}
-                    <TabsContent value="org" className="space-y-4 mt-3">
+                <form className="space-y-5 text-xs" onSubmit={handleBranchSubmit}>
+                  {/* SECTION 1: ORGANIZATION */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 border-b pb-1 font-semibold text-foreground">
+                      <Building2 className="h-3.5 w-3.5 text-primary" />
+                      <span>General Organization</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Company Entity *</Label>
+                      <Select
+                        value={form.watch('companyId')}
+                        onValueChange={(v) => form.setValue('companyId', v, { shouldValidate: true })}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Select company" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies.map((c) => (
+                            <SelectItem key={c.id} value={c.id} className="text-xs">
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {form.formState.errors.companyId && (
+                        <p className="text-[10px] text-destructive">{form.formState.errors.companyId.message}</p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Company Entity *</Label>
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Code (Auto Generate) *</Label>
+                        <Input placeholder="e.g. BR-PUN" {...form.register('code')} className="h-9 text-xs font-mono" />
+                        {form.formState.errors.code && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.code.message}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Name *</Label>
+                        <Input placeholder="e.g. Pune Development Center" {...form.register('name')} className="h-9 text-xs" />
+                        {form.formState.errors.name && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.name.message}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 2: ADDRESS & LOCATION */}
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-center gap-2 border-b pb-1 font-semibold text-foreground">
+                      <MapPin className="h-3.5 w-3.5 text-primary" />
+                      <span>Address & Location</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Address Line 1 *</Label>
+                        <Input placeholder="e.g. Plot 42, Hinjewadi Phase 3" {...form.register('addressLine1')} className="h-9 text-xs" />
+                        {form.formState.errors.addressLine1 && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.addressLine1.message}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Address Line 2</Label>
+                        <Input placeholder="e.g. Near Metro Station" {...form.register('addressLine2')} className="h-9 text-xs" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3">
+                      <div className="space-y-1.5 col-span-2">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Country *</Label>
+                        <Input placeholder="e.g. India" {...form.register('country')} className="h-9 text-xs" />
+                        {form.formState.errors.country && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.country.message}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">State *</Label>
+                        <Input placeholder="e.g. Maharashtra" {...form.register('state')} className="h-9 text-xs" />
+                        {form.formState.errors.state && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.state.message}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">City *</Label>
+                        <Input placeholder="e.g. Pune" {...form.register('city')} className="h-9 text-xs" />
+                        {form.formState.errors.city && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.city.message}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PIN Code *</Label>
+                        <Input placeholder="e.g. 411057" {...form.register('pincode')} className="h-9 text-xs font-mono" />
+                        {form.formState.errors.pincode && (
+                          <p className="text-[10px] text-destructive">{form.formState.errors.pincode.message}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 3: CONTACT & MANAGEMENT */}
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-center gap-2 border-b pb-1 font-semibold text-foreground">
+                      <Users className="h-3.5 w-3.5 text-primary" />
+                      <span>Contact & Management</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Facility Manager</Label>
                         <Select
-                          value={form.watch('companyId')}
-                          onValueChange={(v) => form.setValue('companyId', v, { shouldValidate: true })}
+                          value={form.watch('manager') ?? '__none__'}
+                          onValueChange={(v) => form.setValue('manager', v === '__none__' ? '' : v)}
                         >
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select company" />
+                            <SelectValue placeholder="Not Assigned" />
                           </SelectTrigger>
                           <SelectContent>
-                            {companies.map((c) => (
-                              <SelectItem key={c.id} value={c.id} className="text-xs">
-                                {c.name}
+                            <SelectItem value="__none__" className="text-xs text-muted-foreground italic">Not Assigned</SelectItem>
+                            {allEmployees.map((emp) => (
+                              <SelectItem
+                                key={emp.id}
+                                value={`${emp.firstName} ${emp.lastName}`}
+                                className="text-xs"
+                              >
+                                {emp.employeeCode} – {emp.firstName} {emp.lastName}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        {form.formState.errors.companyId && (
-                          <p className="text-[10px] text-destructive">{form.formState.errors.companyId.message}</p>
-                        )}
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Code (Auto Generate) *</Label>
-                          <Input placeholder="e.g. BR-PUN" {...form.register('code')} className="h-9 text-xs font-mono" />
-                          {form.formState.errors.code && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.code.message}</p>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Name *</Label>
-                          <Input placeholder="e.g. Pune Development Center" {...form.register('name')} className="h-9 text-xs" />
-                          {form.formState.errors.name && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.name.message}</p>
-                          )}
-                        </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Phone Number</Label>
+                        <Input placeholder="e.g. +91 9876543210" {...form.register('phone')} className="h-9 text-xs font-mono" />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch Type *</Label>
-                          <Select
-                            value={form.watch('branchType')}
-                            onValueChange={(v) => form.setValue('branchType', v, { shouldValidate: true })}
-                          >
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Head Office">Head Office</SelectItem>
-                              <SelectItem value="Branch Office">Branch Office</SelectItem>
-                              <SelectItem value="Regional Office">Regional Office</SelectItem>
-                              <SelectItem value="Development Center">Development Center</SelectItem>
-                              <SelectItem value="Client Office">Client Office</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {form.formState.errors.branchType && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.branchType.message}</p>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Business Unit (Optional)</Label>
-                          <Input placeholder="e.g. Technology" {...form.register('businessUnit')} className="h-9 text-xs" />
-                        </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Official Email</Label>
+                        <Input placeholder="e.g. branch@company.com" {...form.register('email')} className="h-9 text-xs" />
                       </div>
-                    </TabsContent>
+                    </div>
+                  </div>
 
-                    {/* STEP 2: ADDRESS */}
-                    <TabsContent value="address" className="space-y-4 mt-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Address Line 1 *</Label>
-                          <Input placeholder="e.g. Plot 42, Hinjewadi Phase 3" {...form.register('addressLine1')} className="h-9 text-xs" />
-                          {form.formState.errors.addressLine1 && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.addressLine1.message}</p>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Address Line 2</Label>
-                          <Input placeholder="e.g. Near Metro Station" {...form.register('addressLine2')} className="h-9 text-xs" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-3">
-                        <div className="space-y-1.5 col-span-2">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Country *</Label>
-                          <Input placeholder="e.g. India" {...form.register('country')} className="h-9 text-xs" />
-                          {form.formState.errors.country && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.country.message}</p>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">State *</Label>
-                          <Input placeholder="e.g. Maharashtra" {...form.register('state')} className="h-9 text-xs" />
-                          {form.formState.errors.state && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.state.message}</p>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">City *</Label>
-                          <Input placeholder="e.g. Pune" {...form.register('city')} className="h-9 text-xs" />
-                          {form.formState.errors.city && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.city.message}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PIN Code *</Label>
-                          <Input placeholder="e.g. 411057" {...form.register('pincode')} className="h-9 text-xs font-mono" />
-                          {form.formState.errors.pincode && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.pincode.message}</p>
-                          )}
-                        </div>
-                      </div>
-                    </TabsContent>
+                  {/* SECTION 4: OPERATIONS & CAPACITY */}
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-center gap-2 border-b pb-1 font-semibold text-foreground">
+                      <Layers className="h-3.5 w-3.5 text-primary" />
+                      <span>Operations & Capacity</span>
+                    </div>
 
-                    {/* STEP 3: CONTACT */}
-                    <TabsContent value="contact" className="space-y-4 mt-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Facility Manager</Label>
-                          <Select
-                            value={form.watch('manager') ?? '__none__'}
-                            onValueChange={(v) => form.setValue('manager', v === '__none__' ? '' : v)}
-                          >
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Not Assigned" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__" className="text-xs text-muted-foreground italic">Not Assigned</SelectItem>
-                              {allEmployees.map((emp) => (
-                                <SelectItem
-                                  key={emp.id}
-                                  value={`${emp.firstName} ${emp.lastName}`}
-                                  className="text-xs"
-                                >
-                                  {emp.employeeCode} – {emp.firstName} {emp.lastName}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Phone Number</Label>
-                          <Input placeholder="e.g. +91 9876543210" {...form.register('phone')} className="h-9 text-xs font-mono" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Official Email</Label>
-                          <Input placeholder="e.g. branch@company.com" {...form.register('email')} className="h-9 text-xs" />
-                        </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Maximum Capacity</Label>
+                        <Input type="number" placeholder="250" {...form.register('maxCapacity')} className="h-9 text-xs font-mono" />
                       </div>
-                    </TabsContent>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Status</Label>
+                        <Select
+                          value={form.watch('isActive') ? 'active' : 'inactive'}
+                          onValueChange={(val) => form.setValue('isActive', val === 'active')}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="inactive">Inactive</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
 
-                    {/* STEP 4: OPERATIONS */}
-                    <TabsContent value="ops" className="space-y-4 mt-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Time Zone</Label>
-                          <Input placeholder="e.g. Asia/Kolkata" {...form.register('timezone')} className="h-9 text-xs font-mono" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Working Calendar</Label>
-                          <Input placeholder="e.g. Standard 5-Day" {...form.register('workingCalendar')} className="h-9 text-xs" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Shift Group</Label>
-                          <Input placeholder="e.g. General Shift" {...form.register('shiftGroup')} className="h-9 text-xs" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Maximum Capacity</Label>
-                          <Input type="number" placeholder="250" {...form.register('maxCapacity')} className="h-9 text-xs font-mono" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Status</Label>
-                          <Select
-                            value={form.watch('isActive') ? 'active' : 'inactive'}
-                            onValueChange={(val) => form.setValue('isActive', val === 'active')}
-                          >
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="inactive">Inactive</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-
-                  <MultiStepFormFooter
-                    currentStep={branchMultiStep.currentStep}
-                    totalSteps={branchMultiStep.totalSteps}
-                    isFirstStep={branchMultiStep.isFirstStep}
-                    isLastStep={branchMultiStep.isLastStep}
-                    isEditing={!!editing}
-                    isSubmitting={upsertMutation.isPending || upsertAndAddLocationMutation.isPending}
-                    createLabel="Create Branch"
-                    saveLabel="Save Changes"
-                    showSaveAndContinue={!editing}
-                    saveAndContinueLabel="Save & Add Location"
-                    onCancel={closeBranchModal}
-                    onBack={branchMultiStep.goToPreviousStep}
-                    onNext={branchMultiStep.goToNextStep}
-                    onSaveAndContinue={handleSaveAndAddLocation}
-                  />
+                  {/* ACTION BUTTONS */}
+                  <div className="flex items-center justify-end gap-2 border-t pt-4">
+                    <Button type="button" variant="outline" size="sm" onClick={closeBranchModal} className="h-8 text-xs">
+                      Cancel
+                    </Button>
+                    {!editing && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleSaveAndAddLocation}
+                        disabled={upsertAndAddLocationMutation.isPending}
+                        className="h-8 text-xs"
+                      >
+                        Save & Add Location
+                      </Button>
+                    )}
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={upsertMutation.isPending}
+                      className="h-8 text-xs gap-1.5"
+                    >
+                      {editing ? 'Save Changes' : 'Create Branch Facility'}
+                    </Button>
+                  </div>
                 </form>
               </DialogContent>
             </Dialog>
 
             {/* ── 3. SEPARATE LOCATION CREATION DIALOG ── */}
             <Dialog open={locationOpen} onOpenChange={(v) => { if (!v) closeLocationModal(); }}>
-              <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto text-xs">
+              <DialogContent className="sm:max-w-md text-xs">
                 <DialogHeader>
-                  <DialogTitle>Add Physical Location inside Branch</DialogTitle>
+                  <DialogTitle className="text-base font-bold">CREATE NEW LOCATION</DialogTitle>
                 </DialogHeader>
-                <form className="space-y-4" onSubmit={handleLocationSubmit}>
-                  <Tabs value={locationMultiStep.activeStepId} className="w-full">
-                    <MultiStepTabsHeader
-                      steps={locationSteps}
-                      currentStep={locationMultiStep.currentStep}
-                      onSelectStep={(idx) => locationMultiStep.goToStep(idx)}
-                    />
+                <form className="space-y-4 pt-2" onSubmit={handleLocationSubmit}>
+                  {/* Company Entity * */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Company Entity *</Label>
+                    <Select
+                      value={locationForm.watch('companyId')}
+                      onValueChange={(val) => locationForm.setValue('companyId', val, { shouldValidate: true })}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select Company" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companies.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {locationForm.formState.errors.companyId && (
+                      <p className="text-[10px] text-destructive">{locationForm.formState.errors.companyId.message}</p>
+                    )}
+                  </div>
 
-                    {/* ── TAB 1: GENERAL INFO ── */}
-                    <TabsContent value="info" className="space-y-4 mt-3">
-                      {/* Branch Context Banner */}
-                      {activeBranchForLocation && (() => {
-                        const b = activeBranchForLocation;
-                        const company = companies.find(c => c.id === b.companyId);
-                        return (
-                          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 space-y-1">
-                            <p className="text-[10px] uppercase font-bold text-primary tracking-wide">Inherited Context</p>
-                            <div className="grid grid-cols-3 gap-2 text-[11px] mt-1">
-                              <div>
-                                <span className="text-muted-foreground block">Company</span>
-                                <span className="font-semibold text-foreground">{company?.name ?? '—'}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground block">Business Unit</span>
-                                <span className="font-semibold text-foreground">{b.businessUnit ?? company?.businessUnit ?? '—'}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground block">Branch</span>
-                                <span className="font-semibold text-foreground">{b.name}</span>
-                              </div>
-                            </div>
-                            {(b.city || b.state || b.country) && (
-                              <p className="text-[10px] text-muted-foreground mt-1">
-                                📍 {[b.addressLine1, b.city, b.state, b.country].filter(Boolean).join(', ')}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })()}
+                  {/* Location Code & Location Name */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Code</Label>
+                      <Input placeholder="LOC-001" {...locationForm.register('code')} className="h-9 text-xs font-mono" />
+                      {locationForm.formState.errors.code && (
+                        <p className="text-[10px] text-destructive">{locationForm.formState.errors.code.message}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Name *</Label>
+                      <Input placeholder="Enter Location Name" {...locationForm.register('name')} className="h-9 text-xs" />
+                      {locationForm.formState.errors.name && (
+                        <p className="text-[10px] text-destructive">{locationForm.formState.errors.name.message}</p>
+                      )}
+                    </div>
+                  </div>
 
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Target Branch *</Label>
-                        <Select
-                          value={locationForm.watch('branchId')}
-                          onValueChange={(val) => {
-                            locationForm.setValue('branchId', val, { shouldValidate: true });
-                            const selected = branches?.find(b => b.id === val) ?? null;
-                            setActiveBranchForLocation(selected);
-                            setAddressOverridden(false);
-                            if (selected) {
-                              locationForm.setValue('code', generateUniqueLocationCode(selected));
-                              locationForm.setValue('address', selected.addressLine1 ?? '');
-                              locationForm.setValue('city', selected.city ?? '');
-                              locationForm.setValue('state', selected.state ?? '');
-                              locationForm.setValue('country', selected.country ?? '');
-                              locationForm.setValue('pincode', selected.pincode ?? '');
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select target branch" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {branches?.map((b) => (
-                              <SelectItem key={b.id} value={b.id}>
-                                {b.code} – {b.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {locationForm.formState.errors.branchId && (
-                          <p className="text-[10px] text-destructive">{locationForm.formState.errors.branchId.message}</p>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Code (Auto Generate) *</Label>
-                          <Input placeholder="e.g. BR-58-LOC-01" {...locationForm.register('code')} className="h-9 text-xs font-mono" />
-                          {locationForm.formState.errors.code && (
-                            <p className="text-[10px] text-destructive">{locationForm.formState.errors.code.message}</p>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Location Name *</Label>
-                          <Input placeholder="e.g. Hyderabad Development Center" {...locationForm.register('name')} className="h-9 text-xs" />
-                          {locationForm.formState.errors.name && (
-                            <p className="text-[10px] text-destructive">{locationForm.formState.errors.name.message}</p>
-                          )}
-                        </div>
-                      </div>
-                    </TabsContent>
+                  {/* Parent Location */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Parent Location</Label>
+                    <Select
+                      value={locationForm.watch('branchId') || locationForm.watch('parentLocationId') || 'none'}
+                      onValueChange={(val) => {
+                        const actualVal = val === 'none' ? '' : val;
+                        locationForm.setValue('branchId', actualVal);
+                        locationForm.setValue('parentLocationId', actualVal);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {branches?.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.code} – {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                    {/* ── TAB 2: BUILDING DETAILS ── */}
-                    <TabsContent value="building" className="space-y-4 mt-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Building Name</Label>
-                          <Input placeholder="e.g. Tower A" {...locationForm.register('buildingName')} className="h-9 text-xs" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Floor</Label>
-                          <Input placeholder="e.g. 5" {...locationForm.register('floor')} className="h-9 text-xs" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Wing</Label>
-                          <Input placeholder="e.g. East Wing" {...locationForm.register('wing')} className="h-9 text-xs" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Room / Cabin</Label>
-                          <Input placeholder="e.g. Room 502" {...locationForm.register('roomCabin')} className="h-9 text-xs" />
-                        </div>
-                      </div>
+                  {/* Effective From * & Status * */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Effective From *</Label>
+                      <Input type="date" {...locationForm.register('effectiveFrom')} className="h-9 text-xs" />
+                      {locationForm.formState.errors.effectiveFrom && (
+                        <p className="text-[10px] text-destructive">{locationForm.formState.errors.effectiveFrom.message}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Status *</Label>
+                      <Select
+                        value={locationForm.watch('isActive') ? 'active' : 'inactive'}
+                        onValueChange={(val) => locationForm.setValue('isActive', val === 'active')}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-                      {/* Address Section with Inherited Indicator */}
-                      <div className="border-t pt-3 mt-1 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-[10px] font-bold uppercase text-muted-foreground">Location Address</p>
-                            {!addressOverridden && activeBranchForLocation && (
-                              <p className="text-[10px] text-primary mt-0.5">
-                                ↳ Inherited from {activeBranchForLocation.name}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAddressOverridden(!addressOverridden);
-                              if (addressOverridden && activeBranchForLocation) {
-                                // restore branch defaults
-                                locationForm.setValue('address', activeBranchForLocation.addressLine1 ?? '');
-                                locationForm.setValue('city', activeBranchForLocation.city ?? '');
-                                locationForm.setValue('state', activeBranchForLocation.state ?? '');
-                                locationForm.setValue('country', activeBranchForLocation.country ?? '');
-                                locationForm.setValue('pincode', activeBranchForLocation.pincode ?? '');
-                              }
-                            }}
-                            className={`text-[10px] font-semibold px-2 py-1 rounded border transition-colors ${
-                              addressOverridden
-                                ? 'border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/10'
-                                : 'border-primary/30 text-primary bg-primary/5 hover:bg-primary/10'
-                            }`}
-                          >
-                            {addressOverridden ? '✕ Reset to Branch Address' : '✏ Override Address'}
-                          </button>
-                        </div>
+                  {/* Description */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Description</Label>
+                    <Input placeholder="Enter description..." {...locationForm.register('description')} className="h-9 text-xs" />
+                  </div>
 
-                        {!addressOverridden ? (
-                          <div className="rounded-md bg-muted/30 border border-border px-3 py-2.5 text-[11px] text-muted-foreground">
-                            {activeBranchForLocation ? (
-                              <span>
-                                {[activeBranchForLocation.addressLine1, activeBranchForLocation.city, activeBranchForLocation.state, activeBranchForLocation.country].filter(Boolean).join(', ')}
-                                {activeBranchForLocation.pincode && ` – ${activeBranchForLocation.pincode}`}
-                              </span>
-                            ) : (
-                              <span className="italic">Select a branch to auto-fill address</span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1.5 col-span-2">
-                                <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Street Address</Label>
-                                <Input placeholder="e.g. Plot 42, Hitech City" {...locationForm.register('address')} className="h-9 text-xs" />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-4 gap-3">
-                              <div className="space-y-1.5 col-span-2">
-                                <Label className="text-[10px] font-semibold uppercase text-muted-foreground">City</Label>
-                                <Input placeholder="e.g. Hyderabad" {...locationForm.register('city')} className="h-9 text-xs" />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] font-semibold uppercase text-muted-foreground">State</Label>
-                                <Input placeholder="e.g. Telangana" {...locationForm.register('state')} className="h-9 text-xs" />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] font-semibold uppercase text-muted-foreground">PIN Code</Label>
-                                <Input placeholder="500081" {...locationForm.register('pincode')} className="h-9 text-xs font-mono" />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
-
-                    {/* ── TAB 3: OPERATIONS ── */}
-                    <TabsContent value="ops" className="space-y-4 mt-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Shift Group *</Label>
-                          <Select
-                            value={locationForm.watch('shift') ?? ''}
-                            onValueChange={(v) => {
-                              locationForm.setValue('shift', v);
-                              const master = SHIFT_MASTER[v];
-                              if (master) locationForm.setValue('workingHours', master.workingHours);
-                            }}
-                          >
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select shift group..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(SHIFT_MASTER).map(([key, s]) => (
-                                <SelectItem key={key} value={key} className="text-xs">
-                                  {s.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Working Hours</Label>
-                            {locationForm.watch('shift') && (
-                              <span className="text-[9px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">
-                                Auto from Shift
-                              </span>
-                            )}
-                          </div>
-                          <Input
-                            readOnly
-                            value={locationForm.watch('workingHours') ?? ''}
-                            placeholder="Select a shift to auto-fill"
-                            className="h-9 text-xs font-mono bg-muted/40 cursor-not-allowed text-muted-foreground"
-                          />
-                          {locationForm.watch('shift') && SHIFT_MASTER[locationForm.watch('shift')!]?.note && (
-                            <p className="text-[9.5px] text-amber-600 font-medium">
-                              ⚠ {SHIFT_MASTER[locationForm.watch('shift')!]!.note}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">GPS Coordinates (Optional)</Label>
-                          <Input placeholder="e.g. 17.4485, 78.3741" {...locationForm.register('gps')} className="h-9 text-xs font-mono" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Status</Label>
-                          <Select
-                            value={locationForm.watch('isActive') ? 'active' : 'inactive'}
-                            onValueChange={(val) => locationForm.setValue('isActive', val === 'active')}
-                          >
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="inactive">Inactive</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-
-                  <MultiStepFormFooter
-                    currentStep={locationMultiStep.currentStep}
-                    totalSteps={locationMultiStep.totalSteps}
-                    isFirstStep={locationMultiStep.isFirstStep}
-                    isLastStep={locationMultiStep.isLastStep}
-                    isEditing={false}
-                    isSubmitting={createLocationMutation.isPending || createAndAddAnotherLocationMutation.isPending}
-                    createLabel="Save Location"
-                    saveLabel="Save Changes"
-                    showSaveAndContinue={true}
-                    saveAndContinueLabel="Save & Add Another"
-                    onCancel={closeLocationModal}
-                    onBack={locationMultiStep.goToPreviousStep}
-                    onNext={locationMultiStep.goToNextStep}
-                    onSaveAndContinue={handleSaveAndAddAnotherLocation}
-                  />
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end gap-2 pt-4 border-t">
+                    <Button type="button" variant="outline" size="sm" onClick={closeLocationModal}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={createLocationMutation.isPending || createAndAddAnotherLocationMutation.isPending}
+                      onClick={handleSaveAndAddAnotherLocation}
+                    >
+                      Save & Add Another
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={createLocationMutation.isPending || createAndAddAnotherLocationMutation.isPending}
+                    >
+                      {createLocationMutation.isPending ? 'Saving...' : 'Save Location'}
+                    </Button>
+                  </div>
                 </form>
               </DialogContent>
             </Dialog>
@@ -1049,7 +822,7 @@ export function BranchesTab({
                         <span className={`h-2.5 w-2.5 rounded-full ${branch.isActive ? 'bg-emerald-500' : 'bg-muted'}`} />
                         <span className="font-mono text-xs font-semibold text-primary">{branch.code}</span>
                         <Badge variant="outline" className="text-[10px] font-semibold">
-                          {branch.branchType ?? 'Branch Office'}
+                          {(branch.branchType === 'Branch Office' || !branch.branchType) ? 'Branch' : branch.branchType}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1187,7 +960,7 @@ export function BranchesTab({
                   <TableRow key={branch.id}>
                     <TableCell className="font-mono text-xs font-semibold text-primary">{branch.code}</TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">{branch.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{branch.branchType ?? 'Branch Office'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{(branch.branchType === 'Branch Office' || !branch.branchType) ? 'Branch' : branch.branchType}</TableCell>
                     <TableCell className="text-xs">
                       {branch.city}, {branch.state}
                     </TableCell>

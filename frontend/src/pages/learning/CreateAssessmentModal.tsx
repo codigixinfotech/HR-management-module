@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X,
   Plus,
@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CATALOG_COURSES, type AssessmentItem, type QuestionItem } from './mockTrainingData';
+import { apiClient } from '@/lib/api-client';
+import type { AssessmentItem, QuestionItem } from './types';
 
 interface CreateAssessmentModalProps {
   isOpen: boolean;
@@ -32,11 +33,36 @@ interface CreateAssessmentModalProps {
 export function CreateAssessmentModal({ isOpen, onClose, onSave }: CreateAssessmentModalProps) {
   const [name, setName] = useState('Industrial Safety & Fire Response Quiz');
   const [code, setCode] = useState(`ASM-2026-${Math.floor(100 + Math.random() * 900)}`);
-  const [courseId, setCourseId] = useState(CATALOG_COURSES[0].id);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [courseId, setCourseId] = useState('');
   const [assessmentType, setAssessmentType] = useState<AssessmentItem['type']>('Quiz');
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
   const [attemptsAllowed, setAttemptsAllowed] = useState<number>(2);
   const [passingScore, setPassingScore] = useState<number>(60);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    setLoadingCourses(true);
+    apiClient
+      .get<any[]>('/learning/catalog-courses')
+      .then((res) => {
+        if (!isMounted) return;
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        setCourses(list);
+        if (list.length > 0 && !courseId) {
+          setCourseId(list[0].id || list[0].code);
+        }
+      })
+      .catch((err) => console.warn('Failed to load courses for assessment modal:', err))
+      .finally(() => {
+        if (isMounted) setLoadingCourses(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
 
   // Rules
   const [randomizeQuestions, setRandomizeQuestions] = useState(true);
@@ -78,13 +104,13 @@ export function CreateAssessmentModal({ isOpen, onClose, onSave }: CreateAssessm
   };
 
   const handleSaveAssessment = (status: 'Published' | 'Draft') => {
-    const courseObj = CATALOG_COURSES.find((c) => c.id === courseId);
+    const courseObj = courses.find((c) => (c.id || c.code) === courseId);
     const newAssessment: AssessmentItem = {
       id: code,
       code,
       name,
       courseId,
-      courseTitle: courseObj?.title || 'Safety Fundamentals',
+      courseTitle: courseObj?.title || 'Course Assessment',
       type: assessmentType,
       durationMinutes,
       attemptsAllowed,
@@ -134,13 +160,13 @@ export function CreateAssessmentModal({ isOpen, onClose, onSave }: CreateAssessm
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">Related Course *</Label>
-                <Select value={courseId} onValueChange={setCourseId}>
+                <Select value={courseId} onValueChange={setCourseId} disabled={loadingCourses}>
                   <SelectTrigger className="text-xs">
-                    <SelectValue />
+                    <SelectValue placeholder={loadingCourses ? "Loading courses..." : courses.length === 0 ? "No courses available" : "Select course"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {CATALOG_COURSES.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
+                    {courses.map((c) => (
+                      <SelectItem key={c.id || c.code} value={c.id || c.code}>
                         {c.title}
                       </SelectItem>
                     ))}

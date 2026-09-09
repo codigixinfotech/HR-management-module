@@ -26,7 +26,13 @@ let refreshPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
   const { refreshToken, setTokens, clear } = useAuthStore.getState();
-  if (!refreshToken) return null;
+  if (!refreshToken) {
+    clear();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    return null;
+  }
 
   try {
     const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
@@ -34,6 +40,9 @@ async function refreshAccessToken(): Promise<string | null> {
     return data.accessToken;
   } catch {
     clear();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
     return null;
   }
 }
@@ -57,6 +66,10 @@ apiClient.interceptors.response.use(
         originalRequest.headers = originalRequest.headers ?? {};
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
+      } else {
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
     }
 

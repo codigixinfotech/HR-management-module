@@ -11,6 +11,8 @@ import {
 import { LeaveTypesService } from './leave-types.service';
 import { CreateLeaveTypeDto, UpdateLeaveTypeDto } from './dto/leave-type.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('attendance-leave/leave-types')
 export class LeaveTypesController {
@@ -18,8 +20,12 @@ export class LeaveTypesController {
 
   @Get()
   @Permissions('attendance_leave.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.leaveTypesService.list(companyId);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.leaveTypesService.list(tenantCompanyId);
   }
 
   @Get(':id')

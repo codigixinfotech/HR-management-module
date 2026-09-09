@@ -34,6 +34,7 @@ import AdministrationPage from '@/pages/administration/AdministrationPage';
 
 import CandidateAssessmentPage from '@/pages/recruitment/CandidateAssessmentPage';
 import { LandingPage } from '@/pages/landing/LandingPage';
+import SetPasswordPage from '@/pages/auth/SetPasswordPage';
 
 import { CompanyProvider } from '@/context/CompanyContext';
 
@@ -53,12 +54,19 @@ export default function App() {
           <Route path="/careers/job/:id" element={<CareersJobDetailPage />} />
           <Route path="/candidate-assessment/:token" element={<CandidateAssessmentPage />} />
 
+          {/* Public Auth & Password Setup Routes — No login session required */}
+          <Route path="/auth/set-password" element={<SetPasswordPage />} />
+          <Route path="/auth/verify-invitation" element={<SetPasswordPage />} />
+
           {/* Root & Public Landing Page — No login required */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/landing" element={<Navigate to="/" replace />} />
           <Route path="/landing/:tab" element={<LandingPage />} />
 
           <Route element={<ProtectedRoute />}>
+            {/* Redirect any legacy /mobile-punch links directly to canonical /attendance-leave */}
+            <Route path="/mobile-punch" element={<Navigate to="/attendance-leave" replace />} />
+
             <Route element={<AppLayout />}>
               
               {/* Dashboard Routes */}

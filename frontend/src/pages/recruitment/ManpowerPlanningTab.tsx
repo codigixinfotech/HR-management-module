@@ -41,6 +41,7 @@ import { costCentersApi, type CostCenter } from '@/api/cost-grades';
 import { employeesApi } from '@/api/employees';
 import type { ManpowerPlan, Department, Designation, Branch, Company, ManpowerRequisition } from '@/api/types';
 import { Pagination } from '@/components/common/Pagination';
+import { useCompany } from '@/context/CompanyContext';
 
 const HIRING_QUARTERS = [
   'Q1 2026',
@@ -56,6 +57,7 @@ const HIRING_QUARTERS = [
 export function ManpowerPlanningTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTableDept, setSelectedTableDept] = useState<string>('all');
@@ -103,8 +105,8 @@ export function ManpowerPlanningTab() {
 
   // 1. Fetch Real Master Data from APIs
   const { data: plans = [], isLoading: isPlansLoading } = useQuery({
-    queryKey: ['manpower-plans'],
-    queryFn: () => manpowerPlansApi.list(),
+    queryKey: ['manpower-plans', activeCompanyId],
+    queryFn: () => manpowerPlansApi.list(activeCompanyId),
   });
 
   const { data: companies = [], isLoading: isCompaniesLoading } = useQuery({
@@ -467,9 +469,9 @@ export function ManpowerPlanningTab() {
     setRaisingPlan(plan);
     try {
       const nextNum = await manpowerRequisitionsApi.getNextNumber();
-      setMrNumber(nextNum || 'MR-2026-001');
+      setMrNumber(nextNum || `MR-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`);
     } catch {
-      setMrNumber('MR-2026-001');
+      setMrNumber(`MR-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`);
     }
 
     // Determine Work Location strictly from Forecast Plan's Branch & Company
@@ -570,7 +572,11 @@ export function ManpowerPlanningTab() {
       toast.success(`Manpower Requisition ${data.mrNumber} submitted successfully for approval.`);
       setIsMrOpen(false);
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to submit Manpower Requisition'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      const formattedMsg = Array.isArray(msg) ? msg.join(', ') : (msg || 'Failed to submit Manpower Requisition');
+      toast.error(formattedMsg);
+    },
   });
 
   // Handle Form Submit (Forecast Plan)
@@ -734,7 +740,7 @@ export function ManpowerPlanningTab() {
       costCenter: raisingPlan.costCenter,
       designationId: raisingPlan.designationId || null,
       role: raisingPlan.role,
-      numOpenings: Math.max(1, Math.max(0, raisingPlan.budgeted - raisingPlan.active) || raisingPlan.plannedHires),
+      numOpenings: Math.max(1, raisingPlan.plannedHires || 1),
       joiningDate: mrJoiningDate,
       employmentType: mrEmploymentType,
       priority: mrPriority,
@@ -776,8 +782,9 @@ export function ManpowerPlanningTab() {
   // Aggregate KPI Stats
   const totalBudgeted = plans.reduce((acc, curr) => acc + curr.budgeted, 0);
   const totalActive = plans.reduce((acc, curr) => acc + curr.active, 0);
+  const totalReservedHires = plans.reduce((acc, curr) => acc + (curr.mrRaisedHires ?? 0), 0);
   const totalPlanned = plans.reduce((acc, curr) => acc + curr.plannedHires, 0);
-  const remainingBudgetCap = Math.max(0, totalBudgeted - totalActive);
+  const remainingHeadcountCapacity = Math.max(0, totalBudgeted - totalActive - totalReservedHires);
 
   return (
     <div className="space-y-6">
@@ -827,9 +834,9 @@ export function ManpowerPlanningTab() {
         <Card className="shadow-2xs border-border/80">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Remaining Budget Cap</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">{remainingBudgetCap} Positions</p>
-              <p className="text-[10px] text-violet-600 font-semibold mt-1">Available Headcount</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Remaining Headcount Capacity</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{remainingHeadcountCapacity} Positions</p>
+              <p className="text-[10px] text-violet-600 font-semibold mt-1">Available Positions</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
               <Layers className="h-5 w-5" />
@@ -1321,7 +1328,7 @@ export function ManpowerPlanningTab() {
                   <TableHead className="text-xs">Cost Center</TableHead>
                   <TableHead className="text-xs">Budgeted Headcount</TableHead>
                   <TableHead className="text-xs">Active Staff</TableHead>
-                  <TableHead className="text-xs">Planned Hires</TableHead>
+                  <TableHead className="text-xs">Planned Hires (Available)</TableHead>
                   <TableHead className="text-xs">Hiring Quarter</TableHead>
                   <TableHead className="text-xs">Status</TableHead>
                   <TableHead className="text-right text-xs">Actions</TableHead>
@@ -1344,8 +1351,8 @@ export function ManpowerPlanningTab() {
 
                     return paginatedPlans.map((p, idx) => {
                       const codeLabel = p.code || `MP-0${startIndex + idx + 1}`;
-                      const isUnderStaffed = p.status === 'UNDER-STAFFED' || p.plannedHires > 0;
                       const isCapReached = p.status === 'CAP-REACHED' || p.plannedHires === 0;
+                      const isUnderStaffed = !isCapReached && (p.status === 'UNDER-STAFFED' || p.plannedHires > 0);
 
                       return (
                         <TableRow key={p.id} className="hover:bg-muted/40 transition-colors">
@@ -1359,7 +1366,7 @@ export function ManpowerPlanningTab() {
                           <TableCell className="text-xs font-mono font-semibold">{p.budgeted} Staff</TableCell>
                           <TableCell className="text-xs font-mono font-semibold text-emerald-600">{p.active} Staff</TableCell>
                           <TableCell className="text-xs font-mono font-semibold text-primary">
-                            +{p.plannedHires} Hires
+                            {p.plannedHires > 0 ? `+${p.plannedHires} Available` : '0 Available'}
                           </TableCell>
                           <TableCell className="text-xs font-medium text-muted-foreground">{p.quarter}</TableCell>
                           <TableCell className="text-xs">

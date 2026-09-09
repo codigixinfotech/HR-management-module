@@ -10,6 +10,9 @@ import {
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
+import { Query } from '@nestjs/common';
 
 @Controller('organization/companies')
 export class CompaniesController {
@@ -17,8 +20,12 @@ export class CompaniesController {
 
   @Get()
   @Permissions('organization.companies.read')
-  list() {
-    return this.companiesService.list();
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.companiesService.list(tenantCompanyId);
   }
 
   @Get(':id')

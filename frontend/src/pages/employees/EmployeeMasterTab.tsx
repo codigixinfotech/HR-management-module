@@ -74,13 +74,53 @@ const employeeSchema = z.object({
   employeeCode: z.string().min(1, 'Employee code is required'),
   dateOfJoining: z.string().min(1, 'Date of joining is required'),
   employeeCategory: z.string().min(1, 'Employee category is required'),
-  employmentType: z.enum(['PERMANENT', 'CONTRACT', 'INTERN', 'CONSULTANT', 'PART_TIME']).or(z.string()).optional().default('PERMANENT'),
-  status: z.enum(['ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED', 'PROBATION', 'NOTICE_PERIOD', 'EXITED']).or(z.string()).optional().default('ACTIVE'),
+  employmentType: z.enum([
+    'PERMANENT',
+    'CONTRACT_FIXED',
+    'CONTRACT_PROJECT',
+    'TEMPORARY',
+    'INTERN',
+    'CONSULTANT'
+  ]).or(z.string()).optional().default('PERMANENT'),
+  status: z.enum([
+    'PROBATION',
+    'CONFIRMED',
+    'CONTRACT_ACTIVE',
+    'NOTICE_PERIOD',
+    'ACTIVE',
+    'SUSPENDED',
+    'RESIGNED',
+    'TERMINATED',
+    'EXITED'
+  ]).or(z.string()).optional().default('PROBATION'),
   departmentId: z.string().min(1, 'Department is required'),
   designationId: z.string().min(1, 'Designation is required'),
   reportingManagerId: z.string().optional(),
   grade: z.string().optional(),
   level: z.string().optional(),
+
+  // Probation Details
+  probationApplicable: z.boolean().default(true),
+  probationStartDate: z.string().optional(),
+  probationEndDate: z.string().optional(),
+  confirmationNoticeDays: z.preprocess((val) => val === '' || val === undefined || val === null ? 15 : Number(val), z.number()).default(15),
+  confirmationReviewBy: z.string().default('HR + Reporting Manager'),
+
+  // Contract Details
+  contractType: z.string().default('Fixed Term'),
+  contractNumber: z.string().optional(),
+  contractStartDate: z.string().optional(),
+  contractEndDate: z.string().optional(),
+  contractDuration: z.string().default('12 Months').optional(),
+  contractRenewalAllowed: z.boolean().default(true),
+  contractRenewalNoticeDays: z.preprocess((val) => val === '' || val === undefined || val === null ? 30 : Number(val), z.number()).default(30),
+  contractReviewDate: z.string().optional(),
+  contractNoticePeriod: z.preprocess((val) => val === '' || val === undefined || val === null ? 30 : Number(val), z.number()).default(30),
+  contractDocument: z.string().optional(),
+  contractRemarks: z.string().optional(),
+  contractProbationApplicable: z.boolean().default(true),
+  contractProbationPeriod: z.string().default('3 Months'),
+  autoRenewalReminderDate: z.string().optional(),
 
   // 3. Corporate Organization
   companyId: z.string().min(1, 'Company is required'),
@@ -94,7 +134,7 @@ const employeeSchema = z.object({
   workPhone: z.string().optional(),
   workMode: z.string().min(1, 'Work mode is required'),
   shift: z.string().min(1, 'Shift assignment is required'),
-  probationPeriod: z.string().optional(),
+  probationPeriod: z.string().optional().default('6 Months'),
   confirmationDate: z.string().optional(),
 
   // 5. Contact & Address
@@ -305,7 +345,27 @@ export function EmployeeMasterTab() {
       dateOfJoining: new Date().toISOString().split('T')[0],
       employeeCategory: 'Executive',
       employmentType: 'PERMANENT',
-      status: 'ACTIVE',
+      status: 'PROBATION',
+      probationApplicable: true,
+      probationPeriod: '6 Months',
+      probationStartDate: new Date().toISOString().split('T')[0],
+      probationEndDate: '',
+      confirmationNoticeDays: 15,
+      confirmationReviewBy: 'HR + Reporting Manager',
+      contractType: 'Fixed Term',
+      contractNumber: '',
+      contractStartDate: new Date().toISOString().split('T')[0],
+      contractEndDate: '',
+      contractDuration: '12 Months',
+      contractRenewalAllowed: true,
+      contractRenewalNoticeDays: 30,
+      contractReviewDate: '',
+      contractNoticePeriod: 30,
+      contractDocument: '',
+      contractRemarks: '',
+      contractProbationApplicable: true,
+      contractProbationPeriod: '3 Months',
+      autoRenewalReminderDate: '',
       departmentId: '',
       designationId: '',
       reportingManagerId: '',
@@ -315,7 +375,6 @@ export function EmployeeMasterTab() {
       workPhone: '',
       workMode: 'Onsite',
       shift: 'General Day Shift (G)',
-      probationPeriod: '6 Months',
       confirmationDate: '',
       emergencyContactName: '',
       emergencyContactRelationship: '',
@@ -440,6 +499,131 @@ export function EmployeeMasterTab() {
       form.setValue('annualCtc', computedCtc);
     }
   }, [watchBasic, watchHra, watchConveyance, watchSpecial, watchOther, form]);
+
+  const watchedJoiningDate = form.watch('dateOfJoining');
+  const watchedEmploymentType = form.watch('employmentType');
+  const watchedProbationPeriod = form.watch('probationPeriod');
+  const watchedProbationApplicable = form.watch('probationApplicable');
+  const watchedContractStartDate = form.watch('contractStartDate');
+  const watchedContractEndDate = form.watch('contractEndDate');
+  const watchedContractNoticeDays = form.watch('contractRenewalNoticeDays');
+
+  // Auto-calculate Probation End Date & Sync Start Date
+  useEffect(() => {
+    if (!watchedJoiningDate) return;
+    form.setValue('probationStartDate', watchedJoiningDate);
+
+    let months = 6;
+    if (watchedProbationPeriod?.includes('1 Month')) months = 1;
+    else if (watchedProbationPeriod?.includes('2 Month')) months = 2;
+    else if (watchedProbationPeriod?.includes('3 Month')) months = 3;
+    else if (watchedProbationPeriod?.includes('6 Month')) months = 6;
+    else if (watchedProbationPeriod?.includes('9 Month')) months = 9;
+    else if (watchedProbationPeriod?.includes('1 Year') || watchedProbationPeriod?.includes('12 Month')) months = 12;
+
+    const jDate = new Date(watchedJoiningDate);
+    if (!isNaN(jDate.getTime())) {
+      const pEnd = new Date(jDate);
+      pEnd.setMonth(pEnd.getMonth() + months);
+      pEnd.setDate(pEnd.getDate() - 1);
+      const formatted = pEnd.toISOString().split('T')[0];
+      form.setValue('probationEndDate', formatted);
+      if (!form.getValues('confirmationDate')) {
+        if (form.getValues('status') === 'CONFIRMED') {
+          form.setValue('confirmationDate', watchedJoiningDate);
+        } else {
+          form.setValue('confirmationDate', formatted);
+        }
+      }
+    }
+  }, [watchedJoiningDate, watchedProbationPeriod, form]);
+
+  // Auto-calculate Contract End Date, Duration, Review Date & Auto Renewal Reminder Date
+  useEffect(() => {
+    const sDateStr = watchedContractStartDate || watchedJoiningDate;
+    if (!sDateStr) return;
+    if (!form.getValues('contractStartDate')) {
+      form.setValue('contractStartDate', sDateStr);
+    }
+
+    const sDate = new Date(sDateStr);
+    if (!isNaN(sDate.getTime())) {
+      let cEndStr = watchedContractEndDate;
+      if (!cEndStr) {
+        const cEnd = new Date(sDate);
+        cEnd.setFullYear(cEnd.getFullYear() + 1);
+        cEnd.setDate(cEnd.getDate() - 1);
+        cEndStr = cEnd.toISOString().split('T')[0];
+        form.setValue('contractEndDate', cEndStr);
+      }
+
+      if (cEndStr) {
+        const cEndDate = new Date(cEndStr);
+        if (!isNaN(cEndDate.getTime())) {
+          const totalMonths = Math.max(1, Math.round((cEndDate.getTime() - sDate.getTime()) / (1000 * 60 * 60 * 24 * 30.4375)));
+          form.setValue('contractDuration', `${totalMonths} Months`);
+
+          const noticeDays = Number(watchedContractNoticeDays) || 30;
+          const reminderDate = new Date(cEndDate);
+          reminderDate.setDate(reminderDate.getDate() - noticeDays);
+          const reminderStr = reminderDate.toISOString().split('T')[0];
+          form.setValue('contractReviewDate', reminderStr);
+          form.setValue('autoRenewalReminderDate', reminderStr);
+        }
+      }
+    }
+
+    if (!form.getValues('contractNumber')) {
+      const code = form.getValues('employeeCode')?.replace(/^EMP-?/i, '') || String(Math.floor(Math.random() * 90000) + 10000);
+      form.setValue('contractNumber', `CNT-2026-${code.padStart(5, '0')}`);
+    }
+  }, [watchedContractStartDate, watchedJoiningDate, watchedContractEndDate, watchedContractNoticeDays, form]);
+
+  // Helper to format probation checkpoint chips (Joined, 90-Day Review, HR Reminder, Final Decision)
+  const probationCheckpoints = useMemo(() => {
+    const sDateStr = form.watch('probationStartDate') || form.watch('dateOfJoining');
+    const eDateStr = form.watch('probationEndDate');
+    const noticeDays = Number(form.watch('confirmationNoticeDays')) || 15;
+    if (!sDateStr) return null;
+
+    const sDate = new Date(sDateStr);
+    if (isNaN(sDate.getTime())) return null;
+
+    const probStr = form.watch('probationPeriod') || '6 Months';
+    const mMatch = probStr.match(/(\d+)/);
+    const monthsCount = mMatch ? parseInt(mMatch[1], 10) : 6;
+
+    let eDate = eDateStr ? new Date(eDateStr) : null;
+    if (!eDate || isNaN(eDate.getTime())) {
+      eDate = new Date(sDate);
+      eDate.setMonth(eDate.getMonth() + monthsCount);
+      eDate.setDate(eDate.getDate() - 1);
+    }
+
+    const midTime = sDate.getTime() + (eDate.getTime() - sDate.getTime()) / 2;
+    const midDate = new Date(midTime);
+
+    const remDate = new Date(eDate);
+    remDate.setDate(remDate.getDate() - noticeDays);
+
+    const formatChip = (d: Date) => {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const day = String(d.getDate()).padStart(2, '0');
+      const mon = months[d.getMonth()];
+      const yr = String(d.getFullYear()).slice(-2);
+      return `${day}-${mon}-${yr}`;
+    };
+
+    return {
+      joined: formatChip(sDate),
+      ninetyDayReview: formatChip(midDate),
+      midReview: formatChip(midDate),
+      hrReminder: formatChip(remDate),
+      finalDecision: formatChip(eDate),
+      autoEndDate: eDate.toISOString().split('T')[0],
+      autoEndDateFormatted: formatChip(eDate),
+    };
+  }, [form.watch('probationStartDate'), form.watch('dateOfJoining'), form.watch('probationEndDate'), form.watch('probationPeriod'), form.watch('confirmationNoticeDays')]);
 
   // Auto-fill workEmail if empty when firstName and lastName are provided
   useEffect(() => {
@@ -703,7 +887,8 @@ export function EmployeeMasterTab() {
 
   const updateMutation = useMutation({
     mutationFn: (values: EmployeeFormValues) => {
-      const payload = {
+      const isContract = String(values.employmentType).startsWith('CONTRACT') || values.employmentType === 'TEMPORARY';
+      const payload: any = {
         ...values,
         middleName: values.middleName || null,
         costCenter: values.costCenter || null,
@@ -715,6 +900,9 @@ export function EmployeeMasterTab() {
         emergencyContactRelationship: values.emergencyContactRelationship || null,
         emergencyContactPhone: values.emergencyContactPhone || null,
         reportingManagerId: values.reportingManagerId || null,
+        branchId: values.branchId || null,
+        departmentId: values.departmentId || null,
+        designationId: values.designationId || null,
         dateOfJoining: values.dateOfJoining || undefined,
         dateOfBirth: values.dateOfBirth || undefined,
         familyDob: values.familyDob || null,
@@ -724,6 +912,31 @@ export function EmployeeMasterTab() {
         pfEsicJoiningDate: values.pfEsicJoiningDate || null,
         salaryEffectiveFrom: values.salaryEffectiveFrom || null,
       };
+
+      if (!isContract) {
+        delete payload.contractType;
+        delete payload.contractNumber;
+        delete payload.contractStartDate;
+        delete payload.contractEndDate;
+        delete payload.contractDuration;
+        delete payload.contractRenewalAllowed;
+        delete payload.contractRenewalNoticeDays;
+        delete payload.contractReviewDate;
+        delete payload.contractNoticePeriod;
+        delete payload.contractDocument;
+        delete payload.contractRemarks;
+        delete payload.contractProbationApplicable;
+        delete payload.contractProbationPeriod;
+        delete payload.autoRenewalReminderDate;
+      } else {
+        payload.contractStartDate = values.contractStartDate || null;
+        payload.contractEndDate = values.contractEndDate || null;
+        payload.contractReviewDate = values.contractReviewDate || null;
+        payload.autoRenewalReminderDate = values.autoRenewalReminderDate || null;
+        payload.probationStartDate = values.probationStartDate || null;
+        payload.probationEndDate = values.probationEndDate || null;
+      }
+
       return employeesApi.update(editId!, payload);
     },
     onSuccess: async () => {
@@ -748,7 +961,15 @@ export function EmployeeMasterTab() {
       setSearchParams({});
       navigate(`/employees/detail/${editId}`);
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      const displayMsg = Array.isArray(msg)
+        ? msg.join('\n')
+        : typeof msg === 'string'
+          ? msg
+          : (err?.message || 'Something went wrong');
+      toast.error(displayMsg);
+    },
   });
 
   // Set default company & branch on enter adding state
@@ -976,7 +1197,8 @@ export function EmployeeMasterTab() {
 
   const createMutation = useMutation({
     mutationFn: (values: EmployeeFormValues) => {
-      const payload = {
+      const isContract = String(values.employmentType).startsWith('CONTRACT') || values.employmentType === 'TEMPORARY';
+      const payload: any = {
         ...values,
         middleName: values.middleName || null,
         costCenter: values.costCenter || null,
@@ -988,6 +1210,9 @@ export function EmployeeMasterTab() {
         emergencyContactRelationship: values.emergencyContactRelationship || null,
         emergencyContactPhone: values.emergencyContactPhone || null,
         reportingManagerId: values.reportingManagerId || null,
+        branchId: values.branchId || null,
+        departmentId: values.departmentId || null,
+        designationId: values.designationId || null,
         dateOfJoining: values.dateOfJoining || undefined,
         dateOfBirth: values.dateOfBirth || undefined,
         familyDob: values.familyDob || null,
@@ -997,6 +1222,31 @@ export function EmployeeMasterTab() {
         pfEsicJoiningDate: values.pfEsicJoiningDate || null,
         salaryEffectiveFrom: values.salaryEffectiveFrom || null,
       };
+
+      if (!isContract) {
+        delete payload.contractType;
+        delete payload.contractNumber;
+        delete payload.contractStartDate;
+        delete payload.contractEndDate;
+        delete payload.contractDuration;
+        delete payload.contractRenewalAllowed;
+        delete payload.contractRenewalNoticeDays;
+        delete payload.contractReviewDate;
+        delete payload.contractNoticePeriod;
+        delete payload.contractDocument;
+        delete payload.contractRemarks;
+        delete payload.contractProbationApplicable;
+        delete payload.contractProbationPeriod;
+        delete payload.autoRenewalReminderDate;
+      } else {
+        payload.contractStartDate = values.contractStartDate || null;
+        payload.contractEndDate = values.contractEndDate || null;
+        payload.contractReviewDate = values.contractReviewDate || null;
+        payload.autoRenewalReminderDate = values.autoRenewalReminderDate || null;
+        payload.probationStartDate = values.probationStartDate || null;
+        payload.probationEndDate = values.probationEndDate || null;
+      }
+
       return employeesApi.create(payload);
     },
     onSuccess: async (newEmployee: any) => {
@@ -1034,7 +1284,15 @@ export function EmployeeMasterTab() {
         navigate(`/employees/detail/${newEmployee.id}`);
       }
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      const displayMsg = Array.isArray(msg)
+        ? msg.join('\n')
+        : typeof msg === 'string'
+          ? msg
+          : (err?.message || 'Something went wrong');
+      toast.error(displayMsg);
+    },
   });
 
   const handleNextStep = async () => {
@@ -1178,15 +1436,15 @@ export function EmployeeMasterTab() {
                     key={step.id}
                     onClick={() => setActiveStep(idx)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${isSelected
-                        ? 'bg-primary text-primary-foreground shadow-sm font-semibold'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      ? 'bg-primary text-primary-foreground shadow-sm font-semibold'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       }`}
                   >
                     <div className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 border ${isSelected
-                        ? 'border-primary-foreground/30 bg-primary-foreground/15 text-primary-foreground'
-                        : isCompleted
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
-                          : 'border-border bg-background text-muted-foreground'
+                      ? 'border-primary-foreground/30 bg-primary-foreground/15 text-primary-foreground'
+                      : isCompleted
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
+                        : 'border-border bg-background text-muted-foreground'
                       }`}>
                       {isCompleted ? <ShieldCheck className="h-3.5 w-3.5" /> : <StepIcon className="h-3.5 w-3.5" />}
                     </div>
@@ -1304,8 +1562,9 @@ export function EmployeeMasterTab() {
 
                   {/* Step 2: Employment Details */}
                   {activeStep === 1 && (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-muted/40 rounded-lg border border-border/50">
+                    <div className="space-y-4">
+                      {/* Top Organization & Branch bar */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-muted/40 rounded-xl border border-border/50">
                         <div className="space-y-1.5">
                           <Label className="font-semibold text-primary flex items-center gap-1.5 text-xs">
                             <Building2 className="h-3.5 w-3.5" /> Company Entity *
@@ -1372,65 +1631,122 @@ export function EmployeeMasterTab() {
                           )}
                         </div>
                       </div>
+
+                      {/* Primary Employment Core Fields */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="font-semibold">Employee Code (Auto / Custom) *</Label>
-                          <Input className="h-9 text-xs font-mono" {...form.register('employeeCode')} />
-                          {form.formState.errors.employeeCode && <p className="text-[10px] text-destructive">{form.formState.errors.employeeCode.message}</p>}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold">Date of Joining *</Label>
-                          <Input type="date" className="h-9 text-xs" {...form.register('dateOfJoining')} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold">Employee Category *</Label>
-                          <Select value={form.watch('employeeCategory')} onValueChange={(v) => form.setValue('employeeCategory', v)}>
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select Category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Executive" className="text-xs">Executive</SelectItem>
-                              <SelectItem value="Managerial" className="text-xs">Managerial</SelectItem>
-                              <SelectItem value="Staff" className="text-xs">Staff</SelectItem>
-                              <SelectItem value="Contractor" className="text-xs">Contractor</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
                           <Label className="font-semibold">Employment Type *</Label>
-                          <Select value={form.watch('employmentType')} onValueChange={(v) => form.setValue('employmentType', v as any)}>
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select type" />
+                          <Select
+                            value={form.watch('employmentType') || 'PERMANENT'}
+                            onValueChange={(v) => {
+                              form.setValue('employmentType', v as any);
+                              if (v === 'PERMANENT') {
+                                const currStatus = form.getValues('status');
+                                if (currStatus === 'CONTRACT_ACTIVE' || !currStatus) {
+                                  form.setValue('status', 'PROBATION');
+                                  form.setValue('probationApplicable', true);
+                                }
+                              } else if (v === 'CONTRACT_FIXED' || v === 'CONTRACT_PROJECT' || v === 'TEMPORARY') {
+                                form.setValue('status', 'CONTRACT_ACTIVE');
+                                form.setValue('probationApplicable', false);
+                                form.setValue('contractType', v === 'CONTRACT_PROJECT' ? 'Project-Based' : 'Fixed Term');
+                              } else if (v === 'CONSULTANT') {
+                                form.setValue('status', 'ACTIVE');
+                                form.setValue('probationApplicable', false);
+                                form.setValue('contractType', 'Retainer');
+                                form.setValue('contractProbationApplicable', false);
+                              } else if (v === 'INTERN') {
+                                form.setValue('status', 'ACTIVE');
+                                form.setValue('probationApplicable', false);
+                                form.setValue('contractType', 'Trainee Contract');
+                                form.setValue('contractProbationApplicable', false);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-9 text-xs font-semibold">
+                              <SelectValue placeholder="Select Type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="PERMANENT" className="text-xs">Permanent</SelectItem>
-                              <SelectItem value="CONTRACT" className="text-xs">Contract</SelectItem>
-                              <SelectItem value="INTERN" className="text-xs">Intern</SelectItem>
-                              <SelectItem value="CONSULTANT" className="text-xs">Consultant</SelectItem>
+                              <SelectItem value="PERMANENT" className="text-xs font-medium">Permanent</SelectItem>
+                              <SelectItem value="CONTRACT_FIXED" className="text-xs font-medium">Contract – Fixed Term</SelectItem>
+                              <SelectItem value="CONTRACT_PROJECT" className="text-xs font-medium">Contract – Project</SelectItem>
+                              <SelectItem value="TEMPORARY" className="text-xs font-medium">Temporary</SelectItem>
+                              <SelectItem value="INTERN" className="text-xs font-medium">Intern / Trainee</SelectItem>
+                              <SelectItem value="CONSULTANT" className="text-xs font-medium">Consultant</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Employment Status *</Label>
-                          <Select value={form.watch('status') || 'ACTIVE'} onValueChange={(v) => form.setValue('status', v as any, { shouldValidate: true })}>
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select status" />
+                          <Select
+                            value={form.watch('status') || 'PROBATION'}
+                            onValueChange={(v) => {
+                              form.setValue('status', v as any, { shouldValidate: true });
+                              if (v === 'CONFIRMED') {
+                                form.setValue('probationApplicable', false);
+                                if (!form.getValues('confirmationDate')) {
+                                  form.setValue('confirmationDate', form.getValues('dateOfJoining') || new Date().toISOString().split('T')[0]);
+                                }
+                              } else if (v === 'PROBATION') {
+                                form.setValue('probationApplicable', true);
+                                if (form.getValues('employmentType') !== 'PERMANENT') {
+                                  form.setValue('employmentType', 'PERMANENT');
+                                }
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-9 text-xs font-semibold">
+                              <SelectValue placeholder="Select Status" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ACTIVE" className="text-xs">Active</SelectItem>
-                              <SelectItem value="PROBATION" className="text-xs">Probation</SelectItem>
-                              <SelectItem value="NOTICE_PERIOD" className="text-xs">Notice Period</SelectItem>
-                              <SelectItem value="ON_LEAVE" className="text-xs">On Leave</SelectItem>
-                              <SelectItem value="SUSPENDED" className="text-xs">Suspended</SelectItem>
-                              <SelectItem value="RESIGNED" className="text-xs">Resigned</SelectItem>
-                              <SelectItem value="TERMINATED" className="text-xs">Terminated</SelectItem>
-                              <SelectItem value="EXITED" className="text-xs">Exited</SelectItem>
+                              {form.watch('employmentType') === 'PERMANENT' ? (
+                                <>
+                                  <SelectItem value="PROBATION" className="text-xs font-medium">Probation</SelectItem>
+                                  <SelectItem value="CONFIRMED" className="text-xs font-medium">Confirmed</SelectItem>
+                                  <SelectItem value="NOTICE_PERIOD" className="text-xs font-medium">Notice Period</SelectItem>
+                                  <SelectItem value="ACTIVE" className="text-xs font-medium">Active</SelectItem>
+                                  <SelectItem value="SUSPENDED" className="text-xs font-medium">Suspended</SelectItem>
+                                  <SelectItem value="RESIGNED" className="text-xs font-medium">Resigned</SelectItem>
+                                  <SelectItem value="TERMINATED" className="text-xs font-medium">Terminated</SelectItem>
+                                  <SelectItem value="EXITED" className="text-xs font-medium">Exited</SelectItem>
+                                </>
+                              ) : (String(form.watch('employmentType')).startsWith('CONTRACT') || form.watch('employmentType') === 'TEMPORARY') ? (
+                                <>
+                                  <SelectItem value="CONTRACT_ACTIVE" className="text-xs font-medium">Contract Active</SelectItem>
+                                  <SelectItem value="NOTICE_PERIOD" className="text-xs font-medium">Notice Period</SelectItem>
+                                  <SelectItem value="ACTIVE" className="text-xs font-medium">Active</SelectItem>
+                                  <SelectItem value="SUSPENDED" className="text-xs font-medium">Suspended</SelectItem>
+                                  <SelectItem value="TERMINATED" className="text-xs font-medium">Terminated</SelectItem>
+                                  <SelectItem value="EXITED" className="text-xs font-medium">Exited</SelectItem>
+                                </>
+                              ) : (
+                                <>
+                                  <SelectItem value="ACTIVE" className="text-xs font-medium">Active</SelectItem>
+                                  <SelectItem value="NOTICE_PERIOD" className="text-xs font-medium">Notice Period</SelectItem>
+                                  <SelectItem value="SUSPENDED" className="text-xs font-medium">Suspended</SelectItem>
+                                  <SelectItem value="TERMINATED" className="text-xs font-medium">Terminated / Completed</SelectItem>
+                                  <SelectItem value="EXITED" className="text-xs font-medium">Exited</SelectItem>
+                                </>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="font-semibold">Date of Joining *</Label>
+                          <Input type="date" className="h-9 text-xs font-medium" {...form.register('dateOfJoining')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="font-semibold">Employee Code (Auto / Custom) *</Label>
+                          <Input className="h-9 text-xs font-mono font-semibold" {...form.register('employeeCode')} />
+                          {form.formState.errors.employeeCode && (
+                            <p className="text-[10px] text-destructive">{form.formState.errors.employeeCode.message}</p>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Department *</Label>
@@ -1481,8 +1797,8 @@ export function EmployeeMasterTab() {
                                   !watchedDeptId
                                     ? 'Please select a department first'
                                     : designationOptions.length === 0
-                                    ? 'No designations configured for this department'
-                                    : 'Select designation'
+                                      ? 'No designations configured for this department'
+                                      : 'Select designation'
                                 }
                               />
                             </SelectTrigger>
@@ -1507,7 +1823,22 @@ export function EmployeeMasterTab() {
                           {form.formState.errors.designationId && <p className="text-[10px] text-destructive">{form.formState.errors.designationId.message}</p>}
                         </div>
                       </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="font-semibold">Employee Category *</Label>
+                          <Select value={form.watch('employeeCategory')} onValueChange={(v) => form.setValue('employeeCategory', v)}>
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Select Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Executive" className="text-xs">Executive</SelectItem>
+                              <SelectItem value="Managerial" className="text-xs">Managerial</SelectItem>
+                              <SelectItem value="Staff" className="text-xs">Staff</SelectItem>
+                              <SelectItem value="Contractor" className="text-xs">Contractor</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="space-y-1.5">
                           <Label>Reporting Manager</Label>
                           <Select value={form.watch('reportingManagerId') || ''} onValueChange={(v) => form.setValue('reportingManagerId', v)}>
@@ -1531,16 +1862,6 @@ export function EmployeeMasterTab() {
                           </Select>
                         </div>
                         <div className="space-y-1.5">
-                          <Label>Job Grade (Auto)</Label>
-                          <Input className="h-9 text-xs bg-muted font-mono" readOnly placeholder="Auto derived from Designation" {...form.register('grade')} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Job Level (Auto)</Label>
-                          <Input className="h-9 text-xs bg-muted font-mono" readOnly placeholder="Auto derived from Designation" {...form.register('level')} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t pt-2 mt-2">
-                        <div className="space-y-1.5">
                           <Label className="font-semibold">Work Mode *</Label>
                           <Select value={form.watch('workMode')} onValueChange={(v) => form.setValue('workMode', v)}>
                             <SelectTrigger className="h-9 text-xs">
@@ -1553,6 +1874,9 @@ export function EmployeeMasterTab() {
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Shift Assignment *</Label>
                           <Select value={form.watch('shift') || 'General Day Shift (G)'} onValueChange={(v) => form.setValue('shift', v)}>
@@ -1563,7 +1887,7 @@ export function EmployeeMasterTab() {
                               {shiftTypesList && shiftTypesList.length > 0 ? (
                                 shiftTypesList.map((st: any) => (
                                   <SelectItem key={st.id} value={st.name} className="text-xs">
-                                    {st.name} ({st.startTime} - {st.endTime})
+                                    {st.name} ({st?.startTime ?? '09:00'} - {st?.endTime ?? '18:00'})
                                   </SelectItem>
                                 ))
                               ) : (
@@ -1577,21 +1901,681 @@ export function EmployeeMasterTab() {
                               )}
                             </SelectContent>
                           </Select>
-                          {form.formState.errors.shift && (
-                            <p className="text-[10px] text-destructive">{form.formState.errors.shift.message}</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Job Grade (Auto)</Label>
+                          <Input className="h-9 text-xs bg-muted font-mono" readOnly placeholder="Auto derived from Designation" {...form.register('grade')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Job Level (Auto)</Label>
+                          <Input className="h-9 text-xs bg-muted font-mono" readOnly placeholder="Auto derived from Designation" {...form.register('level')} />
+                        </div>
+                      </div>
+
+                      {/* ═════════════════════════════════════════════════════════════════════ */}
+                      {/* ── 1. PERMANENT EMPLOYEE: PROBATION OR CONFIRMATION CARDS ── */}
+                      {/* ═════════════════════════════════════════════════════════════════════ */}
+                      {form.watch('employmentType') === 'PERMANENT' && (
+                        <>
+                          {/* 1A. If Status is PROBATION: Active Probation Lifecycle Evaluation */}
+                          {form.watch('status') === 'PROBATION' && (
+                            <Card className="border border-border/80 bg-primary/5 shadow-2xs">
+                              <CardHeader className="py-2.5 px-4 border-b border-border/60 bg-muted/20 flex flex-row items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-primary" />
+                                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-primary">
+                                    Probation Policy & Lifecycle Evaluation
+                                  </CardTitle>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={form.watch('probationApplicable') !== false}
+                                      onChange={(e) => form.setValue('probationApplicable', e.target.checked)}
+                                      className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary"
+                                    />
+                                    Probation Applicable
+                                  </label>
+                                </div>
+                              </CardHeader>
+                              {form.watch('probationApplicable') !== false ? (
+                                <CardContent className="p-4 space-y-3 text-xs">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="font-semibold">Probation Period *</Label>
+                                      <Select
+                                        value={form.watch('probationPeriod') || '6 Months'}
+                                        onValueChange={(v) => form.setValue('probationPeriod', v)}
+                                      >
+                                        <SelectTrigger className="h-9 text-xs font-semibold bg-background">
+                                          <SelectValue placeholder="Select probation period" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="1 Month" className="text-xs font-medium">1 Month</SelectItem>
+                                          <SelectItem value="2 Months" className="text-xs font-medium">2 Months</SelectItem>
+                                          <SelectItem value="3 Months" className="text-xs font-medium">3 Months</SelectItem>
+                                          <SelectItem value="6 Months" className="text-xs font-medium">6 Months</SelectItem>
+                                          <SelectItem value="9 Months" className="text-xs font-medium">9 Months</SelectItem>
+                                          <SelectItem value="1 Year" className="text-xs font-medium">1 Year</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                        Probation End Date <Badge variant="outline" className="text-[9px] bg-emerald-500/10 border-emerald-500/30 text-emerald-700 font-mono">AUTO</Badge>
+                                      </Label>
+                                      <Input
+                                        readOnly
+                                        value={form.watch('probationEndDate') || probationCheckpoints?.autoEndDate || ''}
+                                        className="h-9 text-xs font-mono font-bold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 cursor-not-allowed"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="font-semibold">Pre-End Review Reminder (Days)</Label>
+                                      <Input
+                                        type="number"
+                                        className="h-9 text-xs font-medium bg-background"
+                                        placeholder="15"
+                                        {...form.register('confirmationNoticeDays')}
+                                      />
+                                      <span className="text-[10px] text-muted-foreground block">
+                                        Alert notification sent before probation end
+                                      </span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="font-semibold">Confirmation Review By</Label>
+                                      <Select
+                                        value={form.watch('confirmationReviewBy') || 'HR + Reporting Manager'}
+                                        onValueChange={(v) => form.setValue('confirmationReviewBy', v)}
+                                      >
+                                        <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                                          <SelectValue placeholder="Select Reviewer" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="HR + Reporting Manager" className="text-xs">HR + Reporting Manager</SelectItem>
+                                          <SelectItem value="Reporting Manager" className="text-xs">Reporting Manager Only</SelectItem>
+                                          <SelectItem value="Department Head" className="text-xs">Department Head</SelectItem>
+                                          <SelectItem value="HR Lead" className="text-xs">HR Lead</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+
+                                  {/* Probation Lifecycle Visual Stepper */}
+                                  <div className="p-3 bg-background border border-border/70 rounded-xl space-y-2">
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                      Automated Probation Review Checkpoints
+                                    </p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                                      <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 text-center">
+                                        <span className="text-[10px] text-muted-foreground font-semibold block">1. Joined</span>
+                                        <p className="font-mono font-semibold text-foreground text-xs mt-0.5">
+                                          {probationCheckpoints?.joined || 'Pending'}
+                                        </p>
+                                      </div>
+                                      <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 text-center">
+                                        <span className="text-[10px] text-muted-foreground font-semibold block">2. 90-Day Review</span>
+                                        <p className="font-mono font-semibold text-foreground text-xs mt-0.5">
+                                          {probationCheckpoints?.ninetyDayReview || probationCheckpoints?.midReview || 'Pending'}
+                                        </p>
+                                      </div>
+                                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-center">
+                                        <span className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold block">3. HR Reminder</span>
+                                        <p className="font-mono font-semibold text-amber-800 dark:text-amber-200 text-xs mt-0.5">
+                                          {probationCheckpoints?.hrReminder || 'Pending'}
+                                        </p>
+                                      </div>
+                                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-center">
+                                        <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold block">4. Final Decision</span>
+                                        <p className="font-mono font-bold text-emerald-800 dark:text-emerald-200 text-xs mt-0.5">
+                                          {probationCheckpoints?.finalDecision || 'Pending'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              ) : (
+                                <CardContent className="p-4 text-xs">
+                                  <div className="p-3 rounded-lg bg-muted/40 border border-border/60 text-muted-foreground">
+                                    Direct permanent appointment without probation period. Employee will be confirmed immediately upon joining.
+                                  </div>
+                                </CardContent>
+                              )}
+                            </Card>
                           )}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label>Probation Period (Optional)</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. 6 Months" {...form.register('probationPeriod')} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Confirmation Date (Optional)</Label>
-                          <Input type="date" className="h-9 text-xs" {...form.register('confirmationDate')} />
-                        </div>
-                      </div>
+
+                          {/* 1B. If Status is CONFIRMED: Confirmed Permanent Employee Record */}
+                          {form.watch('status') === 'CONFIRMED' && (
+                            <Card className="border border-emerald-500/30 bg-emerald-500/5 shadow-2xs">
+                              <CardHeader className="py-2.5 px-4 border-b border-emerald-500/20 bg-emerald-500/10 flex flex-row items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-200">
+                                    Confirmed Permanent Employment Record
+                                  </CardTitle>
+                                </div>
+                                <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5">
+                                  CONFIRMED STAFF
+                                </Badge>
+                              </CardHeader>
+                              <CardContent className="p-4 space-y-3 text-xs">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold text-foreground">Confirmation Date *</Label>
+                                    <Input
+                                      type="date"
+                                      className="h-9 text-xs font-medium bg-background"
+                                      {...form.register('confirmationDate')}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold text-foreground">Confirmation Review / Approval Authority</Label>
+                                    <Input
+                                      className="h-9 text-xs font-medium bg-background"
+                                      placeholder="e.g. HR & Management Committee"
+                                      {...form.register('confirmationReviewBy')}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-900 dark:text-emerald-100 flex items-start gap-2.5">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                                  <div className="space-y-0.5 text-xs">
+                                    <p className="font-bold">Probation Completed / Direct Confirmation</p>
+                                    <p className="text-[11px] text-emerald-800/80 dark:text-emerald-200/80 leading-relaxed">
+                                      This employee has regularized permanent status. They are entitled to statutory permanent benefits, gratuity vesting accruals, and regular annual performance appraisal cycles. Active probation review checkpoints are not applicable.
+                                    </p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+
+                          {/* 1C. Other statuses (e.g. Notice Period) */}
+                          {form.watch('status') === 'NOTICE_PERIOD' && (
+                            <Card className="border border-amber-500/30 bg-amber-500/5 shadow-2xs">
+                              <CardHeader className="py-2.5 px-4 border-b border-amber-500/20 bg-amber-500/10 flex flex-row items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-amber-600" />
+                                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200">
+                                    Notice Period & Resignation Tracking
+                                  </CardTitle>
+                                </div>
+                                <Badge variant="outline" className="text-[10px] bg-amber-500/20 border-amber-500/40 text-amber-800 dark:text-amber-200 font-semibold">
+                                  SERVING NOTICE
+                                </Badge>
+                              </CardHeader>
+                              <CardContent className="p-4 space-y-2 text-xs">
+                                <p className="text-[11px] text-muted-foreground">
+                                  Permanent employee currently serving contractual notice period. Exit clearance and full & final settlement workflows will be triggered.
+                                </p>
+                              </CardContent>
+                            </Card>
+                          )}
+                        </>
+                      )}
+
+                      {/* ═════════════════════════════════════════════════════════════════════ */}
+                      {/* ── 2. CONTRACT EMPLOYEES: FIXED TERM & PROJECT CONTRACTS ── */}
+                      {/* ═════════════════════════════════════════════════════════════════════ */}
+                      {(form.watch('employmentType') === 'CONTRACT_FIXED' ||
+                        form.watch('employmentType') === 'CONTRACT_PROJECT' ||
+                        form.watch('employmentType') === 'TEMPORARY') && (
+                          <>
+                            {/* 2A. Dedicated 📄 CONTRACT DETAILS Card */}
+                            <Card className="border border-border/80 bg-amber-500/5 shadow-2xs">
+                              <CardHeader className="py-2.5 px-4 border-b border-border/60 bg-amber-500/10 flex flex-row items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Briefcase className="h-4 w-4 text-amber-600" />
+                                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200">
+                                    📄 Contract Details
+                                  </CardTitle>
+                                </div>
+                                <Badge variant="outline" className="text-[10px] bg-amber-500/20 border-amber-500/40 text-amber-800 dark:text-amber-200 font-semibold">
+                                  {form.watch('employmentType') === 'CONTRACT_PROJECT' ? 'Project Contract' : form.watch('employmentType') === 'TEMPORARY' ? 'Temporary Staff' : 'Fixed-Term Contract'}
+                                </Badge>
+                              </CardHeader>
+                              <CardContent className="p-4 space-y-3 text-xs">
+                                {/* Row 1: Contract Type & Contract Number */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold">Contract Type *</Label>
+                                    <Select
+                                      value={form.watch('contractType') || (form.watch('employmentType') === 'CONTRACT_PROJECT' ? 'Project-Based' : 'Fixed Term')}
+                                      onValueChange={(v) => form.setValue('contractType', v)}
+                                    >
+                                      <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                                        <SelectValue placeholder="Select Contract Type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Fixed Term" className="text-xs">Fixed Term</SelectItem>
+                                        <SelectItem value="Project-Based" className="text-xs">Project-Based</SelectItem>
+                                        <SelectItem value="Vendor Contract" className="text-xs">Vendor Contract</SelectItem>
+                                        <SelectItem value="Seasonal / Temporary" className="text-xs">Seasonal / Temporary</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold">Contract Number *</Label>
+                                    <Input
+                                      className="h-9 text-xs font-mono font-semibold bg-background"
+                                      placeholder="e.g. CNT-2026-00127"
+                                      {...form.register('contractNumber')}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Row 2: Contract Start Date & Contract End Date */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold">Contract Start Date *</Label>
+                                    <Input
+                                      type="date"
+                                      className="h-9 text-xs font-medium bg-background"
+                                      {...form.register('contractStartDate')}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold">Contract End Date *</Label>
+                                    <Input
+                                      type="date"
+                                      className="h-9 text-xs font-medium bg-background"
+                                      {...form.register('contractEndDate')}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Row 3: Contract Duration & Renewal Allowed */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold flex items-center gap-1.5">
+                                      Contract Duration <Badge variant="outline" className="text-[9px] bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 font-mono">AUTO</Badge>
+                                    </Label>
+                                    <Input
+                                      readOnly
+                                      className="h-9 text-xs font-mono font-semibold bg-muted"
+                                      value={form.watch('contractDuration') || '12 Months'}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold">Renewal Allowed</Label>
+                                    <Select
+                                      value={form.watch('contractRenewalAllowed') !== false ? 'YES' : 'NO'}
+                                      onValueChange={(v) => form.setValue('contractRenewalAllowed', v === 'YES')}
+                                    >
+                                      <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                                        <SelectValue placeholder="Renewal Allowed" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="YES" className="text-xs">Yes (Renewal Allowed)</SelectItem>
+                                        <SelectItem value="NO" className="text-xs">No (Non-Renewable)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                {/* Row 4: Renewal Notice Period & Contract Review Date */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold">Renewal Notice Period (Days)</Label>
+                                    <Input
+                                      type="number"
+                                      className="h-9 text-xs font-medium bg-background"
+                                      placeholder="30"
+                                      {...form.register('contractRenewalNoticeDays')}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold flex items-center gap-1.5 text-amber-800 dark:text-amber-200">
+                                      Contract Review Date <Badge variant="outline" className="text-[9px] bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 font-mono">AUTO</Badge>
+                                    </Label>
+                                    <Input
+                                      readOnly
+                                      className="h-9 text-xs font-mono font-bold bg-amber-500/10 text-amber-900 dark:text-amber-200 border-amber-500/30"
+                                      value={form.watch('contractReviewDate') || form.watch('autoRenewalReminderDate') || ''}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Row 5: Notice Period & Contract Document */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold">Notice Period (Days)</Label>
+                                    <Input
+                                      type="number"
+                                      className="h-9 text-xs font-medium bg-background"
+                                      placeholder="30"
+                                      {...form.register('contractNoticePeriod')}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="font-semibold">Contract Document</Label>
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        type="file"
+                                        accept=".pdf,.doc,.docx"
+                                        className="hidden"
+                                        id="contractDocFile"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) {
+                                            form.setValue('contractDocument', file.name);
+                                            toast.success(`Attached ${file.name}`);
+                                          }
+                                        }}
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-9 text-xs w-full bg-background border-dashed border-border/80 flex items-center justify-center gap-1.5 truncate"
+                                        onClick={() => document.getElementById('contractDocFile')?.click()}
+                                      >
+                                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                        {form.watch('contractDocument') ? form.watch('contractDocument') : 'Upload Contract PDF'}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Row 6: Contract Remarks */}
+                                <div className="space-y-1.5">
+                                  <Label className="font-semibold">Contract Remarks</Label>
+                                  <Input
+                                    className="h-9 text-xs bg-background"
+                                    placeholder="e.g. Fixed-term production operator contract"
+                                    {...form.register('contractRemarks')}
+                                  />
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* 2B. Separate ⏱ PROBATION POLICY & LIFECYCLE Section for Contract Employees */}
+                            <Card className="border border-border/80 bg-primary/5 shadow-2xs">
+                              <CardHeader className="py-2.5 px-4 border-b border-border/60 bg-muted/20 flex flex-row items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-primary" />
+                                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-primary">
+                                    ⏱ Probation Policy & Lifecycle (Contract)
+                                  </CardTitle>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={form.watch('probationApplicable') !== false}
+                                      onChange={(e) => {
+                                        form.setValue('probationApplicable', e.target.checked);
+                                        if (e.target.checked && !form.getValues('probationPeriod')) {
+                                          form.setValue('probationPeriod', '3 Months');
+                                        }
+                                      }}
+                                      className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary"
+                                    />
+                                    Probation Applicable ☑ Yes
+                                  </label>
+                                </div>
+                              </CardHeader>
+                              {form.watch('probationApplicable') !== false ? (
+                                <CardContent className="p-4 space-y-3 text-xs">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="font-semibold">Probation Period *</Label>
+                                      <Select
+                                        value={form.watch('probationPeriod') || '3 Months'}
+                                        onValueChange={(v) => form.setValue('probationPeriod', v)}
+                                      >
+                                        <SelectTrigger className="h-9 text-xs font-semibold bg-background">
+                                          <SelectValue placeholder="Select probation period" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="1 Month" className="text-xs font-medium">1 Month</SelectItem>
+                                          <SelectItem value="2 Months" className="text-xs font-medium">2 Months</SelectItem>
+                                          <SelectItem value="3 Months" className="text-xs font-medium">3 Months</SelectItem>
+                                          <SelectItem value="6 Months" className="text-xs font-medium">6 Months</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                        Probation End Date <Badge variant="outline" className="text-[9px] bg-emerald-500/10 border-emerald-500/30 text-emerald-700 font-mono">AUTO</Badge>
+                                      </Label>
+                                      <Input
+                                        readOnly
+                                        value={form.watch('probationEndDate') || ''}
+                                        className="h-9 text-xs font-mono font-bold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 cursor-not-allowed"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="font-semibold">Confirmation Notice Days</Label>
+                                      <Input
+                                        type="number"
+                                        className="h-9 text-xs font-medium bg-background"
+                                        placeholder="15"
+                                        {...form.register('confirmationNoticeDays')}
+                                      />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="font-semibold">Review By</Label>
+                                      <Select
+                                        value={form.watch('confirmationReviewBy') || 'HR + Reporting Manager'}
+                                        onValueChange={(v) => form.setValue('confirmationReviewBy', v)}
+                                      >
+                                        <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                                          <SelectValue placeholder="Select Reviewer" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="HR + Reporting Manager" className="text-xs">HR + Reporting Manager</SelectItem>
+                                          <SelectItem value="Reporting Manager" className="text-xs">Reporting Manager Only</SelectItem>
+                                          <SelectItem value="Department Head" className="text-xs">Department Head</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+
+                                  {/* Automated Probation Review Checkpoints with 4 Chips */}
+                                  <div className="p-3 bg-background border border-border/70 rounded-xl space-y-2">
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                      Automated Probation Review Checkpoints
+                                    </p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                                      <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 text-center">
+                                        <span className="text-[10px] text-muted-foreground font-semibold block">1. Joined</span>
+                                        <p className="font-mono font-semibold text-foreground text-xs mt-0.5">
+                                          {probationCheckpoints?.joined || 'Pending'}
+                                        </p>
+                                      </div>
+                                      <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 text-center">
+                                        <span className="text-[10px] text-muted-foreground font-semibold block">2. 90-Day Review</span>
+                                        <p className="font-mono font-semibold text-foreground text-xs mt-0.5">
+                                          {probationCheckpoints?.ninetyDayReview || probationCheckpoints?.midReview || 'Pending'}
+                                        </p>
+                                      </div>
+                                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-center">
+                                        <span className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold block">3. HR Reminder</span>
+                                        <p className="font-mono font-semibold text-amber-800 dark:text-amber-200 text-xs mt-0.5">
+                                          {probationCheckpoints?.hrReminder || 'Pending'}
+                                        </p>
+                                      </div>
+                                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-center">
+                                        <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold block">4. Final Decision</span>
+                                        <p className="font-mono font-bold text-emerald-800 dark:text-emerald-200 text-xs mt-0.5">
+                                          {probationCheckpoints?.finalDecision || 'Pending'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              ) : (
+                                <CardContent className="p-4 text-xs">
+                                  <div className="p-3 rounded-lg bg-muted/40 border border-border/60 text-muted-foreground">
+                                    No probation period applicable for this contract position. Contract terms govern employment directly.
+                                  </div>
+                                </CardContent>
+                              )}
+                            </Card>
+                          </>
+                        )}
+
+                      {/* ═════════════════════════════════════════════════════════════════════ */}
+                      {/* ── 3. CONSULTANT / RETAINER TERMS ── */}
+                      {/* ═════════════════════════════════════════════════════════════════════ */}
+                      {form.watch('employmentType') === 'CONSULTANT' && (
+                        <Card className="border border-purple-500/30 bg-purple-500/5 shadow-2xs">
+                          <CardHeader className="py-2.5 px-4 border-b border-purple-500/20 bg-purple-500/10 flex flex-row items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Briefcase className="h-4 w-4 text-purple-600" />
+                              <CardTitle className="text-xs font-bold uppercase tracking-wider text-purple-800 dark:text-purple-200">
+                                Consulting Agreement & Retainer Terms
+                              </CardTitle>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] bg-purple-500/20 border-purple-500/40 text-purple-800 dark:text-purple-200 font-semibold">
+                              Professional Consultant
+                            </Badge>
+                          </CardHeader>
+                          <CardContent className="p-4 space-y-3 text-xs">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold">Engagement Type *</Label>
+                                <Select
+                                  value={form.watch('contractType') || 'Retainer'}
+                                  onValueChange={(v) => form.setValue('contractType', v)}
+                                >
+                                  <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                                    <SelectValue placeholder="Select Type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Retainer" className="text-xs">Professional Retainer</SelectItem>
+                                    <SelectItem value="Advisory" className="text-xs">Strategic Advisory</SelectItem>
+                                    <SelectItem value="Subject Matter Expert" className="text-xs">Subject Matter Expert</SelectItem>
+                                    <SelectItem value="Vendor Agreement" className="text-xs">Third-Party Vendor Agreement</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold">Consulting Agreement Ref No</Label>
+                                <Input
+                                  className="h-9 text-xs font-mono font-semibold bg-background"
+                                  placeholder="e.g. CNS-2026-0045"
+                                  {...form.register('contractNumber')}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold">Agreement Start Date *</Label>
+                                <Input
+                                  type="date"
+                                  className="h-9 text-xs font-medium bg-background"
+                                  {...form.register('contractStartDate')}
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold">Agreement End Date *</Label>
+                                <Input
+                                  type="date"
+                                  className="h-9 text-xs font-medium bg-background"
+                                  {...form.register('contractEndDate')}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-900 dark:text-purple-100 flex items-start gap-2.5">
+                              <Briefcase className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5 text-xs">
+                                <p className="font-bold">Probation Not Applicable for Consultants</p>
+                                <p className="text-[11px] text-purple-800/80 dark:text-purple-200/80 leading-relaxed">
+                                  Independent consultants and retainers operate on service level deliverables without probation evaluations or statutory benefits. Invoices are settled based on agreement terms.
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* ═════════════════════════════════════════════════════════════════════ */}
+                      {/* ── 4. INTERN / TRAINEE TERMS ── */}
+                      {/* ═════════════════════════════════════════════════════════════════════ */}
+                      {form.watch('employmentType') === 'INTERN' && (
+                        <Card className="border border-indigo-500/30 bg-indigo-500/5 shadow-2xs">
+                          <CardHeader className="py-2.5 px-4 border-b border-indigo-500/20 bg-indigo-500/10 flex flex-row items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <GraduationCap className="h-4 w-4 text-indigo-600" />
+                              <CardTitle className="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-200">
+                                Internship & Trainee Program Details
+                              </CardTitle>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] bg-indigo-500/20 border-indigo-500/40 text-indigo-800 dark:text-indigo-200 font-semibold">
+                              Trainee Program
+                            </Badge>
+                          </CardHeader>
+                          <CardContent className="p-4 space-y-3 text-xs">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold">Trainee Program Track *</Label>
+                                <Select
+                                  value={form.watch('contractType') || 'Trainee Contract'}
+                                  onValueChange={(v) => form.setValue('contractType', v)}
+                                >
+                                  <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                                    <SelectValue placeholder="Select Program Track" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Trainee Contract" className="text-xs">Graduate Engineer Trainee (GET)</SelectItem>
+                                    <SelectItem value="Management Trainee" className="text-xs">Management Trainee (MT)</SelectItem>
+                                    <SelectItem value="Summer Internship" className="text-xs">Summer Internship</SelectItem>
+                                    <SelectItem value="Apprentice (NATS/NAPS)" className="text-xs">Apprentice Scheme (NATS/NAPS)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold">Intern / Trainee ID</Label>
+                                <Input
+                                  className="h-9 text-xs font-mono font-semibold bg-background"
+                                  placeholder="e.g. TRN-2026-003"
+                                  {...form.register('contractNumber')}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold">Internship Start Date *</Label>
+                                <Input
+                                  type="date"
+                                  className="h-9 text-xs font-medium bg-background"
+                                  {...form.register('contractStartDate')}
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold">Internship End Date *</Label>
+                                <Input
+                                  type="date"
+                                  className="h-9 text-xs font-medium bg-background"
+                                  {...form.register('contractEndDate')}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-900 dark:text-indigo-100 flex items-start gap-2.5">
+                              <GraduationCap className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5 text-xs">
+                                <p className="font-bold">Academic / Trainee Evaluation Track</p>
+                                <p className="text-[11px] text-indigo-800/80 dark:text-indigo-200/80 leading-relaxed">
+                                  Interns and trainees undergo structured project mentorship and completion evaluations rather than standard probation policies. Successful completion can lead to full-time permanent conversion.
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
                     </div>
                   )}
 
@@ -2236,8 +3220,8 @@ export function EmployeeMasterTab() {
                     key={status.id}
                     onClick={() => setSelectedStatus(status.id)}
                     className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${selectedStatus === status.id
-                        ? 'bg-background text-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
+                      ? 'bg-background text-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
                       }`}
                   >
                     {status.label}
@@ -2268,12 +3252,12 @@ export function EmployeeMasterTab() {
           <Table className="text-xs">
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="w-[100px] font-semibold">Emp Code</TableHead>
+                <TableHead className="w-[90px] font-semibold">Emp Code</TableHead>
                 <TableHead className="font-semibold">Employee Name</TableHead>
+                <TableHead className="font-semibold">Employment & Lifecycle</TableHead>
                 <TableHead className="font-semibold">PAN Tax Code</TableHead>
                 <TableHead className="font-semibold">Provident Fund (PF) ID</TableHead>
                 <TableHead className="font-semibold">Bank details</TableHead>
-                <TableHead className="font-semibold">Emergency Contact</TableHead>
                 <TableHead className="text-right font-semibold">Statutory & Login Setup</TableHead>
               </TableRow>
             </TableHeader>
@@ -2285,17 +3269,84 @@ export function EmployeeMasterTab() {
                   const statusLabel = isVerified ? 'VERIFIED' : isPending ? 'PENDING' : 'INCOMPLETE';
                   const badgeVariant = isVerified ? 'success' : isPending ? 'warning' : 'destructive';
 
+                  const empTypeDisplay = emp.employmentType === 'CONTRACT_FIXED' ? 'Contract – Fixed Term'
+                    : emp.employmentType === 'CONTRACT_PROJECT' ? 'Contract – Project'
+                      : emp.employmentType === 'TEMPORARY' ? 'Temporary'
+                        : emp.employmentType === 'INTERN' ? 'Intern / Trainee'
+                          : emp.employmentType === 'CONSULTANT' ? 'Consultant'
+                            : 'Permanent';
+
+                  const statusDisplay = emp.status === 'PROBATION' ? 'Probation'
+                    : emp.status === 'CONFIRMED' ? 'Confirmed'
+                      : emp.status === 'CONTRACT_ACTIVE' ? 'Contract Active'
+                        : emp.status === 'NOTICE_PERIOD' ? 'Notice Period'
+                          : 'Active';
+
                   return (
                     <TableRow key={emp.id} className="hover:bg-muted/10">
                       <TableCell className="font-semibold font-mono text-primary">{emp.employeeCode}</TableCell>
-                      <TableCell className="font-semibold">{emp.firstName} {emp.lastName}</TableCell>
+                      <TableCell className="font-semibold">
+                        <div>
+                          <span>{emp.firstName} {emp.lastName}</span>
+                          <p className="text-[10px] text-muted-foreground font-normal">{emp.designation?.title || emp.department?.name || 'Staff'}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge
+                              variant="outline"
+                              className={
+                                String(emp.employmentType).startsWith('CONTRACT')
+                                  ? 'text-[10px] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-200 border-amber-500/30'
+                                  : emp.employmentType === 'CONSULTANT'
+                                    ? 'text-[10px] font-semibold bg-purple-500/10 text-purple-800 dark:text-purple-200 border-purple-500/30'
+                                    : emp.employmentType === 'INTERN'
+                                      ? 'text-[10px] font-semibold bg-indigo-500/10 text-indigo-800 dark:text-indigo-200 border-indigo-500/30'
+                                      : 'text-[10px] font-semibold bg-blue-500/10 text-blue-800 dark:text-blue-200 border-blue-500/30'
+                              }
+                            >
+                              {empTypeDisplay}
+                            </Badge>
+                            <Badge
+                              variant="secondary"
+                              className={
+                                emp.status === 'CONFIRMED'
+                                  ? 'text-[10px] font-semibold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/20'
+                                  : emp.status === 'PROBATION'
+                                    ? 'text-[10px] font-semibold bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-500/20'
+                                    : 'text-[10px] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20'
+                              }
+                            >
+                              ● {statusDisplay}
+                            </Badge>
+                          </div>
+                          {String(emp.employmentType).startsWith('CONTRACT') ? (
+                            <div className="text-[10px] font-mono text-muted-foreground space-y-0.5">
+                              <p className="text-amber-800 dark:text-amber-300 font-semibold">
+                                Contract: {emp.contractStartDate || emp.dateOfJoining || 'Start'} → {emp.contractEndDate || '1 Year'}
+                              </p>
+                              {emp.probationPeriod && emp.probationApplicable !== false && (
+                                <p className="text-purple-700 dark:text-purple-300">
+                                  Probation: {emp.probationPeriod} ({emp.dateOfJoining || 'Start'} → {emp.probationEndDate || '3M'})
+                                </p>
+                              )}
+                            </div>
+                          ) : emp.status === 'CONFIRMED' ? (
+                            <p className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-medium">
+                              Confirmed on: {emp.confirmationDate || emp.dateOfJoining || 'Active'}
+                            </p>
+                          ) : emp.probationPeriod && (
+                            <p className="text-[10px] font-mono text-muted-foreground">
+                              Probation: {emp.probationPeriod} ({emp.dateOfJoining ? new Date(emp.dateOfJoining).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Joined'} → {emp.probationEndDate || emp.confirmationDate || 'Auto'})
+                            </p>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-mono text-muted-foreground">{emp.panNumber || 'Not declared'}</TableCell>
                       <TableCell className="font-mono text-muted-foreground">{emp.uanNumber || 'Not assigned'}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {emp.bankName ? `${emp.bankName} - ${emp.bankAccountNumber || ''}` : 'Not linked'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {emp.emergencyContactName ? `${emp.emergencyContactRelationship || 'Contact'}: ${emp.emergencyContactPhone || ''}` : 'Not declared'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">

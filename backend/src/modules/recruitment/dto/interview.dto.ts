@@ -79,6 +79,22 @@ export class CreateInterviewDto {
   @IsString()
   @IsOptional()
   createdByName?: string;
+
+  @IsString()
+  @IsOptional()
+  interviewMode?: string; // 'ONLINE' | 'OFFLINE'
+
+  @IsString()
+  @IsOptional()
+  location?: string;
+
+  @IsString()
+  @IsOptional()
+  building?: string;
+
+  @IsString()
+  @IsOptional()
+  room?: string;
 }
 
 export class UpdateInterviewScheduleDto {
@@ -114,6 +130,22 @@ export class UpdateInterviewScheduleDto {
 
   @IsString()
   @IsOptional()
+  interviewMode?: string;
+
+  @IsString()
+  @IsOptional()
+  location?: string;
+
+  @IsString()
+  @IsOptional()
+  building?: string;
+
+  @IsString()
+  @IsOptional()
+  room?: string;
+
+  @IsString()
+  @IsOptional()
   meetingLink?: string;
 
   @IsString()
@@ -127,6 +159,32 @@ export class UpdateInterviewScheduleDto {
   @IsObject()
   @IsOptional()
   panelMemberRoles?: Record<string, string>;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
+
+  @IsString()
+  @IsOptional()
+  remarks?: string;
+
+  @IsOptional()
+  notifyCandidate?: boolean;
+
+  @IsOptional()
+  notifyPanel?: boolean;
+
+  @IsString()
+  @IsOptional()
+  rescheduledByName?: string;
+
+  @IsString()
+  @IsOptional()
+  originalInterviewDate?: string;
+
+  @IsString()
+  @IsOptional()
+  originalStartTime?: string;
 }
 
 export class UpdateInterviewStatusDto {

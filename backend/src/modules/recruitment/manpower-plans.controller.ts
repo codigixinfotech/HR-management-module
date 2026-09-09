@@ -11,6 +11,8 @@ import {
 import { ManpowerPlansService } from './manpower-plans.service';
 import { CreateManpowerPlanDto, UpdateManpowerPlanDto } from './dto/manpower-plan.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('recruitment/manpower-plans')
 export class ManpowerPlansController {
@@ -19,15 +21,18 @@ export class ManpowerPlansController {
   @Get()
   @Permissions('recruitment.read')
   list(
+    @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
     @Query('branchId') branchId?: string,
   ) {
-    return this.manpowerPlansService.list(companyId, branchId);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.manpowerPlansService.list(tenantCompanyId, branchId);
   }
 
   @Get('count-active')
   @Permissions('recruitment.read')
   countActive(
+    @CurrentUser() user: CurrentUserPayload,
     @Query('departmentName') departmentName?: string,
     @Query('role') role?: string,
     @Query('companyId') companyId?: string,
@@ -35,7 +40,8 @@ export class ManpowerPlansController {
     @Query('departmentId') departmentId?: string,
     @Query('designationId') designationId?: string,
   ) {
-    return this.manpowerPlansService.countActiveStaff(departmentName, role, companyId, departmentId, designationId, branchId);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.manpowerPlansService.countActiveStaff(departmentName, role, tenantCompanyId, departmentId, designationId, branchId);
   }
 
   @Get(':id')

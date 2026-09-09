@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { companiesApi } from '@/api/organization';
 import type { Company } from '@/api/types';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface CompanyContextType {
   activeCompanyId: string | undefined;
@@ -27,8 +28,29 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return localStorage.getItem(STORAGE_KEY) || undefined;
   });
 
+  const user = useAuthStore((s) => s.user);
+
+  const isSuperAdmin = Boolean(
+    user?.permissions?.includes('*') ||
+    user?.roles?.some(
+      (r) => r.toUpperCase().includes('SUPER_ADMIN') || r.toUpperCase() === 'SUPERADMIN'
+    ) ||
+    user?.primaryRole?.toUpperCase().includes('SUPER_ADMIN')
+  );
+
   useEffect(() => {
-    if (companies.length > 0) {
+    if (!isSuperAdmin && user?.companyId) {
+      setActiveCompanyIdState(user.companyId);
+      localStorage.setItem(STORAGE_KEY, user.companyId);
+    } else if (user?.companyId) {
+      const storedId = localStorage.getItem(STORAGE_KEY);
+      if (storedId && companies.some((c) => c.id === storedId)) {
+        setActiveCompanyIdState(storedId);
+      } else {
+        setActiveCompanyIdState(user.companyId);
+        localStorage.setItem(STORAGE_KEY, user.companyId);
+      }
+    } else if (companies.length > 0) {
       const storedId = localStorage.getItem(STORAGE_KEY);
       const validStored = storedId && companies.some((c) => c.id === storedId);
 
@@ -42,9 +64,12 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         localStorage.setItem(STORAGE_KEY, defaultId);
       }
     }
-  }, [companies]);
+  }, [user?.companyId, isSuperAdmin, companies]);
 
   const setActiveCompanyId = (id: string) => {
+    if (!isSuperAdmin && user?.companyId) {
+      return;
+    }
     setActiveCompanyIdState(id);
     localStorage.setItem(STORAGE_KEY, id);
     queryClient.invalidateQueries();

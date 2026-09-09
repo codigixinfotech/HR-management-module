@@ -34,7 +34,7 @@ const departmentSchema = z.object({
   branchId: z.string().min(1, 'Branch / Office is required'),
   code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
-  type: z.string().min(1, 'Department Type is required'),
+  type: z.string().optional().default('Functional'),
   parentDepartmentId: z.string().optional(),
   manager: z.string().optional(),
   costCenter: z.string().optional(),
@@ -73,6 +73,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
   const [editing, setEditing] = useState<Department | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
+  const [deptBudgetValue, setDeptBudgetValue] = useState<string | number>('');
+  const [deptBudgetUnit, setDeptBudgetUnit] = useState<'Lakh' | 'Crore'>('Lakh');
   const form = useForm<DepartmentFormValues>({
     resolver: zodResolver(departmentSchema) as any,
     defaultValues: {
@@ -155,13 +157,18 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
 
   const upsertMutation = useMutation({
     mutationFn: async (values: DepartmentFormValues) => {
+      const multiplier = deptBudgetUnit === 'Crore' ? 10000000 : 100000;
+      const computedBudget = deptBudgetValue !== '' && deptBudgetValue !== null && !isNaN(Number(deptBudgetValue)) && Number(deptBudgetValue) > 0
+        ? Math.round(Number(deptBudgetValue) * multiplier)
+        : null;
+
       const payload = {
         ...values,
         branchId: values.branchId || null,
         parentDepartmentId: values.parentDepartmentId || null,
         manager: values.manager || null,
         costCenter: values.costCenter || null,
-        annualBudget: values.annualBudget || null,
+        annualBudget: computedBudget,
         effectiveFrom: new Date(values.effectiveFrom).toISOString(),
         description: values.description || null,
       };
@@ -187,6 +194,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
 
   const openCreate = () => {
     setEditing(null);
+    setDeptBudgetValue('');
+    setDeptBudgetUnit('Lakh');
     form.reset({
       companyId: companyId ?? companies[0]?.id ?? '',
       branchId: '',
@@ -207,6 +216,21 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
 
   const openEdit = (department: Department) => {
     setEditing(department);
+
+    const rawBudget = department.annualBudget ? Number(department.annualBudget) : null;
+    if (rawBudget && rawBudget > 0) {
+      if (rawBudget >= 10000000) {
+        setDeptBudgetUnit('Crore');
+        setDeptBudgetValue(Number((rawBudget / 10000000).toFixed(2)));
+      } else {
+        setDeptBudgetUnit('Lakh');
+        setDeptBudgetValue(Number((rawBudget / 100000).toFixed(2)));
+      }
+    } else {
+      setDeptBudgetValue('');
+      setDeptBudgetUnit('Lakh');
+    }
+
     form.reset({
       companyId: department.companyId,
       branchId: department.branchId ?? '',
@@ -238,7 +262,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Network className="h-4 w-4 text-primary" /> Corporate Functional Departments
+              <Network className="h-4 w-4 text-primary" /> Functional Departments
             </CardTitle>
             <CardDescription className="text-xs">
               Configure department structures, headcount caps, budget allocations & department heads
@@ -336,38 +360,21 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Department Type *</Label>
-                      <Select value={form.watch('type')} onValueChange={(v) => form.setValue('type', v)}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Corporate" className="text-xs">Corporate</SelectItem>
-                          <SelectItem value="Functional" className="text-xs">Functional</SelectItem>
-                          <SelectItem value="Operational" className="text-xs">Operational</SelectItem>
-                          <SelectItem value="Support" className="text-xs">Support</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {form.formState.errors.type && <p className="text-[10px] text-destructive">{form.formState.errors.type.message}</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Parent Department (Optional)</Label>
-                      <Select value={form.watch('parentDepartmentId')} onValueChange={(v) => form.setValue('parentDepartmentId', v)}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="None" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="" className="text-xs">None / Primary Department</SelectItem>
-                          {parentDeptOptions?.map((d) => (
-                            <SelectItem key={d.id} value={d.id} className="text-xs">
-                              {d.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Parent Department (Optional)</Label>
+                    <Select value={form.watch('parentDepartmentId')} onValueChange={(v) => form.setValue('parentDepartmentId', v)}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="" className="text-xs">None / Primary Department</SelectItem>
+                        {parentDeptOptions?.map((d) => (
+                          <SelectItem key={d.id} value={d.id} className="text-xs">
+                            {d.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -415,9 +422,26 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                       {form.formState.errors.headcountCapacity && <p className="text-[10px] text-destructive">{form.formState.errors.headcountCapacity.message}</p>}
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Annual Budget (₹ - Optional)</Label>
-                      <Input type="number" placeholder="e.g. 128000000" {...form.register('annualBudget')} className="h-9 text-xs" />
-                      {form.formState.errors.annualBudget && <p className="text-[10px] text-destructive">{form.formState.errors.annualBudget.message}</p>}
+                      <Label className="text-xs font-semibold">Annual Budget (Optional)</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 25.00"
+                          value={deptBudgetValue}
+                          onChange={e => setDeptBudgetValue(e.target.value)}
+                          className="h-9 text-xs font-mono flex-1"
+                        />
+                        <Select value={deptBudgetUnit} onValueChange={(v: 'Lakh' | 'Crore') => setDeptBudgetUnit(v)}>
+                          <SelectTrigger className="h-9 text-xs w-[105px] shrink-0 font-semibold bg-muted/20">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Lakh" className="text-xs font-medium">₹ Lakh</SelectItem>
+                            <SelectItem value="Crore" className="text-xs font-medium">₹ Crore</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
 

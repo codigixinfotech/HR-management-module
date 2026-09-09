@@ -52,6 +52,7 @@ import { useQuery } from '@tanstack/react-query';
 import { jobOpeningsApi } from '@/api/recruitment';
 import { SendAssessmentModal } from './SendAssessmentModal';
 import { ViewAssessmentResultModal } from './ViewAssessmentResultModal';
+import { useCompany } from '@/context/CompanyContext';
 
 interface SearchableSelectInputProps {
   label: string;
@@ -175,6 +176,7 @@ function SearchableSelectInput({
 }
 
 export function AssessmentsTab() {
+  const { activeCompanyId } = useCompany();
   const [activeSubTab, setActiveSubTab] = useState<
     'overview' | 'question-bank' | 'create-assessment' | 'assessments' | 'candidates' | 'attempts' | 'reports'
   >('overview');
@@ -186,8 +188,8 @@ export function AssessmentsTab() {
 
   // Fetch real candidates from backend
   const { data: jobOpenings = [] } = useQuery({
-    queryKey: ['job-openings'],
-    queryFn: () => jobOpeningsApi.list(),
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
 
   const availablePositionsList = useMemo(() => {

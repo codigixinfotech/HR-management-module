@@ -100,7 +100,6 @@ export const HCM_MODULES: HcmModule[] = [
       { key: 'directory', label: 'Employee Directory', path: '/employees/directory' },
       { key: 'master', label: 'Employee Master', path: '/employees/master' },
       { key: 'documents', label: 'Documents', path: '/employees/documents' },
-      { key: 'skills', label: 'Skills & Certifications', path: '/employees/skills' },
       { key: 'transfers', label: 'Transfers & Promotions', path: '/employees/transfers' },
       { key: 'exit', label: 'Exit Management', path: '/employees/exit' },
       { key: 'reports', label: 'Employee Reports', path: '/employees/reports' },
@@ -129,7 +128,7 @@ export const HCM_MODULES: HcmModule[] = [
     status: 'active',
     icon: Clock,
     subItems: [
-      { key: 'live', label: 'Live Attendance', path: '/attendance-leave/live' },
+      { key: 'live', label: 'Live Attendance', path: '/attendance-leave' },
       { key: 'register', label: 'Attendance Register', path: '/attendance-leave/register' },
       { key: 'leave', label: 'Leave Management', path: '/attendance-leave/leave' },
       { key: 'roster', label: 'Shift & Roster', path: '/attendance-leave/roster' },
@@ -197,10 +196,8 @@ export const HCM_MODULES: HcmModule[] = [
     status: 'active',
     icon: GraduationCap,
     subItems: [
-      { key: 'employee-learning', label: 'Employee Learning Hub', path: '/learning/employee-learning' },
-      { key: 'course-catalog', label: 'Course Catalog', path: '/learning/course-catalog' },
-      { key: 'course-requests', label: 'Course Requests', path: '/learning/course-requests' },
       { key: 'training-programs', label: 'Training Programs', path: '/learning/training-programs' },
+      { key: 'course-catalog', label: 'Course Catalog', path: '/learning/course-catalog' },
       { key: 'certifications', label: 'Certifications', path: '/learning/certifications' },
       { key: 'skill-matrix', label: 'Skill Matrix', path: '/learning/skill-matrix' },
       { key: 'reports', label: 'LMS Reports', path: '/learning/reports' },
@@ -375,11 +372,13 @@ export const HCM_MODULES: HcmModule[] = [
     subItems: [
       { key: 'users', label: 'Users', path: '/administration/users' },
       { key: 'roles', label: 'Roles & Permissions', path: '/administration/roles' },
+      { key: 'plans', label: 'Plans & Packages', path: '/administration/plans' },
+      { key: 'subscription', label: 'Company Subscription', path: '/administration/subscription' },
       { key: 'masters', label: 'System Masters', path: '/administration/masters' },
-      { key: 'number-series', label: 'Number Series Config', path: '/administration/number-series' },
+      { key: 'number-series', label: 'Number Series', path: '/administration/number-series' },
       { key: 'company-settings', label: 'Company Settings', path: '/administration/company-settings' },
       { key: 'localization', label: 'Localization & Currency', path: '/administration/localization' },
-      {key: 'templates', label: 'Document Templates', path: '/administration/templates' },
+      { key: 'templates', label: 'Document Templates', path: '/administration/templates' },
       { key: 'config', label: 'System Configuration', path: '/administration/config' },
       { key: 'landing', label: 'Landing Page & Demo', path: '/landing', badge: 'Demo' },
     ],
@@ -416,14 +415,14 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
   {
     key: 'my-attendance',
     label: 'My Attendance',
-    path: '/attendance-leave/live',
+    path: '/attendance-leave',
     phase: 1,
     status: 'active',
     icon: Clock,
     subItems: [
-      { key: 'attendance', label: 'Attendance', path: '/attendance-leave/live' },
+      { key: 'attendance', label: 'Attendance', path: '/attendance-leave' },
       { key: 'attendance-history', label: 'Attendance History', path: '/attendance-leave/register' },
-      { key: 'my-attendance-details', label: 'My Attendance Details', path: '/attendance-leave/live?details=me' },
+      { key: 'my-attendance-details', label: 'My Attendance Details', path: '/attendance-leave?details=me' },
     ],
   },
   {
@@ -488,8 +487,11 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
       { key: 'employee-learning', label: 'Employee Learning Hub', path: '/learning/employee-learning' },
       { key: 'course-catalog', label: 'Course Catalog', path: '/learning/course-catalog' },
       { key: 'course-requests', label: 'Course Requests', path: '/learning/course-requests' },
+      { key: 'reimbursements', label: 'Reimbursements', path: '/learning/reimbursements' },
+      { key: 'training-programs', label: 'Training Programs', path: '/learning/training-programs' },
       { key: 'certifications', label: 'Certifications', path: '/learning/certifications' },
       { key: 'skill-matrix', label: 'Skill Matrix', path: '/learning/skill-matrix' },
+      { key: 'reports', label: 'LMS Reports', path: '/learning/reports' },
     ],
   },
   {
@@ -502,11 +504,25 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
   },
 ];
 
+export function isSuperAdminUser(user?: any): boolean {
+  if (!user) return false;
+  if (user.permissions?.includes('*')) return true;
+  if (user.companyId === null && !user.employee) return true;
+  if (user.email === 'admin@ehcm.local') return true;
+  const isSuperRole = user.roles?.some((r: string) => {
+    const u = typeof r === 'string' ? r.toUpperCase() : '';
+    return u.includes('SUPER_ADMIN') || u === 'SUPERADMIN';
+  });
+  const isSuperPrimary = user.primaryRole?.toUpperCase().includes('SUPER_ADMIN');
+  return Boolean(isSuperRole || isSuperPrimary);
+}
+
 export function isHrOrAdminUser(user?: any): boolean {
   if (!user) return true;
+  if (isSuperAdminUser(user)) return true;
   if (user.permissions?.includes('*')) return true;
   const isRoleAdmin = user.roles?.some((r: string) => {
-    const u = r.toUpperCase();
+    const u = typeof r === 'string' ? r.toUpperCase() : '';
     return u.includes('ADMIN') || u.includes('HR');
   });
   const isPrimaryAdmin =
@@ -515,9 +531,54 @@ export function isHrOrAdminUser(user?: any): boolean {
   return Boolean(isRoleAdmin || isPrimaryAdmin);
 }
 
+export function hasModulePermission(user: any, moduleKey: string, action: string = 'view'): boolean {
+  if (!user) return false;
+  if (isSuperAdminUser(user)) return true;
+  const perms = user.permissions || [];
+  if (perms.includes('*')) return true;
+
+  const targetModule = moduleKey.toLowerCase().replace(/[-_]/g, '');
+  const targetAction = action.toLowerCase();
+
+  const ALIAS_MAP: Record<string, string[]> = {
+    employees: ['employeemanagement', 'employees'],
+    tasks: ['employeemanagement', 'tasks'],
+    compliance: ['statutorytaxes', 'labourcompliance', 'compliance'],
+    learning: ['learning', 'lms'],
+    ehs: ['safetyehs', 'ehs'],
+    'iot-devices': ['integrationsiot', 'iot'],
+  };
+
+  const possibleModuleNames = ALIAS_MAP[moduleKey] || [targetModule];
+
+  return perms.some((p: string) => {
+    if (p === '*') return true;
+    const parts = p.toLowerCase().split('.');
+    const permModule = parts[0]?.replace(/[-_]/g, '');
+    const permAction = parts[1] || '';
+
+    const moduleMatches = possibleModuleNames.includes(permModule);
+    if (!moduleMatches) return false;
+
+    if (!permAction || permAction === '*' || permAction === 'manage' || permAction === targetAction) return true;
+    if (targetAction === 'view' && (permAction === 'read' || permAction === 'view')) return true;
+    if (targetAction === 'create' && (permAction === 'create' || permAction === 'write')) return true;
+    if (targetAction === 'edit' && (permAction === 'edit' || permAction === 'write')) return true;
+    if (targetAction === 'delete' && (permAction === 'delete' || permAction === 'write')) return true;
+
+    return false;
+  });
+}
+
 export function getModulesForRole(user?: any): HcmModule[] {
-  if (isHrOrAdminUser(user)) {
-    return HCM_MODULES;
-  }
-  return EMPLOYEE_MODULES;
+  if (!user) return EMPLOYEE_MODULES;
+  if (isSuperAdminUser(user)) return HCM_MODULES;
+
+  const userPerms = user.permissions || [];
+  if (userPerms.includes('*')) return HCM_MODULES;
+
+  return HCM_MODULES.filter((mod) => {
+    if (mod.key === 'dashboard' || mod.key === 'landing-page' || mod.key === 'profile') return true;
+    return hasModulePermission(user, mod.key, 'view');
+  });
 }

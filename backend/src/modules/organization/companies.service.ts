@@ -11,8 +11,12 @@ import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 export class CompaniesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
-    return this.prisma.company.findMany({ orderBy: { name: 'asc' } });
+  list(companyId?: string) {
+    return this.prisma.company.findMany({
+      where: companyId ? { OR: [{ id: companyId }, { parentCompanyId: companyId }] } : undefined,
+      include: { parentCompany: { select: { id: true, name: true, code: true } } },
+      orderBy: { name: 'asc' },
+    });
   }
 
   async findById(id: string) {
@@ -22,12 +26,22 @@ export class CompaniesService {
   }
 
   async create(dto: CreateCompanyDto) {
+    let code = dto.code;
     const existing = await this.prisma.company.findUnique({
-      where: { code: dto.code },
+      where: { code },
     });
-    if (existing)
-      throw new ConflictException('A company with this code already exists');
-    return this.prisma.company.create({ data: dto });
+    if (existing) {
+      const allCompanies = await this.prisma.company.findMany({ select: { code: true } });
+      const existingCodes = new Set(allCompanies.map((c) => c.code));
+      let count = allCompanies.length + 1;
+      let newCode = `COMP-${String(count).padStart(2, '0')}`;
+      while (existingCodes.has(newCode)) {
+        count++;
+        newCode = `COMP-${String(count).padStart(2, '0')}`;
+      }
+      code = newCode;
+    }
+    return this.prisma.company.create({ data: { ...dto, code } });
   }
 
   async update(id: string, dto: UpdateCompanyDto) {

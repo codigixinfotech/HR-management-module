@@ -18,38 +18,51 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuthStore } from '@/stores/auth-store';
-import { INITIAL_COURSE_REQUESTS, type CourseRequest } from './mockTrainingData';
+import { isHrOrAdminUser } from '@/lib/modules';
+import type { CourseRequest } from './types';
+import { EmployeeRequestCourseModal } from './CourseCatalogModals';
+import { notificationStore } from '@/utils/notificationStore';
+import { toast } from 'sonner';
+import { lmsApi } from '@/services/lmsApi';
 
 export function EmployeeCourseRequestsTab() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const isHrOrAdmin = isHrOrAdminUser(user);
 
-  const [courseRequests, setCourseRequests] = useState<CourseRequest[]>(() => {
-    const saved = localStorage.getItem('ehcm_course_requests');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {
-        console.error('Failed to parse course requests', e);
-      }
+  const [courseRequests, setCourseRequests] = useState<CourseRequest[]>([]);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+
+  const fetchRequests = async () => {
+    try {
+      const data = isHrOrAdmin
+        ? await lmsApi.getCourseRequests()
+        : await lmsApi.getMyCourseRequests();
+      setCourseRequests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Failed to fetch course requests:', err);
     }
-    return INITIAL_COURSE_REQUESTS;
-  });
+  };
 
   useEffect(() => {
-    localStorage.setItem('ehcm_course_requests', JSON.stringify(courseRequests));
-  }, [courseRequests]);
+    fetchRequests();
+  }, [isHrOrAdmin]);
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  const myRequests = courseRequests.filter(
-    (r) => r.employeeId === user?.id || r.employeeId === 'EMP-1483' || user?.role === 'Super Admin'
-  );
+  const empId = user?.employee?.id || user?.id || '';
+  const myRequests = isHrOrAdmin
+    ? courseRequests
+    : courseRequests.filter(
+        (r) =>
+          !r.employeeId ||
+          r.employeeId === empId ||
+          (r.employeeName && user?.name && r.employeeName.toLowerCase().includes(user.name.toLowerCase()))
+      );
 
-  const pendingCount = myRequests.filter((r) => r.status === 'Pending').length;
-  const approvedCount = myRequests.filter((r) => r.status === 'Approved').length;
-  const rejectedCount = myRequests.filter((r) => r.status === 'Rejected').length;
+  const pendingCount = myRequests.filter((r) => r.status?.toLowerCase() === 'pending').length;
+  const approvedCount = myRequests.filter((r) => r.status?.toLowerCase() === 'approved').length;
+  const rejectedCount = myRequests.filter((r) => r.status?.toLowerCase() === 'rejected').length;
 
   const filteredRequests = myRequests.filter((r) => {
     if (searchQuery) {
@@ -59,8 +72,35 @@ export function EmployeeCourseRequestsTab() {
     return true;
   });
 
+  const handleAddNewRequest = async (reqData: any) => {
+    const employeeId = user?.employee?.id || user?.id || '';
+    const employeeName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim() : (user as any)?.name || 'Employee';
+    const department = user?.employee?.department?.name || 'Operations';
+
+    try {
+      await lmsApi.submitCourseRequest({
+        employeeId,
+        employeeName,
+        department,
+        ...reqData,
+      });
+      await fetchRequests();
+      setIsRequestModalOpen(false);
+      toast.success('✓ Course Request Submitted to HR and stored in MySQL!');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to submit course request');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Request Course Modal */}
+      <EmployeeRequestCourseModal
+        isOpen={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        onSubmitRequest={handleAddNewRequest}
+      />
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-primary/10 via-purple-500/5 to-card border shadow-xs">
         <div className="space-y-1">
@@ -79,7 +119,7 @@ export function EmployeeCourseRequestsTab() {
         </div>
 
         <Button
-          onClick={() => navigate('/learning/course-catalog')}
+          onClick={() => setIsRequestModalOpen(true)}
           className="gap-1.5 text-xs bg-primary text-primary-foreground font-semibold shadow-xs"
         >
           <Plus className="h-4 w-4" /> Request New Course

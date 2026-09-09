@@ -14,6 +14,8 @@ import {
   UpdateSalaryComponentDto,
 } from './dto/salary-component.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('payroll/salary-components')
 export class SalaryComponentsController {
@@ -23,8 +25,12 @@ export class SalaryComponentsController {
 
   @Get()
   @Permissions('payroll.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.salaryComponentsService.list(companyId);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.salaryComponentsService.list(tenantCompanyId);
   }
 
   @Get(':id')

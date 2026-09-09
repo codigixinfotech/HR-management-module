@@ -244,6 +244,20 @@ export class JobOpeningsService {
 
     metaTitle: 'StockPulse Careers | Build Enterprise HCM',
     metaDesc: 'Join StockPulse and transform enterprise human capital management software.',
+
+    // ── Recruitment & Assessment Configuration ──
+    assessmentEnabled: true,
+    assessmentMode: 'OFFLINE', // 'ONLINE' | 'OFFLINE' | 'BOTH'
+    industry: 'Manufacturing & Industrial',
+    defaultAssessmentTemplateId: 'TST-MFG-01',
+    defaultAssessmentName: 'Manufacturing Technical & Machine Practical Assessment',
+    assessmentRequired: true,
+
+    // ── Interview Configuration ──
+    interviewMode: 'OFFLINE', // 'ONLINE' | 'OFFLINE' | 'BOTH'
+    defaultInterviewLocation: 'Pune Manufacturing Plant',
+    defaultInterviewBuilding: 'Administration Block',
+    defaultInterviewRoom: 'HR Interview Room 1',
   };
 
   getPortalConfig() {

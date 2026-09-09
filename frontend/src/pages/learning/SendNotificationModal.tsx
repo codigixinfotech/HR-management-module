@@ -28,7 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { MOCK_EMPLOYEES, type TrainingProgram } from './mockTrainingData';
+import { type TrainingProgram } from './types';
 import { notificationStore } from '@/utils/notificationStore';
 
 interface SendNotificationModalProps {
@@ -49,7 +49,7 @@ export function SendNotificationModal({
 
   const assignedEmployees = program.employeeStatuses?.length
     ? program.employeeStatuses
-    : MOCK_EMPLOYEES.slice(0, program.employeeCount || 4).map((e) => ({
+    : [].map((e: any) => ({
         employeeId: e.id,
         employeeName: e.name,
         department: e.department,
@@ -188,7 +188,7 @@ export function SendEmailModal({
 
   const assignedEmployees = program.employeeStatuses?.length
     ? program.employeeStatuses
-    : MOCK_EMPLOYEES.slice(0, program.employeeCount || 4).map((e) => ({
+    : [].map((e: any) => ({
         employeeId: e.id,
         employeeName: e.name,
         department: e.department,
