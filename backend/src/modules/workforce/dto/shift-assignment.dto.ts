@@ -21,6 +21,18 @@ export class CreateShiftAssignmentDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  tier?: string;
+
+  @IsOptional()
+  @IsString()
+  departmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  overrideReason?: string;
 }
 
 export class UpdateShiftAssignmentDto extends PartialType(

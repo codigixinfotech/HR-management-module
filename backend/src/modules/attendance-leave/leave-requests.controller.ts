@@ -59,9 +59,25 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.create(dto);
   }
 
+  @Post('bulk-status')
+  @Permissions('attendance_leave.write')
+  bulkUpdateStatus(@Body() dto: any) {
+    return this.leaveRequestsService.bulkUpdateStatus(dto);
+  }
+
   @Patch(':id/status')
   @Permissions('attendance_leave.write')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateLeaveStatusDto) {
     return this.leaveRequestsService.updateStatus(id, dto);
+  }
+
+  @Patch(':id/cancel')
+  @Permissions('attendance_leave.write')
+  cancel(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Body('reason') reason?: string,
+  ) {
+    return this.leaveRequestsService.cancelMyRequest(id, user, reason);
   }
 }

@@ -464,11 +464,45 @@ export class AttendanceService {
       workedMinutes = Math.max(0, Math.round((checkOutDate.getTime() - checkInDate.getTime()) / 60000));
     }
 
-    // Default shift start time: 09:30 AM (570 minutes)
+    // 1. Look up employee scheduled shift from Published Roster for punch date
+    const dateOnlyStr = normalizedDate.toISOString().split('T')[0];
+    let scheduledSlot: any = null;
+    try {
+      const slots: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT * FROM shift_roster_schedules WHERE employeeId = ? AND date = ? LIMIT 1`,
+        validEmployeeId,
+        dateOnlyStr
+      );
+      if (slots && slots.length > 0) {
+        scheduledSlot = slots[0];
+      }
+    } catch {}
+
+    // 2. Default shift start time: 09:30 AM (570 minutes)
     let shiftStartHour = 9;
     let shiftStartMin = 30;
 
-    if (emp?.shift) {
+    if (
+      scheduledSlot &&
+      scheduledSlot.timing &&
+      scheduledSlot.shiftCode !== 'WO' &&
+      scheduledSlot.shiftCode !== 'HOL' &&
+      scheduledSlot.shiftCode !== 'LV'
+    ) {
+      const startTimeStr = scheduledSlot.timing.split('-')[0]?.trim();
+      if (startTimeStr) {
+        const isPM = startTimeStr.toUpperCase().includes('PM');
+        const isAM = startTimeStr.toUpperCase().includes('AM');
+        const clean = startTimeStr.replace(/[APMapm\s]/g, '');
+        const parts = clean.split(':');
+        let hour = parseInt(parts[0], 10) || 9;
+        const min = parseInt(parts[1], 10) || 0;
+        if (isPM && hour < 12) hour += 12;
+        if (isAM && hour === 12) hour = 0;
+        shiftStartHour = hour;
+        shiftStartMin = min;
+      }
+    } else if (emp?.shift) {
       const shiftParts = emp.shift.split(':');
       if (shiftParts.length >= 2) {
         shiftStartHour = parseInt(shiftParts[0], 10) || 9;
@@ -479,7 +513,7 @@ export class AttendanceService {
     const checkInTotalMins = this.computeCheckInMinsInIst(checkInDate);
     const shiftStartTotalMins = shiftStartHour * 60 + shiftStartMin;
 
-    // Evaluate attendance status: check-in after 09:30 AM IST is LATE_ARRIVING
+    // Evaluate attendance status: check-in after scheduled shift start is LATE_ARRIVING
     const computedStatus: any = checkInTotalMins <= shiftStartTotalMins ? 'PRESENT' : 'LATE_ARRIVING';
 
     console.log('[ATTENDANCE STATUS EVALUATION]', {

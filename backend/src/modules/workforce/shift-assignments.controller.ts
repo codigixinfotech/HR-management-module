@@ -26,8 +26,9 @@ export class ShiftAssignmentsController {
   list(
     @Query('employeeId') employeeId?: string,
     @Query('shiftTypeId') shiftTypeId?: string,
+    @Query('companyId') companyId?: string,
   ) {
-    return this.shiftAssignmentsService.list(employeeId, shiftTypeId);
+    return this.shiftAssignmentsService.list(employeeId, shiftTypeId, companyId);
   }
 
   @Get(':id')

@@ -1377,17 +1377,26 @@ model ManpowerRequisition {
 // ---------------------------------------------------------------------------
 
 model ShiftType {
-  id           String   @id @default(cuid())
-  companyId    String
-  code         String
-  name         String
-  startTime    String
-  endTime      String
-  breakMinutes Int      @default(0)
-  isNightShift Boolean  @default(false)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  companyId             String
+  code                  String
+  name                  String
+  startTime             String
+  endTime               String
+  breakMinutes          Int      @default(0)
+  workingHours          Float    @default(7.5)
+  lateGraceMinutes      Int      @default(10)
+  earlyExitGraceMinutes Int      @default(10)
+  halfDayThresholdHours Float    @default(4.0)
+  otEligible            Boolean  @default(true)
+  otStartsAfterMinutes  Int      @default(30)
+  weeklyOffDays         String   @default("Sunday")
+  holidayHandling       String   @default("Holiday Calendar")
+  colorTag              String   @default("blue")
+  isNightShift          Boolean  @default(false)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   assignments       ShiftAssignment[]
@@ -1398,15 +1407,18 @@ model ShiftType {
 }
 
 model ShiftAssignment {
-  id            String    @id @default(cuid())
-  companyId     String
-  employeeId    String
-  shiftTypeId   String
-  effectiveFrom DateTime
-  effectiveTo   DateTime?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  companyId      String
+  employeeId     String
+  shiftTypeId    String
+  departmentId   String?
+  tier           String    @default("EMPLOYEE")
+  overrideReason String?
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   shiftType ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Cascade)
@@ -1414,6 +1426,107 @@ model ShiftAssignment {
   @@index([employeeId])
   @@index([shiftTypeId])
   @@map("shift_assignments")
+}
+
+model ShiftRosterSchedule {
+  id               String   @id @default(cuid())
+  companyId        String
+  employeeId       String
+  shiftTypeId      String?
+  shiftCode        String
+  shiftName        String
+  timing           String?
+  date             String
+  status           String   @default("Published")
+  isCustomOverride Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([employeeId, date], map: "uq_emp_date")
+  @@index([companyId, date], map: "idx_comp_date")
+  @@map("shift_roster_schedules")
+}
+
+model ShiftRotationRule {
+  id                String   @id @default(cuid())
+  companyId         String
+  name              String
+  department        String?
+  frequency         String   @default("Weekly")
+  pattern           String   @db.Text
+  handoverDay       String   @default("Monday 00:00 AM")
+  headcountCovered  Int      @default(0)
+  currentPhase      Int      @default(1)
+  nextRotationDate  String?
+  autoApplyToRoster Boolean  @default(true)
+  status            String   @default("Active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId], map: "idx_comp_rot")
+  @@map("shift_rotation_rules")
+}
+
+model ShiftChangeRequest {
+  id              String   @id @default(cuid())
+  companyId       String
+  employeeId      String
+  currentShift    String
+  requestedShift  String
+  effectiveDate   String
+  reason          String   @db.Text
+  appliedDate     String
+  status          String   @default("Pending Review")
+  reviewerRemarks String?  @db.Text
+  changeType      String?  @default("Temporary")
+  effectiveTo     String?
+  history         String?  @db.Text
+  approvedBy      String?
+  approvedAt      String?
+  rejectedBy      String?
+  rejectedAt      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId], map: "idx_comp_chg")
+  @@index([employeeId], map: "idx_emp_chg")
+  @@map("shift_change_requests")
+}
+
+model ShiftSwapRequest {
+  id              String   @id @default(cuid())
+  companyId       String
+  requesterId     String
+  targetId        String
+  swapDate        String
+  requesterShift  String
+  targetShift     String
+  reason          String   @db.Text
+  status          String   @default("Pending Manager Approval")
+  checks          String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId], map: "idx_comp_swp")
+  @@map("shift_swap_requests")
+}
+
+model ShiftRosterBatch {
+  id            String   @id @default(cuid())
+  companyId     String
+  periodName    String
+  department    String?
+  dateRange     String
+  headcount     Int      @default(0)
+  submittedBy   String
+  submittedAt   String
+  status        String   @default("Draft")
+  shiftsCovered String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([companyId], map: "idx_comp_bat")
+  @@map("shift_roster_batches")
 }
 
 // ---------------------------------------------------------------------------

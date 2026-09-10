@@ -1,5 +1,5 @@
 import { ApprovalStatus } from '@prisma/client';
-import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 export class ListLeaveRequestsQueryDto extends PaginationQueryDto {
@@ -29,11 +29,43 @@ export class CreateLeaveRequestDto {
   endDate: string;
 
   @IsOptional()
+  @IsNumber()
+  totalDays?: number;
+
+  @IsOptional()
+  @IsString()
+  duration?: string; // 'FULL_DAY' | 'HALF_DAY' | 'CUSTOM'
+
+  @IsOptional()
+  @IsString()
+  halfDaySession?: string; // 'FIRST_HALF' | 'SECOND_HALF'
+
+  @IsOptional()
+  @IsString()
+  attachmentUrl?: string;
+
+  @IsOptional()
   @IsString()
   reason?: string;
 }
 
 export class UpdateLeaveStatusDto {
+  @IsEnum(ApprovalStatus)
+  status: ApprovalStatus;
+
+  @IsOptional()
+  @IsString()
+  approverId?: string;
+
+  @IsOptional()
+  @IsString()
+  approverRemarks?: string;
+}
+
+export class BulkUpdateLeaveStatusDto {
+  @IsString({ each: true })
+  ids: string[];
+
   @IsEnum(ApprovalStatus)
   status: ApprovalStatus;
 

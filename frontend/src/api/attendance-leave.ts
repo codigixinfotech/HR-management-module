@@ -38,7 +38,7 @@ export const leaveBalancesApi = {
 };
 
 export const leaveRequestsApi = {
-  list: async (params: { page?: number; pageSize?: number; employeeId?: string; status?: ApprovalStatus }) =>
+  list: async (params: { page?: number; pageSize?: number; employeeId?: string; status?: ApprovalStatus; companyId?: string }) =>
     (await apiClient.get<PaginatedResult<LeaveRequest>>('/attendance-leave/leave-requests', { params })).data,
   listMy: async (params?: { status?: ApprovalStatus }) =>
     (await apiClient.get<LeaveRequest[]>('/attendance-leave/leave-requests/my', { params })).data,
@@ -48,10 +48,18 @@ export const leaveRequestsApi = {
     leaveTypeId: string;
     startDate: string;
     endDate: string;
+    totalDays?: number;
+    duration?: string;
+    halfDaySession?: string;
+    attachmentUrl?: string;
     reason?: string;
   }) => (await apiClient.post<LeaveRequest>('/attendance-leave/leave-requests', payload)).data,
   updateStatus: async (id: string, payload: { status: ApprovalStatus; approverId?: string; approverRemarks?: string }) =>
     (await apiClient.patch<LeaveRequest>(`/attendance-leave/leave-requests/${id}/status`, payload)).data,
+  bulkStatus: async (payload: { ids: string[]; status: ApprovalStatus; approverId?: string; approverRemarks?: string }) =>
+    (await apiClient.post<{ success: boolean; count: number }>('/attendance-leave/leave-requests/bulk-status', payload)).data,
+  cancel: async (id: string, reason?: string) =>
+    (await apiClient.patch<LeaveRequest>(`/attendance-leave/leave-requests/${id}/cancel`, { reason })).data,
 };
 
 export const attendanceApi = {

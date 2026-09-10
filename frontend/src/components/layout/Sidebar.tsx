@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getModulesForRole, isSuperAdminUser, type HcmModule, type SubModuleItem } from '@/lib/modules';
+import { getModulesForRole, isSuperAdminUser, isManagerOrHrOrAdmin, type HcmModule, type SubModuleItem } from '@/lib/modules';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCompany } from '@/context/CompanyContext';
 import { subscriptionsApi } from '@/api/plansApi';
@@ -83,8 +83,51 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       });
     }
 
+    // Role-based visibility for Attendance & Leave
+    // Manager / HR / Admin: Attendance Register, Attendance Update Requests
+    // Employee: My Attendance Register (Attendance Update/Correction Requests HIDDEN)
+    const isManagerOrAdmin = isManagerOrHrOrAdmin(user);
+    base = base.map((mod) => {
+      if (mod.key === 'attendance-leave' && mod.subItems) {
+        if (isManagerOrAdmin) {
+          const newSubs: SubModuleItem[] = [];
+          for (const sub of mod.subItems) {
+            if (sub.key === 'register') {
+              newSubs.push({ ...sub, label: 'Attendance Register' });
+              // Insert Attendance Update Requests right after Attendance Register
+              if (!mod.subItems.some((s) => s.key === 'attendance-requests')) {
+                newSubs.push({
+                  key: 'attendance-requests',
+                  label: 'Attendance Update Requests',
+                  path: '/attendance-leave/register?tab=requests',
+                });
+              }
+            } else if (sub.key === 'attendance-requests') {
+              newSubs.push(sub);
+            } else {
+              newSubs.push(sub);
+            }
+          }
+          return { ...mod, subItems: newSubs };
+        } else {
+          return {
+            ...mod,
+            subItems: mod.subItems
+              .filter(
+                (sub) =>
+                  sub.key !== 'attendance-requests' &&
+                  !sub.label.toLowerCase().includes('correction') &&
+                  !sub.label.toLowerCase().includes('update request')
+              )
+              .map((sub) => (sub.key === 'register' ? { ...sub, label: 'My Attendance Register' } : sub)),
+          };
+        }
+      }
+      return mod;
+    });
+
     return base;
-  }, [modulesForRole, enabledModuleKeysSet, isSuperAdmin, isAssessmentEnabled]);
+  }, [modulesForRole, enabledModuleKeysSet, isSuperAdmin, isAssessmentEnabled, user]);
 
   // Track expanded parent sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});

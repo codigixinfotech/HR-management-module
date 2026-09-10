@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -33,6 +34,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useAttendanceRequestsStore, syncAttendanceStoreFromStorage, type AttendanceEditRequest } from '@/stores/attendance-requests-store';
 import { EditAttendanceRequestModal } from '@/components/attendance/EditAttendanceRequestModal';
+import { useAuthStore } from '@/stores/auth-store';
+import { isManagerOrHrOrAdmin } from '@/lib/modules';
+import { useShiftRosterStore } from './shift-roster/shiftRosterStore';
+import { resolveApplicableShift, formatShiftTime, type ResolvedShift } from '@/lib/shift-resolver';
 import { cn } from '@/lib/utils';
 
 const attendanceSchema = z.object({
@@ -44,8 +49,114 @@ const attendanceSchema = z.object({
 
 type AttendanceFormValues = z.infer<typeof attendanceSchema>;
 
+function formatMinutesToHours(mins: number): string {
+  if (mins <= 0) return '—';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function parseTimeToMins(t?: string | null): number | null {
+  if (!t || t === '—' || t === '-') return null;
+  const clean = t.trim();
+  const isPm = clean.toUpperCase().includes('PM');
+  const isAm = clean.toUpperCase().includes('AM');
+  const timeOnly = clean.replace(/(AM|PM)/i, '').trim();
+  const parts = timeOnly.split(':').map(Number);
+  let h = parts[0] || 0;
+  const m = parts[1] || 0;
+  if (isPm && h < 12) h += 12;
+  if (isAm && h === 12) h = 0;
+  return h * 60 + m;
+}
+
+function computeMetrics(checkIn?: string | null, checkOut?: string | null, shift?: ResolvedShift) {
+  if (!checkIn) {
+    return { worked: '—', late: '—', early: '—', ot: '—' };
+  }
+
+  const inDate = new Date(checkIn);
+  const inMins = !isNaN(inDate.getTime()) ? inDate.getHours() * 60 + inDate.getMinutes() : parseTimeToMins(checkIn);
+
+  let outMins: number | null = null;
+  if (checkOut) {
+    const outDate = new Date(checkOut);
+    outMins = !isNaN(outDate.getTime()) ? outDate.getHours() * 60 + outDate.getMinutes() : parseTimeToMins(checkOut);
+  }
+
+  // Worked hours
+  let worked = '—';
+  let workedMins = 0;
+  if (inMins !== null && outMins !== null) {
+    let diff = outMins - inMins;
+    if (diff < 0) diff += 24 * 60;
+    workedMins = diff;
+    worked = formatMinutesToHours(diff);
+  }
+
+  // Shift start & end in mins
+  const shiftStartMins = parseTimeToMins(shift?.startTime) ?? 8 * 60; // default 08:00 AM
+  const shiftEndMins = parseTimeToMins(shift?.endTime) ?? 16 * 60 + 30; // default 04:30 PM
+
+  // Late calculation (grace 10 mins)
+  let late = '—';
+  if (inMins !== null && inMins > shiftStartMins + 10) {
+    const lateMins = inMins - shiftStartMins;
+    late = `${lateMins}m Late`;
+  }
+
+  // Early out calculation (grace 10 mins)
+  let early = '—';
+  if (outMins !== null && outMins < shiftEndMins - 10) {
+    const earlyMins = shiftEndMins - outMins;
+    early = `${earlyMins}m Early`;
+  }
+
+  // Overtime calculation (worked > 8 hours or 480 mins)
+  let ot = '—';
+  if (workedMins > 8 * 60) {
+    const otMins = workedMins - 8 * 60;
+    ot = `${formatMinutesToHours(otMins)} OT`;
+  }
+
+  return { worked, late, early, ot };
+}
+
 export function AttendanceTab({ companyId, companies }: { companyId?: string; companies: Company[] }) {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isManagerOrAdmin = isManagerOrHrOrAdmin(user);
+
+  // Fetch shift roster data for hierarchical shift resolution
+  const { shifts, assignments, rosterEmployees, fetchData: fetchShiftData } = useShiftRosterStore();
+
+  useEffect(() => {
+    fetchShiftData(companyId);
+  }, [companyId, fetchShiftData]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab = isManagerOrAdmin && tabParam === 'requests' ? 'requests' : 'register';
+
+  const handleTabChange = (val: string) => {
+    if (!isManagerOrAdmin) return;
+    if (val === 'requests') {
+      setSearchParams((prev) => {
+        const p = new URLSearchParams(prev);
+        p.set('tab', 'requests');
+        return p;
+      });
+    } else {
+      setSearchParams((prev) => {
+        const p = new URLSearchParams(prev);
+        p.delete('tab');
+        return p;
+      });
+    }
+  };
+
   const [open, setOpen] = useState(false);
 
   // Persistent shared store for attendance edit requests
@@ -85,21 +196,29 @@ export function AttendanceTab({ companyId, companies }: { companyId?: string; co
   const [isAdminEditModalOpen, setIsAdminEditModalOpen] = useState(false);
   const [selectedRecordForAdminEdit, setSelectedRecordForAdminEdit] = useState<any>(null);
 
-  const handleOpenAdminEditModal = (rec: any) => {
-    const empName = rec.employee ? `${rec.employee.firstName} ${rec.employee.lastName}` : 'Sanika Mote';
-    const empCode = rec.employee?.employeeCode || 'EMP-8265';
+  const handleOpenAdminEditModal = (rec: any, resolvedShift?: ResolvedShift) => {
+    const empName = rec.employee
+      ? `${rec.employee.firstName} ${rec.employee.lastName}`
+      : user?.employee
+      ? `${user.employee.firstName} ${user.employee.lastName}`
+      : user?.email?.split('@')[0] || 'Employee';
+    const empCode = rec.employee?.employeeCode || user?.employee?.employeeCode || 'EMP-001';
+    const dept = rec.employee?.department?.name || rec.employee?.departmentName || user?.employee?.departmentName || 'Production';
     const dateStr = new Date(rec.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const clockInStr = rec.checkIn ? new Date(rec.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '09:00 AM';
-    const clockOutStr = rec.checkOut ? new Date(rec.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+    const clockInStr = rec.checkIn ? new Date(rec.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (resolvedShift?.startTime || '08:00 AM');
+    const clockOutStr = rec.checkOut ? new Date(rec.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (resolvedShift?.endTime || '04:30 PM');
 
     setSelectedRecordForAdminEdit({
       id: rec.id,
       dateDisplay: dateStr,
+      attendanceDate: dateStr,
       clockIn: clockInStr,
       clockOut: clockOutStr,
       code: empCode,
       name: empName,
-      dept: rec.employee?.departmentName || 'Human Resources',
+      dept: dept,
+      shiftName: resolvedShift?.name || 'Morning Shift',
+      shiftCode: resolvedShift?.code || 'MS',
     });
     setIsAdminEditModalOpen(true);
   };
@@ -108,6 +227,33 @@ export function AttendanceTab({ companyId, companies }: { companyId?: string; co
     queryKey: ['attendance', companyId],
     queryFn: () => attendanceApi.list({ companyId }),
   });
+
+  const displayRecords = useMemo(() => {
+    if (!records) return [];
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    // Filter out future dates from daily past attendance muster roll
+    let list = records.filter((r) => {
+      const d = new Date(r.date);
+      return !isNaN(d.getTime()) && d <= today;
+    });
+
+    if (!isManagerOrAdmin) {
+      const empId = user?.employee?.id;
+      const empCode = user?.employee?.employeeCode;
+      const userEmail = user?.email?.toLowerCase();
+      list = list.filter((r) => {
+        if (empId && (r.employeeId === empId || r.employee?.id === empId)) return true;
+        if (empCode && r.employee?.employeeCode === empCode) return true;
+        if (userEmail && r.employee?.email?.toLowerCase() === userEmail) return true;
+        return false;
+      });
+    }
+
+    // Sort descending by date (most recent first)
+    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [records, isManagerOrAdmin, user]);
 
   const { data: employeesPage } = useQuery({
     queryKey: ['employees', 'attendance-picker', companyId],
@@ -160,17 +306,19 @@ export function AttendanceTab({ companyId, companies }: { companyId?: string; co
   return (
     <div className="space-y-4">
       {/* ── 2 Tabs Navigation ── */}
-      <Tabs defaultValue="register" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="bg-muted/60 p-1 border border-border/60">
           <TabsTrigger value="register" className="text-xs font-semibold px-4 py-1.5 gap-2">
-            <CalendarCheck className="h-3.5 w-3.5 text-primary" /> Attendance Register
+            <CalendarCheck className="h-3.5 w-3.5 text-primary" /> {isManagerOrAdmin ? 'Attendance Register' : 'My Attendance Register'}
           </TabsTrigger>
-          <TabsTrigger value="requests" className="text-xs font-semibold px-4 py-1.5 gap-2">
-            <FileSignature className="h-3.5 w-3.5 text-purple-600" /> Attendance Update Requests
-            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold">
-              {updateRequests.filter((r) => r.status === 'PENDING').length}
-            </Badge>
-          </TabsTrigger>
+          {isManagerOrAdmin && (
+            <TabsTrigger value="requests" className="text-xs font-semibold px-4 py-1.5 gap-2">
+              <FileSignature className="h-3.5 w-3.5 text-purple-600" /> Attendance Update Requests
+              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold">
+                {updateRequests.filter((r) => r.status === 'PENDING').length}
+              </Badge>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── TAB 1: ATTENDANCE REGISTER ── */}
@@ -178,109 +326,233 @@ export function AttendanceTab({ companyId, companies }: { companyId?: string; co
           <Card className="shadow-2xs">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-base font-semibold">Daily Attendance Register</CardTitle>
-                <CardDescription>Muster roll of employee attendance status marked per working day</CardDescription>
+                <CardTitle className="text-base font-semibold">
+                  {isManagerOrAdmin ? 'Daily Attendance Register' : 'My Attendance Register'}
+                </CardTitle>
+                <CardDescription>
+                  {isManagerOrAdmin
+                    ? 'Muster roll of employee attendance status marked per working day'
+                    : 'Personal attendance muster roll and monthly status record'}
+                </CardDescription>
               </div>
-              <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" disabled={companies.length === 0}>
-                    <Plus className="mr-1.5 h-4 w-4" /> Mark Attendance
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Mark Attendance</DialogTitle>
-                  </DialogHeader>
-                  <form className="space-y-4" onSubmit={form.handleSubmit((values) => markMutation.mutate(values))}>
-                    <div className="space-y-1.5">
-                      <Label>Employee</Label>
-                      <Select value={form.watch('employeeId')} onValueChange={(v) => form.setValue('employeeId', v)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select employee" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {employeesPage?.items.map((e) => (
-                            <SelectItem key={e.id} value={e.id}>
-                              {e.firstName} {e.lastName} ({e.employeeCode})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+              {isManagerOrAdmin && (
+                <Dialog open={open} onOpenChange={setOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" disabled={companies.length === 0}>
+                      <Plus className="mr-1.5 h-4 w-4" /> Mark Attendance
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Mark Attendance</DialogTitle>
+                    </DialogHeader>
+                    <form className="space-y-4" onSubmit={form.handleSubmit((values) => markMutation.mutate(values))}>
                       <div className="space-y-1.5">
-                        <Label>Date</Label>
-                        <Input type="date" {...form.register('date')} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Status</Label>
-                        <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v as AttendanceStatus)}>
+                        <Label>Employee</Label>
+                        <Select value={form.watch('employeeId')} onValueChange={(v) => form.setValue('employeeId', v)}>
                           <SelectTrigger>
-                            <SelectValue />
+                            <SelectValue placeholder="Select employee" />
                           </SelectTrigger>
                           <SelectContent>
-                            {(['PRESENT', 'ABSENT', 'HALF_DAY', 'ON_LEAVE', 'HOLIDAY', 'WEEK_OFF'] as const).map((s) => (
-                              <SelectItem key={s} value={s}>
-                                {s.replace('_', ' ')}
+                            {employeesPage?.items.map((e) => (
+                              <SelectItem key={e.id} value={e.id}>
+                                {e.firstName} {e.lastName} ({e.employeeCode})
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit" disabled={markMutation.isPending}>
-                        Save attendance
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label>Date</Label>
+                          <Input type="date" {...form.register('date')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Status</Label>
+                          <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v as AttendanceStatus)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(['PRESENT', 'ABSENT', 'HALF_DAY', 'ON_LEAVE', 'HOLIDAY', 'WEEK_OFF'] as const).map((s) => (
+                                <SelectItem key={s} value={s}>
+                                  {s.replace('_', ' ')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button type="submit" disabled={markMutation.isPending}>
+                          Save attendance
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0 sm:p-6 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs">Employee</TableHead>
-                    <TableHead className="text-xs">Date</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                    <TableHead className="text-xs">Shift</TableHead>
-                    <TableHead className="text-right text-xs">Action</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Employee</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Date</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Status</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Shift</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Clock In</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Clock Out</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Worked Hours</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Late</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Early Out</TableHead>
+                    <TableHead className="text-xs font-bold text-foreground">Overtime</TableHead>
+                    <TableHead className="text-right text-xs font-bold text-foreground">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-xs text-muted-foreground">
-                        Loading...
+                      <TableCell colSpan={11} className="text-center text-xs text-muted-foreground py-8">
+                        Loading attendance muster roll...
                       </TableCell>
                     </TableRow>
                   )}
-                  {records?.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="text-xs font-medium">
-                        {record.employee ? `${record.employee.firstName} ${record.employee.lastName}` : '-'}
-                      </TableCell>
-                      <TableCell className="text-xs">{new Date(record.date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-xs">
-                        <StatusBadge status={record.status} className="text-[10px]" />
-                      </TableCell>
-                      <TableCell className="text-xs">{record.shiftType?.name ?? '-'}</TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenAdminEditModal(record)}
-                          className="h-7 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50 flex items-center gap-1 ml-auto font-semibold"
-                        >
-                          <Edit className="h-3.5 w-3.5" /> Request Edit
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {records && records.length === 0 && (
+                  {displayRecords?.map((record) => {
+                    const empName = record.employee
+                      ? `${record.employee.firstName} ${record.employee.lastName}`
+                      : (!isManagerOrAdmin && user?.employee
+                          ? `${user.employee.firstName} ${user.employee.lastName}`
+                          : 'Sudarshan Kale');
+                    const empCode = record.employee?.employeeCode || user?.employee?.employeeCode || 'EMP-001';
+                    const deptId = record.employee?.department?.id || record.employee?.departmentId || user?.employee?.departmentId;
+                    const deptName = record.employee?.department?.name || record.employee?.departmentName || user?.employee?.departmentName || 'Production';
+
+                    // Resolve applicable shift according to 4-tier hierarchy:
+                    // 1. Published Roster for date -> 2. Employee Override -> 3. Dept Assignment -> 4. Company Default
+                    const resolvedShift = resolveApplicableShift({
+                      employeeId: record.employeeId || record.employee?.id || user?.employee?.id,
+                      employeeCode: empCode,
+                      departmentId: deptId,
+                      departmentName: deptName,
+                      companyId: record.companyId || companyId,
+                      dateStr: record.date,
+                      shifts,
+                      assignments,
+                      rosterEmployees,
+                      recordShiftType: record.shiftType,
+                    });
+
+                    const metrics = computeMetrics(record.checkIn, record.checkOut, resolvedShift);
+
+                    const clockInDisplay = record.checkIn
+                      ? formatShiftTime(new Date(record.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+                      : '—';
+                    const clockOutDisplay = record.checkOut
+                      ? formatShiftTime(new Date(record.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+                      : '—';
+
+                    return (
+                      <TableRow key={record.id} className="hover:bg-accent/40 transition-colors">
+                        <TableCell className="text-xs font-medium whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                              {empName.charAt(0)}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-xs text-foreground block">{empName}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono">{empCode}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-xs whitespace-nowrap font-medium text-foreground">
+                          {new Date(record.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </TableCell>
+
+                        <TableCell className="text-xs whitespace-nowrap">
+                          <StatusBadge status={record.status} className="text-[10px] font-bold" />
+                        </TableCell>
+
+                        {/* Resolved Shift with name, code, timing */}
+                        <TableCell className="text-xs whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                              {resolvedShift.name}
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 font-bold bg-muted/60 text-muted-foreground border-border/80">
+                                {resolvedShift.code}
+                              </Badge>
+                            </span>
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              {resolvedShift.timing}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                          {clockInDisplay}
+                        </TableCell>
+
+                        <TableCell className="text-xs font-mono font-semibold text-purple-600 dark:text-purple-400 whitespace-nowrap">
+                          {clockOutDisplay}
+                        </TableCell>
+
+                        <TableCell className="text-xs font-mono whitespace-nowrap">
+                          {metrics.worked !== '—' ? (
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold">
+                              {metrics.worked}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-xs font-mono whitespace-nowrap">
+                          {metrics.late !== '—' ? (
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold">
+                              {metrics.late}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-xs font-mono whitespace-nowrap">
+                          {metrics.early !== '—' ? (
+                            <Badge variant="outline" className="bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[10px] font-bold">
+                              {metrics.early}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-xs font-mono whitespace-nowrap">
+                          {metrics.ot !== '—' ? (
+                            <Badge variant="outline" className="bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 text-[10px] font-bold">
+                              {metrics.ot}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-right whitespace-nowrap">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenAdminEditModal(record, resolvedShift)}
+                            className="h-7 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50 flex items-center gap-1 ml-auto font-semibold cursor-pointer"
+                          >
+                            <Edit className="h-3.5 w-3.5" /> Request Edit
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {displayRecords && displayRecords.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-xs text-muted-foreground">
+                      <TableCell colSpan={11} className="text-center text-xs text-muted-foreground py-8">
                         No attendance records yet.
                       </TableCell>
                     </TableRow>
@@ -291,8 +563,9 @@ export function AttendanceTab({ companyId, companies }: { companyId?: string; co
           </Card>
         </TabsContent>
 
-        {/* ── TAB 2: ATTENDANCE UPDATE REQUESTS ── */}
-        <TabsContent value="requests" className="m-0 space-y-4">
+        {/* ── TAB 2: ATTENDANCE UPDATE REQUESTS (MANAGER / HR / ADMIN ONLY) ── */}
+        {isManagerOrAdmin && (
+          <TabsContent value="requests" className="m-0 space-y-4">
           <Card className="shadow-2xs border-border/80">
             <CardHeader className="pb-3 border-b border-border/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
@@ -476,6 +749,7 @@ export function AttendanceTab({ companyId, companies }: { companyId?: string; co
             </CardContent>
           </Card>
         </TabsContent>
+        )}
       </Tabs>
 
       {/* ── View Request Detail Dialog ── */}
@@ -552,7 +826,7 @@ export function AttendanceTab({ companyId, companies }: { companyId?: string; co
         </Dialog>
       )}
 
-      {/* Admin Edit Attendance Request Modal */}
+      {/* Edit Attendance Request Modal (Employee and Manager/Admin) */}
       <EditAttendanceRequestModal
         isOpen={isAdminEditModalOpen}
         onClose={() => setIsAdminEditModalOpen(false)}

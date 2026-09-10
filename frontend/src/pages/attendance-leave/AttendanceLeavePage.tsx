@@ -18,11 +18,13 @@ import { ShiftRosterTab } from './ShiftRosterTab';
 import { OvertimeManagementTab } from './OvertimeManagementTab';
 import { AttendancePoliciesTab } from './AttendancePoliciesTab';
 import { AttendanceReportsTab } from './AttendanceReportsTab';
+import { useLeaveStore } from './leaveStore';
 
 export default function AttendanceLeavePage() {
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'live';
+  const activeLeaveSubTab = useLeaveStore((s) => s.activeSubTab);
   
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
   const [companyId, setCompanyId] = useState<string | undefined>(undefined);
@@ -36,6 +38,7 @@ export default function AttendanceLeavePage() {
       user?.primaryRole?.toUpperCase().includes('ADMIN') ||
       user?.primaryRole?.toUpperCase().includes('HR')
   );
+  const effectiveCompanyId = companyId || user?.companyId || undefined;
 
   return (
     <div className="space-y-6">
@@ -69,15 +72,7 @@ export default function AttendanceLeavePage() {
         />
       </div>
 
-      {/* Metrics — Only displayed for HR/Admin roles */}
-      {isHrOrAdmin && activeTab !== 'live' && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <StatCard icon={UserCheck} label="Today's Present Rate" value="94.6%" hint="138 / 146 On Duty" accent="success" />
-          <StatCard icon={Clock} label="On Leave Today" value="6 Employees" hint="4 Casual / 2 Medical" accent="info" />
-          <StatCard icon={AlertCircle} label="Late Arrivals" value="2 Personnel" hint="Grace Period Applied" accent="warning" />
-          <StatCard icon={ShieldCheck} label="Overtime Approved" value="14.5 Hours" hint="Plant Production Line" accent="primary" />
-        </div>
-      )}
+      {/* Top metrics cards hidden across all tabs per user request */}
 
       {/* Render Dedicated Subpage based on activeTab */}
       {activeTab === 'register' && <AttendanceRegisterTab />}
@@ -86,7 +81,7 @@ export default function AttendanceLeavePage() {
       
       {activeTab === 'leave' && <LeaveManagementTab />}
       
-      {activeTab === 'roster' && <ShiftRosterTab />}
+      {activeTab === 'roster' && <ShiftRosterTab companyId={effectiveCompanyId} />}
       
       {activeTab === 'overtime' && <OvertimeManagementTab />}
       

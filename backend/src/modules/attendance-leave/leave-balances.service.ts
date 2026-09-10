@@ -6,37 +6,78 @@ import { AllocateLeaveBalanceDto } from './dto/leave-balance.dto';
 export class LeaveBalancesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(employeeId?: string, year?: number) {
-    return this.prisma.leaveBalance.findMany({
+  async list(employeeId?: string, year?: number) {
+    const currentYear = year || new Date().getFullYear();
+    const balances = await this.prisma.leaveBalance.findMany({
       where: {
         ...(employeeId ? { employeeId } : {}),
-        ...(year ? { year } : {}),
+        year: currentYear,
       },
       include: {
         leaveType: {
-          select: { id: true, name: true, code: true, isPaid: true },
+          select: { id: true, name: true, code: true, isPaid: true, annualQuota: true },
+        },
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { id: true, name: true } },
+          },
         },
       },
       orderBy: { year: 'desc' },
+    });
+
+    // Also get all pending leave requests for this year to show pending balances
+    const pendingRequests = await this.prisma.leaveRequest.findMany({
+      where: {
+        status: 'PENDING',
+        ...(employeeId ? { employeeId } : {}),
+        startDate: {
+          gte: new Date(`${currentYear}-01-01T00:00:00.000Z`),
+          lte: new Date(`${currentYear}-12-31T23:59:59.999Z`),
+        },
+      },
+      select: {
+        employeeId: true,
+        leaveTypeId: true,
+        totalDays: true,
+      },
+    });
+
+    const pendingMap = new Map<string, number>();
+    for (const req of pendingRequests) {
+      const key = `${req.employeeId}_${req.leaveTypeId}`;
+      pendingMap.set(key, (pendingMap.get(key) || 0) + (req.totalDays || 1));
+    }
+
+    return balances.map((b: any) => {
+      const key = `${b.employeeId}_${b.leaveTypeId}`;
+      const pending = pendingMap.get(key) || 0;
+      const defaultQuota = b.leaveType?.annualQuota || 12;
+      const allocated = b.allocated > 0 ? b.allocated : defaultQuota;
+      const used = b.used;
+      const available = Math.max(0, allocated - used - pending);
+      return {
+        ...b,
+        allocated,
+        pending,
+        available,
+      };
     });
   }
 
-  listMy(user?: any, year?: number) {
-    const empId = user?.employee?.id;
+  async listMy(user?: any, year?: number) {
+    let empId = user?.employee?.id || user?.employeeId;
+    if (!empId && user?.userId) {
+      const emp = await this.prisma.employee.findFirst({ where: { userId: user.userId }, select: { id: true } });
+      if (emp) empId = emp.id;
+    }
     if (!empId) return [];
 
-    return this.prisma.leaveBalance.findMany({
-      where: {
-        employeeId: empId,
-        ...(year ? { year } : {}),
-      },
-      include: {
-        leaveType: {
-          select: { id: true, name: true, code: true, isPaid: true },
-        },
-      },
-      orderBy: { year: 'desc' },
-    });
+    return this.list(empId, year);
   }
 
   allocate(dto: AllocateLeaveBalanceDto) {
@@ -64,16 +105,36 @@ export class LeaveBalancesService {
     year: number,
     deltaDays: number,
   ) {
-    await this.prisma.leaveBalance.upsert({
-      where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId, year } },
-      update: { used: { increment: deltaDays } },
-      create: {
-        employeeId,
-        leaveTypeId,
-        year,
-        allocated: 0,
-        used: Math.max(deltaDays, 0),
-      },
+    const leaveType = await this.prisma.leaveType.findUnique({
+      where: { id: leaveTypeId },
+      select: { annualQuota: true },
     });
+    const defaultQuota = leaveType?.annualQuota || 12;
+
+    const existing = await this.prisma.leaveBalance.findUnique({
+      where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId, year } },
+    });
+
+    if (existing) {
+      const newUsed = Math.max(0, existing.used + deltaDays);
+      const allocated = existing.allocated > 0 ? existing.allocated : defaultQuota;
+      await this.prisma.leaveBalance.update({
+        where: { id: existing.id },
+        data: {
+          used: newUsed,
+          allocated,
+        },
+      });
+    } else {
+      await this.prisma.leaveBalance.create({
+        data: {
+          employeeId,
+          leaveTypeId,
+          year,
+          allocated: defaultQuota,
+          used: Math.max(deltaDays, 0),
+        },
+      });
+    }
   }
 }

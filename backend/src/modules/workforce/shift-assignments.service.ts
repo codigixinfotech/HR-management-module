@@ -11,16 +11,25 @@ export class ShiftAssignmentsService {
 
   private readonly listInclude = {
     employee: {
-      select: { id: true, firstName: true, lastName: true, employeeCode: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeCode: true,
+        department: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        designation: { select: { id: true, title: true } },
+      },
     },
     shiftType: {
-      select: { id: true, name: true, startTime: true, endTime: true },
+      select: { id: true, code: true, name: true, startTime: true, endTime: true },
     },
   };
 
-  list(employeeId?: string, shiftTypeId?: string) {
+  list(employeeId?: string, shiftTypeId?: string, companyId?: string) {
     return this.prisma.shiftAssignment.findMany({
       where: {
+        ...(companyId ? { companyId } : {}),
         ...(employeeId ? { employeeId } : {}),
         ...(shiftTypeId ? { shiftTypeId } : {}),
       },
