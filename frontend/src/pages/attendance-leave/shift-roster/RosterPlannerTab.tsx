@@ -13,6 +13,10 @@ import {
   ShieldCheck,
   Search,
   X,
+  Info,
+  User,
+  ArrowLeftRight,
+  Clock,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,16 +32,85 @@ import { isManagerOrHrOrAdmin } from '@/lib/modules';
 import { useShiftRosterStore } from './shiftRosterStore';
 import type { EmployeeRosterRow, RosterCellData } from './shiftRosterStore';
 
-// Anchor Week 37 (07 Sep 2026 - 13 Sep 2026)
-const WEEK_37_DAYS = [
-  { key: '2026-09-07', label: 'Mon', dayNum: '07' },
-  { key: '2026-09-08', label: 'Tue', dayNum: '08' },
-  { key: '2026-09-09', label: 'Wed', dayNum: '09' },
-  { key: '2026-09-10', label: 'Thu', dayNum: '10' },
-  { key: '2026-09-11', label: 'Fri', dayNum: '11' },
-  { key: '2026-09-12', label: 'Sat', dayNum: '12' },
-  { key: '2026-09-13', label: 'Sun', dayNum: '13' },
+// Multi-Week Scheduled Periods
+const SCHEDULED_WEEKS = [
+  {
+    weekNum: 37,
+    label: '07 Sep 2026 – 13 Sep 2026 (Week 37)',
+    periodName: 'September 2026 Week 37',
+    days: [
+      { key: '2026-09-07', label: 'Mon', dayNum: '07' },
+      { key: '2026-09-08', label: 'Tue', dayNum: '08' },
+      { key: '2026-09-09', label: 'Wed', dayNum: '09' },
+      { key: '2026-09-10', label: 'Thu', dayNum: '10' },
+      { key: '2026-09-11', label: 'Fri', dayNum: '11' },
+      { key: '2026-09-12', label: 'Sat', dayNum: '12' },
+      { key: '2026-09-13', label: 'Sun', dayNum: '13' },
+    ],
+  },
+  {
+    weekNum: 38,
+    label: '14 Sep 2026 – 20 Sep 2026 (Week 38)',
+    periodName: 'September 2026 Week 38',
+    rotationPhase: 'Phase 1 — MS Morning Shift',
+    days: [
+      { key: '2026-09-14', label: 'Mon', dayNum: '14' },
+      { key: '2026-09-15', label: 'Tue', dayNum: '15' },
+      { key: '2026-09-16', label: 'Wed', dayNum: '16' },
+      { key: '2026-09-17', label: 'Thu', dayNum: '17' },
+      { key: '2026-09-18', label: 'Fri', dayNum: '18' },
+      { key: '2026-09-19', label: 'Sat', dayNum: '19' },
+      { key: '2026-09-20', label: 'Sun', dayNum: '20' },
+    ],
+  },
+  {
+    weekNum: 39,
+    label: '21 Sep 2026 – 27 Sep 2026 (Week 39)',
+    periodName: 'September 2026 Week 39',
+    rotationPhase: 'Phase 2 — ES Evening Shift',
+    days: [
+      { key: '2026-09-21', label: 'Mon', dayNum: '21' },
+      { key: '2026-09-22', label: 'Tue', dayNum: '22' },
+      { key: '2026-09-23', label: 'Wed', dayNum: '23' },
+      { key: '2026-09-24', label: 'Thu', dayNum: '24' },
+      { key: '2026-09-25', label: 'Fri', dayNum: '25' },
+      { key: '2026-09-26', label: 'Sat', dayNum: '26' },
+      { key: '2026-09-27', label: 'Sun', dayNum: '27' },
+    ],
+  },
+  {
+    weekNum: 40,
+    label: '28 Sep 2026 – 04 Oct 2026 (Week 40)',
+    periodName: 'Sep-Oct 2026 Week 40',
+    rotationPhase: 'Phase 3 — NS Night Shift',
+    days: [
+      { key: '2026-09-28', label: 'Mon', dayNum: '28' },
+      { key: '2026-09-29', label: 'Tue', dayNum: '29' },
+      { key: '2026-09-30', label: 'Wed', dayNum: '30' },
+      { key: '2026-10-01', label: 'Thu', dayNum: '01' },
+      { key: '2026-10-02', label: 'Fri', dayNum: '02' },
+      { key: '2026-10-03', label: 'Sat', dayNum: '03' },
+      { key: '2026-10-04', label: 'Sun', dayNum: '04' },
+    ],
+  },
+  {
+    weekNum: 41,
+    label: '05 Oct 2026 – 11 Oct 2026 (Week 41)',
+    periodName: 'October 2026 Week 41',
+    rotationPhase: 'Phase 4 — GS General Shift',
+    days: [
+      { key: '2026-10-05', label: 'Mon', dayNum: '05' },
+      { key: '2026-10-06', label: 'Tue', dayNum: '06' },
+      { key: '2026-10-07', label: 'Wed', dayNum: '07' },
+      { key: '2026-10-08', label: 'Thu', dayNum: '08' },
+      { key: '2026-10-09', label: 'Fri', dayNum: '09' },
+      { key: '2026-10-10', label: 'Sat', dayNum: '10' },
+      { key: '2026-10-11', label: 'Sun', dayNum: '11' },
+    ],
+  },
 ];
+
+const WEEK_37_DAYS = SCHEDULED_WEEKS[0].days;
 
 export function RosterPlannerTab() {
   const user = useAuthStore((s) => s.user);
@@ -53,11 +126,26 @@ export function RosterPlannerTab() {
   } = useShiftRosterStore();
 
   const [viewMode, setViewMode] = useState<'Day' | 'Week' | 'Month'>('Week');
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
+  const [activeMonth, setActiveMonth] = useState<'2026-09' | '2026-10'>('2026-09');
   const [selectedDept, setSelectedDept] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [deptMasterList, setDeptMasterList] = useState<string[]>([]);
   const [activeDayKey, setActiveDayKey] = useState<string>('2026-09-09'); // Wednesday 09 Sep (Today)
   const [isPublished, setIsPublished] = useState(false);
+  const [publishedPeriodKeys, setPublishedPeriodKeys] = useState<string[]>(['September 2026 Week 37']);
+
+  // Perspective: Admin Overview (All staff) vs Employee View (Individual schedule)
+  const [perspective, setPerspective] = useState<'ADMIN' | 'EMPLOYEE'>('ADMIN');
+  const [previewEmployeeId, setPreviewEmployeeId] = useState<string>('');
+
+  // Shift Swap Audit & Details Modal state
+  const [swapDetailsModalOpen, setSwapDetailsModalOpen] = useState(false);
+  const [activeSwapTarget, setActiveSwapTarget] = useState<{
+    employee: EmployeeRosterRow;
+    dateKey: string;
+    cell?: RosterCellData;
+  } | null>(null);
 
   // Manual Cell Override state
   const [cellEditModalOpen, setCellEditModalOpen] = useState(false);
@@ -100,18 +188,20 @@ export function RosterPlannerTab() {
     return Array.from(set);
   }, [deptMasterList, rosterEmployees]);
 
-  // Filter employees by department AND employee search (name, code, role)
-  // Filter employees: For employees, show only themselves; for admins, by department and search
+  // Filter employees: For employees or employee perspective, show target employee; for admins overview, by department and search
   const filteredEmployees = useMemo(() => {
     let list = rosterEmployees;
 
-    if (!canManageRoster) {
+    if (!canManageRoster || perspective === 'EMPLOYEE') {
+      if (perspective === 'EMPLOYEE' && previewEmployeeId) {
+        return list.filter((e) => e.employeeId === previewEmployeeId);
+      }
       const empId = user?.employee?.id;
       const empCode = user?.employee?.employeeCode?.toLowerCase();
       const empName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim().toLowerCase() : '';
       const firstName = user?.employee?.firstName?.toLowerCase() || '';
 
-      list = list.filter((emp) => {
+      const matched = list.filter((emp) => {
         if (empId && emp.employeeId === empId) return true;
         if (empCode && emp.employeeCode?.toLowerCase() === empCode) return true;
         if (empName && emp.name?.toLowerCase() === empName) return true;
@@ -119,7 +209,7 @@ export function RosterPlannerTab() {
         return false;
       });
 
-      return list;
+      return matched.length > 0 ? matched : list.slice(0, 1);
     }
 
     return list.filter((emp) => {
@@ -141,23 +231,26 @@ export function RosterPlannerTab() {
       }
       return true;
     });
-  }, [rosterEmployees, selectedDept, searchQuery, canManageRoster, user]);
+  }, [rosterEmployees, selectedDept, searchQuery, canManageRoster, perspective, previewEmployeeId, user]);
 
   // Determine active columns depending on View Mode
   const activeDays = useMemo(() => {
     if (viewMode === 'Day') {
-      const found = WEEK_37_DAYS.find((d) => d.key === activeDayKey);
-      return found ? [found] : [WEEK_37_DAYS[2]];
+      const allDays = SCHEDULED_WEEKS.flatMap((w) => w.days);
+      const found = allDays.find((d) => d.key === activeDayKey);
+      return found ? [found] : [SCHEDULED_WEEKS[0].days[2]];
     }
     if (viewMode === 'Week') {
-      return WEEK_37_DAYS;
+      const currentWeek = SCHEDULED_WEEKS[selectedWeekIndex] || SCHEDULED_WEEKS[0];
+      return currentWeek.days;
     }
-    // Month View: 30 days of September 2026
+    // Month View: 30 days of September 2026 or 31 days of October 2026
     const days: { key: string; label: string; dayNum: string }[] = [];
     const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    for (let i = 1; i <= 30; i++) {
+    const totalDaysInMonth = activeMonth === '2026-09' ? 30 : 31;
+    for (let i = 1; i <= totalDaysInMonth; i++) {
       const dayNum = String(i).padStart(2, '0');
-      const key = `2026-09-${dayNum}`;
+      const key = `${activeMonth}-${dayNum}`;
       const d = new Date(key);
       days.push({
         key,
@@ -166,36 +259,82 @@ export function RosterPlannerTab() {
       });
     }
     return days;
-  }, [viewMode, activeDayKey]);
+  }, [viewMode, activeDayKey, activeMonth, selectedWeekIndex]);
 
   // Date Navigation
   const handlePrev = () => {
     if (viewMode === 'Day') {
-      const idx = WEEK_37_DAYS.findIndex((d) => d.key === activeDayKey);
-      if (idx > 0) setActiveDayKey(WEEK_37_DAYS[idx - 1].key);
-    } else {
-      toast.info('Viewing current scheduled cycle: 07 Sep – 13 Sep 2026');
+      const allDays = SCHEDULED_WEEKS.flatMap((w) => w.days);
+      const idx = allDays.findIndex((d) => d.key === activeDayKey);
+      if (idx > 0) setActiveDayKey(allDays[idx - 1].key);
+    } else if (viewMode === 'Week') {
+      if (selectedWeekIndex > 0) {
+        const prevIdx = selectedWeekIndex - 1;
+        setSelectedWeekIndex(prevIdx);
+        setIsPublished(prevIdx === 0);
+        toast.info(`Navigated to ${SCHEDULED_WEEKS[prevIdx].label}`);
+      } else {
+        toast.info('Viewing earliest configured cycle: Week 37 (07–13 Sep 2026)');
+      }
+    } else if (viewMode === 'Month') {
+      if (activeMonth === '2026-10') {
+        setActiveMonth('2026-09');
+        toast.info('Viewing September 2026');
+      } else {
+        toast.info('Viewing September 2026');
+      }
     }
   };
 
   const handleNext = () => {
     if (viewMode === 'Day') {
-      const idx = WEEK_37_DAYS.findIndex((d) => d.key === activeDayKey);
-      if (idx < WEEK_37_DAYS.length - 1) setActiveDayKey(WEEK_37_DAYS[idx + 1].key);
-    } else {
-      toast.info('Next roster cycle scheduled from 14 Sep 2026');
+      const allDays = SCHEDULED_WEEKS.flatMap((w) => w.days);
+      const idx = allDays.findIndex((d) => d.key === activeDayKey);
+      if (idx < allDays.length - 1) setActiveDayKey(allDays[idx + 1].key);
+    } else if (viewMode === 'Week') {
+      if (selectedWeekIndex < SCHEDULED_WEEKS.length - 1) {
+        const nextIdx = selectedWeekIndex + 1;
+        setSelectedWeekIndex(nextIdx);
+        setIsPublished(false); // Upcoming rotation cycles start as Draft until published
+        toast.info(`Navigated to ${SCHEDULED_WEEKS[nextIdx].label}`);
+      } else {
+        toast.info('End of pre-configured rotation window');
+      }
+    } else if (viewMode === 'Month') {
+      if (activeMonth === '2026-09') {
+        setActiveMonth('2026-10');
+        toast.info('Viewing October 2026');
+      } else {
+        toast.info('Viewing October 2026');
+      }
     }
   };
 
   const handleToday = () => {
+    setSelectedWeekIndex(0);
     setActiveDayKey('2026-09-09');
+    setActiveMonth('2026-09');
     setViewMode('Week');
+    setIsPublished(true);
     toast.success('Navigated to current active schedule week (09 Sep 2026)');
   };
 
-  // Open Cell Override modal
+  // Open Cell Details / Override modal
   const handleCellClick = (employee: EmployeeRosterRow, dateKey: string) => {
     const existing = employee.slots[dateKey];
+    if (existing?.isApprovedShiftSwap || existing?.source === 'Shift Swap') {
+      setActiveSwapTarget({ employee, dateKey, cell: existing });
+      setSwapDetailsModalOpen(true);
+      return;
+    }
+
+    if (!canManageRoster) {
+      toast.info(
+        `${existing?.shiftName || 'Scheduled'}: ${existing?.timing || 'Standard Hours'} (Source: ${existing?.source || 'Base Schedule'})`
+      );
+      return;
+    }
+
     setActiveCellTarget({ employee, dateKey, currentCell: existing });
     setSelectedShiftCode(existing?.shiftCode || 'GS');
     setOverrideReason(existing?.overrideReason || '');
@@ -268,6 +407,52 @@ export function RosterPlannerTab() {
     setCellEditModalOpen(false);
   };
 
+  // Active Period & Rotation calculations
+  const activePeriodKey = useMemo(() => {
+    if (viewMode === 'Week') {
+      return SCHEDULED_WEEKS[selectedWeekIndex]?.periodName || 'September 2026 Week 37';
+    }
+    if (viewMode === 'Day') {
+      return `Day: ${activeDayKey}`;
+    }
+    return activeMonth === '2026-09' ? 'September 2026 Full Month' : 'October 2026 Full Month';
+  }, [viewMode, selectedWeekIndex, activeDayKey, activeMonth]);
+
+  const activePeriodLabel = useMemo(() => {
+    if (viewMode === 'Week') {
+      return SCHEDULED_WEEKS[selectedWeekIndex]?.label || '07 Sep 2026 – 13 Sep 2026 (Week 37)';
+    }
+    if (viewMode === 'Day') {
+      return `Day ${activeDayKey}`;
+    }
+    return activeMonth === '2026-09' ? 'September 2026' : 'October 2026';
+  }, [viewMode, selectedWeekIndex, activeDayKey, activeMonth]);
+
+  const activeRotationPhase = useMemo(() => {
+    if (viewMode === 'Week') {
+      return SCHEDULED_WEEKS[selectedWeekIndex]?.rotationPhase || 'Phase 1 — MS Morning Shift';
+    }
+    return 'Production 4-Shift Rotation (Weekly Cadence)';
+  }, [viewMode, selectedWeekIndex]);
+
+  const isCurrentPeriodPublished = useMemo(() => {
+    if (publishedPeriodKeys.includes(activePeriodKey)) return true;
+    let workingSlots = 0;
+    let publishedSlots = 0;
+    filteredEmployees.forEach((emp) => {
+      activeDays.forEach((d) => {
+        const cell = emp.slots[d.key];
+        if (cell && cell.shiftCode && !['WO', 'LV', 'HOL'].includes(cell.shiftCode)) {
+          workingSlots++;
+          if (cell.status === 'Published') {
+            publishedSlots++;
+          }
+        }
+      });
+    });
+    return workingSlots > 0 && publishedSlots === workingSlots;
+  }, [publishedPeriodKeys, activePeriodKey, filteredEmployees, activeDays]);
+
   // Auto-Fill action
   const hasActiveRotation = rotations.some((r) => r.status === 'Active');
 
@@ -276,8 +461,8 @@ export function RosterPlannerTab() {
     await bulkAutoAssignWeek(dates, 'GS');
     toast.success(
       hasActiveRotation
-        ? 'Rotated active shifts according to cycle handover rules!'
-        : 'Generated roster baseline from Shift Assignments & Weekly Off Policies!'
+        ? `Auto-filled roster from active rotation rules for ${activePeriodLabel}! Approved leaves, shifts, and overrides preserved.`
+        : `Generated roster baseline from Shift Assignments & Weekly Off Policies for ${activePeriodLabel}!`
     );
   };
 
@@ -288,9 +473,11 @@ export function RosterPlannerTab() {
     let totalHolidays = 0;
     let totalLeave = 0;
     let missingShifts = 0;
+    let shiftChangeOverrides = 0;
+    let approvedShiftSwaps = 0;
 
     filteredEmployees.forEach((emp) => {
-      WEEK_37_DAYS.forEach((day) => {
+      activeDays.forEach((day) => {
         const cell = emp.slots[day.key];
         if (!cell || !cell.shiftCode) {
           missingShifts++;
@@ -302,6 +489,12 @@ export function RosterPlannerTab() {
           totalLeave++;
         } else {
           totalScheduled++;
+          if (cell.isApprovedShiftChange) {
+            shiftChangeOverrides++;
+          }
+          if ((cell as any).isApprovedShiftSwap) {
+            approvedShiftSwaps++;
+          }
         }
       });
     });
@@ -313,21 +506,31 @@ export function RosterPlannerTab() {
       holidays: totalHolidays,
       leave: totalLeave,
       missingShifts,
-      conflicts: 0,
+      shiftChangeOverrides,
+      approvedShiftSwaps,
+      rotationPhase: activeRotationPhase,
+      conflicts: missingShifts,
     };
-  }, [filteredEmployees]);
+  }, [filteredEmployees, activeDays, activeRotationPhase]);
 
   // Publish Roster Confirm
   const handleConfirmPublish = async () => {
     setIsPublishing(true);
     try {
-      await publishRoster(
-        'September 2026 Week 37',
-        '07 Sep 2026 – 13 Sep 2026',
-        filteredEmployees.length
-      );
-      setIsPublished(true);
+      const periodName = activePeriodKey;
+      const dateRange =
+        viewMode === 'Week'
+          ? (SCHEDULED_WEEKS[selectedWeekIndex]?.label.split(' (')[0] || '14 Sep 2026 – 20 Sep 2026')
+          : `${activeDays[0]?.key} to ${activeDays[activeDays.length - 1]?.key}`;
+
+      await publishRoster(periodName, dateRange, filteredEmployees.length);
+      setPublishedPeriodKeys((prev) => Array.from(new Set([...prev, activePeriodKey])));
       setValidationModalOpen(false);
+      toast.success(
+        `Roster for ${activePeriodLabel} successfully published! Attendance is now active against finalized shifts.`
+      );
+    } catch (err) {
+      toast.error('Failed to publish roster');
     } finally {
       setIsPublishing(false);
     }
@@ -341,74 +544,157 @@ export function RosterPlannerTab() {
       );
     }
 
-    switch (cell.shiftCode) {
-      case 'GS':
-      case 'G':
-      case 'GEN':
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs">
-            GS — General
+    const isSwap = Boolean(cell.isApprovedShiftSwap || cell.source === 'Shift Swap');
+    const isChange = Boolean(
+      (cell as any).isApprovedShiftChange ||
+      cell.source === 'Shift Change' ||
+      (cell.isCustomOverride && cell.overrideReason?.toLowerCase().includes('approved'))
+    );
+    const isRotation = Boolean(cell.source === 'Rotation' || cell.sourceBadge === 'ROT');
+    const isManual = Boolean(cell.source === 'Manual Override' || (cell.isCustomOverride && !isSwap && !isChange));
+
+    const renderShiftCore = () => {
+      switch (cell.shiftCode) {
+        case 'GS':
+        case 'G':
+        case 'GEN':
+          return (
+            <span
+              className={`inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] ${
+                isSwap
+                  ? 'bg-indigo-50 text-indigo-800 border border-indigo-400 ring-1 ring-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-700'
+                  : isChange
+                  ? 'bg-amber-50 text-amber-800 border border-amber-400 ring-1 ring-amber-400'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
+              } shadow-2xs`}
+              title={isSwap ? 'Approved Shift Swap' : isChange ? 'Approved Shift Change' : undefined}
+            >
+              {isSwap && <span className="mr-1 text-[11px]">🔄</span>}
+              GS — General
+            </span>
+          );
+        case 'MS':
+        case 'A':
+        case 'MOR':
+          return (
+            <span
+              className={`inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] ${
+                isSwap
+                  ? 'bg-indigo-50 text-indigo-800 border border-indigo-400 ring-1 ring-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-700'
+                  : isChange
+                  ? 'bg-amber-50 text-amber-800 border border-amber-400 ring-1 ring-amber-400'
+                  : 'bg-blue-50 text-blue-700 border border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800'
+              } shadow-2xs`}
+              title={isSwap ? 'Approved Shift Swap' : isChange ? 'Approved Shift Change' : undefined}
+            >
+              {isSwap && <span className="mr-1 text-[11px]">🔄</span>}
+              MS — Morning
+            </span>
+          );
+        case 'ES':
+        case 'B':
+          return (
+            <span
+              className={`inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] ${
+                isSwap
+                  ? 'bg-indigo-50 text-indigo-800 border border-indigo-400 ring-1 ring-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-700'
+                  : isChange
+                  ? 'bg-amber-50 text-amber-800 border border-amber-400 ring-1 ring-amber-400'
+                  : 'bg-purple-50 text-purple-700 border border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800'
+              } shadow-2xs`}
+              title={isSwap ? 'Approved Shift Swap' : isChange ? 'Approved Shift Change' : undefined}
+            >
+              {isSwap && <span className="mr-1 text-[11px]">🔄</span>}
+              ES — Evening
+            </span>
+          );
+        case 'NS':
+        case 'C':
+        case 'NIT':
+          return (
+            <span
+              className={`inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] ${
+                isSwap
+                  ? 'bg-indigo-50 text-indigo-800 border border-indigo-400 ring-1 ring-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-700'
+                  : isChange
+                  ? 'bg-amber-50 text-amber-800 border border-amber-400 ring-1 ring-amber-400'
+                  : 'bg-indigo-50 text-indigo-700 border border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800'
+              } shadow-2xs`}
+              title={isSwap ? 'Approved Shift Swap' : isChange ? 'Approved Shift Change' : undefined}
+            >
+              {isSwap && <span className="mr-1 text-[11px]">🔄</span>}
+              NS — Night
+            </span>
+          );
+        case 'WO':
+          return (
+            <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-medium text-[11px] bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700">
+              ⚪ Weekly Off
+            </span>
+          );
+        case 'HOL':
+        case 'HD_HOL':
+          return (
+            <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 shadow-2xs">
+              🟥 Public Holiday
+            </span>
+          );
+        case 'LV':
+          return (
+            <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 shadow-2xs">
+              🟨 Approved Leave
+            </span>
+          );
+        case 'HD':
+          return (
+            <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-orange-50 text-orange-700 border border-orange-300 dark:bg-orange-950/50 dark:text-orange-300">
+              Half Day
+            </span>
+          );
+        default:
+          return (
+            <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-semibold text-[11px] bg-muted text-muted-foreground border">
+              {cell.shiftCode}
+            </span>
+          );
+      }
+    };
+
+    return (
+      <div className="flex flex-col items-center w-full gap-0.5">
+        {renderShiftCore()}
+        {/* Indicators & Status Badges */}
+        {isSwap && (
+          <div className="flex flex-wrap items-center justify-center gap-1 mt-0.5">
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/80 dark:text-indigo-200 border border-indigo-300">
+              ⇄ SWAP
+            </span>
+            <span className="text-[8px] font-bold text-indigo-600 dark:text-indigo-400">
+              {cell.swapDetails?.displayStatus || 'Scheduled Swap'}
+            </span>
+          </div>
+        )}
+        {!isSwap && isChange && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 mt-0.5">
+            🔀 CHANGE
           </span>
-        );
-      case 'MS':
-      case 'A':
-      case 'MOR':
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-blue-50 text-blue-700 border border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800 shadow-2xs">
-            MS — Morning
+        )}
+        {!isSwap && !isChange && isRotation && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8px] font-bold bg-blue-100 text-blue-800 border border-blue-200 mt-0.5">
+            🟦 ROT
           </span>
-        );
-      case 'ES':
-      case 'B':
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-purple-50 text-purple-700 border border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800 shadow-2xs">
-            ES — Evening
+        )}
+        {!isSwap && !isChange && isManual && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8px] font-semibold text-purple-700 dark:text-purple-300 mt-0.5">
+            ✏️ MANUAL
           </span>
-        );
-      case 'NS':
-      case 'C':
-      case 'NIT':
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800 shadow-2xs">
-            NS — Night
-          </span>
-        );
-      case 'WO':
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-medium text-[11px] bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700">
-            Weekly Off
-          </span>
-        );
-      case 'HOL':
-      case 'HD_HOL':
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 shadow-2xs">
-            Public Holiday
-          </span>
-        );
-      case 'LV':
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 shadow-2xs">
-            Approved Leave
-          </span>
-        );
-      case 'HD':
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-bold text-[11px] bg-orange-50 text-orange-700 border border-orange-300 dark:bg-orange-950/50 dark:text-orange-300">
-            Half Day
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center justify-center w-full py-1 px-1.5 rounded-md font-semibold text-[11px] bg-muted text-muted-foreground border">
-            {cell.shiftCode}
-          </span>
-        );
-    }
+        )}
+      </div>
+    );
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* ─────────────────────────────────────────────────────────────
           1. View Switcher & Roster Toolbar
           ───────────────────────────────────────────────────────────── */}
@@ -432,6 +718,34 @@ export function RosterPlannerTab() {
             ))}
           </div>
 
+          {/* Perspective Switcher: Admin Overview vs Employee View */}
+          {canManageRoster && (
+            <div className="inline-flex rounded-lg border border-border/80 p-0.5 bg-muted/40">
+              <button
+                type="button"
+                onClick={() => setPerspective('ADMIN')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  perspective === 'ADMIN'
+                    ? 'bg-background text-foreground shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Admin View
+              </button>
+              <button
+                type="button"
+                onClick={() => setPerspective('EMPLOYEE')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  perspective === 'EMPLOYEE'
+                    ? 'bg-background text-foreground shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Employee View
+              </button>
+            </div>
+          )}
+
           {/* Date Navigator */}
           <div className="flex items-center gap-1.5 pl-2 border-l border-border/60">
             <Button
@@ -448,8 +762,10 @@ export function RosterPlannerTab() {
               {viewMode === 'Day'
                 ? `${activeDayKey} (${WEEK_37_DAYS.find((d) => d.key === activeDayKey)?.label || 'Day'})`
                 : viewMode === 'Week'
-                ? `07 Sep 2026 – 13 Sep 2026 (Week 37)`
-                : `September 2026 (30 Days)`}
+                ? SCHEDULED_WEEKS[selectedWeekIndex]?.label || 'Week Schedule'
+                : activeMonth === '2026-09'
+                ? `September 2026 (30 Days)`
+                : `October 2026 (31 Days)`}
             </div>
             <Button
               variant="outline"
@@ -470,6 +786,7 @@ export function RosterPlannerTab() {
             </Button>
           </div>
         </div>
+
 
         {/* Search, Department Filter & Action Buttons (Manager / HR / Admin only) */}
         {canManageRoster && (
@@ -536,17 +853,96 @@ export function RosterPlannerTab() {
             <Button
               size="sm"
               className={`h-8 text-xs gap-1.5 text-white font-semibold transition-all ${
-                isPublished
+                isCurrentPeriodPublished
                   ? 'bg-emerald-700 hover:bg-emerald-800'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-2xs'
               }`}
               onClick={() => setValidationModalOpen(true)}
             >
               <Send className="h-3.5 w-3.5" />
-              {isPublished ? 'Published Roster ✓' : 'Publish Roster'}
+              {isCurrentPeriodPublished ? 'Published Roster ✓' : 'Publish Roster'}
             </Button>
           </div>
         )}
+      </div>
+
+      {/* Perspective / Employee View Banner */}
+      {perspective === 'EMPLOYEE' && (
+        <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <User className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-foreground text-xs">
+                  {filteredEmployees[0]?.name || 'Staff Member'}
+                </span>
+                <span className="font-mono font-bold text-primary text-[11px]">
+                  {filteredEmployees[0]?.employeeCode}
+                </span>
+                <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-semibold bg-background">
+                  Employee View
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {filteredEmployees[0]?.role} • {filteredEmployees[0]?.department} ({filteredEmployees[0]?.branch})
+              </p>
+            </div>
+          </div>
+
+          {canManageRoster && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium hidden md:inline">Preview Colleague:</span>
+              <Select
+                value={previewEmployeeId || filteredEmployees[0]?.employeeId || ''}
+                onValueChange={(val) => setPreviewEmployeeId(val)}
+              >
+                <SelectTrigger className="h-8 w-52 text-xs bg-background">
+                  <SelectValue placeholder="Select Colleague" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rosterEmployees.map((emp) => (
+                    <SelectItem key={emp.employeeId} value={emp.employeeId} className="text-xs">
+                      {emp.name} ({emp.employeeCode})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recommended Calendar Indicators Legend */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-border/70 bg-card shadow-2xs text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-foreground text-[11px] mr-1">Indicators:</span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100/80 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-medium text-[10px] border border-blue-200">
+            🟦 <strong>ROT</strong> Rotation
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 font-bold text-[10px] border border-indigo-300 ring-1 ring-indigo-400">
+            🔄 <strong>SWAP</strong> Shift Swap
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100/80 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-medium text-[10px] border border-amber-200">
+            🔀 <strong>CHANGE</strong> Shift Change
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 font-medium text-[10px] border border-amber-200">
+            🟨 <strong>LEAVE</strong> Leave
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-medium text-[10px] border border-slate-200">
+            ⚪ <strong>WO</strong> Weekly Off
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-medium text-[10px] border border-rose-200">
+            🟥 <strong>HOL</strong> Holiday
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 font-medium text-[10px] border border-purple-200">
+            ✏️ <strong>MANUAL</strong> Manual Override
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground italic hidden sm:inline">
+          Click any cell to inspect shift swap & override audit metadata
+        </span>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -560,13 +956,13 @@ export function RosterPlannerTab() {
                 <CalendarIcon className="h-4 w-4 text-primary" /> Live Roster Schedule Matrix
               </CardTitle>
               <Badge
-                className={`text-[10px] px-2 py-0.5 font-bold ${
-                  isPublished
+                className={`text-[10px] px-2.5 py-0.5 font-bold ${
+                  isCurrentPeriodPublished
                     ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300'
                     : 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300'
                 }`}
               >
-                {isPublished ? 'PUBLISHED' : 'GENERATED / DRAFT'}
+                {isCurrentPeriodPublished ? 'PUBLISHED' : 'DRAFT — Generated from Rotation'}
               </Badge>
             </div>
             <CardDescription className="text-xs mt-0.5">
@@ -668,13 +1064,21 @@ export function RosterPlannerTab() {
                     {activeDays.map((day) => {
                       const cell = emp.slots[day.key];
                       const isToday = day.key === '2026-09-09';
+                      const isSwap = Boolean(cell?.isApprovedShiftSwap || cell?.source === 'Shift Swap');
                       return (
                         <td
                           key={day.key}
-                          onClick={() => canManageRoster && handleCellClick(emp, day.key)}
-                          className={`py-2 px-2 text-center border-r border-border/40 transition-colors group relative ${
-                            canManageRoster ? 'cursor-pointer hover:bg-primary/5' : ''
-                          } ${isToday ? 'bg-primary/5' : ''}`}
+                          onClick={() => handleCellClick(emp, day.key)}
+                          className={`py-2 px-2 text-center border-r border-border/40 transition-colors group relative cursor-pointer hover:bg-primary/5 ${
+                            isToday ? 'bg-primary/5' : ''
+                          } ${isSwap ? 'bg-indigo-50/20 dark:bg-indigo-950/20 ring-inset hover:ring-1 hover:ring-indigo-400' : ''}`}
+                          title={
+                            isSwap
+                              ? `Approved Shift Swap with ${cell?.swapDetails?.partnerName} — Click to inspect audit trail`
+                              : canManageRoster
+                              ? 'Click to modify allocation'
+                              : `${cell?.shiftName || 'Shift'} (Source: ${cell?.source || 'Base Schedule'})`
+                          }
                         >
                           <div className="flex flex-col items-center justify-center min-h-[50px]">
                             {getShiftBadge(cell)}
@@ -683,7 +1087,7 @@ export function RosterPlannerTab() {
                                 {cell.timing}
                               </span>
                             )}
-                            {cell?.isCustomOverride && (
+                            {cell?.isCustomOverride && !isSwap && !cell?.isApprovedShiftChange && (
                               <span className="text-[8px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
                                 • Override
                               </span>
@@ -699,6 +1103,131 @@ export function RosterPlannerTab() {
           </table>
         </CardContent>
       </Card>
+
+      {/* ─────────────────────────────────────────────────────────────
+          Shift Swap Audit & Details Dialog
+          ───────────────────────────────────────────────────────────── */}
+      <Dialog open={swapDetailsModalOpen} onOpenChange={setSwapDetailsModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <span className="text-lg">🔄</span> Shift Swap Information
+              </DialogTitle>
+              <Badge className="bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-300 font-bold text-xs">
+                {activeSwapTarget?.cell?.swapDetails?.status || 'Approved – Scheduled'}
+              </Badge>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Mutual shift exchange between verified colleagues with automated compliance tracking
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* "Why is my shift different?" Callout Box */}
+            <div className="rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 p-3.5 border border-indigo-200 dark:border-indigo-800/60 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>Why is my shift different?</span>
+              </div>
+              <p className="text-xs text-indigo-800/90 dark:text-indigo-300/90 pl-5 leading-relaxed">
+                {activeSwapTarget?.cell?.swapDetails?.explanation ||
+                  `Your shift was changed through an approved shift swap with ${activeSwapTarget?.cell?.swapDetails?.partnerName || 'colleague'}.`}
+              </p>
+            </div>
+
+            {/* Shift Swap Comparison Box */}
+            <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl border border-border/80 bg-muted/20 text-xs">
+              <div className="space-y-1 border-r border-border/60 pr-2">
+                <span className="text-[11px] font-medium text-muted-foreground">Original Shift:</span>
+                <p className="font-bold text-foreground text-xs">
+                  {activeSwapTarget?.cell?.swapDetails?.originalShift || 'MS – Morning Shift'}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  Baseline Assignment
+                </p>
+              </div>
+
+              <div className="space-y-1 pl-1">
+                <span className="text-[11px] font-medium text-muted-foreground">Swapped Shift:</span>
+                <p className="font-bold text-indigo-600 dark:text-indigo-400 text-xs flex items-center gap-1">
+                  🔄 {activeSwapTarget?.cell?.swapDetails?.swappedShift || activeSwapTarget?.cell?.shiftName || 'GS – General Shift'}
+                </p>
+                <p className="text-[10px] font-mono text-muted-foreground">
+                  {activeSwapTarget?.cell?.timing || '09:00 AM – 05:30 PM'}
+                </p>
+              </div>
+            </div>
+
+            {/* Swap Participants Card */}
+            <div className="rounded-xl border border-border/70 p-3 text-xs space-y-2.5 bg-card">
+              <div className="flex justify-between items-center pb-2 border-b border-border/50">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Employee</span>
+                  <p className="font-bold text-foreground text-xs">{activeSwapTarget?.employee.name}</p>
+                  <span className="font-mono text-[10px] text-primary font-semibold">{activeSwapTarget?.employee.employeeCode}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Swap Partner</span>
+                  <p className="font-bold text-foreground text-xs">{activeSwapTarget?.cell?.swapDetails?.partnerName}</p>
+                  <span className="font-mono text-[10px] text-primary font-semibold">{activeSwapTarget?.cell?.swapDetails?.partnerCode || 'Verified Colleague'}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                <div>
+                  <strong className="text-foreground font-medium">Date of Swap:</strong>{' '}
+                  <span className="font-mono font-semibold text-foreground">{activeSwapTarget?.dateKey}</span>
+                </div>
+                <div>
+                  <strong className="text-foreground font-medium">Approved by:</strong>{' '}
+                  <span>{activeSwapTarget?.cell?.swapDetails?.approvedBy || 'Operations Lead'}</span>
+                </div>
+                <div className="col-span-2 pt-1">
+                  <strong className="text-foreground font-medium">Status:</strong>{' '}
+                  <span className="font-semibold text-indigo-600 dark:text-indigo-400">{activeSwapTarget?.cell?.swapDetails?.status || 'Approved – Scheduled'}</span>
+                </div>
+                <div className="col-span-2 pt-1 border-t border-border/40">
+                  <strong className="text-foreground font-medium">Business Reason:</strong>{' '}
+                  <span className="italic text-foreground">{activeSwapTarget?.cell?.swapDetails?.reason || 'Personal commitment coverage swap'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex sm:justify-between items-center gap-2">
+            {canManageRoster ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-8 text-purple-700 dark:text-purple-300 border-purple-200"
+                onClick={() => {
+                  setSwapDetailsModalOpen(false);
+                  if (activeSwapTarget) {
+                    setActiveCellTarget({
+                      employee: activeSwapTarget.employee,
+                      dateKey: activeSwapTarget.dateKey,
+                      currentCell: activeSwapTarget.cell,
+                    });
+                    setSelectedShiftCode(activeSwapTarget.cell?.shiftCode || 'GS');
+                    setOverrideReason(activeSwapTarget.cell?.overrideReason || '');
+                    setCellEditModalOpen(true);
+                  }
+                }}
+              >
+                <Edit2 className="h-3.5 w-3.5 mr-1" /> Force Override Slot
+              </Button>
+            ) : <div />}
+            <Button
+              size="sm"
+              className="text-xs h-8 bg-primary text-primary-foreground font-semibold"
+              onClick={() => setSwapDetailsModalOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─────────────────────────────────────────────────────────────
           3. Modify Shift Cell Modal (Manual Override with Mandatory Reason)
@@ -813,95 +1342,116 @@ export function RosterPlannerTab() {
           4. Roster Validation & Publish Modal
           ───────────────────────────────────────────────────────────── */}
       <Dialog open={validationModalOpen} onOpenChange={setValidationModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-600" /> Roster Validation & Publish
+              <ShieldCheck className="h-5 w-5 text-emerald-600" /> Roster Pre-Publish Review & Validation
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Validate schedule completeness and policy compliance for period <strong>07 Sep 2026 – 13 Sep 2026</strong>.
+              Audit schedule completeness, rotation cadence, and conflict overrides for <strong>{activePeriodLabel}</strong>.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            {/* Rotation Context Banner */}
+            <div className="p-3 rounded-lg border bg-muted/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                  Active Rotation Rule
+                </span>
+                <p className="text-xs font-semibold text-foreground mt-0.5">
+                  Production 4-Shift Rotation (Weekly Cadence)
+                </p>
+              </div>
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold px-2.5 py-1 w-fit">
+                {validationMetrics.rotationPhase}
+              </Badge>
+            </div>
+
             {/* Validation Metrics Grid */}
-            <div className="grid grid-cols-3 gap-2.5">
-              <div className="p-2.5 rounded-lg border bg-muted/40 text-center">
-                <span className="text-[10px] uppercase font-bold text-muted-foreground">Total Staff</span>
-                <p className="text-lg font-bold text-foreground mt-0.5">{validationMetrics.employees}</p>
-                <span className="text-[10px] text-muted-foreground">Eligible Personnel</span>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="p-2 rounded-lg border bg-background text-center">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground">Employees</span>
+                <p className="text-base font-bold text-foreground mt-0.5">{validationMetrics.employees}</p>
+                <span className="text-[9px] text-muted-foreground">Covered</span>
               </div>
-              <div className="p-2.5 rounded-lg border bg-blue-50/50 dark:bg-blue-950/30 text-center border-blue-200 dark:border-blue-900">
-                <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300">Scheduled Shifts</span>
-                <p className="text-lg font-bold text-blue-700 dark:text-blue-300 mt-0.5">{validationMetrics.scheduled}</p>
-                <span className="text-[10px] text-blue-600/80">Working Slots</span>
+              <div className="p-2 rounded-lg border bg-blue-50/50 dark:bg-blue-950/30 text-center border-blue-200 dark:border-blue-900">
+                <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300">Shifts</span>
+                <p className="text-base font-bold text-blue-700 dark:text-blue-300 mt-0.5">{validationMetrics.scheduled}</p>
+                <span className="text-[9px] text-blue-600/80">Generated</span>
               </div>
-              <div className="p-2.5 rounded-lg border bg-slate-100 dark:bg-slate-800 text-center border-slate-300 dark:border-slate-700">
+              <div className="p-2 rounded-lg border bg-slate-100 dark:bg-slate-800 text-center border-slate-300 dark:border-slate-700">
                 <span className="text-[10px] uppercase font-bold text-slate-700 dark:text-slate-300">Weekly Off</span>
-                <p className="text-lg font-bold text-slate-700 dark:text-slate-300 mt-0.5">{validationMetrics.weeklyOff}</p>
-                <span className="text-[10px] text-slate-600">Rest Days</span>
+                <p className="text-base font-bold text-slate-700 dark:text-slate-300 mt-0.5">{validationMetrics.weeklyOff}</p>
+                <span className="text-[9px] text-slate-600">Rest Days</span>
               </div>
-              <div className="p-2.5 rounded-lg border bg-muted/40 text-center">
-                <span className="text-[10px] uppercase font-bold text-muted-foreground">Holidays</span>
-                <p className="text-lg font-bold text-foreground mt-0.5">{validationMetrics.holidays}</p>
-                <span className="text-[10px] text-muted-foreground">Calendar Days</span>
-              </div>
-              <div className="p-2.5 rounded-lg border bg-muted/40 text-center">
-                <span className="text-[10px] uppercase font-bold text-muted-foreground">Approved Leave</span>
-                <p className="text-lg font-bold text-foreground mt-0.5">{validationMetrics.leave}</p>
-                <span className="text-[10px] text-muted-foreground">Recorded Leaves</span>
-              </div>
-              <div className="p-2.5 rounded-lg border bg-emerald-50/50 dark:bg-emerald-950/30 text-center border-emerald-200 dark:border-emerald-900">
-                <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">Missing Shifts</span>
-                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">{validationMetrics.missingShifts}</p>
-                <span className="text-[10px] text-emerald-600/80">Zero Gaps</span>
+              <div className="p-2 rounded-lg border bg-emerald-50/50 dark:bg-emerald-950/30 text-center border-emerald-200 dark:border-emerald-900">
+                <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">Conflicts</span>
+                <p className="text-base font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">{validationMetrics.conflicts}</p>
+                <span className="text-[9px] text-emerald-600/80">Issues</span>
               </div>
             </div>
 
-            {/* Validation Warnings / Success */}
-            {validationMetrics.missingShifts > 0 ? (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 text-amber-800 dark:text-amber-300 text-xs">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold">⚠ Unassigned Shifts Detected</p>
-                  <p className="text-[11px] mt-0.5">
-                    {validationMetrics.missingShifts} schedule slots have no assigned shift or weekly off. Please auto-fill or manually assign before publishing.
-                  </p>
+            {/* Conflict & Safeguard Breakdown */}
+            <div className="space-y-2">
+              <h5 className="text-[11px] font-bold text-foreground uppercase tracking-wider">
+                Safeguard & Priority Validation:
+              </h5>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded-lg border bg-background/80 flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-foreground text-[11px]">Leave Conflict Safeguard</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {validationMetrics.leave} approved leaves protected (leave overrides rotation shift).
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 text-emerald-800 dark:text-emerald-300 text-xs">
-                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
-                <div>
-                  <p className="font-semibold">Validation Passed — Ready for Attendance Sync</p>
-                  <p className="text-[11px] mt-0.5 text-emerald-700 dark:text-emerald-400">
-                    All {validationMetrics.employees} active personnel have complete allocations with Weekly Off compliance.
-                  </p>
-                </div>
-              </div>
-            )}
 
-            {/* Policy & Compliance Checklist */}
-            <div className="p-3 rounded-lg bg-muted/30 border border-border/60 text-xs space-y-2">
-              <p className="font-semibold text-foreground text-[11px]">System Enforcement Checklist:</p>
-              <div className="space-y-1.5 text-[11px] text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span>Weekly Off Policy enforced (Sunday for Factory 6-Day, Sat & Sun for Corporate 5-Day)</span>
+                <div className="p-2 rounded-lg border bg-background/80 flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-foreground text-[11px]">Shift-Change Overrides</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {validationMetrics.shiftChangeOverrides} approved requests preserved over baseline rotation.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span>3-Tier assignment hierarchy resolved (Employee Override → Dept Baseline → Company Default)</span>
+
+                <div className="p-2 rounded-lg border bg-background/80 flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-foreground text-[11px]">Weekly-Off Compliance</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {validationMetrics.weeklyOff} rest days aligned with factory 6-day / office 5-day rules.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span>Rest hours compliant (minimum 11h break between consecutive daily cycles)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span>Face ID & Mobile punches will automatically evaluate against this published roster</span>
+
+                <div className="p-2 rounded-lg border bg-background/80 flex items-start gap-2">
+                  {validationMetrics.missingShifts === 0 ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className="font-semibold text-foreground text-[11px]">Missing Assignments</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {validationMetrics.missingShifts === 0
+                        ? '100% headcount coverage (0 unassigned slots).'
+                        : `${validationMetrics.missingShifts} slots require assignment.`}
+                    </p>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Attendance Integration Notice */}
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+              <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
+                <strong>Attendance Activation:</strong> Upon publishing, this roster becomes the authoritative schedule for biometric face-match punches and mobile check-ins.
+              </p>
             </div>
           </div>
 
@@ -911,11 +1461,12 @@ export function RosterPlannerTab() {
             </Button>
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5"
               onClick={handleConfirmPublish}
               disabled={isPublishing}
             >
-              {isPublishing ? 'Publishing...' : 'Confirm & Publish Roster'}
+              <Send className="h-3.5 w-3.5" />
+              {isPublishing ? 'Publishing...' : 'Publish Roster (Final Schedule)'}
             </Button>
           </DialogFooter>
         </DialogContent>

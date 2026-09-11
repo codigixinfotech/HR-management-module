@@ -114,10 +114,11 @@ function computeMetrics(checkIn?: string | null, checkOut?: string | null, shift
     early = `${earlyMins}m Early`;
   }
 
-  // Overtime calculation (worked > 8 hours or 480 mins)
+  // Overtime calculation: Statutory 9-hour daily threshold (540 mins) per Factories Act Section 59
   let ot = '—';
-  if (workedMins > 8 * 60) {
-    const otMins = workedMins - 8 * 60;
+  const dailyThresholdMins = 9 * 60; // 9 hours
+  if (workedMins > dailyThresholdMins) {
+    const otMins = workedMins - dailyThresholdMins;
     ot = `${formatMinutesToHours(otMins)} OT`;
   }
 

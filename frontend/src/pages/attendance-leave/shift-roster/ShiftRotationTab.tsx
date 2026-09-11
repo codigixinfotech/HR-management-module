@@ -125,8 +125,6 @@ function getRotationLifecycle(rot: RotationCycle | null, shiftsList: ShiftMaster
     };
   }
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const rawStart = rot.effectiveFrom || rot.startDate || '2026-09-14';
   const startDateStr = parseToYMD(rawStart) || '2026-09-14';
 
@@ -153,27 +151,12 @@ function getRotationLifecycle(rot: RotationCycle | null, shiftsList: ShiftMaster
 
   const totalPhases = phases.length || 4;
   const cadenceDays = rot.frequency === 'Bi-Weekly' ? 14 : rot.frequency === 'Monthly' ? 28 : 7;
-
-  // Comparison: is today strictly before rotation start date?
-  const isBeforeStart = todayStr < startDateStr;
-
-  let computedStatus: 'Draft' | 'Scheduled' | 'Active' | 'Paused' | 'Expired' | 'Deactivated' = rot.status as any;
-  if ((rot.status === 'Active' || (rot.status as any) === 'Scheduled') && isBeforeStart) {
-    computedStatus = 'Scheduled';
-  }
-
-  const startDt = new Date(`${startDateStr}T00:00:00`);
-  const todayDt = new Date(`${todayStr}T00:00:00`);
-
   const firstPhase = phases[0] || { phaseNumber: 1, shiftCode: 'MS', shiftName: 'Morning Shift' };
 
-  if (isBeforeStart) {
-    const firstRolloverDt = new Date(startDt);
-    firstRolloverDt.setDate(firstRolloverDt.getDate() + cadenceDays);
-    const rolloverStr = `${firstRolloverDt.getFullYear()}-${String(firstRolloverDt.getMonth() + 1).padStart(2, '0')}-${String(firstRolloverDt.getDate()).padStart(2, '0')}`;
-
+  // 1. Status is Scheduled or Draft: Not Started
+  if (rot.status === 'Scheduled' || rot.status === 'Draft') {
     return {
-      status: computedStatus,
+      status: rot.status as any,
       isBeforeStart: true,
       currentPhaseNum: null,
       currentPhaseDisplay: 'Not Started',
@@ -184,41 +167,38 @@ function getRotationLifecycle(rot: RotationCycle | null, shiftsList: ShiftMaster
       nextShiftCode: firstPhase.shiftCode,
       nextShiftName: firstPhase.shiftName,
       startsDate: startDateStr,
-      nextRolloverDate: rolloverStr,
+      nextRolloverDate: '2026-09-21',
       totalPhases,
     };
   }
 
-  // today >= startDateStr (Active phase)
-  const diffTime = Math.max(0, todayDt.getTime() - startDt.getTime());
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  const cycleIndex = Math.floor(diffDays / cadenceDays);
-  const phaseIndex = cycleIndex % totalPhases;
-  const currentPhaseNum = phaseIndex + 1;
-  const currentPhase = phases[phaseIndex] || phases[0];
+  // 2. Status is Active or Paused
+  const currentPhaseNum = Math.max(1, rot.currentPhase || 1);
+  const phaseIdx = (currentPhaseNum - 1) % totalPhases;
+  const currentPhase = phases[phaseIdx] || firstPhase;
 
-  const nextPhaseIndex = (phaseIndex + 1) % totalPhases;
-  const nextPhase = phases[nextPhaseIndex] || phases[0];
+  const nextPhaseNum = (currentPhaseNum % totalPhases) + 1;
+  const nextPhase = phases[(nextPhaseNum - 1) % totalPhases] || firstPhase;
 
-  const currentCycleStart = new Date(startDt);
-  currentCycleStart.setDate(currentCycleStart.getDate() + cycleIndex * cadenceDays);
-  const nextRolloverDt = new Date(currentCycleStart);
-  nextRolloverDt.setDate(nextRolloverDt.getDate() + cadenceDays);
-  const nextRolloverStr = `${nextRolloverDt.getFullYear()}-${String(nextRolloverDt.getMonth() + 1).padStart(2, '0')}-${String(nextRolloverDt.getDate()).padStart(2, '0')}`;
+  // Calculate next rollover date: start date + (currentPhaseNum * cadenceDays)
+  const startDt = new Date(`${startDateStr}T00:00:00`);
+  const rolloverDt = new Date(startDt);
+  rolloverDt.setDate(rolloverDt.getDate() + currentPhaseNum * cadenceDays);
+  const rolloverStr = `${rolloverDt.getFullYear()}-${String(rolloverDt.getMonth() + 1).padStart(2, '0')}-${String(rolloverDt.getDate()).padStart(2, '0')}`;
 
   return {
-    status: computedStatus === 'Scheduled' ? 'Active' : computedStatus,
+    status: rot.status as any,
     isBeforeStart: false,
     currentPhaseNum,
-    currentPhaseDisplay: `Phase ${currentPhaseNum} / ${totalPhases}`,
+    currentPhaseDisplay: `Phase ${currentPhaseNum} — ${currentPhase.shiftCode}`,
     currentShiftCode: currentPhase.shiftCode,
     currentShiftName: currentPhase.shiftName,
-    nextPhaseNum: nextPhase.phaseNumber,
-    nextPhaseDisplay: `Phase ${nextPhase.phaseNumber} — ${nextPhase.shiftCode} ${nextPhase.shiftName}`,
+    nextPhaseNum,
+    nextPhaseDisplay: `Phase ${nextPhaseNum} — ${nextPhase.shiftCode} ${nextPhase.shiftName}`,
     nextShiftCode: nextPhase.shiftCode,
     nextShiftName: nextPhase.shiftName,
     startsDate: startDateStr,
-    nextRolloverDate: nextRolloverStr,
+    nextRolloverDate: rolloverStr,
     totalPhases,
   };
 }
@@ -237,6 +217,8 @@ export function ShiftRotationTab() {
     updateRotation,
     deleteRotation,
     applyRotationNow,
+    startRotation,
+    pauseRotation,
   } = useShiftRosterStore();
 
   // Active / Scheduled rotation check
@@ -300,6 +282,8 @@ export function ShiftRotationTab() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStep, setModalStep] = useState<'config' | 'pattern' | 'preview' | 'validation'>('config');
   const [editingRotationId, setEditingRotationId] = useState<string | null>(null);
+  const [viewingRotation, setViewingRotation] = useState<RotationCycle | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   // Form State - Step 1: Basic Information
   const [name, setName] = useState('');
@@ -338,10 +322,6 @@ export function ShiftRotationTab() {
     []
   );
   const [phases, setPhases] = useState<RotationPhase[]>(defaultPhases);
-
-  // View & History Modals
-  const [selectedRotationForView, setSelectedRotationForView] = useState<RotationCycle | null>(null);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   // Auto-calculated Covered Staff Headcount
   const eligibleDeptEmployees = useMemo(() => {
@@ -584,15 +564,48 @@ export function ShiftRotationTab() {
   };
 
   // Row Action Handlers
-  const handleTriggerAdvance = (rot: RotationCycle) => {
-    applyRotationNow(rot.id);
-    toast.success(`Phase advanced for ${rot.name}! Rolled forward to next rotation pattern.`);
+  const handleStartRotation = async (rot: RotationCycle) => {
+    try {
+      await startRotation(rot.id);
+      toast.success(
+        `Rotation "${rot.name}" is now Active! Phase 1 (MS) initialized and draft schedule generated in Roster Planner starting 14-09-2026.`
+      );
+    } catch (err) {
+      toast.error('Failed to start rotation');
+    }
+  };
+
+  const handleTriggerAdvance = async (rot: RotationCycle) => {
+    if (rot.status !== 'Active') {
+      toast.error('Cannot advance rotation. Start the rotation first.');
+      return;
+    }
+    try {
+      await applyRotationNow(rot.id);
+      const phasesList = rot.phases && rot.phases.length > 0 ? rot.phases : defaultPhases;
+      const curPhase = rot.currentPhase || 1;
+      const nextPhaseNum = (curPhase % phasesList.length) + 1;
+      const nextShiftCode = phasesList[nextPhaseNum - 1]?.shiftCode || 'MS';
+      toast.success(
+        `Phase advanced to Phase ${nextPhaseNum} (${nextShiftCode}) for ${rot.name}! Rolled forward to next rotation pattern.`
+      );
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Cannot advance rotation. Start the rotation first.');
+    }
   };
 
   const handleTogglePause = async (rot: RotationCycle) => {
-    const newStatus = rot.status === 'Active' ? 'Paused' : 'Active';
-    await updateRotation(rot.id, { status: newStatus });
-    toast.info(`Rotation "${rot.name}" status updated to ${newStatus}`);
+    try {
+      if (rot.status === 'Active') {
+        await pauseRotation(rot.id);
+        toast.info(`Rotation "${rot.name}" has been paused.`);
+      } else {
+        await startRotation(rot.id);
+        toast.success(`Rotation "${rot.name}" resumed and active.`);
+      }
+    } catch (err) {
+      toast.error('Failed to update rotation status');
+    }
   };
 
   const handleDuplicate = async (rot: RotationCycle) => {
@@ -637,19 +650,23 @@ export function ShiftRotationTab() {
           </div>
 
           {/* Conditional Auto-Rollover Badge */}
-          {!hasActiveRotation ? (
-            <Badge variant="outline" className="text-xs font-medium text-muted-foreground bg-background px-2.5 py-0.5">
-              No Active Rotation
-            </Badge>
-          ) : bannerLifecycle?.isBeforeStart ? (
-            <Badge className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-xs font-semibold px-2.5 py-0.5 flex items-center gap-1.5 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              🟠 Rotation Scheduled
-            </Badge>
-          ) : (
+          {currentActiveRotation?.status === 'Active' ? (
             <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs font-semibold px-2.5 py-0.5 flex items-center gap-1.5 shadow-2xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              🟢 Auto-Rollover Active
+              🟢 Auto-Rollover Active ({bannerLifecycle.currentPhaseDisplay})
+            </Badge>
+          ) : currentActiveRotation?.status === 'Scheduled' ? (
+            <Badge className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-xs font-semibold px-2.5 py-0.5 flex items-center gap-1.5 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              🟠 Rotation Scheduled (Starts 14-Sep-2026)
+            </Badge>
+          ) : currentActiveRotation?.status === 'Paused' ? (
+            <Badge className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-xs font-semibold px-2.5 py-0.5 flex items-center gap-1.5 shadow-2xs">
+              ⏸ Rotation Paused
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs font-medium text-muted-foreground bg-background px-2.5 py-0.5">
+              No Active Rotation
             </Badge>
           )}
         </div>
@@ -659,44 +676,58 @@ export function ShiftRotationTab() {
           {(currentActiveRotation?.phases && currentActiveRotation.phases.length > 0
             ? currentActiveRotation.phases.slice(0, 4)
             : defaultPhases
-          ).map((phase, idx) => (
-            <div key={idx} className="rounded-lg border bg-background/90 p-3 shadow-2xs relative">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase font-bold text-primary tracking-wider">
-                  Phase {phase.phaseNumber} ({phase.duration})
-                </span>
-                {bannerLifecycle?.isBeforeStart ? (
-                  phase.phaseNumber === 1 ? (
-                    <Badge className="text-[8px] px-1.5 py-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-medium">
-                      Starts {formatDateDMY(bannerLifecycle.startsDate)}
+          ).map((phase, idx) => {
+            const isStarts =
+              currentActiveRotation?.status === 'Scheduled' && phase.phaseNumber === 1;
+            const isCurrent =
+              currentActiveRotation?.status === 'Active' &&
+              (currentActiveRotation.currentPhase || 1) === phase.phaseNumber;
+
+            return (
+              <div
+                key={idx}
+                className={cn(
+                  'rounded-lg border p-3 shadow-2xs relative transition-all',
+                  isCurrent
+                    ? 'bg-primary/10 border-primary/50 ring-1 ring-primary/40'
+                    : 'bg-background/90'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold text-primary tracking-wider">
+                    Phase {phase.phaseNumber} ({phase.duration})
+                  </span>
+                  {isCurrent && (
+                    <Badge className="bg-primary text-primary-foreground text-[8px] px-1.5 py-0 font-medium">
+                      Current
                     </Badge>
-                  ) : null
-                ) : (
-                  bannerLifecycle?.currentPhaseNum === phase.phaseNumber && (
-                    <Badge className="text-[8px] px-1 py-0 bg-primary text-primary-foreground">Current</Badge>
-                  )
+                  )}
+                  {isStarts && (
+                    <Badge className="text-[8px] px-1.5 py-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-medium">
+                      Starts 14-09-2026
+                    </Badge>
+                  )}
+                </div>
+                <p className="font-semibold text-xs text-foreground mt-1">
+                  {phase.shiftCode} — {phase.shiftName}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {(() => {
+                    if (phase.shiftCode === 'MS') return '08:00 AM – 04:30 PM';
+                    if (phase.shiftCode === 'ES') return '04:00 PM – 12:00 AM';
+                    if (phase.shiftCode === 'NS') return '10:00 PM – 06:30 AM';
+                    if (phase.shiftCode === 'GS') return '09:00 AM – 05:30 PM';
+                    return '08:00 AM – 04:30 PM';
+                  })()}
+                </p>
+                {idx < 3 && (
+                  <div className="hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 bg-card rounded-full border p-0.5 text-muted-foreground shadow-xs">
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
                 )}
               </div>
-              <p className="text-xs font-semibold text-foreground mt-1">
-                {phase.shiftCode} – {phase.shiftName}
-              </p>
-              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                {(() => {
-                  const s = shifts.find((sh) => sh.code === phase.shiftCode);
-                  if (s) return `${time24To12(s.startTime)} – ${time24To12(s.endTime)}`;
-                  if (phase.shiftCode === 'ES') return '04:00 PM – 12:00 AM';
-                  if (phase.shiftCode === 'GS') return '09:00 AM – 05:30 PM';
-                  if (phase.shiftCode === 'NS') return '10:00 PM – 06:30 AM';
-                  return '08:00 AM – 04:30 PM';
-                })()}
-              </p>
-              {idx < 3 && (
-                <div className="hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 bg-card rounded-full border p-0.5 text-muted-foreground shadow-xs">
-                  <ArrowRight className="h-3 w-3" />
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -783,19 +814,19 @@ export function ShiftRotationTab() {
                       </TableCell>
 
                       <TableCell>
-                        {rotLifecycle.isBeforeStart ? (
+                        {rot.status === 'Scheduled' || rot.status === 'Draft' ? (
                           <div className="flex flex-col gap-0.5">
                             <Badge variant="secondary" className="text-[10px] font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 w-fit">
                               Not Started
                             </Badge>
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[10px] text-muted-foreground font-mono">
                               Next: Phase 1 ({rotLifecycle.nextShiftCode})
                             </span>
                           </div>
                         ) : (
                           <div className="flex flex-col gap-0.5">
                             <Badge className="text-[10px] font-semibold bg-primary text-primary-foreground w-fit">
-                              {rotLifecycle.currentPhaseDisplay}
+                              Phase {rot.currentPhase || 1} — {rotLifecycle.currentShiftCode}
                             </Badge>
                             <span className="text-[10px] text-muted-foreground font-mono">
                               {rotLifecycle.currentShiftCode} – {rotLifecycle.currentShiftName}
@@ -805,7 +836,7 @@ export function ShiftRotationTab() {
                       </TableCell>
 
                       <TableCell className="font-mono text-xs whitespace-nowrap">
-                        {rotLifecycle.isBeforeStart ? (
+                        {rot.status === 'Scheduled' || rot.status === 'Draft' ? (
                           <div className="flex flex-col gap-0.5">
                             <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400">
                               Starts {formatDateDMY(rotLifecycle.startsDate)}
@@ -815,7 +846,14 @@ export function ShiftRotationTab() {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">{formatDateDMY(rotLifecycle.nextRolloverDate)}</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-foreground font-semibold">
+                              {formatDateDMY(rotLifecycle.nextRolloverDate)}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              Starts: {formatDateDMY(rotLifecycle.startsDate)}
+                            </span>
+                          </div>
                         )}
                       </TableCell>
 
@@ -827,21 +865,21 @@ export function ShiftRotationTab() {
                       </TableCell>
 
                       <TableCell>
-                        {rotLifecycle.status === 'Scheduled' ? (
+                        {rot.status === 'Active' ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 uppercase tracking-wide flex items-center gap-1 w-fit"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            ACTIVE
+                          </Badge>
+                        ) : rot.status === 'Scheduled' ? (
                           <Badge
                             variant="outline"
                             className="text-[10px] font-bold text-amber-700 bg-amber-50 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700 uppercase tracking-wide flex items-center gap-1 w-fit"
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                             SCHEDULED
-                          </Badge>
-                        ) : rotLifecycle.status === 'Active' ? (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 uppercase tracking-wide flex items-center gap-1 w-fit"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            ACTIVE
                           </Badge>
                         ) : (
                           <Badge
@@ -862,13 +900,14 @@ export function ShiftRotationTab() {
 
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {/* View Rotation Details */}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-                          title="View Details"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          title="View Rotation Details"
                           onClick={() => {
-                            setSelectedRotationForView(rot);
+                            setViewingRotation(rot);
                             setIsViewModalOpen(true);
                           }}
                         >
@@ -877,6 +916,55 @@ export function ShiftRotationTab() {
 
                         {canManageRotations && (
                           <>
+                            {/* 1. If SCHEDULED: show Start */}
+                            {rot.status === 'Scheduled' && (
+                              <Button
+                                size="sm"
+                                className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold shadow-2xs mr-1"
+                                title="Start Rotation & Generate Draft Roster"
+                                onClick={() => handleStartRotation(rot)}
+                              >
+                                <Play className="h-3 w-3 fill-current" /> Start
+                              </Button>
+                            )}
+
+                            {/* 2. If ACTIVE: show Pause + Advance */}
+                            {rot.status === 'Active' && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs text-amber-700 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1 font-medium"
+                                  title="Pause Rotation"
+                                  onClick={() => handleTogglePause(rot)}
+                                >
+                                  <Pause className="h-3.5 w-3.5" /> Pause
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs text-primary border-primary/30 hover:bg-primary/10 gap-1 font-medium"
+                                  title="Advance to Next Phase"
+                                  onClick={() => handleTriggerAdvance(rot)}
+                                >
+                                  <Play className="h-3.5 w-3.5 fill-current" /> Advance
+                                </Button>
+                              </>
+                            )}
+
+                            {/* 3. If PAUSED: show Resume */}
+                            {rot.status === 'Paused' && (
+                              <Button
+                                size="sm"
+                                className="h-7 px-2.5 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1 font-semibold shadow-2xs mr-1"
+                                title="Resume Rotation"
+                                onClick={() => handleTogglePause(rot)}
+                              >
+                                <Play className="h-3.5 w-3.5 fill-current" /> Resume
+                              </Button>
+                            )}
+
                             <Button
                               variant="ghost"
                               size="sm"
@@ -890,31 +978,11 @@ export function ShiftRotationTab() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 text-muted-foreground hover:text-amber-600"
-                              title={rot.status === 'Active' ? 'Pause Rotation' : 'Resume Rotation'}
-                              onClick={() => handleTogglePause(rot)}
-                            >
-                              <Pause className="h-3.5 w-3.5" />
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="sm"
                               className="h-7 w-7 p-0 text-muted-foreground hover:text-purple-600"
                               title="Duplicate Rotation Rule"
                               onClick={() => handleDuplicate(rot)}
                             >
                               <Copy className="h-3.5 w-3.5" />
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-                              title="Advance Next Phase Now"
-                              onClick={() => handleTriggerAdvance(rot)}
-                            >
-                              <Play className="h-3.5 w-3.5" />
                             </Button>
 
                             <Button
@@ -959,6 +1027,194 @@ export function ShiftRotationTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── 2.1 VIEW ROTATION DETAILS MODAL ── */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="sm:max-w-xl">
+          {viewingRotation && (() => {
+            const rotLife = getRotationLifecycle(viewingRotation, shifts);
+            const viewPhases = viewingRotation.phases && viewingRotation.phases.length > 0
+              ? viewingRotation.phases
+              : defaultPhases;
+
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle className="text-base font-bold flex items-center gap-2">
+                      <Eye className="h-4.5 w-4.5 text-primary" />
+                      {viewingRotation.name}
+                    </DialogTitle>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'text-[10px] font-bold uppercase tracking-wider',
+                        viewingRotation.status === 'Active' && 'text-emerald-700 bg-emerald-50 border-emerald-300',
+                        viewingRotation.status === 'Scheduled' && 'text-amber-700 bg-amber-50 border-amber-300',
+                        viewingRotation.status === 'Paused' && 'text-amber-600 bg-amber-50 border-amber-200'
+                      )}
+                    >
+                      {viewingRotation.status}
+                    </Badge>
+                  </div>
+                  <DialogDescription className="text-xs">
+                    Rule ID: <span className="font-mono">{viewingRotation.code || viewingRotation.id}</span> • Cadence: {viewingRotation.frequency}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="py-3 space-y-4 text-xs">
+                  {/* Summary Grid */}
+                  <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/40 border border-border/60">
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Applicable To</span>
+                      <span className="font-semibold text-foreground flex items-center gap-1 mt-0.5">
+                        <Building2 className="h-3.5 w-3.5 text-primary" />
+                        {viewingRotation.applicableTo || 'Department'} ({viewingRotation.department || 'All'})
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Current Phase</span>
+                      <span className="font-semibold text-foreground mt-0.5 block">
+                        {rotLife.currentPhaseDisplay}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Start Date</span>
+                      <span className="font-semibold text-foreground mt-0.5 block">
+                        {viewingRotation.startDate || '14-09-2026'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Next Rollover</span>
+                      <span className="font-semibold text-primary mt-0.5 block">
+                        {rotLife.nextRolloverDate}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Phases Sequence */}
+                  <div>
+                    <h5 className="font-semibold text-xs text-foreground mb-2 flex items-center gap-1.5">
+                      <RefreshCw className="h-3.5 w-3.5 text-primary" /> Rotation Pattern Progression
+                    </h5>
+                    <div className="grid grid-cols-2 gap-2">
+                      {viewPhases.map((phase) => {
+                        const isCurrent = viewingRotation.status === 'Active' && (viewingRotation.currentPhase || 1) === phase.phaseNumber;
+                        const isScheduledStart = viewingRotation.status === 'Scheduled' && phase.phaseNumber === 1;
+
+                        return (
+                          <div
+                            key={phase.phaseNumber}
+                            className={cn(
+                              'p-2.5 rounded-lg border text-xs relative',
+                              isCurrent
+                                ? 'bg-primary/10 border-primary/40'
+                                : 'bg-background border-border/70'
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-primary text-[11px]">
+                                Phase {phase.phaseNumber} ({phase.duration})
+                              </span>
+                              {isCurrent && (
+                                <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0">
+                                  Current
+                                </Badge>
+                              )}
+                              {isScheduledStart && (
+                                <Badge className="text-[8px] px-1 py-0 bg-amber-500/15 text-amber-700 border-amber-500/30">
+                                  Starts 14-09
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="font-medium text-foreground mt-1">
+                              {phase.shiftCode} — {phase.shiftName}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Personnel Covered */}
+                  <div className="p-3 rounded-lg border border-border/60 bg-background flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      <div>
+                        <p className="font-semibold text-foreground">Personnel Covered</p>
+                        <p className="text-[11px] text-muted-foreground">Assigned staff adhering to this rotational cycle</p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="font-bold">
+                      {viewingRotation.headcountCovered || 1} Staff
+                    </Badge>
+                  </div>
+                </div>
+
+                <DialogFooter className="flex items-center justify-between sm:justify-between pt-2 border-t border-border/60">
+                  <Button variant="outline" size="sm" onClick={() => setIsViewModalOpen(false)}>
+                    Close
+                  </Button>
+
+                  {canManageRotations && (
+                    <div className="flex items-center gap-2">
+                      {viewingRotation.status === 'Scheduled' && (
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs"
+                          onClick={() => {
+                            setIsViewModalOpen(false);
+                            handleStartRotation(viewingRotation);
+                          }}
+                        >
+                          <Play className="h-3 w-3 fill-current" /> Start Rotation
+                        </Button>
+                      )}
+                      {viewingRotation.status === 'Active' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-amber-700 border-amber-300 hover:bg-amber-50 gap-1 text-xs"
+                            onClick={() => {
+                              setIsViewModalOpen(false);
+                              handleTogglePause(viewingRotation);
+                            }}
+                          >
+                            <Pause className="h-3.5 w-3.5" /> Pause
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="gap-1 text-xs"
+                            onClick={() => {
+                              setIsViewModalOpen(false);
+                              handleTriggerAdvance(viewingRotation);
+                            }}
+                          >
+                            <Play className="h-3.5 w-3.5 fill-current" /> Advance Phase
+                          </Button>
+                        </>
+                      )}
+                      {viewingRotation.status === 'Paused' && (
+                        <Button
+                          size="sm"
+                          className="bg-amber-600 hover:bg-amber-700 text-white gap-1 text-xs"
+                          onClick={() => {
+                            setIsViewModalOpen(false);
+                            handleTogglePause(viewingRotation);
+                          }}
+                        >
+                          <Play className="h-3.5 w-3.5 fill-current" /> Resume
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* ── 3. ENTERPRISE CONFIGURE SHIFT ROTATION MODAL (MULTI-STEP WORKFLOW) ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -1717,146 +1973,6 @@ export function ShiftRotationTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* ── 4. VIEW ROTATION DETAILS MODAL ── */}
-      {selectedRotationForView && (
-        <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 text-primary" /> {selectedRotationForView.name}
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                Active rotation policy configuration, phase progression sequence, and personnel coverage.
-              </DialogDescription>
-            </DialogHeader>
-
-            {(() => {
-              const viewLifecycle = getRotationLifecycle(selectedRotationForView, shifts);
-              return (
-                <div className="space-y-3 py-2 text-xs">
-                  <div className="p-3 rounded-xl bg-muted/40 border grid grid-cols-2 gap-2.5 font-mono">
-                    <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Rotation Code
-                      </span>
-                      <span className="font-bold text-primary font-sans">{selectedRotationForView.code || 'ROT-PROD-001'}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Status
-                      </span>
-                      {viewLifecycle.status === 'Scheduled' ? (
-                        <Badge variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 uppercase tracking-wide">
-                          SCHEDULED
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 uppercase tracking-wide">
-                          {viewLifecycle.status}
-                        </Badge>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Applicable To
-                      </span>
-                      <span className="font-semibold text-foreground font-sans">
-                        {selectedRotationForView.applicableTo || 'Department'}: {selectedRotationForView.department}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Employees Covered
-                      </span>
-                      <span className="font-semibold text-foreground font-sans">{selectedRotationForView.headcountCovered} Staff</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Cadence
-                      </span>
-                      <span className="font-semibold text-foreground font-sans">{selectedRotationForView.frequency}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Current Phase
-                      </span>
-                      <span className="font-bold text-foreground font-sans">
-                        {viewLifecycle.isBeforeStart ? (
-                          <span className="text-amber-700 dark:text-amber-400 font-semibold">Not Started</span>
-                        ) : (
-                          `${viewLifecycle.currentPhaseDisplay} (${viewLifecycle.currentShiftCode})`
-                        )}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Next Phase
-                      </span>
-                      <span className="font-semibold text-foreground font-sans">{viewLifecycle.nextPhaseDisplay}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Starts
-                      </span>
-                      <span className="font-semibold text-foreground font-sans">{formatDateDMY(viewLifecycle.startsDate)}</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-[10px] text-muted-foreground uppercase font-sans font-semibold block">
-                        Next Rollover
-                      </span>
-                      <span className="font-semibold text-foreground font-sans">{formatDateDMY(viewLifecycle.nextRolloverDate)}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-semibold text-foreground block mb-1.5">Rotation Sequence & Pattern</Label>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {(selectedRotationForView.phases && selectedRotationForView.phases.length > 0
-                        ? selectedRotationForView.phases
-                        : selectedRotationForView.pattern.map((p, i) => ({
-                            phaseNumber: i + 1,
-                            shiftCode: p.split(' ')[0],
-                            shiftName: p,
-                            duration: '1 Week',
-                          }))
-                      ).map((p, idx, arr) => (
-                        <span key={idx} className="flex items-center gap-1.5">
-                          <Badge variant="outline" className="text-xs font-mono font-bold bg-card px-2 py-1">
-                            Phase {p.phaseNumber}: {p.shiftCode} ({p.duration})
-                          </Badge>
-                          {idx < arr.length - 1 && <span className="text-muted-foreground font-bold">→</span>}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {viewLifecycle.isBeforeStart ? (
-                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-2.5 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
-                      <span className="text-base leading-none">🟠</span>
-                      <div>
-                        <strong>Rotation Scheduled:</strong> Initial shifts (<strong>{viewLifecycle.nextPhaseDisplay}</strong>) will take effect on <strong>{formatDateDMY(viewLifecycle.startsDate)}</strong> for {selectedRotationForView.headcountCovered} staff in {selectedRotationForView.department}. First auto-rollover will occur on <strong>{formatDateDMY(viewLifecycle.nextRolloverDate)}</strong>.
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
-                      <span className="text-base leading-none">🟢</span>
-                      <div>
-                        <strong>Auto-Rollover Active:</strong> Currently on <strong>{viewLifecycle.currentPhaseDisplay} ({viewLifecycle.currentShiftCode})</strong> for {selectedRotationForView.headcountCovered} staff in {selectedRotationForView.department}. Shifts will advance automatically to <strong>{viewLifecycle.nextPhaseDisplay}</strong> on <strong>{formatDateDMY(viewLifecycle.nextRolloverDate)}</strong>.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            <DialogFooter>
-              <Button size="sm" variant="outline" onClick={() => setIsViewModalOpen(false)}>
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }

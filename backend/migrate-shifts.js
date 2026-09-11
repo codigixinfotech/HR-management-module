@@ -119,6 +119,27 @@ async function migrate() {
   `);
   console.log('✓ shift_swap_requests table verified');
 
+  // Ensure all columns exist in shift_swap_requests
+  const swapCols = [
+    { name: 'history', type: 'TEXT NULL' },
+    { name: 'reviewerRemarks', type: 'TEXT NULL' },
+    { name: 'approvedBy', type: 'VARCHAR(191) NULL' },
+    { name: 'approvedAt', type: 'DATETIME(3) NULL' },
+    { name: 'rejectedBy', type: 'VARCHAR(191) NULL' },
+    { name: 'rejectedAt', type: 'DATETIME(3) NULL' },
+    { name: 'cancelledBy', type: 'VARCHAR(191) NULL' },
+    { name: 'cancelledAt', type: 'DATETIME(3) NULL' },
+  ];
+
+  for (const col of swapCols) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE shift_swap_requests ADD COLUMN ${col.name} ${col.type}`);
+      console.log(`✓ Added column ${col.name} to shift_swap_requests`);
+    } catch (err) {
+      // Ignored if duplicate column
+    }
+  }
+
   // 7. Create shift_roster_batches table
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS shift_roster_batches (

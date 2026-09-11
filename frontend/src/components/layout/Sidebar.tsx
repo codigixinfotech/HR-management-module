@@ -84,44 +84,19 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
     }
 
     // Role-based visibility for Attendance & Leave
-    // Manager / HR / Admin: Attendance Register, Attendance Update Requests
-    // Employee: My Attendance Register (Attendance Update/Correction Requests HIDDEN)
+    // Manager / HR / Admin: Attendance Register
+    // Employee: My Attendance Register
     const isManagerOrAdmin = isManagerOrHrOrAdmin(user);
     base = base.map((mod) => {
       if (mod.key === 'attendance-leave' && mod.subItems) {
-        if (isManagerOrAdmin) {
-          const newSubs: SubModuleItem[] = [];
-          for (const sub of mod.subItems) {
-            if (sub.key === 'register') {
-              newSubs.push({ ...sub, label: 'Attendance Register' });
-              // Insert Attendance Update Requests right after Attendance Register
-              if (!mod.subItems.some((s) => s.key === 'attendance-requests')) {
-                newSubs.push({
-                  key: 'attendance-requests',
-                  label: 'Attendance Update Requests',
-                  path: '/attendance-leave/register?tab=requests',
-                });
-              }
-            } else if (sub.key === 'attendance-requests') {
-              newSubs.push(sub);
-            } else {
-              newSubs.push(sub);
-            }
-          }
-          return { ...mod, subItems: newSubs };
-        } else {
-          return {
-            ...mod,
-            subItems: mod.subItems
-              .filter(
-                (sub) =>
-                  sub.key !== 'attendance-requests' &&
-                  !sub.label.toLowerCase().includes('correction') &&
-                  !sub.label.toLowerCase().includes('update request')
-              )
-              .map((sub) => (sub.key === 'register' ? { ...sub, label: 'My Attendance Register' } : sub)),
-          };
-        }
+        return {
+          ...mod,
+          subItems: mod.subItems.map((sub) =>
+            sub.key === 'register'
+              ? { ...sub, label: isManagerOrAdmin ? 'Attendance Register' : 'My Attendance Register' }
+              : sub
+          ),
+        };
       }
       return mod;
     });

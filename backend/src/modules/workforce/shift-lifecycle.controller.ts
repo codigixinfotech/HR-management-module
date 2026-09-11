@@ -56,6 +56,18 @@ export class ShiftLifecycleController {
     return this.lifecycleService.createRotation(dto);
   }
 
+  @Post('rotations/:id/start')
+  @Permissions('workforce.write')
+  startRotation(@Param('id') id: string) {
+    return this.lifecycleService.startRotation(id);
+  }
+
+  @Post('rotations/:id/pause')
+  @Permissions('workforce.write')
+  pauseRotation(@Param('id') id: string) {
+    return this.lifecycleService.pauseRotation(id);
+  }
+
   @Post('rotations/:id/advance')
   @Permissions('workforce.write')
   advanceRotation(@Param('id') id: string) {
@@ -101,9 +113,18 @@ export class ShiftLifecycleController {
   @Permissions('workforce.write')
   resolveShiftSwap(
     @Param('id') id: string,
-    @Body() body: { status: 'Approved' | 'Rejected' },
+    @Body() body: { status: 'Approved' | 'Rejected'; remarks?: string; actorName?: string },
   ) {
-    return this.lifecycleService.resolveShiftSwap(id, body.status);
+    return this.lifecycleService.resolveShiftSwap(id, body.status, body.remarks, body.actorName);
+  }
+
+  @Patch('shift-swaps/:id/cancel')
+  @Permissions('workforce.write')
+  cancelShiftSwap(
+    @Param('id') id: string,
+    @Body() body: { reason?: string; actorName?: string },
+  ) {
+    return this.lifecycleService.cancelShiftSwap(id, body.reason, body.actorName);
   }
 
   // 5. Batches

@@ -214,6 +214,10 @@ export class HolidaysService {
       payrollImpact: row.payrollImpact || 'Paid Holiday',
       description: row.description || '',
       isActive: row.isActive === 1 || row.isActive === true,
+      branchId: row.branchId || null,
+      branchName: row.branchName || (row.applicableTo === 'Branch' ? row.applicableTarget : 'All Branches'),
+      applicableCategory: row.applicableCategory || 'All Employees',
+      otApplicable: row.otApplicable === undefined || row.otApplicable === null ? true : (row.otApplicable === 1 || row.otApplicable === true),
       createdAt: row.createdAt,
     };
   }
@@ -268,13 +272,19 @@ export class HolidaysService {
         : [dto.applicableTarget || 'All Company Entities']
     );
 
+    const branchId = dto.branchId || null;
+    const branchName = dto.branchName || (dto.applicableTo === 'Branch' ? dto.applicableTarget : 'All Branches');
+    const applicableCategory = dto.applicableCategory || 'All Employees';
+    const otApplicable = dto.otApplicable !== false ? 1 : 0;
+
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO holidays (
         id, companyId, name, date, type, isActive,
         category, scope, applicableLocations, isPaid, isOptional,
         attendanceOverride, payrollImpact, description, duration,
-        session, applicableTo, applicableTarget, createdAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`,
+        session, applicableTo, applicableTarget, branchId, branchName,
+        applicableCategory, otApplicable, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`,
       id,
       dto.companyId,
       dto.name.trim(),
@@ -292,7 +302,11 @@ export class HolidaysService {
       dto.duration || 'Full Day',
       dto.session || null,
       dto.applicableTo || 'Company',
-      dto.applicableTarget || 'All Company Entities'
+      dto.applicableTarget || 'All Company Entities',
+      branchId,
+      branchName,
+      applicableCategory,
+      otApplicable
     );
 
     // ── SYNC TO ATTENDANCE ──

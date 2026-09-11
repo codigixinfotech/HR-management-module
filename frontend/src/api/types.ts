@@ -782,6 +782,10 @@ export interface Holiday {
   date: string;
   type: string;
   isActive: boolean;
+  branchId?: string | null;
+  branchName?: string | null;
+  applicableCategory?: string | null;
+  otApplicable?: boolean;
 }
 
 export interface LeavePolicyConfig {

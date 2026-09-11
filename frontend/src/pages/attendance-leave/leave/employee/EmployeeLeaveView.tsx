@@ -23,6 +23,16 @@ import { useLeaveStore, type EmployeeLeaveSubTab } from '../../leaveStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
+import { StatCard } from '@/components/ui/stat-card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { isManagerOrHrOrAdmin } from '@/lib/modules';
+
 // Subcomponents
 import { MyLeaveOverviewTab } from './MyLeaveOverviewTab';
 import { MyLeaveBalanceTab } from './MyLeaveBalanceTab';
@@ -50,12 +60,18 @@ export function EmployeeLeaveView({
 }: EmployeeLeaveViewProps) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const canManage = isManagerOrHrOrAdmin(user);
 
   const { activeEmployeeSubTab, setActiveEmployeeSubTab } = useLeaveStore();
   const [preselectedTypeId, setPreselectedTypeId] = useState<string | undefined>(undefined);
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
 
-  // Determine current logged-in employee ID
+  // Determine current logged-in employee or admin preview selection
   const currentEmployee = useMemo(() => {
+    if (selectedEmpId && employees && employees.length > 0) {
+      const found = employees.find((e: any) => e.id === selectedEmpId);
+      if (found) return found;
+    }
     // 1. If user object has employee field
     if (user?.employee?.id) {
       return user.employee;
@@ -64,7 +80,9 @@ export function EmployeeLeaveView({
     if (employees && employees.length > 0) {
       if (user?.email) {
         const found = employees.find(
-          (e: any) => e.workEmail?.toLowerCase() === user.email.toLowerCase() || e.personalEmail?.toLowerCase() === user.email.toLowerCase()
+          (e: any) =>
+            e.workEmail?.toLowerCase() === user.email.toLowerCase() ||
+            e.personalEmail?.toLowerCase() === user.email.toLowerCase()
         );
         if (found) return found;
       }
@@ -78,7 +96,7 @@ export function EmployeeLeaveView({
       return employees[0];
     }
     return null;
-  }, [user, employees]);
+  }, [user, employees, selectedEmpId]);
 
   const currentEmployeeId = currentEmployee?.id || 'cmtr2qzm7006zip185kbklj96'; // Fallback to Sudarshan
 
@@ -172,119 +190,106 @@ export function EmployeeLeaveView({
   };
 
   const tabs: { key: EmployeeLeaveSubTab; label: string; icon: any; badge?: number }[] = [
-    { key: 'overview', label: 'Overview', icon: Sparkles },
-    { key: 'balance', label: 'Leave Balance', icon: FileSpreadsheet },
-    { key: 'apply', label: 'Apply Leave', icon: PlusCircle },
+    { key: 'overview', label: 'Overview Summary', icon: Sparkles },
     {
       key: 'requests',
-      label: 'My Requests',
+      label: 'My Applications',
       icon: FileText,
       badge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined,
     },
-    { key: 'history', label: 'Leave History', icon: History },
-    { key: 'calendar', label: 'My Calendar', icon: CalendarDays },
+    { key: 'balance', label: 'Leave Balances & Policies', icon: FileSpreadsheet },
+    { key: 'apply', label: 'Apply Leave', icon: PlusCircle },
+    { key: 'calendar', label: 'My Calendar & Holidays', icon: CalendarDays },
+    { key: 'history', label: 'Balance Ledger', icon: History },
   ];
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="space-y-4 font-sans">
       {/* ─────────────────────────────────────────────────────────────
-          1. PAGE HEADER (My Leave with Top Summary Cards)
+          1. PAGE HEADER (Enterprise Leave Self-Service)
           ───────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
-        <div className="space-y-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border/80 bg-card shadow-2xs">
+        <div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
-              Employee Self-Service
-            </span>
-            <span className="text-xs text-slate-400 font-medium font-mono">
-              {currentEmployee?.employeeCode || 'EMP-001'} • {currentEmployee?.department?.name || 'Production'}
+            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+              <Palmtree className="h-4 w-4 text-primary" />
+              <span>Employee Leave Self-Service</span>
+            </h2>
+            <Badge variant="outline" className="text-[10px] font-semibold bg-primary/10 text-primary border-primary/20">
+              Personal Portal
+            </Badge>
+            <span className="font-mono text-xs font-bold text-primary">
+              {currentEmployee?.employeeCode || 'EMP-001'}
             </span>
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-            <Palmtree className="h-6 w-6 text-indigo-600" />
-            <span>My Leave</span>
-          </h2>
-          <p className="text-xs text-slate-500">
-            Welcome back, <strong className="text-slate-700">{currentEmployee?.firstName || 'Employee'}</strong>! View your balances, apply for time-off, and check declared company holidays.
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Active persona: <strong className="text-foreground">{currentEmployee?.firstName} {currentEmployee?.lastName}</strong> • {currentEmployee?.department?.name || 'Production'} ({currentEmployee?.branch?.name || 'Pune Plant'}) — Live balance tracking, sandwich policy engine & company holidays
           </p>
         </div>
 
-        <Button
-          onClick={() => setActiveEmployeeSubTab('apply')}
-          className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs shrink-0 cursor-pointer"
-        >
-          <PlusCircle className="h-4 w-4" />
-          <span>Apply Leave</span>
-        </Button>
+        <div className="flex items-center gap-2.5">
+          {/* Persona selector for Admins */}
+          {canManage && employees && employees.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground hidden lg:inline">Colleague:</span>
+              <Select value={selectedEmpId || currentEmployeeId} onValueChange={setSelectedEmpId}>
+                <SelectTrigger className="h-8 w-48 text-xs bg-background">
+                  <SelectValue placeholder="Select Colleague" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id} className="text-xs">
+                      {e.firstName} {e.lastName} ({e.employeeCode})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <Button
+            size="sm"
+            onClick={() => setActiveEmployeeSubTab('apply')}
+            className="h-8 text-xs font-semibold shadow-2xs gap-1.5"
+          >
+            <PlusCircle className="h-3.5 w-3.5" />
+            Apply Leave
+          </Button>
+        </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          2. TOP SUMMARY CARDS (Available, Used, Pending, Upcoming)
+          2. TOP 4 ENTERPRISE STATCARDS
           ───────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        {/* Available */}
-        <div className="p-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/40 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
-              Total Available
-            </span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-black text-emerald-950 mt-1.5">
-            {totalAvailable} <span className="text-xs font-semibold text-emerald-700">Days</span>
-          </div>
-          <div className="text-[10px] text-emerald-700 mt-1 font-medium">
-            Ready to use this year
-          </div>
-        </div>
-
-        {/* Used */}
-        <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Leave Taken (Used)
-            </span>
-            <TrendingUp className="h-4 w-4 text-slate-400" />
-          </div>
-          <div className="text-2xl font-black text-slate-900 mt-1.5">
-            {totalUsed} <span className="text-xs font-semibold text-slate-400">Days</span>
-          </div>
-          <div className="text-[10px] text-slate-400 mt-1 font-medium">
-            Approved & consumed
-          </div>
-        </div>
-
-        {/* Pending Requests */}
-        <div className="p-4 rounded-2xl border border-amber-200/90 bg-amber-50/40 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
-              Pending Requests
-            </span>
-            <Clock className="h-4 w-4 text-amber-600" />
-          </div>
-          <div className="text-2xl font-black text-amber-950 mt-1.5">
-            {pendingRequestsCount} <span className="text-xs font-semibold text-amber-700">Requests</span>
-          </div>
-          <div className="text-[10px] text-amber-700 mt-1 font-medium">
-            Awaiting manager signoff
-          </div>
-        </div>
-
-        {/* Upcoming Leave */}
-        <div className="p-4 rounded-2xl border border-indigo-200/90 bg-indigo-50/40 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-800">
-              Upcoming Leave
-            </span>
-            <Calendar className="h-4 w-4 text-indigo-600" />
-          </div>
-          <div className="text-2xl font-black text-indigo-950 mt-1.5">
-            {upcomingLeaveCount} <span className="text-xs font-semibold text-indigo-700">Scheduled</span>
-          </div>
-          <div className="text-[10px] text-indigo-700 mt-1 font-medium">
-            Future approved / pending
-          </div>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard
+          icon={CheckCircle2}
+          label="Total Available Balance"
+          value={`${totalAvailable} Days`}
+          hint="Casual, Sick, Earned & Comp Off"
+          accent="success"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Leave Taken (YTD)"
+          value={`${totalUsed} Days`}
+          hint="Approved & Deducted in 2026"
+          accent="primary"
+        />
+        <StatCard
+          icon={Clock}
+          label="Pending Review"
+          value={`${pendingRequestsCount} Requests`}
+          hint="Awaiting Approver Sign-Off"
+          accent="warning"
+        />
+        <StatCard
+          icon={Calendar}
+          label="Upcoming Leave"
+          value={`${upcomingLeaveCount} Scheduled`}
+          hint="Future Approved / Applied"
+          accent="info"
+        />
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -301,14 +306,14 @@ export function EmployeeLeaveView({
               onClick={() => setActiveEmployeeSubTab(tab.key)}
               className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                 isActive
-                  ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40 rounded-t-lg font-bold'
+                  ? 'border-primary text-primary bg-primary/5 rounded-t-lg'
                   : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-t-lg'
               }`}
             >
               <Icon className="h-4 w-4" />
               <span>{tab.label}</span>
               {tab.badge !== undefined && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse">
                   {tab.badge}
                 </span>
               )}

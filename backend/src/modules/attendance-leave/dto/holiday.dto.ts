@@ -49,6 +49,22 @@ export class CreateHolidayDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
+  branchName?: string;
+
+  @IsOptional()
+  @IsString()
+  applicableCategory?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  otApplicable?: boolean;
 }
 
 export class UpdateHolidayDto extends PartialType(CreateHolidayDto) {}

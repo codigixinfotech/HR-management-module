@@ -57,6 +57,10 @@ export const shiftRotationsApi = {
     (await apiClient.get<any[]>('/workforce/rotations', { params: { companyId } })).data,
   create: async (payload: any) =>
     (await apiClient.post('/workforce/rotations', payload)).data,
+  start: async (id: string) =>
+    (await apiClient.post(`/workforce/rotations/${id}/start`)).data,
+  pause: async (id: string) =>
+    (await apiClient.post(`/workforce/rotations/${id}/pause`)).data,
   advance: async (id: string) =>
     (await apiClient.post(`/workforce/rotations/${id}/advance`)).data,
 };
@@ -75,8 +79,10 @@ export const shiftSwapsApi = {
     (await apiClient.get<any[]>('/workforce/shift-swaps', { params: { companyId } })).data,
   create: async (payload: any) =>
     (await apiClient.post('/workforce/shift-swaps', payload)).data,
-  resolve: async (id: string, payload: { status: 'Approved' | 'Rejected' }) =>
+  resolve: async (id: string, payload: { status: 'Approved' | 'Rejected'; remarks?: string; actorName?: string }) =>
     (await apiClient.patch(`/workforce/shift-swaps/${id}/resolve`, payload)).data,
+  cancel: async (id: string, payload?: { reason?: string; actorName?: string }) =>
+    (await apiClient.patch(`/workforce/shift-swaps/${id}/cancel`, payload || {})).data,
 };
 
 export const shiftBatchesApi = {

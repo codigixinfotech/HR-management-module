@@ -74,3 +74,23 @@ export const attendanceApi = {
   update: async (id: string, payload: Partial<AttendanceRecord>) =>
     (await apiClient.patch<AttendanceRecord>(`/attendance-leave/attendance/${id}`, payload)).data,
 };
+
+export const overtimeApi = {
+  list: async (params?: { companyId?: string; status?: string; from?: string; to?: string; search?: string }) =>
+    (await apiClient.get<any[]>('/attendance-leave/overtime', { params })).data,
+  getPolicies: async () =>
+    (await apiClient.get<any[]>('/attendance-leave/overtime/policies')).data,
+  createPolicy: async (payload: any) =>
+    (await apiClient.post<any>('/attendance-leave/overtime/policies', payload)).data,
+  updatePolicyStatus: async (id: string, status: 'Active' | 'Inactive') =>
+    (await apiClient.patch<any>(`/attendance-leave/overtime/policies/${id}/status`, { status })).data,
+  getWageRate: async (employeeId: string) =>
+
+    (await apiClient.get<any>(`/attendance-leave/overtime/wage-rate/${employeeId}`)).data,
+  sync: async (companyId?: string) =>
+    (await apiClient.post<any>('/attendance-leave/overtime/sync', null, { params: { companyId } })).data,
+  createManual: async (payload: any) =>
+    (await apiClient.post<any>('/attendance-leave/overtime/manual', payload)).data,
+  updateStatus: async (id: string, payload: { status: 'APPROVED' | 'REJECTED'; approvedBy?: string; rejectionReason?: string }) =>
+    (await apiClient.patch<any>(`/attendance-leave/overtime/${id}/status`, payload)).data,
+};

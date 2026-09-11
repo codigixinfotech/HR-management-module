@@ -2,10 +2,14 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { MarkAttendanceDto, UpdateAttendanceDto } from './dto/attendance.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { OvertimeService } from './overtime.service';
 
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly overtimeService: OvertimeService,
+  ) {}
 
   private readonly listInclude = {
     employee: {
@@ -578,12 +582,21 @@ export class AttendanceService {
       computedStatus,
     });
 
+    // Automatically trigger Overtime Engine calculation from attendance punches
+    try {
+      if (savedRecord.checkIn && savedRecord.checkOut) {
+        await this.overtimeService.processAttendanceRecord(savedRecord);
+      }
+    } catch (otErr) {
+      console.error('[OVERTIME ENGINE ERROR IN MARK]', otErr);
+    }
+
     return { ...savedRecord, status: computedStatus };
   }
 
   async update(id: string, dto: UpdateAttendanceDto) {
     await this.findById(id);
-    return this.prisma.attendanceRecord.update({
+    const updated = await this.prisma.attendanceRecord.update({
       where: { id },
       data: {
         ...dto,
@@ -593,5 +606,16 @@ export class AttendanceService {
       },
       include: this.listInclude,
     });
+
+    // Automatically trigger Overtime Engine calculation on attendance update
+    try {
+      if (updated.checkIn && updated.checkOut) {
+        await this.overtimeService.processAttendanceRecord(updated);
+      }
+    } catch (otErr) {
+      console.error('[OVERTIME ENGINE ERROR IN UPDATE]', otErr);
+    }
+
+    return updated;
   }
 }

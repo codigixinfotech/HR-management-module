@@ -9,6 +9,8 @@ import { LeaveRequestsController } from './leave-requests.controller';
 import { LeaveRequestsService } from './leave-requests.service';
 import { AttendanceController } from './attendance.controller';
 import { AttendanceService } from './attendance.service';
+import { OvertimeController } from './overtime.controller';
+import { OvertimeService } from './overtime.service';
 
 @Module({
   controllers: [
@@ -17,6 +19,7 @@ import { AttendanceService } from './attendance.service';
     LeaveBalancesController,
     LeaveRequestsController,
     AttendanceController,
+    OvertimeController,
   ],
   providers: [
     LeaveTypesService,
@@ -24,6 +27,7 @@ import { AttendanceService } from './attendance.service';
     LeaveBalancesService,
     LeaveRequestsService,
     AttendanceService,
+    OvertimeService,
   ],
   exports: [
     LeaveTypesService,
@@ -31,6 +35,7 @@ import { AttendanceService } from './attendance.service';
     LeaveBalancesService,
     LeaveRequestsService,
     AttendanceService,
+    OvertimeService,
   ],
 })
 export class AttendanceLeaveModule {}
