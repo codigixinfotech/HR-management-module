@@ -16,8 +16,11 @@ import {
   List,
   Building2,
   Layers,
+  ShieldCheck,
+  Key,
 } from 'lucide-react';
 import { branchesApi, locationsApi } from '@/api/organization';
+import { BranchAdminAccessModal } from './BranchAdminAccessModal';
 import { employeesApi } from '@/api/employees';
 import type { Branch, Company } from '@/api/types';
 import { Button } from '@/components/ui/button';
@@ -159,6 +162,15 @@ export function BranchesTab({
   const [activeBranchForLocation, setActiveBranchForLocation] = useState<Branch | null>(null);
   const [addressOverridden, setAddressOverridden] = useState(false);
 
+  // Branch Admin Access Modal state
+  const [accessModalOpen, setAccessModalOpen] = useState(false);
+  const [selectedBranchForAccess, setSelectedBranchForAccess] = useState<Branch | null>(null);
+
+  const handleOpenBranchAccess = (branch: Branch) => {
+    setSelectedBranchForAccess(branch);
+    setAccessModalOpen(true);
+  };
+
   const { data: branches, isLoading } = useQuery({
     queryKey: ['branches', companyId],
     queryFn: () => branchesApi.list(companyId),
@@ -235,8 +247,12 @@ export function BranchesTab({
     },
     onSuccess: (data: any, _variables) => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
-      toast.success(editing ? 'Branch updated' : 'Branch created');
+      toast.success(editing ? 'Branch updated' : 'Branch created successfully');
       closeBranchModal();
+      if (!editing && data?.id) {
+        setSelectedBranchForAccess(data);
+        setAccessModalOpen(true);
+      }
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
   });
@@ -829,6 +845,15 @@ export function BranchesTab({
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-7 w-7 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                          title="Branch Admin Access"
+                          onClick={() => handleOpenBranchAccess(branch)}
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-foreground"
                           onClick={() => openEdit(branch)}
                         >
@@ -931,6 +956,22 @@ export function BranchesTab({
                         </p>
                       )}
                     </div>
+
+                    {/* Branch Admin Access Card Footer */}
+                    <div className="pt-2.5 flex items-center justify-between border-t border-border/40">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs gap-1.5 font-medium border-indigo-500/30 text-indigo-600 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/20 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                        onClick={() => handleOpenBranchAccess(branch)}
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                        Branch Admin Access
+                      </Button>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Role: BRANCH_ADMIN
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
@@ -983,6 +1024,15 @@ export function BranchesTab({
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                        title="Branch Admin Access"
+                        onClick={() => handleOpenBranchAccess(branch)}
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(branch)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -1002,6 +1052,13 @@ export function BranchesTab({
           </Table>
         )}
       </CardContent>
+
+      <BranchAdminAccessModal
+        branch={selectedBranchForAccess}
+        companyName={companies.find((c) => c.id === (selectedBranchForAccess?.companyId || companyId))?.name}
+        open={accessModalOpen}
+        onOpenChange={setAccessModalOpen}
+      />
     </Card>
   );
 }

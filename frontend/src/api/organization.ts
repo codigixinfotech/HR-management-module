@@ -9,6 +9,22 @@ export const companiesApi = {
   remove: async (id: string) => (await apiClient.delete(`/organization/companies/${id}`)).data,
 };
 
+export interface BranchAdminAccess {
+  success: boolean;
+  role: string;
+  adminEmail: string;
+  branchId: string;
+  branchName: string;
+  branchCode: string;
+  companyId: string;
+  companyName: string;
+  companyCode: string;
+  accessScope: string;
+  loginUrl: string;
+  invitationUrl: string;
+  invitationStatus: 'ACTIVATED' | 'DISPATCHED';
+}
+
 export const branchesApi = {
   list: async (companyId?: string) =>
     (await apiClient.get<Branch[]>('/organization/branches', { params: { companyId } })).data,
@@ -16,6 +32,18 @@ export const branchesApi = {
   update: async (id: string, payload: Partial<Branch>) =>
     (await apiClient.patch<Branch>(`/organization/branches/${id}`, payload)).data,
   remove: async (id: string) => (await apiClient.delete(`/organization/branches/${id}`)).data,
+  getAdminAccess: async (branchId: string) =>
+    (await apiClient.get<BranchAdminAccess>(`/organization/branches/${branchId}/admin-access`)).data,
+  updateAdminEmail: async (branchId: string, email: string) =>
+    (await apiClient.patch<{ success: boolean; message: string; invitationUrl: string; adminEmail: string }>(
+      `/organization/branches/${branchId}/admin-email`,
+      { email },
+    )).data,
+  resendInvitation: async (branchId: string, email?: string) =>
+    (await apiClient.post<{ success: boolean; message: string; invitationUrl: string; adminEmail: string }>(
+      `/organization/branches/${branchId}/resend-invitation`,
+      { email },
+    )).data,
 };
 
 export const locationsApi = {

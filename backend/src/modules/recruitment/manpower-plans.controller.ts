@@ -12,7 +12,7 @@ import { ManpowerPlansService } from './manpower-plans.service';
 import { CreateManpowerPlanDto, UpdateManpowerPlanDto } from './dto/manpower-plan.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
+import { getTenantCompanyId, getTenantBranchId } from '../../common/utils/tenant-context.util';
 
 @Controller('recruitment/manpower-plans')
 export class ManpowerPlansController {
@@ -26,7 +26,8 @@ export class ManpowerPlansController {
     @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.manpowerPlansService.list(tenantCompanyId, branchId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.manpowerPlansService.list(tenantCompanyId, tenantBranchId);
   }
 
   @Get('count-active')
@@ -41,7 +42,8 @@ export class ManpowerPlansController {
     @Query('designationId') designationId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.manpowerPlansService.countActiveStaff(departmentName, role, tenantCompanyId, departmentId, designationId, branchId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.manpowerPlansService.countActiveStaff(departmentName, role, tenantCompanyId, departmentId, designationId, tenantBranchId);
   }
 
   @Get(':id')

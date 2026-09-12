@@ -4,6 +4,9 @@ export interface CurrentUserPayload {
   userId: string;
   email: string;
   companyId: string | null;
+  companyName?: string | null;
+  branchId: string | null;
+  branchName?: string | null;
   mustResetPassword?: boolean;
   permissions: string[];
   roles: string[];
@@ -18,6 +21,8 @@ export interface CurrentUserPayload {
     departmentName: string | null;
     designationId: string | null;
     designationTitle: string | null;
+    branchId?: string | null;
+    branchName?: string | null;
   } | null;
 }
 

@@ -130,10 +130,11 @@ export class EmployeesService implements OnModuleInit {
     };
   }
 
-  async list(query: PaginationQueryDto, companyId?: string) {
+  async list(query: PaginationQueryDto, companyId?: string, branchId?: string) {
     const { skip, take, page, pageSize } = buildPagination(query);
     const where = {
       ...(companyId ? { companyId } : {}),
+      ...(branchId ? { branchId } : {}),
       ...(query.search
         ? {
           OR: [

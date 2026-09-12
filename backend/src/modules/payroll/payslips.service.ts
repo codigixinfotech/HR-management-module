@@ -12,11 +12,12 @@ export class PayslipsService {
     components: true,
   };
 
-  list(payrollRunId?: string, employeeId?: string) {
+  list(payrollRunId?: string, employeeId?: string, branchId?: string) {
     return this.prisma.payslip.findMany({
       where: {
         ...(payrollRunId ? { payrollRunId } : {}),
         ...(employeeId ? { employeeId } : {}),
+        ...(branchId ? { employee: { branchId } } : {}),
       },
       include: this.listInclude,
       orderBy: { createdAt: 'asc' },

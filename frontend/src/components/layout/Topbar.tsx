@@ -63,7 +63,35 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
     navigate('/login');
   };
 
-  const isSuperAdmin = user?.isSuperAdmin || user?.role === 'Super Admin';
+  const isBranchAdmin = useMemo(() => {
+    return (
+      user?.role === 'Branch Admin' ||
+      user?.primaryRole === 'Branch Admin' ||
+      user?.roles?.some((r) => r.toUpperCase().includes('BRANCH_ADMIN')) ||
+      false
+    );
+  }, [user]);
+
+  const isCompanyAdmin = useMemo(() => {
+    return (
+      user?.role === 'Company Admin' ||
+      user?.primaryRole === 'Company Admin' ||
+      user?.roles?.some((r) => r.toUpperCase().includes('COMPANY_ADMIN')) ||
+      false
+    );
+  }, [user]);
+
+  const isSuperAdmin = useMemo(() => {
+    if (isBranchAdmin || isCompanyAdmin) return false;
+    return (
+      user?.isSuperAdmin ||
+      user?.role === 'Super Admin' ||
+      user?.primaryRole === 'Super Admin' ||
+      user?.roles?.some((r) => r.toUpperCase().includes('SUPER_ADMIN')) ||
+      false
+    );
+  }, [user, isBranchAdmin, isCompanyAdmin]);
+
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
 
   const userInitials = useMemo(() => {
@@ -76,13 +104,14 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
   }, [user?.name]);
 
   const roleDisplay = useMemo(() => {
-    if (isSuperAdmin || user?.role === 'Super Admin' || user?.primaryRole?.toUpperCase().includes('ADMIN')) return 'Super Admin';
+    if (isBranchAdmin) return 'Branch Admin';
+    if (isCompanyAdmin) return 'Company Admin';
+    if (isSuperAdmin) return 'Super Admin';
     if (user?.role) return user.role;
     if (user?.primaryRole) return user.primaryRole;
     if (user?.roles && user.roles.length > 0) return user.roles[0];
-    if (user?.name?.toLowerCase().includes('admin') || user?.email?.toLowerCase().includes('admin')) return 'Super Admin';
     return 'Employee';
-  }, [isSuperAdmin, user]);
+  }, [isBranchAdmin, isCompanyAdmin, isSuperAdmin, user]);
 
   const departmentName = useMemo(() => {
     if (user?.departmentName) return user.departmentName;
@@ -279,7 +308,13 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
                 {isSuperAdmin && (
                   <ShieldCheck className="h-3 w-3 text-primary inline" />
                 )}
-                {roleDisplay}{departmentName ? ` • ${departmentName}` : ''}
+                {isBranchAdmin && (
+                  <ShieldCheck className="h-3 w-3 text-indigo-600 inline" />
+                )}
+                {isCompanyAdmin && (
+                  <ShieldCheck className="h-3 w-3 text-emerald-600 inline" />
+                )}
+                {roleDisplay}{user?.branchName ? ` • ${user.branchName}` : (departmentName ? ` • ${departmentName}` : '')}
               </span>
             </div>
 
@@ -297,6 +332,13 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
                 <p className="text-xs leading-none text-muted-foreground font-mono">
                   {user?.email || 'user@codigix.com'}
                 </p>
+                {user?.branchName && (
+                  <div className="pt-1">
+                    <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded border border-indigo-500/20">
+                      Branch: {user.branchName}
+                    </span>
+                  </div>
+                )}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

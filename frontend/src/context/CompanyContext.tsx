@@ -92,10 +92,23 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 };
 
+const defaultCompanyContext: CompanyContextType = {
+  activeCompanyId: undefined,
+  activeCompany: undefined,
+  companies: [],
+  isLoading: false,
+  setActiveCompanyId: () => {},
+};
+
 export const useCompany = () => {
   const context = useContext(CompanyContext);
   if (!context) {
-    throw new Error('useCompany must be used within a CompanyProvider');
+    const user = useAuthStore.getState().user;
+    return {
+      ...defaultCompanyContext,
+      activeCompanyId: user?.companyId || undefined,
+    };
   }
   return context;
 };
+

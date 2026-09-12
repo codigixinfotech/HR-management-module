@@ -22,12 +22,13 @@ export class ManpowerRequisitionsService {
     return candidate;
   }
 
-  async list(companyId?: string, status?: string) {
+  async list(companyId?: string, status?: string, branchId?: string) {
     return this.prisma.manpowerRequisition.findMany({
       where: {
         isActive: true,
         ...(companyId ? { companyId } : {}),
         ...(status ? { status } : {}),
+        ...(branchId ? { branchId } : {}),
       },
       include: {
         department: true,

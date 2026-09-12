@@ -16,13 +16,13 @@ import {
 } from './dto/manpower-requisition.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
+import { getTenantCompanyId, getTenantBranchId } from '../../common/utils/tenant-context.util';
 
 @Controller('recruitment/manpower-requisitions')
 export class ManpowerRequisitionsController {
   constructor(private readonly mrService: ManpowerRequisitionsService) {}
 
-  @Get('next-number')
+  @Get('next-mr-number')
   @Permissions('recruitment.read')
   getNextMrNumber() {
     return this.mrService.generateNextMrNumber();
@@ -34,9 +34,11 @@ export class ManpowerRequisitionsController {
     @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
     @Query('status') status?: string,
+    @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.mrService.list(tenantCompanyId, status);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.mrService.list(tenantCompanyId, status, tenantBranchId);
   }
 
   @Get(':id')

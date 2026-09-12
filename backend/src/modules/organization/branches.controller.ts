@@ -26,7 +26,31 @@ export class BranchesController {
     @Query('companyId') companyId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.branchesService.list(tenantCompanyId);
+    return this.branchesService.list(tenantCompanyId, user);
+  }
+
+  @Get(':id/admin-access')
+  @Permissions('organization.branches.read')
+  getAdminAccess(@Param('id') id: string) {
+    return this.branchesService.getBranchAdminAccess(id);
+  }
+
+  @Patch(':id/admin-email')
+  @Permissions('organization.branches.write')
+  updateAdminEmail(
+    @Param('id') id: string,
+    @Body('email') email: string,
+  ) {
+    return this.branchesService.updateBranchAdminEmail(id, email);
+  }
+
+  @Post(':id/resend-invitation')
+  @Permissions('organization.branches.write')
+  resendInvitation(
+    @Param('id') id: string,
+    @Body('email') email?: string,
+  ) {
+    return this.branchesService.resendBranchInvitation(id, email);
   }
 
   @Get(':id')

@@ -11,16 +11,27 @@ export interface AuthUserEmployee {
   departmentName: string | null;
   designationId: string | null;
   designationTitle: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
 }
 
 export interface AuthUser {
-  userId: string;
+  userId?: string;
+  id?: string;
   email: string;
   companyId: string | null;
+  companyName?: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
   mustResetPassword?: boolean;
   permissions: string[];
   roles?: string[];
   primaryRole?: string;
+  role?: string;
+  name?: string;
+  isSuperAdmin?: boolean;
+  departmentName?: string;
+  department?: { name?: string };
   employee?: AuthUserEmployee | null;
 }
 

@@ -12,7 +12,7 @@ import { DepartmentsService } from './departments.service';
 import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
+import { getTenantCompanyId, getTenantBranchId } from '../../common/utils/tenant-context.util';
 
 @Controller('organization/departments')
 export class DepartmentsController {
@@ -26,7 +26,8 @@ export class DepartmentsController {
     @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.departmentsService.list(tenantCompanyId, branchId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.departmentsService.list(tenantCompanyId, tenantBranchId);
   }
 
   @Get(':id')

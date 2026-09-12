@@ -7,6 +7,10 @@ export class ListEmployeesQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 }
 
 export class CreateEmployeeDto {

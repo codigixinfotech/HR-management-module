@@ -27,6 +27,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
+        company: true,
+        branch: true,
         roles: {
           include: {
             role: {
@@ -38,6 +40,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           include: {
             department: true,
             designation: true,
+            branch: true,
           },
         },
       },
@@ -53,7 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!employeeRecord) {
       const matchedEmp = await this.prisma.employee.findFirst({
         where: { OR: [{ userId: user.id }, { workEmail: user.email }] },
-        include: { department: true, designation: true },
+        include: { department: true, designation: true, branch: true },
       });
       if (matchedEmp) {
         if (!matchedEmp.userId) {
@@ -78,6 +81,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         employeeRecord = await this.prisma.employee.create({
           data: {
             companyId: company?.id || 'default-company',
+            branchId: user.branchId,
             userId: user.id,
             employeeCode: empCode,
             firstName,
@@ -86,7 +90,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             status: 'ACTIVE',
             dateOfJoining: new Date(),
           },
-          include: { department: true, designation: true },
+          include: { department: true, designation: true, branch: true },
         });
       }
     }
@@ -111,6 +115,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     let primaryRole = 'Employee';
     if (isSuperAdmin) {
       primaryRole = 'Super Admin';
+    } else if (rolesList.includes('BRANCH_ADMIN')) {
+      primaryRole = 'Branch Admin';
+    } else if (rolesList.includes('COMPANY_ADMIN')) {
+      primaryRole = 'Company Admin';
     } else if (rolesList.includes('IT_ADMIN')) {
       primaryRole = 'IT Admin';
     } else if (rolesList.includes('HR_MANAGER')) {
@@ -132,10 +140,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ? `${employeeRecord.firstName} ${employeeRecord.lastName}`.trim()
       : user.email.split('@')[0];
 
+    const effectiveBranchId = user.branchId || employeeRecord?.branchId || null;
+    const effectiveBranchName = (user as any).branch?.name || employeeRecord?.branch?.name || null;
+    const effectiveCompanyName = user.company?.name || null;
+
     return {
       userId: user.id,
       email: user.email,
       companyId: user.companyId,
+      companyName: effectiveCompanyName,
+      branchId: effectiveBranchId,
+      branchName: effectiveBranchName,
       mustResetPassword: user.mustResetPassword,
       permissions,
       roles: rolesList,
@@ -151,6 +166,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             departmentName: employeeRecord.department?.name || null,
             designationId: employeeRecord.designationId,
             designationTitle: employeeRecord.designation?.title || null,
+            branchId: employeeRecord.branchId || effectiveBranchId,
+            branchName: employeeRecord.branch?.name || effectiveBranchName,
           }
         : null,
     };

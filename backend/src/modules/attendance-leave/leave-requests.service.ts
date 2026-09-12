@@ -39,12 +39,14 @@ export class LeaveRequestsService {
     employeeId?: string,
     status?: ApprovalStatus,
     companyId?: string,
+    branchId?: string,
   ) {
     const { skip, take, page, pageSize } = buildPagination(query);
     const where = {
       ...(employeeId ? { employeeId } : {}),
       ...(status ? { status } : {}),
       ...(companyId ? { companyId } : {}),
+      ...(branchId ? { employee: { branchId } } : {}),
     };
 
     const [rawItems, total] = await this.prisma.$transaction([

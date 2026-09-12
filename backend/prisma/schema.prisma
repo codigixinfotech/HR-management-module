@@ -131,6 +131,7 @@ enum IncidentStatus {
 model User {
   id                String    @id @default(cuid())
   companyId         String?
+  branchId          String?
   email             String    @unique
   passwordHash      String
   isActive          Boolean   @default(true)
@@ -140,12 +141,14 @@ model User {
   updatedAt         DateTime  @updatedAt
 
   company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  branch        Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
   roles         UserRole[]
   employee      Employee?
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
 
   @@index([companyId])
+  @@index([branchId])
   @@map("users")
 }
 
@@ -350,6 +353,7 @@ model Branch {
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   departments Department[]
   employees   Employee[]
+  users       User[]
   locations   Location[]
   costCenters CostCenter[]
   travelBookings TravelBooking[]

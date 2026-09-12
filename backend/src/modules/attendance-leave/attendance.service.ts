@@ -115,6 +115,14 @@ export class AttendanceService {
       }
     }
 
+    const isBranchAdmin =
+      user?.roles?.some((r) => r.toUpperCase().includes('BRANCH_ADMIN')) ||
+      user?.primaryRole?.toUpperCase().includes('BRANCH_ADMIN');
+
+    const branchFilter = isBranchAdmin && user?.branchId
+      ? { employee: { branchId: user.branchId } }
+      : {};
+
     const records = await this.prisma.attendanceRecord.findMany({
       where: {
         ...(targetEmployeeId
@@ -126,6 +134,7 @@ export class AttendanceService {
             }
           : {}),
         ...(companyId ? { companyId } : {}),
+        ...branchFilter,
         ...(from || to
           ? {
               date: {
