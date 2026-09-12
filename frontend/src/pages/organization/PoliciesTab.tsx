@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -553,6 +554,16 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
                         <span>•</span>
                         <span className="font-mono text-[10px]">{p.fileSize || '1.5 MB PDF'}</span>
                       </p>
+
+                      {p.description && (
+                        <div
+                          className="mt-3 text-xs text-muted-foreground/90 bg-muted/30 rounded-lg p-2.5 border border-border/50 line-clamp-3 leading-relaxed whitespace-pre-line cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => openViewModal(p)}
+                          title={p.description}
+                        >
+                          {p.description}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-4 space-y-3 border-t border-border/50 pt-3">
@@ -622,8 +633,21 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
                   return (
                     <TableRow key={p.id} className="hover:bg-muted/40 transition-colors">
                       <TableCell className="font-mono text-xs font-semibold text-primary">{p.policyCode}</TableCell>
-                      <TableCell className="font-semibold text-xs text-foreground cursor-pointer hover:underline" onClick={() => openViewModal(p)}>
-                        {p.title}
+                      <TableCell className="text-xs text-foreground max-w-xs">
+                        <span
+                          className="font-semibold cursor-pointer hover:underline text-foreground block hover:text-primary transition-colors"
+                          onClick={() => openViewModal(p)}
+                        >
+                          {p.title}
+                        </span>
+                        {p.description && (
+                          <span
+                            className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5 block whitespace-pre-line"
+                            title={p.description}
+                          >
+                            {p.description}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-xs">
                         <Badge variant="outline" className="text-[10px] font-normal">
@@ -701,7 +725,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">Policy Code *</Label>
                 <Input
-                  placeholder="e.g. POL-07"
+                  placeholder=""
                   value={formCode}
                   onChange={(e) => setFormCode(e.target.value)}
                   className="h-9 text-xs font-mono"
@@ -728,7 +752,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Policy Document Title *</Label>
               <Input
-                placeholder="e.g. Environmental Sustainability & Social Responsibility"
+                placeholder="Policy document title"
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
                 className="h-9 text-xs"
@@ -739,7 +763,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">Version Tag *</Label>
                 <Input
-                  placeholder="e.g. v1.0"
+                  placeholder="v1.0"
                   value={formVersion}
                   onChange={(e) => setFormVersion(e.target.value)}
                   className="h-9 text-xs font-mono"
@@ -760,12 +784,20 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Policy Summary / Description</Label>
-              <Input
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Policy Summary / Description</Label>
+                {formDescription.length > 0 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {formDescription.length} characters
+                  </span>
+                )}
+              </div>
+              <Textarea
                 placeholder="Brief summary of governance rules and guidelines..."
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
-                className="h-9 text-xs"
+                rows={4}
+                className="min-h-[85px] max-h-[220px] text-xs resize-y leading-relaxed"
               />
             </div>
 
@@ -892,7 +924,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
                   <span className="font-semibold text-foreground flex items-center gap-1">
                     <Info className="h-3.5 w-3.5 text-primary" /> Overview & Summary
                   </span>
-                  <p className="text-muted-foreground leading-relaxed p-2.5 bg-card border rounded-lg">
+                  <p className="text-muted-foreground leading-relaxed p-2.5 bg-card border rounded-lg whitespace-pre-wrap">
                     {viewPolicyDetail.description}
                   </p>
                 </div>
