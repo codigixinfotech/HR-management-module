@@ -1120,10 +1120,10 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
           </DialogHeader>
           <form className="space-y-3.5 text-xs" onSubmit={handleSaveHoliday}>
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Company Entity *</Label>
+              <Label className="text-xs font-semibold">Organization Entity *</Label>
               <Select defaultValue="c1">
                 <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Select company" />
+                  <SelectValue placeholder="Select organization" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="c1" className="text-xs">

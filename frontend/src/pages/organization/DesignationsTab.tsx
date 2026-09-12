@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 
 const designationSchema = z.object({
-  companyId: z.string().min(1, 'Company is required'),
+  companyId: z.string().min(1, 'Organization Entity is required'),
   departmentId: z.string().min(1, 'Department is required'),
   code: z.string().min(1, 'Code is required'),
   title: z.string().min(1, 'Title is required'),
@@ -320,10 +320,10 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                 <form className="space-y-4 text-xs" onSubmit={form.handleSubmit((values) => upsertMutation.mutate(values))}>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Company Entity *</Label>
+                      <Label className="text-xs font-semibold">Organization Entity *</Label>
                       <Select value={form.watch('companyId')} onValueChange={(v) => form.setValue('companyId', v)}>
                         <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select company" />
+                          <SelectValue placeholder="Select organization" />
                         </SelectTrigger>
                         <SelectContent>
                           {companies.map((c) => (

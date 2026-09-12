@@ -114,7 +114,7 @@ const SHIFT_MASTER: Record<string, { label: string; workingHours: string; note?:
 
 // ── 2. LOCATION SCHEMA ──
 const locationSchema = z.object({
-  companyId: z.string().min(1, 'Company Entity is required'),
+  companyId: z.string().min(1, 'Organization Entity is required'),
   code: z.string().min(1, 'Location Code is required'),
   name: z.string().min(1, 'Location Name is required'),
   branchId: z.string().optional(),
@@ -475,13 +475,13 @@ export function BranchesTab({
                       <span>General Organization</span>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Company Entity *</Label>
+                      <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Organization Entity *</Label>
                       <Select
                         value={form.watch('companyId')}
                         onValueChange={(v) => form.setValue('companyId', v, { shouldValidate: true })}
                       >
                         <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select company" />
+                          <SelectValue placeholder="Select organization" />
                         </SelectTrigger>
                         <SelectContent>
                           {companies.map((c) => (
@@ -674,15 +674,15 @@ export function BranchesTab({
                   <DialogTitle className="text-base font-bold">CREATE NEW LOCATION</DialogTitle>
                 </DialogHeader>
                 <form className="space-y-4 pt-2" onSubmit={handleLocationSubmit}>
-                  {/* Company Entity * */}
+                  {/* Organization Entity * */}
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Company Entity *</Label>
+                    <Label className="text-[10px] font-semibold uppercase text-muted-foreground">Organization Entity *</Label>
                     <Select
                       value={locationForm.watch('companyId')}
                       onValueChange={(val) => locationForm.setValue('companyId', val, { shouldValidate: true })}
                     >
                       <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Select Company" />
+                        <SelectValue placeholder="Select organization" />
                       </SelectTrigger>
                       <SelectContent>
                         {companies.map((c) => (
