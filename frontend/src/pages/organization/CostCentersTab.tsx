@@ -51,6 +51,10 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     queryFn: () => branchesApi.list(companyIdForLists),
     enabled: !!companyIdForLists,
   });
+  const { data: allBranches = [] } = useQuery({
+    queryKey: ['branches-all'],
+    queryFn: () => branchesApi.list(),
+  });
   const { data: departments } = useQuery({
     queryKey: ['departments', companyIdForLists],
     queryFn: () => departmentsApi.list(companyIdForLists),
@@ -152,6 +156,38 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   const [ccEffectiveFrom, setCcEffectiveFrom] = useState('');
   const [ccStatus, setCcStatus] = useState<'Active' | 'Inactive'>('Active');
   const [ccDescription, setCcDescription] = useState('');
+
+  const targetCcCompanyId = ccCompanyId || companyIdForLists;
+  const selectedCompForCc = useMemo(() => {
+    return companies?.find((c: any) => c.id === targetCcCompanyId);
+  }, [companies, targetCcCompanyId]);
+
+  const filteredBranchesForCc = useMemo(() => {
+    if (!targetCcCompanyId) return [];
+    const sourceBranches = allBranches.length > 0 ? allBranches : (branches || []);
+    return sourceBranches.filter((b: any) => {
+      // Must belong strictly to this company
+      if (!b.companyId || b.companyId !== targetCcCompanyId) return false;
+      const bName = (b.name || '').trim().toLowerCase();
+      if (selectedCompForCc) {
+        const cName = (selectedCompForCc.name || '').trim().toLowerCase();
+        const cCode = (selectedCompForCc.code || '').trim().toLowerCase();
+        // Do NOT show company name or code as branch
+        if (bName === cName || bName === cCode) return false;
+      }
+      // Exclude generic fake company/parent office branch entries
+      if (
+        bName === 'parent office/company' ||
+        bName === 'parent company' ||
+        bName === 'parent office' ||
+        bName === 'head office / company' ||
+        bName === 'cravita technology pvt ltd'
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [allBranches, branches, targetCcCompanyId, selectedCompForCc]);
 
   // Grade Dialog Form State
   const [isGradeOpen, setIsGradeOpen] = useState(false);
@@ -373,7 +409,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setCcName('');
     setCcType('Department');
     setCcDeptId(departments?.[0]?.id ?? '');
-    setCcBranchId(branches?.[0]?.id ?? '');
+    setCcBranchId('');
     setCcManagerId('');
     setCcManagerName('');
     setCcBudgetValue(25);
@@ -726,7 +762,10 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold">Organization Entity *</Label>
-                        <Select value={ccCompanyId} onValueChange={setCcCompanyId}>
+                        <Select value={ccCompanyId} onValueChange={(val) => {
+                          setCcCompanyId(val);
+                          setCcBranchId('');
+                        }}>
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Select organization" />
                           </SelectTrigger>
@@ -743,7 +782,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold">Cost Center Code (Auto Generated) *</Label>
                         <Input
-                          placeholder="e.g. CC-105"
+                          placeholder=""
                           value={ccCode}
                           onChange={e => setCcCode(e.target.value)}
                           className="h-9 text-xs font-mono"
@@ -754,7 +793,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                     <div className="space-y-1">
                       <Label className="text-[11px] font-semibold">Cost Center Name *</Label>
                       <Input
-                        placeholder="e.g. R&D Infrastructure"
+                        placeholder=""
                         value={ccName}
                         onChange={e => setCcName(e.target.value)}
                         className="h-9 text-xs"
@@ -769,29 +808,52 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                             <SelectValue placeholder="Select Department" />
                           </SelectTrigger>
                           <SelectContent>
-                            {departments?.map((d: any) => (
-                              <SelectItem key={d.id} value={d.id} className="text-xs">
-                                {d.name}
-                              </SelectItem>
-                            ))}
+                            {departments
+                              ?.filter((d: any) => !targetCcCompanyId || !d.companyId || d.companyId === targetCcCompanyId)
+                              .map((d: any) => (
+                                <SelectItem key={d.id} value={d.id} className="text-xs">
+                                  {d.name}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Branch / Location *</Label>
-                        <Select value={ccBranchId} onValueChange={setCcBranchId}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Location" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {branches?.map((b: any) => (
-                              <SelectItem key={b.id} value={b.id} className="text-xs">
-                                {b.name}
+                        <Label className="text-[11px] font-semibold flex items-center justify-between">
+                          <span>
+                            Branch / Location
+                            {filteredBranchesForCc.length > 0 && (
+                              <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
+                            )}
+                          </span>
+                        </Label>
+                        {filteredBranchesForCc.length === 0 ? (
+                          <div className="h-9 px-3 py-2 rounded-md border text-xs bg-muted/20 text-foreground flex items-center justify-between border-dashed">
+                            <span className="flex items-center gap-1.5 font-medium text-foreground">
+                              <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Head Office / No Branch
+                            </span>
+                            <Badge variant="outline" className="text-[10px] bg-background text-emerald-600 border-emerald-500/30">
+                              Head Office
+                            </Badge>
+                          </div>
+                        ) : (
+                          <Select value={ccBranchId || 'NONE'} onValueChange={(val) => setCcBranchId(val === 'NONE' ? '' : val)}>
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Select Branch / Location (Optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="NONE" className="text-xs text-muted-foreground italic">
+                                Head Office / No Branch
                               </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                              {filteredBranchesForCc.map((b: any) => (
+                                <SelectItem key={b.id} value={b.id} className="text-xs">
+                                  {b.name} {b.city ? `(${b.city})` : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
 
@@ -1100,7 +1162,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold">Business Unit</Label>
                         <Input
-                          placeholder="e.g. Technology Services"
+                          placeholder=""
                           value={gradeBusinessUnit}
                           onChange={e => setGradeBusinessUnit(e.target.value)}
                           className="h-9 text-xs"
@@ -1112,7 +1174,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold">Grade Code (Auto Generated) *</Label>
                         <Input
-                          placeholder="e.g. GR-05"
+                          placeholder=""
                           value={gradeCode}
                           onChange={e => setGradeCode(e.target.value)}
                           className="h-9 text-xs font-mono"
@@ -1122,7 +1184,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold">Grade Name *</Label>
                         <Input
-                          placeholder="e.g. Executive E2"
+                          placeholder=""
                           value={gradeName}
                           onChange={e => setGradeName(e.target.value)}
                           className="h-9 text-xs"
@@ -1169,7 +1231,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold">Job Family</Label>
                         <Input
-                          placeholder="e.g. Engineering / HR"
+                          placeholder=""
                           value={gradeJobFamily}
                           onChange={e => setGradeJobFamily(e.target.value)}
                           className="h-9 text-xs"

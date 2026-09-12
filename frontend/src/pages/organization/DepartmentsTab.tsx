@@ -32,7 +32,7 @@ import { Badge } from '@/components/ui/badge';
 
 const departmentSchema = z.object({
   companyId: z.string().min(1, 'Organization Entity is required'),
-  branchId: z.string().min(1, 'Branch / Office is required'),
+  branchId: z.string().optional(),
   code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
   type: z.string().optional().default('Functional'),
@@ -87,6 +87,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
   });
 
   const selectedCompanyId = form.watch('companyId') || companyId || companies[0]?.id || '';
+  const selectedCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId), [companies, selectedCompanyId]);
 
   const { data: departments, isLoading } = useQuery({
     queryKey: ['departments', selectedCompanyId],
@@ -103,8 +104,6 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     queryFn: () => costCentersApi.list(selectedCompanyId),
   });
 
-
-
   const watchedName = form.watch('name');
 
   const { data: branchOptions } = useQuery({
@@ -112,6 +111,32 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     queryFn: () => branchesApi.list(selectedCompanyId),
     enabled: !!selectedCompanyId,
   });
+
+  const filteredBranches = useMemo(() => {
+    if (!selectedCompanyId || !branchOptions) return [];
+    return branchOptions.filter((b: any) => {
+      // Must belong to this company if companyId is specified on branch
+      if (b.companyId && b.companyId !== selectedCompanyId) return false;
+      const bName = (b.name || '').trim().toLowerCase();
+      if (selectedCompany) {
+        const cName = (selectedCompany.name || '').trim().toLowerCase();
+        const cCode = (selectedCompany.code || '').trim().toLowerCase();
+        // Do NOT show company name or code as branch
+        if (bName === cName || bName === cCode) return false;
+      }
+      // Exclude generic fake company/parent office branch entries
+      if (
+        bName === 'parent office/company' ||
+        bName === 'parent company' ||
+        bName === 'parent office' ||
+        bName === 'head office / company' ||
+        bName === 'cravita technology pvt ltd'
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [branchOptions, selectedCompanyId, selectedCompany]);
 
   const employeeOptions = useMemo(() => {
     return employeesData?.items ?? [];
@@ -155,9 +180,11 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
           ? Math.round(Number(deptBudgetRaw))
           : null;
 
+      const cleanBranchId = values.branchId && values.branchId !== 'NONE' ? values.branchId : null;
+
       const payload = {
         ...values,
-        branchId: values.branchId || null,
+        branchId: cleanBranchId,
         parentDepartmentId: values.parentDepartmentId || null,
         manager: values.manager || null,
         costCenter: values.costCenter || null,
@@ -297,7 +324,13 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Organization Entity *</Label>
-                      <Select value={form.watch('companyId')} onValueChange={(v) => form.setValue('companyId', v)}>
+                      <Select
+                        value={form.watch('companyId')}
+                        onValueChange={(v) => {
+                          form.setValue('companyId', v);
+                          form.setValue('branchId', '');
+                        }}
+                      >
                         <SelectTrigger className="h-9 text-xs">
                           <SelectValue placeholder="Select organization" />
                         </SelectTrigger>
@@ -312,19 +345,43 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                       {form.formState.errors.companyId && <p className="text-[10px] text-destructive">{form.formState.errors.companyId.message}</p>}
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Branch / Office *</Label>
-                      <Select value={form.watch('branchId')} onValueChange={(v) => form.setValue('branchId', v)}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select branch" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {branchOptions?.map((b) => (
-                            <SelectItem key={b.id} value={b.id} className="text-xs">
-                              {b.name}
+                      <Label className="text-xs font-semibold">
+                        <span>
+                          Branch / Office
+                          {filteredBranches.length > 0 && (
+                            <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
+                          )}
+                        </span>
+                      </Label>
+                      {filteredBranches.length === 0 ? (
+                        <div className="h-9 px-3 py-2 rounded-md border text-xs bg-muted/20 text-foreground flex items-center justify-between border-dashed">
+                          <span className="flex items-center gap-1.5 font-medium text-foreground">
+                            <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Head Office / No Branch
+                          </span>
+                          <Badge variant="outline" className="text-[10px] bg-background text-emerald-600 border-emerald-500/30">
+                            Head Office
+                          </Badge>
+                        </div>
+                      ) : (
+                        <Select
+                          value={form.watch('branchId') || 'NONE'}
+                          onValueChange={(val) => form.setValue('branchId', val === 'NONE' ? '' : val)}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select branch (Optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE" className="text-xs text-muted-foreground italic">
+                              Head Office / No Branch
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                            {filteredBranches.map((b) => (
+                              <SelectItem key={b.id} value={b.id} className="text-xs">
+                                {b.name} {b.city ? `(${b.city})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       {form.formState.errors.branchId && <p className="text-[10px] text-destructive">{form.formState.errors.branchId.message}</p>}
                     </div>
                   </div>
@@ -332,12 +389,12 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Department Name *</Label>
-                      <Input placeholder="e.g. Technology" {...form.register('name')} className="h-9 text-xs" />
+                      <Input placeholder="" {...form.register('name')} className="h-9 text-xs" />
                       {form.formState.errors.name && <p className="text-[10px] text-destructive">{form.formState.errors.name.message}</p>}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Department Code (Auto)</Label>
-                      <Input placeholder="e.g. DEPT-TECH" {...form.register('code')} className="h-9 text-xs font-mono" />
+                      <Input placeholder="" {...form.register('code')} className="h-9 text-xs font-mono" />
                       {form.formState.errors.code && <p className="text-[10px] text-destructive">{form.formState.errors.code.message}</p>}
                     </div>
                   </div>
@@ -400,7 +457,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Headcount Capacity *</Label>
-                      <Input type="number" placeholder="e.g. 50" {...form.register('headcountCapacity')} className="h-9 text-xs" />
+                      <Input type="number" placeholder="" {...form.register('headcountCapacity')} className="h-9 text-xs" />
                       {form.formState.errors.headcountCapacity && <p className="text-[10px] text-destructive">{form.formState.errors.headcountCapacity.message}</p>}
                     </div>
                     <div className="space-y-1.5">
@@ -411,7 +468,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                           type="number"
                           step="1"
                           min="0"
-                          placeholder="e.g. 28000000"
+                          placeholder=""
                           value={deptBudgetRaw}
                           onChange={e => setDeptBudgetRaw(e.target.value)}
                           className="h-9 text-xs font-mono pl-6"
