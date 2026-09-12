@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, Htt
 import { CostCentersService } from './cost-centers.service';
 import { CreateCostCenterDto, UpdateCostCenterDto } from './dto/cost-center.dto';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
+import { getTenantCompanyId, getTenantBranchId } from '../../common/utils/tenant-context.util';
 
 @Controller('organization/cost-centers')
 export class CostCentersController {
@@ -16,7 +16,8 @@ export class CostCentersController {
     @Query('departmentId') departmentId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.service.list(tenantCompanyId, branchId, departmentId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.service.list(tenantCompanyId, tenantBranchId, departmentId);
   }
 
   @Get(':id')

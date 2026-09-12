@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCompany } from '@/context/CompanyContext';
 import { subscriptionsApi } from '@/api/plansApi';
-import { isHrOrAdminUser, isSuperAdminUser } from '@/lib/modules';
+import { isHrOrAdminUser, isSuperAdminUser, isBranchAdminUser, isCompanyAdminUser } from '@/lib/modules';
 
 const ADMIN_ONLY_ROUTES = [
   '/organization',
@@ -66,8 +66,10 @@ export function ProtectedRoute() {
   }
 
   const isSuperAdmin = isSuperAdminUser(user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const isCompanyAdmin = isCompanyAdminUser(user);
   const isHrOrAdmin = isHrOrAdminUser(user);
-  const isEmployee = !isHrOrAdmin && !isSuperAdmin;
+  const isEmployee = !isHrOrAdmin && !isSuperAdmin && !isBranchAdmin && !isCompanyAdmin;
 
   // 1. Role Access Check
   const isAdminOnly =
@@ -78,8 +80,8 @@ export function ProtectedRoute() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // 2. Subscription Module Access Check (Skipped for Super Admin)
-  if (!isSuperAdmin && subData?.moduleEntitlementMatrix && isHrOrAdmin) {
+  // 2. Subscription Module Access Check (Skipped for Super Admin, Branch Admin, Company Admin)
+  if (!isSuperAdmin && !isBranchAdmin && !isCompanyAdmin && subData?.moduleEntitlementMatrix && isHrOrAdmin) {
     const matchedRoutePrefix = Object.keys(ROUTE_TO_MODULE_KEY).find(
       (prefix) => currentPath === prefix || currentPath.startsWith(`${prefix}/`),
     );

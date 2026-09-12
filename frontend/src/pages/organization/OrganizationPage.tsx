@@ -29,11 +29,16 @@ import {
 } from 'lucide-react';
 
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser } from '@/lib/modules';
 
 export default function OrganizationPage() {
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'structure';
+
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = isSuperAdminUser(user);
 
   const { activeCompanyId, setActiveCompanyId, companies } = useCompany();
   const { data: branches } = useQuery({ queryKey: ['branches', activeCompanyId], queryFn: () => branchesApi.list(activeCompanyId) });
@@ -106,8 +111,9 @@ export default function OrganizationPage() {
         description={headerInfo.description}
         badge={headerInfo.badge}
         actions={
+          isSuperAdmin &&
           companies &&
-          companies.length > 0 && (
+          companies.length > 1 ? (
             <div className="w-64">
               <Select value={activeCompanyId} onValueChange={setActiveCompanyId}>
                 <SelectTrigger className="h-9 text-xs">
@@ -122,7 +128,7 @@ export default function OrganizationPage() {
                 </SelectContent>
               </Select>
             </div>
-          )
+          ) : undefined
         }
       />
 

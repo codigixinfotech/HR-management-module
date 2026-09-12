@@ -140,6 +140,9 @@ const DEFAULT_LOCATION_VALUES: LocationFormValues = {
   description: '',
 };
 
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isBranchAdminUser } from '@/lib/modules';
+
 export function BranchesTab({
   companyId,
   companies,
@@ -152,6 +155,10 @@ export function BranchesTab({
   onTriggerHandled?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = isSuperAdminUser(user);
+  const isBranchAdmin = isBranchAdminUser(user);
+
   const [open, setOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
   
@@ -402,15 +409,20 @@ export function BranchesTab({
 
   const filteredBranches = useMemo(() => {
     if (!branches) return [];
-    if (!searchQuery.trim()) return branches;
+    let list = branches;
+    if (isBranchAdmin && (user?.branchId || user?.employee?.branchId)) {
+      const assignedId = user.branchId || user.employee?.branchId;
+      list = list.filter((b) => b.id === assignedId);
+    }
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return branches.filter(
+    return list.filter(
       (b) =>
         b.name.toLowerCase().includes(q) ||
         b.code.toLowerCase().includes(q) ||
         (b.city && b.city.toLowerCase().includes(q))
     );
-  }, [branches, searchQuery]);
+  }, [branches, searchQuery, isBranchAdmin, user]);
 
   const handleBranchSubmit = form.handleSubmit((values) => {
     upsertMutation.mutate(values);
@@ -473,12 +485,13 @@ export function BranchesTab({
             </div>
 
             {/* Add Branch Dialog */}
-            <Dialog open={open} onOpenChange={(v) => { if (!v) closeBranchModal(); }}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate} disabled={companies.length === 0}>
-                  <Plus className="h-3.5 w-3.5" /> Add Branch Location
-                </Button>
-              </DialogTrigger>
+            {!isBranchAdmin && (
+              <Dialog open={open} onOpenChange={(v) => { if (!v) closeBranchModal(); }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate} disabled={companies.length === 0}>
+                    <Plus className="h-3.5 w-3.5" /> Add Branch Location
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editing ? 'Edit Branch Facility' : 'Create New Branch Facility'}</DialogTitle>
@@ -682,6 +695,7 @@ export function BranchesTab({
                 </form>
               </DialogContent>
             </Dialog>
+            )}
 
             {/* ── 3. SEPARATE LOCATION CREATION DIALOG ── */}
             <Dialog open={locationOpen} onOpenChange={(v) => { if (!v) closeLocationModal(); }}>
@@ -859,14 +873,16 @@ export function BranchesTab({
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => deleteMutation.mutate(branch.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {!isBranchAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => deleteMutation.mutate(branch.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -1036,14 +1052,16 @@ export function BranchesTab({
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(branch)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => deleteMutation.mutate(branch.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {!isBranchAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => deleteMutation.mutate(branch.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

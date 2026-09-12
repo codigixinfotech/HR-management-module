@@ -504,22 +504,41 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
   },
 ];
 
+export function isBranchAdminUser(user?: any): boolean {
+  if (!user) return false;
+  if (user.role === 'BRANCH_ADMIN' || user.role === 'Branch Admin') return true;
+  const roleStr = `${user.role || ''} ${user.primaryRole || ''} ${(user.roles || []).join(' ')}`.toUpperCase();
+  if (roleStr.includes('BRANCH_ADMIN') || roleStr.includes('BRANCH ADMIN')) return true;
+  if (Boolean(user.branchId)) return true;
+  return false;
+}
+
+export function isCompanyAdminUser(user?: any): boolean {
+  if (!user) return false;
+  if (isBranchAdminUser(user)) return false;
+  if (user.role === 'COMPANY_ADMIN' || user.role === 'Company Admin') return true;
+  const roleStr = `${user.role || ''} ${user.primaryRole || ''} ${(user.roles || []).join(' ')}`.toUpperCase();
+  if (roleStr.includes('COMPANY_ADMIN') || roleStr.includes('COMPANY ADMIN')) return true;
+  return false;
+}
+
 export function isSuperAdminUser(user?: any): boolean {
   if (!user) return false;
-  if (user.permissions?.includes('*')) return true;
-  if (user.companyId === null && !user.employee) return true;
+  if (isBranchAdminUser(user) || isCompanyAdminUser(user)) return false;
   if (user.email === 'admin@ehcm.local') return true;
   const isSuperRole = user.roles?.some((r: string) => {
     const u = typeof r === 'string' ? r.toUpperCase() : '';
-    return u.includes('SUPER_ADMIN') || u === 'SUPERADMIN';
+    return u === 'SUPER_ADMIN' || u === 'SUPERADMIN';
   });
-  const isSuperPrimary = user.primaryRole?.toUpperCase().includes('SUPER_ADMIN');
-  return Boolean(isSuperRole || isSuperPrimary);
+  const isSuperPrimary =
+    user.primaryRole?.toUpperCase() === 'SUPER_ADMIN' ||
+    user.primaryRole?.toUpperCase() === 'SUPER ADMIN';
+  return Boolean(isSuperRole || isSuperPrimary || (user.companyId === null && !user.employee));
 }
 
 export function isHrOrAdminUser(user?: any): boolean {
   if (!user) return true;
-  if (isSuperAdminUser(user)) return true;
+  if (isSuperAdminUser(user) || isBranchAdminUser(user) || isCompanyAdminUser(user)) return true;
   if (user.permissions?.includes('*')) return true;
   const isRoleAdmin = user.roles?.some((r: string) => {
     const u = typeof r === 'string' ? r.toUpperCase() : '';
@@ -533,7 +552,7 @@ export function isHrOrAdminUser(user?: any): boolean {
 
 export function isManagerOrHrOrAdmin(user?: any): boolean {
   if (!user) return false;
-  if (isSuperAdminUser(user)) return true;
+  if (isSuperAdminUser(user) || isBranchAdminUser(user) || isCompanyAdminUser(user)) return true;
   if (user.permissions?.includes('*')) return true;
   const isRoleMatch = user.roles?.some((r: string) => {
     const u = typeof r === 'string' ? r.toUpperCase() : '';
@@ -556,7 +575,7 @@ export function isManagerOrHrOrAdmin(user?: any): boolean {
 
 export function hasModulePermission(user: any, moduleKey: string, action: string = 'view'): boolean {
   if (!user) return false;
-  if (isSuperAdminUser(user)) return true;
+  if (isSuperAdminUser(user) || isBranchAdminUser(user) || isCompanyAdminUser(user)) return true;
   const perms = user.permissions || [];
   if (perms.includes('*')) return true;
 
@@ -595,7 +614,7 @@ export function hasModulePermission(user: any, moduleKey: string, action: string
 
 export function getModulesForRole(user?: any): HcmModule[] {
   if (!user) return EMPLOYEE_MODULES;
-  if (isSuperAdminUser(user)) return HCM_MODULES;
+  if (isSuperAdminUser(user) || isBranchAdminUser(user) || isCompanyAdminUser(user)) return HCM_MODULES;
 
   const userPerms = user.permissions || [];
   if (userPerms.includes('*')) return HCM_MODULES;

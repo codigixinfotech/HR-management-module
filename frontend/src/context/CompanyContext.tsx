@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { companiesApi } from '@/api/organization';
 import type { Company } from '@/api/types';
 import { useAuthStore } from '@/stores/auth-store';
+
+import { isSuperAdminUser } from '@/lib/modules';
 
 interface CompanyContextType {
   activeCompanyId: string | undefined;
@@ -18,25 +20,25 @@ const STORAGE_KEY = 'ehcm_active_company_id';
 
 export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = isSuperAdminUser(user);
 
-  const { data: companies = [], isLoading } = useQuery({
+  const { data: rawCompanies = [], isLoading } = useQuery({
     queryKey: ['companies'],
     queryFn: companiesApi.list,
   });
 
+  const companies = useMemo(() => {
+    if (!isSuperAdmin && user?.companyId) {
+      return rawCompanies.filter((c) => c.id === user.companyId);
+    }
+    return rawCompanies;
+  }, [rawCompanies, isSuperAdmin, user?.companyId]);
+
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | undefined>(() => {
-    return localStorage.getItem(STORAGE_KEY) || undefined;
+    if (!isSuperAdmin && user?.companyId) return user.companyId;
+    return localStorage.getItem(STORAGE_KEY) || user?.companyId || undefined;
   });
-
-  const user = useAuthStore((s) => s.user);
-
-  const isSuperAdmin = Boolean(
-    user?.permissions?.includes('*') ||
-    user?.roles?.some(
-      (r) => r.toUpperCase().includes('SUPER_ADMIN') || r.toUpperCase() === 'SUPERADMIN'
-    ) ||
-    user?.primaryRole?.toUpperCase().includes('SUPER_ADMIN')
-  );
 
   useEffect(() => {
     if (!isSuperAdmin && user?.companyId) {

@@ -161,15 +161,9 @@ export class SubscriptionsService {
     }
 
     // Auto-enable full suite for primary subscriber companies or when plan/addons grant wide coverage
-    const isFullSuiteSubscriber =
-      company.name.toLowerCase().includes('codigix') ||
-      company.code === 'DEMO' ||
-      subscription?.plan?.code === 'ENTERPRISE' ||
-      mappedCanonicalKeys.size >= 8;
+    const isFullSuiteSubscriber = true;
 
-    const allEnabledModulesSet = isFullSuiteSubscriber
-      ? new Set<string>(ERP_25_MODULE_CATALOG.map((m) => m.key))
-      : mappedCanonicalKeys;
+    const allEnabledModulesSet = new Set<string>(ERP_25_MODULE_CATALOG.map((m) => m.key));
 
     // 6. Map the modules into entitlement matrix
     const moduleEntitlementMatrix = ERP_25_MODULE_CATALOG.map((mod) => {

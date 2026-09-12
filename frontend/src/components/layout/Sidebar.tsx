@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getModulesForRole, isSuperAdminUser, isManagerOrHrOrAdmin, type HcmModule, type SubModuleItem } from '@/lib/modules';
+import { getModulesForRole, isSuperAdminUser, isBranchAdminUser, isCompanyAdminUser, isManagerOrHrOrAdmin, type HcmModule, type SubModuleItem } from '@/lib/modules';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCompany } from '@/context/CompanyContext';
 import { subscriptionsApi } from '@/api/plansApi';
@@ -33,6 +33,8 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
 
   const modulesForRole = useMemo(() => getModulesForRole(user), [user]);
   const isSuperAdmin = useMemo(() => isSuperAdminUser(user), [user]);
+  const isBranchAdmin = useMemo(() => isBranchAdminUser(user), [user]);
+  const isCompanyAdmin = useMemo(() => isCompanyAdminUser(user), [user]);
 
   // Fetch active company's subscription modules
   const { data: subData } = useQuery({
@@ -52,7 +54,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
   const companyModules = useMemo(() => {
     let base = modulesForRole;
 
-    if (!isSuperAdmin && enabledModuleKeysSet) {
+    if (!isSuperAdmin && !isBranchAdmin && !isCompanyAdmin && enabledModuleKeysSet) {
       base = modulesForRole.filter((mod) => {
         // Always allow Dashboard, Settings/Administration, and Landing Page Demo
         if (mod.key === 'dashboard' || mod.key === 'administration' || mod.key === 'landing-page') {
@@ -195,6 +197,11 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       .filter(Boolean) as HcmModule[];
   }, [menuSearch, companyModules]);
 
+  const effectiveModulesCount =
+    isSuperAdmin || isBranchAdmin || isCompanyAdmin
+      ? (subData?.totalModulesCount || 25)
+      : (subData?.enabledModulesCount ?? filteredModules.length);
+
   return (
     <>
       {/* ── 1. DESKTOP SIDEBAR (Full Viewport Height Pinned) ── */}
@@ -207,7 +214,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           toggleSection={toggleSection}
           isSubItemActive={isSubItemActive}
           navigate={navigate}
-          enabledModulesCount={subData?.enabledModulesCount}
+          enabledModulesCount={effectiveModulesCount}
         />
       </aside>
 
@@ -237,7 +244,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           navigate={navigate}
           onCloseMobile={onCloseMobile}
           isMobileDrawer
-          enabledModulesCount={subData?.enabledModulesCount}
+          enabledModulesCount={effectiveModulesCount}
         />
       </aside>
     </>

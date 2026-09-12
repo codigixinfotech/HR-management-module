@@ -123,25 +123,50 @@ interface OrgStructureTabProps {
 }
 
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isBranchAdminUser } from '@/lib/modules';
 
 export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabProps) {
   const { activeCompanyId: ctxCompanyId } = useCompany();
   const companyId = propCompanyId || ctxCompanyId;
+
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = isSuperAdminUser(user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const branchId = isBranchAdmin ? (user?.branchId || user?.employee?.branchId) : undefined;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'chart' | 'tree'>('chart');
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
 
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, companyId || ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: companyId || undefined }),
+    queryKey: ['employees', 'org-structure', companyId || '', branchId || ''],
+    queryFn: () =>
+      employeesApi.list({
+        page: 1,
+        pageSize: 1000,
+        companyId: companyId || undefined,
+        branchId: branchId || undefined,
+      }),
   });
 
   // Calculate dynamic stats
-  const totalEmployeesCount = employeesData?.items?.length ?? 0;
+  const totalEmployeesCount = useMemo(() => {
+    if (!employeesData?.items) return 0;
+    if (isBranchAdmin && branchId) {
+      return employeesData.items.filter((emp: any) => emp.branchId === branchId).length;
+    }
+    return employeesData.items.length;
+  }, [employeesData, isBranchAdmin, branchId]);
+
   const managersCount = useMemo(() => {
     if (!employeesData?.items) return 0;
-    return new Set(employeesData.items.map((e: any) => e.reportingManagerId).filter(Boolean)).size;
-  }, [employeesData]);
+    let items = employeesData.items;
+    if (isBranchAdmin && branchId) {
+      items = items.filter((emp: any) => emp.branchId === branchId);
+    }
+    return new Set(items.map((e: any) => e.reportingManagerId).filter(Boolean)).size;
+  }, [employeesData, isBranchAdmin, branchId]);
 
   const spanRatio = useMemo(() => {
     if (totalEmployeesCount === 0 || managersCount === 0) return '1:1';
@@ -152,6 +177,10 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
     if (!employeesData?.items || employeesData.items.length === 0) return null;
 
     let items = employeesData.items;
+
+    if (isBranchAdmin && branchId) {
+      items = items.filter((emp: any) => emp.branchId === branchId);
+    }
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -235,19 +264,19 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
       return {
         id: emp.id,
         name: `${emp.firstName || ''} ${emp.lastName || ''}`.replace(/\s+/g, ' ').trim(),
-        title: emp.designation?.title ?? (emp.id === primaryRoot!.id ? 'Managing Director & Founder' : 'Executive'),
-        dept: emp.department?.name ?? 'Executive Management',
+        title: emp.designation?.title ?? (emp.id === primaryRoot!.id ? (isBranchAdmin ? 'Branch Head' : 'Managing Director & Founder') : 'Executive'),
+        dept: emp.department?.name ?? 'Branch Management',
         code: emp.employeeCode,
         avatar: `${firstInitial}${lastInitial}`.toUpperCase(),
         reportsCount: childNodes.length,
-        location: emp.location || emp.branch?.city || 'Pune',
+        location: emp.branch?.name || emp.location || emp.branch?.city || 'Branch Facility',
         email: emp.workEmail ?? '',
         children: childNodes.length > 0 ? childNodes : undefined,
       };
     };
 
     return buildNode(primaryRoot);
-  }, [employeesData, searchQuery]);
+  }, [employeesData, searchQuery, isBranchAdmin, branchId]);
 
   // Auto-expand top levels on initial load
   useEffect(() => {

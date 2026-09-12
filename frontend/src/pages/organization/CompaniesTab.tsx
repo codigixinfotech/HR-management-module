@@ -80,12 +80,19 @@ const DEFAULT_COMPANY_VALUES: CompanyFormValues = {
   isActive: true,
 };
 
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isBranchAdminUser } from '@/lib/modules';
+
 interface CompaniesTabProps {
   onCompanyCreated?: (companyId: string) => void;
 }
 
 export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = isSuperAdminUser(user);
+  const isBranchAdmin = isBranchAdminUser(user);
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
 
@@ -114,6 +121,13 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
 
     return result;
   }, [companies]);
+
+  const filteredCompanies = useMemo(() => {
+    if (!isSuperAdmin && user?.companyId) {
+      return sortedCompanies.filter((c) => c.id === user.companyId);
+    }
+    return sortedCompanies;
+  }, [sortedCompanies, isSuperAdmin, user?.companyId]);
 
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema) as any,
@@ -235,21 +249,22 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
             </CardDescription>
           </div>
 
-          <Dialog
-            open={open}
-            onOpenChange={(v) => {
-              if (!v) closeModal();
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate}>
-                <Plus className="h-3.5 w-3.5" /> Add Entity
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editing ? 'Edit Entity' : 'Add Entity'}</DialogTitle>
-              </DialogHeader>
+          {!isBranchAdmin && (
+            <Dialog
+              open={open}
+              onOpenChange={(v) => {
+                if (!v) closeModal();
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate}>
+                  <Plus className="h-3.5 w-3.5" /> Add Entity
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{editing ? 'Edit Entity' : 'Add Entity'}</DialogTitle>
+                </DialogHeader>
 
               <form className="space-y-6 text-xs" onSubmit={handleFinalSubmit}>
                 {/* SECTION 1: BASIC INFORMATION */}
@@ -527,6 +542,7 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
               </form>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </CardHeader>
 
@@ -550,7 +566,7 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
                 </TableCell>
               </TableRow>
             )}
-            {sortedCompanies.map((company) => {
+            {filteredCompanies.map((company) => {
               const parentInfo = (company as any).parentCompany ?? companies.find(c => c.id === company.parentCompanyId);
               const isChild = !!company.parentCompanyId;
 
@@ -593,22 +609,30 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(company)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      disabled={deleteMutation.isPending}
-                      onClick={() => {
-                        if (window.confirm(`Are you sure you want to delete corporate entity "${company.name}"?`)) {
-                          deleteMutation.mutate(company.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {isBranchAdmin ? (
+                      <span className="text-[10px] text-muted-foreground font-mono bg-muted/40 px-2 py-0.5 rounded">
+                        Assigned
+                      </span>
+                    ) : (
+                      <>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(company)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to delete corporate entity "${company.name}"?`)) {
+                              deleteMutation.mutate(company.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               );
