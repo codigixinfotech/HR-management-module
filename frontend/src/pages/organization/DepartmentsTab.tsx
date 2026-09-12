@@ -15,12 +15,16 @@ import {
   Search,
   UserCheck,
   Building2,
+  GitFork,
+  X,
 } from 'lucide-react';
 import { formatIndianBudget } from '@/lib/utils';
 import { branchesApi, departmentsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
 import { costCentersApi } from '@/api/cost-grades';
 import type { Company, Department } from '@/api/types';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isBranchAdminUser } from '@/lib/modules';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,12 +65,29 @@ const EXTRA_DEPT_METRICS: Record<string, { head: string; count: number; cap: num
 
 export function DepartmentsTab({ companyId, companies }: { companyId?: string; companies: Company[] }) {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = isSuperAdminUser(user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const assignedBranchId = user?.branchId || user?.employee?.branchId;
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Department | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
   // Raw rupee input — user types "28000000" and we auto-display "₹28 Crore"
   const [deptBudgetRaw, setDeptBudgetRaw] = useState<string>('');
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(() => {
+    if (isBranchAdmin && assignedBranchId) return assignedBranchId;
+    return 'ALL';
+  });
+
+  useEffect(() => {
+    if (isBranchAdmin && assignedBranchId) {
+      setSelectedBranchFilter(assignedBranchId);
+    }
+  }, [isBranchAdmin, assignedBranchId]);
+
   const form = useForm<DepartmentFormValues>({
     resolver: zodResolver(departmentSchema) as any,
     defaultValues: {
@@ -86,8 +107,15 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     },
   });
 
-  const selectedCompanyId = form.watch('companyId') || companyId || companies[0]?.id || '';
+  const effectiveCompanyId = companyId || companies[0]?.id || '';
+  const selectedCompanyId = form.watch('companyId') || effectiveCompanyId;
   const selectedCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId), [companies, selectedCompanyId]);
+
+  useEffect(() => {
+    if (!isBranchAdmin) {
+      setSelectedBranchFilter('ALL');
+    }
+  }, [companyId, isBranchAdmin]);
 
   const { data: departments, isLoading } = useQuery({
     queryKey: ['departments', selectedCompanyId],
@@ -137,6 +165,14 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
       return true;
     });
   }, [branchOptions, selectedCompanyId, selectedCompany]);
+
+  const branchMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (branchOptions || []).forEach((b: any) => {
+      map.set(b.id, b.name);
+    });
+    return map;
+  }, [branchOptions]);
 
   const employeeOptions = useMemo(() => {
     return employeesData?.items ?? [];
@@ -216,8 +252,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     setEditing(null);
     setDeptBudgetRaw('');
     form.reset({
-      companyId: companyId ?? companies[0]?.id ?? '',
-      branchId: '',
+      companyId: selectedCompanyId,
+      branchId: selectedBranchFilter !== 'ALL' ? selectedBranchFilter : '',
       code: '',
       name: '',
       type: 'Functional',
@@ -260,10 +296,20 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
 
   const filteredDepartments = useMemo(() => {
     if (!departments) return [];
-    if (!searchQuery.trim()) return departments;
+    let list = departments;
+    if (selectedBranchFilter !== 'ALL') {
+      list = list.filter(d => d.branchId === selectedBranchFilter || d.branch?.id === selectedBranchFilter);
+    }
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return departments.filter(d => d.name.toLowerCase().includes(q) || d.code.toLowerCase().includes(q));
-  }, [departments, searchQuery]);
+    return list.filter(
+      d =>
+        d.name.toLowerCase().includes(q) ||
+        d.code.toLowerCase().includes(q) ||
+        (d.manager && d.manager.toLowerCase().includes(q)) ||
+        (d.branch?.name && d.branch.name.toLowerCase().includes(q))
+    );
+  }, [departments, selectedBranchFilter, searchQuery]);
 
   return (
     <Card className="shadow-xs border-border/80">
@@ -278,7 +324,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
             </CardDescription>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             {/* View Mode Switcher */}
             <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
               <button
@@ -297,8 +343,59 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
               </button>
             </div>
 
+            {/* Branch Filter Dropdown */}
+            <div className="w-48 sm:w-56">
+              <Select
+                value={selectedBranchFilter}
+                onValueChange={(val) => setSelectedBranchFilter(val)}
+                disabled={isBranchAdmin}
+              >
+                <SelectTrigger className="h-8 text-xs bg-background border-border/80 font-medium">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <SelectValue placeholder="All Branches" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {!isBranchAdmin && (
+                    <SelectItem value="ALL" className="text-xs font-medium">
+                      All Branches {departments ? `(${departments.length})` : ''}
+                    </SelectItem>
+                  )}
+                  {filteredBranches.map((br) => {
+                    const deptCount = (departments || []).filter(
+                      (d) => d.branchId === br.id || d.branch?.id === br.id
+                    ).length;
+                    return (
+                      <SelectItem key={br.id} value={br.id} className="text-xs">
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <span className="truncate">{br.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {br.code} {deptCount > 0 ? `(${deptCount})` : ''}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Clear Filter Button if active and not branch admin */}
+            {!isBranchAdmin && selectedBranchFilter !== 'ALL' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
+                onClick={() => setSelectedBranchFilter('ALL')}
+                title="Clear branch filter"
+              >
+                <X className="h-3 w-3" /> Clear
+              </Button>
+            )}
+
             {/* Search Input */}
-            <div className="relative w-48 sm:w-60">
+            <div className="relative w-40 sm:w-52">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
@@ -538,7 +635,31 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
           </div>
         )}
 
-        {!isLoading && displayMode === 'grid' && (
+        {!isLoading && filteredDepartments.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 px-4 text-center border rounded-xl border-dashed border-border/80 bg-muted/10 my-2">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
+              <GitFork className="h-5 w-5" />
+            </div>
+            <h4 className="text-sm font-semibold text-foreground">No departments found</h4>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+              {selectedBranchFilter !== 'ALL'
+                ? `No departments have been configured for ${branchMap.get(selectedBranchFilter) || 'this branch'} yet.`
+                : 'No functional departments match your current filter criteria.'}
+            </p>
+            <div className="flex items-center gap-2 mt-4">
+              {selectedBranchFilter !== 'ALL' && !isBranchAdmin && (
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setSelectedBranchFilter('ALL')}>
+                  <X className="h-3.5 w-3.5" /> Show All Branches
+                </Button>
+              )}
+              <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate}>
+                <Plus className="h-3.5 w-3.5" /> Add Department {selectedBranchFilter !== 'ALL' ? `for ${branchMap.get(selectedBranchFilter) || 'Branch'}` : ''}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!isLoading && filteredDepartments.length > 0 && displayMode === 'grid' && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredDepartments.map((dept) => {
               const lookupCode = {
@@ -632,9 +753,14 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
-                      <span className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3 text-muted-foreground" /> {meta.location}
-                      </span>
+                      {(() => {
+                        const deptBranchName = dept.branch?.name || (dept.branchId ? branchMap.get(dept.branchId) : null) || 'All Branches';
+                        return (
+                          <span className="flex items-center gap-1 font-medium text-foreground/85 truncate max-w-[150px]" title={deptBranchName}>
+                            <GitFork className="h-3 w-3 text-primary shrink-0" /> {deptBranchName}
+                          </span>
+                        );
+                      })()}
                       <div className="flex items-center gap-1.5">
                         {dept.costCenter && (
                           <Badge variant="outline" className="font-mono text-[9px] text-muted-foreground border-border/80">
@@ -653,12 +779,13 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
           </div>
         )}
 
-        {!isLoading && displayMode === 'table' && (
+        {!isLoading && filteredDepartments.length > 0 && displayMode === 'table' && (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="text-xs">Dept Code</TableHead>
                 <TableHead className="text-xs">Department Name</TableHead>
+                <TableHead className="text-xs">Branch Location</TableHead>
                 <TableHead className="text-xs">Type</TableHead>
                 <TableHead className="text-xs">Department Lead</TableHead>
                 <TableHead className="text-xs">Parent Department</TableHead>
@@ -685,11 +812,18 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                   (emp: any) => emp.departmentId === dept.id
                 ).length ?? 0;
                 const capacity = dept.headcountCapacity ?? 10;
+                const deptBranchName = dept.branch?.name || (dept.branchId ? branchMap.get(dept.branchId) : null) || 'All Branches';
 
                 return (
                   <TableRow key={dept.id}>
                     <TableCell className="font-mono text-xs font-semibold text-primary">{dept.code}</TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">{dept.name}</TableCell>
+                    <TableCell className="text-xs">
+                      <Badge variant="outline" className="text-[10px] font-medium border-border/80 bg-muted/20 gap-1">
+                        <GitFork className="h-3 w-3 text-primary inline" />
+                        {deptBranchName}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-xs">
                       <Badge variant="outline" className="text-[10px] font-medium border-primary/20 bg-primary/5 text-primary">
                         {dept.type ?? 'Functional'}

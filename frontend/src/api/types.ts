@@ -89,6 +89,7 @@ export interface Department {
   type?: string | null;
   parentDepartmentId?: string | null;
   parentDepartment?: { id: string; name: string } | null;
+  branch?: { id: string; name: string; code: string } | null;
   manager?: string | null;
   costCenter?: string | null;
   headcountCapacity: number;

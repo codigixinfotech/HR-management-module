@@ -14,9 +14,12 @@ export class DepartmentsService {
     return this.prisma.department.findMany({
       where: {
         ...(companyId ? { companyId } : {}),
-        ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
+        ...(branchId && branchId !== 'ALL' && branchId !== 'ALL_BRANCHES' ? { branchId } : {}),
       },
-      include: { parentDepartment: { select: { id: true, name: true } } },
+      include: {
+        parentDepartment: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true, code: true } },
+      },
       orderBy: { name: 'asc' },
     });
   }
