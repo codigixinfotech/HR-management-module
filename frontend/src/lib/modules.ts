@@ -421,7 +421,7 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
     icon: Clock,
     subItems: [
       { key: 'attendance', label: 'Attendance', path: '/attendance-leave' },
-      { key: 'attendance-history', label: 'Attendance History', path: '/attendance-leave/register' },
+      { key: 'attendance-history', label: 'My Attendance Register', path: '/attendance-leave/register' },
       { key: 'my-attendance-details', label: 'My Attendance Details', path: '/attendance-leave?details=me' },
     ],
   },
@@ -529,6 +529,29 @@ export function isHrOrAdminUser(user?: any): boolean {
     user.primaryRole?.toUpperCase().includes('ADMIN') ||
     user.primaryRole?.toUpperCase().includes('HR');
   return Boolean(isRoleAdmin || isPrimaryAdmin);
+}
+
+export function isManagerOrHrOrAdmin(user?: any): boolean {
+  if (!user) return false;
+  if (isSuperAdminUser(user)) return true;
+  if (user.permissions?.includes('*')) return true;
+  const isRoleMatch = user.roles?.some((r: string) => {
+    const u = typeof r === 'string' ? r.toUpperCase() : '';
+    return (
+      u.includes('ADMIN') ||
+      u.includes('HR') ||
+      u.includes('MANAGER') ||
+      u.includes('LEAD') ||
+      u.includes('SUPERVISOR')
+    );
+  });
+  const isPrimaryMatch =
+    user.primaryRole?.toUpperCase().includes('ADMIN') ||
+    user.primaryRole?.toUpperCase().includes('HR') ||
+    user.primaryRole?.toUpperCase().includes('MANAGER') ||
+    user.primaryRole?.toUpperCase().includes('LEAD') ||
+    user.primaryRole?.toUpperCase().includes('SUPERVISOR');
+  return Boolean(isRoleMatch || isPrimaryMatch);
 }
 
 export function hasModulePermission(user: any, moduleKey: string, action: string = 'view'): boolean {

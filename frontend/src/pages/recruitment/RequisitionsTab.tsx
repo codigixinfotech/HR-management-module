@@ -143,11 +143,33 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
     queryFn: () => manpowerRequisitionsApi.list(activeCompanyId),
   });
 
+  const selectedStandaloneComp = useMemo(() => {
+    return companies.find((c: any) => c.id === standaloneCompanyId);
+  }, [companies, standaloneCompanyId]);
+
   // Dependent organization filters
   const filteredBranches = useMemo(() => {
     if (!standaloneCompanyId) return [];
-    return branches.filter((b: any) => b.companyId === standaloneCompanyId);
-  }, [branches, standaloneCompanyId]);
+    return branches.filter((b: any) => {
+      if (!b.companyId || b.companyId !== standaloneCompanyId) return false;
+      const bName = (b.name || '').trim().toLowerCase();
+      if (selectedStandaloneComp) {
+        const cName = (selectedStandaloneComp.name || '').trim().toLowerCase();
+        const cCode = (selectedStandaloneComp.code || '').trim().toLowerCase();
+        if (bName === cName || bName === cCode) return false;
+      }
+      if (
+        bName === 'parent office/company' ||
+        bName === 'parent company' ||
+        bName === 'parent office' ||
+        bName === 'head office / company' ||
+        bName === 'cravita technology pvt ltd'
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [branches, standaloneCompanyId, selectedStandaloneComp]);
 
   const filteredDepartments = useMemo(() => {
     if (!standaloneCompanyId) return [];
@@ -237,8 +259,8 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
   const validateStep1 = () => {
     const errors: Record<string, string> = {};
     if (reqMode === 'STANDALONE') {
-      if (!standaloneCompanyId) errors.standaloneCompanyId = 'Company Entity is required.';
-      if (!standaloneBranchId) errors.standaloneBranchId = 'Please select a Branch Location.';
+      if (!standaloneCompanyId) errors.standaloneCompanyId = 'Organization Entity is required.';
+      // Branch Location is optional
       if (!standaloneDepartmentId) errors.standaloneDepartmentId = 'Please select a Department.';
       if (!standaloneCostCenter || !standaloneCostCenter.trim()) errors.standaloneCostCenter = 'Cost Center is required.';
       if (!standaloneDesignationId) errors.standaloneDesignationId = 'Please select a Designation / Job Role.';
@@ -1103,10 +1125,10 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
             {/* ── Top Compact Organization Summary Bar ── */}
             <div className="bg-muted/40 p-3 rounded-xl border border-border/80 grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
               <div>
-                <span className="text-[10px] text-muted-foreground block font-medium">Company Entity</span>
+                <span className="text-[10px] text-muted-foreground block font-medium">Organization Entity</span>
                 <span className="font-semibold truncate block">
                   {reqMode === 'FROM_MR'
-                    ? (planCompany?.name || 'Selected Company')
+                    ? (planCompany?.name || 'Selected Entity')
                     : (companies.find((c: any) => c.id === standaloneCompanyId)?.name || 'Not Selected')}
                 </span>
               </div>
@@ -1289,12 +1311,12 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {/* 1. Company */}
+                      {/* 1. Organization Entity */}
                       <div className="space-y-1">
-                        <Label className="font-semibold text-xs">Company Entity *</Label>
+                        <Label className="font-semibold text-xs">Organization Entity *</Label>
                         <Select value={standaloneCompanyId} onValueChange={handleCompanyChange}>
                           <SelectTrigger className="h-8 text-xs bg-background font-semibold">
-                            <SelectValue placeholder="Select Company" />
+                            <SelectValue placeholder="Select Organization Entity" />
                           </SelectTrigger>
                           <SelectContent>
                             {companies.map((c: any) => (
@@ -1311,23 +1333,40 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
 
                       {/* 2. Branch */}
                       <div className="space-y-1">
-                        <Label className="font-semibold text-xs">Branch Location *</Label>
-                        <Select
-                          value={standaloneBranchId}
-                          onValueChange={handleBranchChange}
-                          disabled={!standaloneCompanyId}
-                        >
-                          <SelectTrigger className="h-8 text-xs bg-background">
-                            <SelectValue placeholder={standaloneCompanyId ? 'Select Branch' : 'Select Company first'} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {filteredBranches.map((b: any) => (
-                              <SelectItem key={b.id} value={b.id} className="text-xs">
-                                {b.name} ({b.city || 'Nashik'})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label className="font-semibold text-xs">
+                          Branch Location
+                          {filteredBranches.length > 0 && <span className="text-muted-foreground font-normal ml-1">(Optional)</span>}
+                        </Label>
+                        {!standaloneCompanyId ? (
+                          <div className="h-8 px-3 py-1.5 rounded-md border text-xs bg-muted/40 text-muted-foreground flex items-center">
+                            Select Organization Entity first
+                          </div>
+                        ) : filteredBranches.length === 0 ? (
+                          <div className="h-8 px-3 py-1.5 rounded-md border text-xs bg-muted/20 text-foreground flex items-center justify-between border-dashed">
+                            <span className="flex items-center gap-1.5 font-medium text-foreground">
+                              <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Head Office / No Branch
+                            </span>
+                            <Badge variant="outline" className="text-[10px] bg-background text-emerald-600 border-emerald-500/30">
+                              Head Office
+                            </Badge>
+                          </div>
+                        ) : (
+                          <Select
+                            value={standaloneBranchId}
+                            onValueChange={handleBranchChange}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-background">
+                              <SelectValue placeholder="Select Branch (Optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {filteredBranches.map((b: any) => (
+                                <SelectItem key={b.id} value={b.id} className="text-xs">
+                                  {b.name} ({b.city || 'Nashik'})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                         {fieldErrors.standaloneBranchId && (
                           <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneBranchId}</p>
                         )}
@@ -1339,10 +1378,10 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                         <Select
                           value={standaloneDepartmentId}
                           onValueChange={handleDepartmentChange}
-                          disabled={!standaloneBranchId}
+                          disabled={!standaloneCompanyId}
                         >
                           <SelectTrigger className="h-8 text-xs bg-background">
-                            <SelectValue placeholder={standaloneBranchId ? 'Select Department' : 'Select Branch first'} />
+                            <SelectValue placeholder={standaloneCompanyId ? 'Select Department' : 'Select Organization Entity first'} />
                           </SelectTrigger>
                           <SelectContent>
                             {filteredDepartments.map((d: any) => (
@@ -1368,7 +1407,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                             setFieldErrors((prev) => ({ ...prev, standaloneCostCenter: '' }));
                           }}
                           disabled={!standaloneDepartmentId}
-                          placeholder={standaloneDepartmentId ? 'e.g. CCP234 - Software Development' : 'Select Department first'}
+                          placeholder={standaloneDepartmentId ? 'Select cost center' : 'Select Department first'}
                           className="h-8 text-xs bg-background font-mono"
                         />
                         {fieldErrors.standaloneCostCenter && (
@@ -1454,7 +1493,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                         setFieldErrors((prev) => ({ ...prev, jobTitle: '' }));
                       }}
                       className="h-8 text-xs bg-background font-semibold text-foreground"
-                      placeholder="e.g. Software Engineer / Senior Full Stack Developer"
+                      placeholder=""
                     />
                     {fieldErrors.jobTitle && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobTitle}</p>}
                   </div>
@@ -1526,7 +1565,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                         setFieldErrors((prev) => ({ ...prev, jobQualification: '' }));
                       }}
                       className={`h-8 text-xs ${reqMode === 'FROM_MR' ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'}`}
-                      placeholder="e.g. B.Tech / M.Tech / MCA / Graduate"
+                      placeholder=""
                     />
                     {fieldErrors.jobQualification && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobQualification}</p>}
                   </div>
@@ -1538,7 +1577,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                       value={preferredQualification}
                       onChange={(e) => setPreferredQualification(e.target.value)}
                       className="h-8 text-xs bg-background"
-                      placeholder="e.g. M.Tech / AWS Certified / Honors Graduate"
+                      placeholder=""
                     />
                   </div>
 
@@ -1555,7 +1594,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                         setFieldErrors((prev) => ({ ...prev, jobSkills: '' }));
                       }}
                       className={`h-8 text-xs ${reqMode === 'FROM_MR' ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'}`}
-                      placeholder="e.g. React, Node.js, TypeScript, PostgreSQL"
+                      placeholder=""
                     />
                     {fieldErrors.jobSkills && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobSkills}</p>}
                   </div>
@@ -1567,7 +1606,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                       value={preferredSkills}
                       onChange={(e) => setPreferredSkills(e.target.value)}
                       className="h-8 text-xs bg-background"
-                      placeholder="e.g. Docker, Kubernetes, GraphQL, System Design"
+                      placeholder=""
                     />
                   </div>
 
@@ -1579,14 +1618,14 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                         value={certifications}
                         onChange={(e) => setCertifications(e.target.value)}
                         className="h-8 text-xs bg-background"
-                        placeholder="Certifications (e.g. AWS Architect, PMP)"
+                        placeholder="Certifications"
                       />
                       <Input
                         type="text"
                         value={benefits}
                         onChange={(e) => setBenefits(e.target.value)}
                         className="h-8 text-xs bg-background"
-                        placeholder="Benefits (e.g. Health Insurance, Bonus)"
+                        placeholder="Benefits"
                       />
                     </div>
                   </div>
@@ -1641,7 +1680,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                           type="text"
                           value={graduationYear}
                           onChange={(e) => setGraduationYear(e.target.value)}
-                          placeholder="e.g. 2024 / 2025 / 2026"
+                          placeholder=""
                           className="h-8 text-xs bg-background"
                         />
                       </div>
@@ -1808,7 +1847,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                         setFieldErrors((prev) => ({ ...prev, jobLocation: '' }));
                       }}
                       className={`h-8 text-xs ${reqMode === 'FROM_MR' ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'}`}
-                      placeholder="e.g. Nashik Development Center / Remote"
+                      placeholder=""
                     />
                     {fieldErrors.jobLocation && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobLocation}</p>}
                   </div>
@@ -1960,7 +1999,7 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                         value={interviewProcess}
                         onChange={(e) => setInterviewProcess(e.target.value)}
                         className="h-8 text-xs bg-background"
-                        placeholder="e.g. Screening → Technical Assessment → Technical Interview → HR Round"
+                        placeholder=""
                       />
                     </div>
 

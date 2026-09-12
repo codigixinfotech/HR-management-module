@@ -165,26 +165,39 @@ export class HrPoliciesService implements OnModuleInit {
   }
 
   async findAll(search?: string, category?: string, status?: string, companyId?: string) {
-    const where: any = {};
-    if (companyId) where.companyId = companyId;
+    const andConditions: any[] = [];
+
+    if (companyId) {
+      andConditions.push({
+        OR: [
+          { companyId },
+          { companyId: null },
+        ],
+      });
+    }
+
     if (status && status !== 'all') {
-      where.status = status.toUpperCase();
+      andConditions.push({ status: status.toUpperCase() });
     } else if (!status) {
-      where.status = { in: ['PUBLISHED', 'DRAFT'] };
+      andConditions.push({ status: { in: ['PUBLISHED', 'DRAFT'] } });
     }
 
     if (category && category.toLowerCase() !== 'all') {
-      where.category = { contains: category };
+      andConditions.push({ category: { contains: category } });
     }
 
     if (search && search.trim()) {
       const q = search.trim();
-      where.OR = [
-        { title: { contains: q } },
-        { policyCode: { contains: q } },
-        { category: { contains: q } },
-      ];
+      andConditions.push({
+        OR: [
+          { title: { contains: q } },
+          { policyCode: { contains: q } },
+          { category: { contains: q } },
+        ],
+      });
     }
+
+    const where = andConditions.length > 0 ? { AND: andConditions } : {};
 
     return this.prisma.hrPolicy.findMany({
       where,
@@ -193,12 +206,19 @@ export class HrPoliciesService implements OnModuleInit {
   }
 
   async getKpis(companyId?: string) {
-    const where = {
-      ...(companyId ? { companyId } : {}),
-      status: 'PUBLISHED',
-    };
+    const andConditions: any[] = [{ status: 'PUBLISHED' }];
+    if (companyId) {
+      andConditions.push({
+        OR: [
+          { companyId },
+          { companyId: null },
+        ],
+      });
+    }
 
-    const publishedPolicies = await this.prisma.hrPolicy.findMany({ where });
+    const publishedPolicies = await this.prisma.hrPolicy.findMany({
+      where: { AND: andConditions },
+    });
 
     const publishedCount = publishedPolicies.length;
     let totalSigned = 0;

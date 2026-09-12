@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { companiesApi, branchesApi, departmentsApi } from '@/api/organization';
+import { formatIndianBudget } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -137,7 +138,7 @@ export default function OrganizationPage() {
             <StatCard icon={Network} label="Functional Departments" value={departments?.length ?? 0} accent="primary" />
             <StatCard icon={Award} label="Configured Designations" value={24} accent="info" />
             <StatCard icon={Layers} label="Average Dept Size" value="41 Employees" accent="success" />
-            <StatCard icon={ShieldCheck} label="Dept Annual Budget" value="₹40.9 Cr" accent="warning" />
+            <StatCard icon={ShieldCheck} label="Dept Annual Budget" value={formatIndianBudget(departments?.reduce((sum, d) => sum + (Number(d.annualBudget) || 0), 0)) ?? '₹0'} accent="warning" />
           </div>
 
           <div className="space-y-6">

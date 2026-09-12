@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getModulesForRole, isSuperAdminUser, type HcmModule, type SubModuleItem } from '@/lib/modules';
+import { getModulesForRole, isSuperAdminUser, isManagerOrHrOrAdmin, type HcmModule, type SubModuleItem } from '@/lib/modules';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCompany } from '@/context/CompanyContext';
 import { subscriptionsApi } from '@/api/plansApi';
@@ -83,8 +83,26 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       });
     }
 
+    // Role-based visibility for Attendance & Leave
+    // Manager / HR / Admin: Attendance Register
+    // Employee: My Attendance Register
+    const isManagerOrAdmin = isManagerOrHrOrAdmin(user);
+    base = base.map((mod) => {
+      if (mod.key === 'attendance-leave' && mod.subItems) {
+        return {
+          ...mod,
+          subItems: mod.subItems.map((sub) =>
+            sub.key === 'register'
+              ? { ...sub, label: isManagerOrAdmin ? 'Attendance Register' : 'My Attendance Register' }
+              : sub
+          ),
+        };
+      }
+      return mod;
+    });
+
     return base;
-  }, [modulesForRole, enabledModuleKeysSet, isSuperAdmin, isAssessmentEnabled]);
+  }, [modulesForRole, enabledModuleKeysSet, isSuperAdmin, isAssessmentEnabled, user]);
 
   // Track expanded parent sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});

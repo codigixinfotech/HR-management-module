@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { holidaysApi } from '@/api/attendance-leave';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -19,10 +20,11 @@ import {
   Power,
   SlidersHorizontal,
   Info,
-  Briefcase,
-  AlertCircle,
   Building,
+  Briefcase,
+  Users,
   CheckSquare,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,7 +36,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useCompany } from '@/context/CompanyContext';
-import { branchesApi } from '@/api/organization';
+import { branchesApi, departmentsApi } from '@/api/organization';
+
+export type HolidayScopeType = 'Company' | 'Branch' | 'Department' | 'Employee Group';
+export type HolidayDurationType = 'Full Day' | 'Half Day';
+export type HolidaySessionType = 'Morning' | 'Afternoon';
 
 export interface HolidayItem {
   id: string;
@@ -42,8 +48,21 @@ export interface HolidayItem {
   date: string; // YYYY-MM-DD
   type: 'Mandatory' | 'Restricted / Optional' | 'Regional' | 'Company Holiday' | 'Special Holiday';
   category: 'National' | 'Festival' | 'Regional' | 'Religious' | 'Company Event' | 'Government Declared' | 'Other';
-  scope: 'Company-wide' | 'Branch-specific' | 'Region/State-specific';
-  applicableLocations: string[]; // e.g. ['Company-wide'] or ['Pune Manufacturing Plant', 'Mumbai Office']
+  
+  // Standardized Scope & Target
+  applicableTo: HolidayScopeType;
+  applicableTarget: string; // e.g., 'All Company Entities', 'Pune Manufacturing Plant', 'Operations & Production', 'Plant Workers'
+  applicableLocations?: string[]; // Backwards compatibility for filtering
+
+  // Duration & Session
+  duration: HolidayDurationType;
+  session?: HolidaySessionType; // Only when duration === 'Half Day'
+
+  // Restricted / Optional Holiday Controls
+  allowEmployeeSelection?: boolean;
+  approvalRequired?: boolean;
+  maxOptionalHolidays?: number;
+
   isPaid: boolean;
   isOptional: boolean;
   attendanceOverride: boolean; // Suppress biometric punch requirement
@@ -53,6 +72,14 @@ export interface HolidayItem {
   referencedInAttendance?: boolean;
 }
 
+const DEFAULT_EMPLOYEE_GROUPS = [
+  'All Plant & Factory Workers',
+  'Corporate & Office Staff',
+  'Field Service Engineers',
+  'Shift Technicians & Operators',
+  'Contract & Security Staff',
+];
+
 const INITIAL_HOLIDAYS: HolidayItem[] = [
   {
     id: 'h1',
@@ -60,8 +87,10 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     date: '2026-01-26',
     type: 'Mandatory',
     category: 'National',
-    scope: 'Company-wide',
+    applicableTo: 'Company',
+    applicableTarget: 'All Company Entities',
     applicableLocations: ['Company-wide'],
+    duration: 'Full Day',
     isPaid: true,
     isOptional: false,
     attendanceOverride: true,
@@ -76,8 +105,10 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     date: '2026-04-14',
     type: 'Regional',
     category: 'Regional',
-    scope: 'Region/State-specific',
-    applicableLocations: ['Maharashtra State'],
+    applicableTo: 'Branch',
+    applicableTarget: 'Pune Manufacturing Plant',
+    applicableLocations: ['Pune Manufacturing Plant', 'Mumbai Office'],
+    duration: 'Full Day',
     isPaid: true,
     isOptional: false,
     attendanceOverride: true,
@@ -92,8 +123,10 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     date: '2026-05-01',
     type: 'Regional',
     category: 'Regional',
-    scope: 'Branch-specific',
+    applicableTo: 'Branch',
+    applicableTarget: 'Pune Manufacturing Plant',
     applicableLocations: ['Pune Manufacturing Plant', 'Mumbai Office'],
+    duration: 'Full Day',
     isPaid: true,
     isOptional: false,
     attendanceOverride: true,
@@ -108,8 +141,10 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     date: '2026-08-15',
     type: 'Mandatory',
     category: 'National',
-    scope: 'Company-wide',
+    applicableTo: 'Company',
+    applicableTarget: 'All Company Entities',
     applicableLocations: ['Company-wide'],
+    duration: 'Full Day',
     isPaid: true,
     isOptional: false,
     attendanceOverride: true,
@@ -124,8 +159,10 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     date: '2026-10-02',
     type: 'Mandatory',
     category: 'National',
-    scope: 'Company-wide',
+    applicableTo: 'Company',
+    applicableTarget: 'All Company Entities',
     applicableLocations: ['Company-wide'],
+    duration: 'Full Day',
     isPaid: true,
     isOptional: false,
     attendanceOverride: true,
@@ -140,8 +177,13 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     date: '2026-10-20',
     type: 'Restricted / Optional',
     category: 'Festival',
-    scope: 'Branch-specific',
+    applicableTo: 'Branch',
+    applicableTarget: 'Pune Manufacturing Plant',
     applicableLocations: ['Pune Manufacturing Plant'],
+    duration: 'Full Day',
+    allowEmployeeSelection: true,
+    approvalRequired: true,
+    maxOptionalHolidays: 2,
     isPaid: true,
     isOptional: true,
     attendanceOverride: true,
@@ -156,8 +198,10 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     date: '2026-11-08',
     type: 'Mandatory',
     category: 'Festival',
-    scope: 'Company-wide',
+    applicableTo: 'Company',
+    applicableTarget: 'All Company Entities',
     applicableLocations: ['Company-wide'],
+    duration: 'Full Day',
     isPaid: true,
     isOptional: false,
     attendanceOverride: true,
@@ -172,8 +216,10 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     date: '2026-12-25',
     type: 'Mandatory',
     category: 'Festival',
-    scope: 'Company-wide',
+    applicableTo: 'Company',
+    applicableTarget: 'All Company Entities',
     applicableLocations: ['Company-wide'],
+    duration: 'Full Day',
     isPaid: true,
     isOptional: false,
     attendanceOverride: true,
@@ -182,20 +228,32 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     isActive: true,
     referencedInAttendance: false,
   },
-];
-
-const AVAILABLE_REGIONS = [
-  'Maharashtra State',
-  'Karnataka State',
-  'Delhi NCR Region',
-  'Telangana State',
+  {
+    id: 'h9',
+    name: 'Year-End Saturday Half-Day',
+    date: '2026-12-26',
+    type: 'Company Holiday',
+    category: 'Company Event',
+    applicableTo: 'Employee Group',
+    applicableTarget: 'Corporate & Office Staff',
+    applicableLocations: ['Mumbai Office', 'Pune Manufacturing Plant'],
+    duration: 'Half Day',
+    session: 'Afternoon',
+    isPaid: true,
+    isOptional: false,
+    attendanceOverride: true,
+    payrollImpact: 'Half Day Paid',
+    description: 'Company-declared Saturday afternoon holiday for corporate teams.',
+    isActive: true,
+    referencedInAttendance: false,
+  },
 ];
 
 export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: string }) {
   const { activeCompanyId: ctxCompanyId } = useCompany();
   const activeCompanyId = propCompanyId || ctxCompanyId;
 
-  // Fetch branches from backend dynamically
+  // Fetch branches dynamically
   const { data: branchesData } = useQuery({
     queryKey: ['branches', activeCompanyId],
     queryFn: () => branchesApi.list(activeCompanyId),
@@ -209,8 +267,82 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
     return ['Pune Manufacturing Plant', 'Mumbai Office', 'Stores & Warehouse'];
   }, [branchesData]);
 
-  // Holidays state
+  // Fetch departments dynamically
+  const { data: departmentsData } = useQuery({
+    queryKey: ['departments', activeCompanyId],
+    queryFn: () => departmentsApi.list(activeCompanyId),
+    enabled: !!activeCompanyId,
+  });
+
+  const availableDepartmentNames = useMemo(() => {
+    if (departmentsData && departmentsData.length > 0) {
+      return departmentsData.map((d: any) => d.name);
+    }
+    return ['Operations & Production', 'Engineering & Maintenance', 'Human Resources', 'Supply Chain & Logistics', 'Finance & Accounts', 'Sales & Marketing'];
+  }, [departmentsData]);
+
+  const queryClient = useQueryClient();
+
+  // Holidays state backed by database
   const [holidays, setHolidays] = useState<HolidayItem[]>(INITIAL_HOLIDAYS);
+
+  // Fetch holidays dynamically from MySQL database via API
+  const { data: dbHolidays } = useQuery({
+    queryKey: ['holidays', activeCompanyId],
+    queryFn: () => holidaysApi.list(activeCompanyId),
+    enabled: !!activeCompanyId,
+  });
+
+  // Sync DB holidays to state
+  useEffect(() => {
+    if (dbHolidays && dbHolidays.length > 0) {
+      setHolidays(dbHolidays as any);
+    }
+  }, [dbHolidays]);
+
+  // Create Holiday in Database
+  const createMutation = useMutation({
+    mutationFn: (payload: any) => holidaysApi.create(payload),
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: ['holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-records'] });
+      toast.success(`Holiday "${saved.name}" declared and saved to database! Attendance synced.`);
+      setIsDeclareOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Failed to save holiday to database');
+    },
+  });
+
+  // Update Holiday in Database
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) => holidaysApi.update(id, payload),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-records'] });
+      toast.success(`Holiday "${updated.name}" updated in database and attendance synced!`);
+      setIsDeclareOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Failed to update holiday in database');
+    },
+  });
+
+  // Delete Holiday from Database
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => holidaysApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-records'] });
+      toast.success('Holiday deleted from database and attendance schedule updated.');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Failed to delete holiday');
+    },
+  });
 
   // Filters & Controls
   const [searchQuery, setSearchQuery] = useState('');
@@ -224,11 +356,8 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
   // Modals state
   const [isDeclareOpen, setIsDeclareOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [isWorkweekOpen, setIsWorkweekOpen] = useState(false);
-  const [isShiftOpen, setIsShiftOpen] = useState(false);
-  const [isBiometricOpen, setIsBiometricOpen] = useState(false);
 
-  // Selected holiday for Edit / View / Delete
+  // Selected holiday for Edit / View
   const [editingHoliday, setEditingHoliday] = useState<HolidayItem | null>(null);
   const [viewingHoliday, setViewingHoliday] = useState<HolidayItem | null>(null);
 
@@ -237,47 +366,25 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
   const [formDate, setFormDate] = useState('2026-01-01');
   const [formType, setFormType] = useState<HolidayItem['type']>('Mandatory');
   const [formCategory, setFormCategory] = useState<HolidayItem['category']>('National');
-  const [formScope, setFormScope] = useState<HolidayItem['scope']>('Company-wide');
-  const [formLocations, setFormLocations] = useState<string[]>(['Company-wide']);
+  
+  // Standardized Scope & Target
+  const [formApplicableTo, setFormApplicableTo] = useState<HolidayScopeType>('Company');
+  const [formApplicableTarget, setFormApplicableTarget] = useState('All Company Entities');
+
+  // Duration & Session
+  const [formDuration, setFormDuration] = useState<HolidayDurationType>('Full Day');
+  const [formSession, setFormSession] = useState<HolidaySessionType>('Morning');
+
+  // Restricted / Optional Holiday Controls
+  const [formAllowEmployeeSelection, setFormAllowEmployeeSelection] = useState(true);
+  const [formApprovalRequired, setFormApprovalRequired] = useState(true);
+  const [formMaxOptionalHolidays, setFormMaxOptionalHolidays] = useState(2);
+
   const [formIsPaid, setFormIsPaid] = useState(true);
-  const [formIsOptional, setFormIsOptional] = useState(false);
   const [formAttendanceOverride, setFormAttendanceOverride] = useState(true);
   const [formPayrollImpact, setFormPayrollImpact] = useState<'Paid Holiday' | 'Unpaid' | 'Half Day Paid'>('Paid Holiday');
   const [formDescription, setFormDescription] = useState('');
   const [formStatus, setFormStatus] = useState(true);
-
-  // Workweek Configuration State
-  const [workweekType, setWorkweekType] = useState<'5-Day' | '6-Day' | 'Custom'>('5-Day');
-  const [workingDays, setWorkingDays] = useState({
-    Monday: true,
-    Tuesday: true,
-    Wednesday: true,
-    Thursday: true,
-    Friday: true,
-    Saturday: false,
-    Sunday: false,
-  });
-  const [weeklyHours, setWeeklyHours] = useState('40');
-  const [saturdayPolicy, setSaturdayPolicy] = useState('Off');
-  const [sundayPolicy, setSundayPolicy] = useState('Weekly Off');
-
-  // Shift Configuration State
-  const [shiftName, setShiftName] = useState('General Shift');
-  const [shiftStartTime, setShiftStartTime] = useState('09:00 AM');
-  const [shiftEndTime, setShiftEndTime] = useState('06:00 PM');
-  const [shiftBreakStart, setShiftBreakStart] = useState('01:00 PM');
-  const [shiftBreakEnd, setShiftBreakEnd] = useState('02:00 PM');
-  const [shiftTotalHours, setShiftTotalHours] = useState('8');
-  const [shiftGracePeriod, setShiftGracePeriod] = useState('10');
-  const [shiftLocations, setShiftLocations] = useState<string[]>(['Pune Manufacturing Plant', 'Mumbai Office']);
-  const [shiftStatus, setShiftStatus] = useState<'Active' | 'Inactive'>('Active');
-
-  // Biometric IoT Override Policy State
-  const [holidayAttendancePolicy, setHolidayAttendancePolicy] = useState<'Block Check-In' | 'Allow Check-In' | 'Allow with Holiday OT'>('Allow with Holiday OT');
-  const [autoSuppressAttendance, setAutoSuppressAttendance] = useState(true);
-  const [recordHolidayAttendance, setRecordHolidayAttendance] = useState(true);
-  const [markAsHolidayWork, setMarkAsHolidayWork] = useState(true);
-  const [calculateOtIfApproved, setCalculateOtIfApproved] = useState(true);
 
   // ── Open Modals Handlers ──
   const openCreateModal = () => {
@@ -286,10 +393,14 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
     setFormDate('2026-09-15');
     setFormType('Mandatory');
     setFormCategory('National');
-    setFormScope('Company-wide');
-    setFormLocations(['Company-wide']);
+    setFormApplicableTo('Company');
+    setFormApplicableTarget('All Company Entities');
+    setFormDuration('Full Day');
+    setFormSession('Morning');
+    setFormAllowEmployeeSelection(true);
+    setFormApprovalRequired(true);
+    setFormMaxOptionalHolidays(2);
     setFormIsPaid(true);
-    setFormIsOptional(false);
     setFormAttendanceOverride(true);
     setFormPayrollImpact('Paid Holiday');
     setFormDescription('');
@@ -303,15 +414,14 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
     setFormDate(h.date);
     setFormType(h.type);
     setFormCategory(h.category);
-    setFormScope(
-      h.scope ||
-        (h.applicableLocations.some(l => l.includes('All') || l === 'Company-wide')
-          ? 'Company-wide'
-          : 'Branch-specific'),
-    );
-    setFormLocations(h.applicableLocations);
+    setFormApplicableTo(h.applicableTo || 'Company');
+    setFormApplicableTarget(h.applicableTarget || (h.applicableLocations?.[0] || 'All Company Entities'));
+    setFormDuration(h.duration || 'Full Day');
+    setFormSession(h.session || 'Morning');
+    setFormAllowEmployeeSelection(h.allowEmployeeSelection ?? true);
+    setFormApprovalRequired(h.approvalRequired ?? true);
+    setFormMaxOptionalHolidays(h.maxOptionalHolidays || 2);
     setFormIsPaid(h.isPaid);
-    setFormIsOptional(h.isOptional);
     setFormAttendanceOverride(h.attendanceOverride);
     setFormPayrollImpact(h.payrollImpact);
     setFormDescription(h.description);
@@ -336,120 +446,72 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
       return;
     }
 
-    const finalLocations =
-      formScope === 'Company-wide'
-        ? ['Company-wide']
-        : formLocations.length
-        ? formLocations
-        : ['Company-wide'];
+    const isOptional = formType === 'Restricted / Optional';
+    const payload = {
+      companyId: activeCompanyId || 'cmto136wt01ibipkgbon2sw9s',
+      name: formName.trim(),
+      date: formDate,
+      type: formType,
+      category: formCategory,
+      scope: formApplicableTo,
+      applicableTo: formApplicableTo,
+      applicableTarget: formApplicableTarget,
+      applicableLocations: [formApplicableTarget],
+      duration: formDuration,
+      session: formDuration === 'Half Day' ? formSession : undefined,
+      allowEmployeeSelection: isOptional ? formAllowEmployeeSelection : undefined,
+      approvalRequired: isOptional ? formApprovalRequired : undefined,
+      maxOptionalHolidays: isOptional ? formMaxOptionalHolidays : undefined,
+      isPaid: formIsPaid,
+      isOptional: isOptional,
+      attendanceOverride: formAttendanceOverride,
+      payrollImpact: formPayrollImpact,
+      description: formDescription || 'Declared holiday for organization.',
+      isActive: formStatus,
+    };
 
     if (editingHoliday) {
-      setHolidays(prev =>
-        prev.map(item =>
-          item.id === editingHoliday.id
-            ? {
-                ...item,
-                name: formName,
-                date: formDate,
-                type: formType,
-                category: formCategory,
-                scope: formScope,
-                applicableLocations: finalLocations,
-                isPaid: formIsPaid,
-                isOptional: formIsOptional,
-                attendanceOverride: formAttendanceOverride,
-                payrollImpact: formPayrollImpact,
-                description: formDescription,
-                isActive: formStatus,
-              }
-            : item,
-        ),
-      );
-      toast.success(`Holiday "${formName}" updated successfully`);
+      updateMutation.mutate({ id: editingHoliday.id, payload });
     } else {
-      const newHoliday: HolidayItem = {
-        id: `h_${Date.now()}`,
-        name: formName,
-        date: formDate,
-        type: formType,
-        category: formCategory,
-        scope: formScope,
-        applicableLocations: finalLocations,
-        isPaid: formIsPaid,
-        isOptional: formIsOptional,
-        attendanceOverride: formAttendanceOverride,
-        payrollImpact: formPayrollImpact,
-        description: formDescription || 'National holiday for all employees.',
-        isActive: formStatus,
-        referencedInAttendance: false,
-      };
-      setHolidays(prev => [...prev, newHoliday]);
-      toast.success(`Holiday "${formName}" declared successfully`);
+      createMutation.mutate(payload);
     }
-    setIsDeclareOpen(false);
   };
 
   const handleDuplicateHoliday = (h: HolidayItem) => {
-    const copy: HolidayItem = {
-      ...h,
-      id: `h_${Date.now()}`,
+    const payload = {
+      companyId: activeCompanyId || 'cmto136wt01ibipkgbon2sw9s',
       name: `Copy of ${h.name}`,
-      referencedInAttendance: false,
+      date: h.date,
+      type: h.type,
+      category: h.category,
+      scope: h.applicableTo || h.scope || 'Company',
+      applicableTo: h.applicableTo || h.scope || 'Company',
+      applicableTarget: h.applicableTarget || (h.applicableLocations?.[0] || 'All Company Entities'),
+      applicableLocations: h.applicableLocations || ['All Company Entities'],
+      duration: h.duration || 'Full Day',
+      session: h.session,
+      allowEmployeeSelection: h.allowEmployeeSelection,
+      approvalRequired: h.approvalRequired,
+      maxOptionalHolidays: h.maxOptionalHolidays,
+      isPaid: h.isPaid,
+      isOptional: h.isOptional,
+      attendanceOverride: h.attendanceOverride,
+      payrollImpact: h.payrollImpact,
+      description: h.description,
+      isActive: true,
     };
-    setHolidays(prev => [...prev, copy]);
-    toast.success(`Duplicated holiday as "${copy.name}"`);
+    createMutation.mutate(payload);
   };
 
   const handleToggleActive = (h: HolidayItem) => {
-    setHolidays(prev =>
-      prev.map(item => (item.id === h.id ? { ...item, isActive: !item.isActive } : item)),
-    );
-    toast.success(`Holiday "${h.name}" ${h.isActive ? 'deactivated' : 'activated'}`);
+    updateMutation.mutate({
+      id: h.id,
+      payload: { isActive: !h.isActive },
+    });
   };
 
   const handleDeleteHoliday = (h: HolidayItem) => {
-    if (h.referencedInAttendance) {
-      toast.warning('This holiday is already referenced by attendance records. Deactivate it instead of deleting to protect audit history.', {
-        duration: 5000,
-      });
-      return;
-    }
-    setHolidays(prev => prev.filter(item => item.id !== h.id));
-    toast.success(`Holiday "${h.name}" deleted from calendar`);
-  };
-
-  const handleSaveWorkweek = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsWorkweekOpen(false);
-    toast.success('Standard Workweek configuration saved successfully');
-  };
-
-  const handleSaveShift = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsShiftOpen(false);
-    toast.success('Shift configuration saved successfully');
-  };
-
-  const handleSaveBiometricPolicy = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsBiometricOpen(false);
-    toast.success('Biometric Machine Holiday Override Policy saved');
-  };
-
-  // ── Location Checkbox Toggle ──
-  const toggleFormLocation = (loc: string) => {
-    if (loc === 'All India Facilities') {
-      setFormLocations(['All India Facilities']);
-      return;
-    }
-    setFormLocations(prev => {
-      const filtered = prev.filter(l => l !== 'All India Facilities');
-      if (filtered.includes(loc)) {
-        const next = filtered.filter(l => l !== loc);
-        return next.length ? next : ['All India Facilities'];
-      }
-      return [...filtered, loc];
-    });
+    deleteMutation.mutate(h.id);
   };
 
   // ── Filtered Holidays Computation ──
@@ -476,12 +538,14 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
         return false;
       }
 
-      // Location Filter
+      // Location / Scope Target Filter
       if (selectedLocation !== 'all') {
-        const hasLocation = h.applicableLocations.some(
-          loc => loc.toLowerCase().includes(selectedLocation.toLowerCase()) || loc.includes('All'),
-        );
-        if (!hasLocation) return false;
+        const targetStr = (h.applicableTarget || '').toLowerCase();
+        const locStr = (h.applicableLocations || []).join(' ').toLowerCase();
+        const filterStr = selectedLocation.toLowerCase();
+        const matchesTarget = targetStr.includes(filterStr) || targetStr.includes('all') || targetStr.includes('company');
+        const matchesLoc = locStr.includes(filterStr) || locStr.includes('all') || locStr.includes('company');
+        if (!matchesTarget && !matchesLoc) return false;
       }
 
       // Search Query
@@ -491,15 +555,16 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
         const matchesDate = h.date.toLowerCase().includes(q);
         const matchesType = h.type.toLowerCase().includes(q);
         const matchesCat = h.category.toLowerCase().includes(q);
-        const matchesLoc = h.applicableLocations.some(l => l.toLowerCase().includes(q));
-        if (!matchesName && !matchesDate && !matchesType && !matchesCat && !matchesLoc) return false;
+        const matchesTarget = (h.applicableTarget || '').toLowerCase().includes(q);
+        const matchesScope = (h.applicableTo || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesDate && !matchesType && !matchesCat && !matchesTarget && !matchesScope) return false;
       }
 
       return true;
     });
   }, [holidays, selectedYear, selectedStatus, selectedType, selectedCategory, selectedLocation, searchQuery]);
 
-  // ── Dynamic Summary Calculations (Section 16) ──
+  // ── Dynamic Summary Calculations ──
   const totalDeclaredHolidays = useMemo(() => {
     return holidays.filter(h => h.isActive && h.date.startsWith(selectedYear === 'all' ? '2026' : selectedYear)).length;
   }, [holidays, selectedYear]);
@@ -538,6 +603,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
       formattedDate: `${monthStr} ${dayNum}`,
       daysRemaining: diffDays,
       type: upcoming.type,
+      duration: upcoming.duration,
     };
   }, [holidays]);
 
@@ -559,9 +625,24 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  const renderScopeIcon = (scope: HolidayScopeType) => {
+    switch (scope) {
+      case 'Company':
+        return <Building className="h-3 w-3 text-primary shrink-0" />;
+      case 'Branch':
+        return <MapPin className="h-3 w-3 text-blue-500 shrink-0" />;
+      case 'Department':
+        return <Briefcase className="h-3 w-3 text-purple-500 shrink-0" />;
+      case 'Employee Group':
+        return <Users className="h-3 w-3 text-amber-500 shrink-0" />;
+      default:
+        return <Building className="h-3 w-3 text-primary shrink-0" />;
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* ── 1. Dynamic Summary Cards (Section 1 & 16) ── */}
+      {/* ── 1. Dynamic Summary Cards ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="shadow-2xs border-border/80 bg-card">
           <CardContent className="p-4 flex items-center justify-between">
@@ -620,7 +701,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
         </Card>
       </div>
 
-      {/* ── 2. Declared Holiday Calendar Section & Filters (Section 2, 7, 8) ── */}
+      {/* ── 2. Declared Holiday Calendar Section & Filters ── */}
       <Card className="shadow-xs border-border/80">
         <CardHeader className="pb-3 border-b border-border/60">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -696,7 +777,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
             </div>
           </div>
 
-          {/* ── Advanced Filters Row (Section 7) ── */}
+          {/* ── Advanced Filters Row ── */}
           <div className="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-border/40 text-xs">
             <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
               <SlidersHorizontal className="h-3 w-3" /> Filters:
@@ -747,14 +828,14 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
               </SelectContent>
             </Select>
 
-            {/* Location Filter */}
+            {/* Location / Scope Filter */}
             <Select value={selectedLocation} onValueChange={setSelectedLocation}>
               <SelectTrigger className="h-7 w-[150px] text-xs bg-background">
                 <SelectValue placeholder="Location" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">All Locations</SelectItem>
-                <SelectItem value="company-wide" className="text-xs">Company-wide</SelectItem>
+                <SelectItem value="all" className="text-xs">All Scopes & Locations</SelectItem>
+                <SelectItem value="company" className="text-xs">Company-wide</SelectItem>
                 {availableBranchNames.map(bName => (
                   <SelectItem key={bName} value={bName.toLowerCase()} className="text-xs">
                     {bName}
@@ -803,6 +884,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                 const dateMeta = formatDateBadge(h.date);
                 const daysRem = getDaysRemaining(h.date);
                 const isUpcoming = daysRem >= 0 && daysRem <= 180;
+                const isHalfDay = h.duration === 'Half Day';
 
                 return (
                   <div
@@ -834,7 +916,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                         </div>
                       </div>
 
-                      {/* Dropdown Menu (Section 6) */}
+                      {/* Dropdown Menu */}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
@@ -863,15 +945,39 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                     </div>
 
                     <div className="mt-3">
-                      <h3
-                        className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate cursor-pointer"
-                        onClick={() => openViewModal(h)}
-                      >
-                        {h.name}
-                      </h3>
-                      <p className="text-[10.5px] text-muted-foreground flex items-center gap-1 mt-1 truncate">
-                        <MapPin className="h-3 w-3 text-primary shrink-0" />
-                        {h.applicableLocations.join(', ')}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3
+                          className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate cursor-pointer"
+                          onClick={() => openViewModal(h)}
+                        >
+                          {h.name}
+                        </h3>
+                      </div>
+
+                      {/* Duration Tag */}
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {isHalfDay ? (
+                          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[9.5px] font-semibold flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> Half Day ({h.session || 'Morning'})
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9.5px] text-muted-foreground font-normal">
+                            Full Day
+                          </Badge>
+                        )}
+
+                        {h.type === 'Restricted / Optional' && (
+                          <Badge className="bg-violet-500/10 text-violet-600 border-violet-500/20 text-[9px]">
+                            Max: {h.maxOptionalHolidays || 2}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Applicable To & Target */}
+                      <p className="text-[10.5px] text-muted-foreground flex items-center gap-1.5 mt-2 truncate font-medium">
+                        {renderScopeIcon(h.applicableTo)}
+                        <span className="text-foreground/80 font-semibold">{h.applicableTo}:</span>
+                        <span className="truncate">{h.applicableTarget}</span>
                       </p>
                     </div>
 
@@ -900,16 +1006,17 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
             </div>
           )}
 
-          {/* List / Table View (Section 8) */}
+          {/* List / Table View */}
           {displayMode === 'table' && (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs">Date</TableHead>
                   <TableHead className="text-xs">Holiday Name</TableHead>
+                  <TableHead className="text-xs">Duration</TableHead>
                   <TableHead className="text-xs">Type</TableHead>
+                  <TableHead className="text-xs">Applicable Scope & Target</TableHead>
                   <TableHead className="text-xs">Category</TableHead>
-                  <TableHead className="text-xs">Applicable Locations</TableHead>
                   <TableHead className="text-xs">Paid</TableHead>
                   <TableHead className="text-xs">Status</TableHead>
                   <TableHead className="text-right text-xs">Actions</TableHead>
@@ -922,6 +1029,15 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                     <TableRow key={h.id} className="hover:bg-muted/40 transition-colors">
                       <TableCell className="font-mono text-xs font-semibold text-primary">{dateMeta.full}</TableCell>
                       <TableCell className="font-semibold text-xs text-foreground">{h.name}</TableCell>
+                      <TableCell className="text-xs">
+                        {h.duration === 'Half Day' ? (
+                          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-medium">
+                            Half Day ({h.session || 'Morning'})
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-[11px]">Full Day</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs font-medium">
                         <Badge
                           className={`text-[10px] ${
@@ -935,10 +1051,14 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                           {h.type}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{h.category}</TableCell>
-                      <TableCell className="text-xs font-medium text-muted-foreground">
-                        {h.applicableLocations.join(', ')}
+                      <TableCell className="text-xs font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {renderScopeIcon(h.applicableTo)}
+                          <span className="font-semibold text-foreground/80">{h.applicableTo}:</span>
+                          <span className="text-muted-foreground">{h.applicableTarget}</span>
+                        </div>
                       </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{h.category}</TableCell>
                       <TableCell className="text-xs">
                         <Badge variant={h.isPaid ? 'secondary' : 'outline'} className="text-[10px]">
                           {h.isPaid ? 'Yes' : 'No'}
@@ -981,7 +1101,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                 })}
                 {filteredHolidays.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-xs text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-xs text-muted-foreground py-8">
                       No holidays match the search or filter query.
                     </TableCell>
                   </TableRow>
@@ -992,81 +1112,18 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
         </CardContent>
       </Card>
 
-      {/* ── 3. Workweek, Shift & Biometric Policy Banner (Sections 9, 10, 11) ── */}
-      <Card className="shadow-2xs bg-muted/20 border-border/80">
-        <CardHeader className="pb-3 border-b border-border/40">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Clock className="h-4 w-4 text-emerald-600" /> Standard Workweek & Biometric Sync Policy
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Standard corporate shift hours, weekend policy & automatic biometric machine holiday overrides (Click any card to configure)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="grid gap-4 sm:grid-cols-3 text-xs">
-            {/* Workweek Policy Interactive Card (Section 9) */}
-            <div
-              className="p-3.5 rounded-xl bg-card border border-border/60 hover:border-primary/50 hover:shadow-xs transition-all cursor-pointer group"
-              onClick={() => setIsWorkweekOpen(true)}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
-                  <Briefcase className="h-3.5 w-3.5 text-primary" /> {workweekType} Workweek Policy
-                </span>
-                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-muted-foreground mt-1 text-[11px]">
-                Monday to Friday ({weeklyHours} Hours/Week) • Saturdays & Sundays Off
-              </p>
-            </div>
-
-            {/* Standard General Shift Interactive Card (Section 10) */}
-            <div
-              className="p-3.5 rounded-xl bg-card border border-border/60 hover:border-primary/50 hover:shadow-xs transition-all cursor-pointer group"
-              onClick={() => setIsShiftOpen(true)}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-amber-500" /> {shiftName}
-                </span>
-                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-muted-foreground mt-1 text-[11px]">
-                {shiftStartTime} – {shiftEndTime} (1 Hour Paid Break included)
-              </p>
-            </div>
-
-            {/* Biometric IoT Override Interactive Card (Section 11) */}
-            <div
-              className="p-3.5 rounded-xl bg-card border border-border/60 hover:border-emerald-500/50 hover:shadow-xs transition-all cursor-pointer group"
-              onClick={() => setIsBiometricOpen(true)}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-foreground group-hover:text-emerald-600 transition-colors flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Biometric IoT Machine Override
-                </span>
-                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-emerald-600 font-semibold mt-1 text-[11px]">
-                Biometric check-in auto-suppressed on declared holidays
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── MODAL 1: Declare / Edit Holiday Dialog (Simplified Scope Flow) ── */}
+      {/* ── MODAL 1: Declare / Edit Holiday Dialog ── */}
       <Dialog open={isDeclareOpen} onOpenChange={setIsDeclareOpen}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base">{editingHoliday ? 'Edit Declared Holiday' : 'Declare Holiday'}</DialogTitle>
           </DialogHeader>
-          <form className="space-y-3 text-xs" onSubmit={handleSaveHoliday}>
+          <form className="space-y-3.5 text-xs" onSubmit={handleSaveHoliday}>
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Company Entity *</Label>
+              <Label className="text-xs font-semibold">Organization Entity *</Label>
               <Select defaultValue="c1">
                 <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Select company" />
+                  <SelectValue placeholder="Select organization" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="c1" className="text-xs">
@@ -1080,7 +1137,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Holiday Name *</Label>
                 <Input
-                  placeholder="e.g. Republic Day"
+                  placeholder="e.g. Maharashtra Day"
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
                   className="h-9 text-xs"
@@ -1105,7 +1162,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Mandatory" className="text-xs">Mandatory</SelectItem>
+                    <SelectItem value="Mandatory" className="text-xs">Mandatory (Public Holiday)</SelectItem>
                     <SelectItem value="Restricted / Optional" className="text-xs">Restricted / Optional</SelectItem>
                     <SelectItem value="Regional" className="text-xs">Regional</SelectItem>
                     <SelectItem value="Company Holiday" className="text-xs">Company Holiday</SelectItem>
@@ -1132,65 +1189,236 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
               </div>
             </div>
 
-            {/* Holiday Scope Selection (Default Company-wide) */}
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Holiday Scope *</Label>
-              <Select
-                value={formScope}
-                onValueChange={(v: any) => {
-                  setFormScope(v);
-                  if (v === 'Company-wide') {
-                    setFormLocations(['Company-wide']);
-                  } else if (v === 'Branch-specific' && (!formLocations.length || formLocations.includes('Company-wide'))) {
-                    setFormLocations([availableBranchNames[0] || 'Pune Manufacturing Plant']);
-                  } else if (v === 'Region/State-specific' && (!formLocations.length || formLocations.includes('Company-wide'))) {
-                    setFormLocations(['Maharashtra State']);
-                  }
-                }}
-              >
-                <SelectTrigger className="h-9 text-xs font-medium">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Company-wide" className="text-xs font-semibold text-primary">Company-wide (All Employees)</SelectItem>
-                  <SelectItem value="Branch-specific" className="text-xs">Branch-specific</SelectItem>
-                  <SelectItem value="Region/State-specific" className="text-xs">Region/State-specific</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* ── Standardized Applicable Scope Selection ── */}
+            <div className="space-y-2 border rounded-xl p-3 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-foreground">Applicable To *</Label>
+                <span className="text-[10.5px] text-muted-foreground">Select scope & target</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(['Company', 'Branch', 'Department', 'Employee Group'] as HolidayScopeType[]).map(scope => {
+                  const isSelected = formApplicableTo === scope;
+                  return (
+                    <button
+                      key={scope}
+                      type="button"
+                      onClick={() => {
+                        setFormApplicableTo(scope);
+                        if (scope === 'Company') setFormApplicableTarget('All Company Entities');
+                        else if (scope === 'Branch') setFormApplicableTarget(availableBranchNames[0] || 'Pune Manufacturing Plant');
+                        else if (scope === 'Department') setFormApplicableTarget(availableDepartmentNames[0] || 'Operations & Production');
+                        else if (scope === 'Employee Group') setFormApplicableTarget(DEFAULT_EMPLOYEE_GROUPS[0]);
+                      }}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 text-primary font-semibold shadow-2xs'
+                          : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${isSelected ? 'bg-primary' : 'border border-muted-foreground'}`} />
+                      <span className="truncate">{scope}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dynamic Target Input based on Scope */}
+              <div className="pt-2">
+                {formApplicableTo === 'Company' && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Target Company Entity</Label>
+                    <Select value={formApplicableTarget} onValueChange={setFormApplicableTarget}>
+                      <SelectTrigger className="h-8 text-xs bg-card">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="All Company Entities" className="text-xs font-medium text-primary">All Company Entities (Entire Organization)</SelectItem>
+                        <SelectItem value="Montanari Lifts Components Pvt Ltd" className="text-xs">Montanari Lifts Components Pvt Ltd</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {formApplicableTo === 'Branch' && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Target Branch Location *</Label>
+                    <Select value={formApplicableTarget} onValueChange={setFormApplicableTarget}>
+                      <SelectTrigger className="h-8 text-xs bg-card">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableBranchNames.map(bName => (
+                          <SelectItem key={bName} value={bName} className="text-xs font-medium">
+                            {bName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {formApplicableTo === 'Department' && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Target Department *</Label>
+                    <Select value={formApplicableTarget} onValueChange={setFormApplicableTarget}>
+                      <SelectTrigger className="h-8 text-xs bg-card">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableDepartmentNames.map(dName => (
+                          <SelectItem key={dName} value={dName} className="text-xs font-medium">
+                            {dName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {formApplicableTo === 'Employee Group' && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Target Employee Group *</Label>
+                    <Select value={formApplicableTarget} onValueChange={setFormApplicableTarget}>
+                      <SelectTrigger className="h-8 text-xs bg-card">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEFAULT_EMPLOYEE_GROUPS.map(gName => (
+                          <SelectItem key={gName} value={gName} className="text-xs font-medium">
+                            {gName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Advanced Location Checklist (Only shown if Scope !== 'Company-wide') */}
-            {formScope !== 'Company-wide' && (
-              <div className="space-y-1.5 border rounded-lg p-2.5 bg-muted/20">
-                <Label className="text-xs font-semibold block text-foreground">
-                  {formScope === 'Branch-specific' ? 'Applicable Branches *' : 'Applicable Regions *'}
-                </Label>
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  {(formScope === 'Branch-specific' ? availableBranchNames : AVAILABLE_REGIONS).map(loc => {
-                    const isChecked = formLocations.includes(loc);
-                    return (
-                      <label key={loc} className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            if (isChecked) {
-                              setFormLocations(prev => prev.filter(l => l !== loc));
-                            } else {
-                              setFormLocations(prev => [...prev.filter(l => l !== 'Company-wide'), loc]);
-                            }
-                          }}
-                          className="rounded border-input text-primary focus:ring-primary"
-                        />
-                        <span className={isChecked ? 'font-medium text-foreground' : 'text-muted-foreground'}>{loc}</span>
-                      </label>
-                    );
-                  })}
+            {/* ── Holiday Duration (Full Day vs Half Day) ── */}
+            <div className="space-y-2 border rounded-xl p-3 bg-muted/20">
+              <Label className="text-xs font-semibold text-foreground">Holiday Duration *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['Full Day', 'Half Day'] as HolidayDurationType[]).map(dur => {
+                  const isSelected = formDuration === dur;
+                  return (
+                    <button
+                      key={dur}
+                      type="button"
+                      onClick={() => {
+                        setFormDuration(dur);
+                        if (dur === 'Half Day' && formPayrollImpact === 'Paid Holiday') {
+                          setFormPayrollImpact('Half Day Paid');
+                        } else if (dur === 'Full Day' && formPayrollImpact === 'Half Day Paid') {
+                          setFormPayrollImpact('Paid Holiday');
+                        }
+                      }}
+                      className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 text-primary font-semibold shadow-2xs'
+                          : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${isSelected ? 'bg-primary' : 'border border-muted-foreground'}`} />
+                      <span>{dur}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Half Day Session Selection */}
+              {formDuration === 'Half Day' && (
+                <div className="pt-2 border-t border-border/50 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-amber-600" /> Applicable Session *
+                    </Label>
+                    <span className="text-[10px] text-muted-foreground">E.g., Saturday afternoon off</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['Morning', 'Afternoon'] as HolidaySessionType[]).map(sess => {
+                      const isSessSelected = formSession === sess;
+                      return (
+                        <button
+                          key={sess}
+                          type="button"
+                          onClick={() => setFormSession(sess)}
+                          className={`py-1.5 px-3 rounded-md border text-xs transition-all ${
+                            isSessSelected
+                              ? 'border-amber-500 bg-amber-500/20 text-amber-800 dark:text-amber-200 font-semibold'
+                              : 'border-border bg-card text-muted-foreground hover:bg-muted/50'
+                          }`}
+                        >
+                          {sess} Session
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Optional / Restricted Holiday Settings ── */}
+            {formType === 'Restricted / Optional' && (
+              <div className="space-y-3 p-3 rounded-xl border border-violet-500/30 bg-violet-500/5">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-violet-600" />
+                  <span className="text-xs font-bold text-violet-900 dark:text-violet-200">
+                    Restricted / Optional Holiday Rules
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Employee Selection</Label>
+                    <Select
+                      value={formAllowEmployeeSelection ? 'yes' : 'no'}
+                      onValueChange={v => setFormAllowEmployeeSelection(v === 'yes')}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-card">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes" className="text-xs">Employee / Group can select</SelectItem>
+                        <SelectItem value="no" className="text-xs">Manager assigned only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Approval Required</Label>
+                    <Select
+                      value={formApprovalRequired ? 'yes' : 'no'}
+                      onValueChange={v => setFormApprovalRequired(v === 'yes')}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-card">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes" className="text-xs">Yes (Approval Required)</SelectItem>
+                        <SelectItem value="no" className="text-xs">No (Auto-Approved)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground">
+                    Maximum Optional Holidays (Per Employee / Year)
+                  </Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formMaxOptionalHolidays}
+                    onChange={e => setFormMaxOptionalHolidays(parseInt(e.target.value) || 2)}
+                    className="h-8 text-xs bg-card w-full sm:w-36 font-mono"
+                  />
                 </div>
               </div>
             )}
 
-            {/* Checkbox Rows */}
+            {/* Checkbox Options */}
             <div className="grid grid-cols-2 gap-3 pt-1">
               <label className="flex items-center gap-2 text-xs cursor-pointer border rounded-md p-2 bg-background">
                 <input
@@ -1214,7 +1442,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                 />
                 <div>
                   <span className="font-semibold block">Attendance Override</span>
-                  <span className="text-[10px] text-muted-foreground">Holiday — No normal attendance required</span>
+                  <span className="text-[10px] text-muted-foreground">Holiday — No normal punch required</span>
                 </div>
               </label>
             </div>
@@ -1250,7 +1478,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Description</Label>
               <textarea
-                placeholder="National holiday for all employees..."
+                placeholder="Holiday details and administrative notes..."
                 value={formDescription}
                 onChange={e => setFormDescription(e.target.value)}
                 className="flex min-h-[55px] w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -1269,7 +1497,7 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
         </DialogContent>
       </Dialog>
 
-      {/* ── MODAL 2: View Holiday Details Dialog (Section 6, 12, 13, 14, 15) ── */}
+      {/* ── MODAL 2: View Holiday Details Dialog ── */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1284,15 +1512,26 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                   <h4 className="text-sm font-bold text-foreground">{viewingHoliday.name}</h4>
                   <p className="text-muted-foreground font-mono mt-0.5">{formatDateBadge(viewingHoliday.date).full}</p>
                 </div>
-                <Badge
-                  className={`text-xs font-semibold ${
-                    viewingHoliday.type === 'Mandatory'
-                      ? 'bg-primary/10 text-primary border-primary/20'
-                      : 'bg-violet-500/10 text-violet-600 border-violet-500/20'
-                  }`}
-                >
-                  {viewingHoliday.type}
-                </Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge
+                    className={`text-xs font-semibold ${
+                      viewingHoliday.type === 'Mandatory'
+                        ? 'bg-primary/10 text-primary border-primary/20'
+                        : 'bg-violet-500/10 text-violet-600 border-violet-500/20'
+                    }`}
+                  >
+                    {viewingHoliday.type}
+                  </Badge>
+                  {viewingHoliday.duration === 'Half Day' ? (
+                    <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]">
+                      Half Day ({viewingHoliday.session})
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">
+                      Full Day
+                    </Badge>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1306,42 +1545,62 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-bold block">Applicable Locations</span>
-                <div className="flex flex-wrap gap-1">
-                  {viewingHoliday.applicableLocations.map(loc => (
-                    <Badge key={loc} variant="outline" className="text-[10.5px]">
-                      <Building className="h-3 w-3 mr-1 text-primary" /> {loc}
-                    </Badge>
-                  ))}
+              {/* Applicable Scope & Target */}
+              <div className="space-y-1 p-2.5 border rounded-lg bg-card">
+                <span className="text-muted-foreground text-[10px] uppercase font-bold block">Applicable Scope</span>
+                <div className="flex items-center gap-2 pt-0.5">
+                  {renderScopeIcon(viewingHoliday.applicableTo)}
+                  <span className="font-bold text-foreground">{viewingHoliday.applicableTo}:</span>
+                  <span className="text-primary font-medium">{viewingHoliday.applicableTarget}</span>
                 </div>
               </div>
 
-              {/* Integrated Workflow Badges (Sections 11 - 15) */}
+              {/* Optional Holiday Rules if applicable */}
+              {viewingHoliday.type === 'Restricted / Optional' && (
+                <div className="space-y-2 p-2.5 rounded-lg border border-violet-500/30 bg-violet-500/5">
+                  <span className="text-violet-900 dark:text-violet-200 text-[10.5px] uppercase font-bold block">
+                    Optional Holiday Governance
+                  </span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px]">Employee Selection</span>
+                      <span className="font-semibold text-foreground">
+                        {viewingHoliday.allowEmployeeSelection ? 'Employee / Group can select' : 'Manager Assigned'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px]">Approval Required</span>
+                      <span className="font-semibold text-foreground">
+                        {viewingHoliday.approvalRequired ? 'Yes (Manager)' : 'No (Auto-Approved)'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-1 text-[11px]">
+                    <span className="text-muted-foreground block text-[10px]">Max Optional per Employee</span>
+                    <span className="font-bold text-violet-700 dark:text-violet-300">
+                      {viewingHoliday.maxOptionalHolidays || 2} Days / Year
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* System Integration Rules */}
               <div className="space-y-2 pt-2 border-t border-border">
                 <h5 className="font-semibold text-foreground text-[11px]">System Integration Rules</h5>
                 
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-700 text-[11px] flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold block">Biometric IoT Punch Rule</span>
-                    Biometric check-in auto-suppressed on this date for employees at applicable branches.
+                    <span className="font-bold block">Attendance Rule</span>
+                    Holiday attendance status published automatically. No absence or late penalty incurred on this date.
                   </div>
                 </div>
 
                 <div className="p-2 rounded-lg bg-blue-500/10 text-blue-700 text-[11px] flex items-start gap-2">
                   <Info className="h-4 w-4 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold block">Leave Deduction Rule</span>
-                    Leave balance is protected. No leave days will be deducted if employee applies leave spanning this holiday.
-                  </div>
-                </div>
-
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-700 text-[11px] flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold block">Holiday Work & OT Workflow</span>
-                    Punches on this holiday will be marked as "Holiday Work". Subject to manager approval for Overtime or Comp-Off.
+                    <span className="font-bold block">Leave Protection Rule</span>
+                    Leave balance is protected. Holiday dates are not deducted from casual or earned leave quotas.
                   </div>
                 </div>
               </div>
@@ -1363,242 +1622,6 @@ export function WorkCalendarTab({ companyId: propCompanyId }: { companyId?: stri
               </DialogFooter>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ── MODAL 3: Workweek Configuration Modal (Section 9) ── */}
-      <Dialog open={isWorkweekOpen} onOpenChange={setIsWorkweekOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base">Workweek Configuration</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4 text-xs" onSubmit={handleSaveWorkweek}>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Workweek Mode</Label>
-              <Select value={workweekType} onValueChange={(v: any) => setWorkweekType(v)}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5-Day" className="text-xs">5-Day Workweek (Mon–Fri)</SelectItem>
-                  <SelectItem value="6-Day" className="text-xs">6-Day Workweek (Mon–Sat Factory)</SelectItem>
-                  <SelectItem value="Custom" className="text-xs">Custom Workweek Schedule</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5 border rounded-lg p-3 bg-muted/20">
-              <Label className="text-xs font-semibold block text-foreground">Working Days</Label>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                {Object.keys(workingDays).map(day => (
-                  <label key={day} className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={(workingDays as any)[day]}
-                      onChange={e => setWorkingDays(prev => ({ ...prev, [day]: e.target.checked }))}
-                      className="rounded border-input text-primary focus:ring-primary"
-                    />
-                    <span className={(workingDays as any)[day] ? 'font-semibold text-foreground' : 'text-muted-foreground'}>{day}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Weekly Target Hours</Label>
-                <Input
-                  type="number"
-                  value={weeklyHours}
-                  onChange={e => setWeeklyHours(e.target.value)}
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Saturday Policy</Label>
-                <Select value={saturdayPolicy} onValueChange={setSaturdayPolicy}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Off" className="text-xs">Saturday: Off</SelectItem>
-                    <SelectItem value="Half Day" className="text-xs">Saturday: Half Day</SelectItem>
-                    <SelectItem value="Working" className="text-xs">Saturday: Full Working</SelectItem>
-                    <SelectItem value="Alternate Off" className="text-xs">2nd & 4th Saturday Off</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <DialogFooter className="border-t pt-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsWorkweekOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" className="font-semibold">
-                Save Workweek
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── MODAL 4: Shift Configuration Modal (Section 10) ── */}
-      <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base">Shift Configuration</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4 text-xs" onSubmit={handleSaveShift}>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Shift Name *</Label>
-              <Input
-                value={shiftName}
-                onChange={e => setShiftName(e.target.value)}
-                className="h-9 text-xs"
-                placeholder="e.g. General Shift"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Start Time *</Label>
-                <Input
-                  value={shiftStartTime}
-                  onChange={e => setShiftStartTime(e.target.value)}
-                  className="h-9 text-xs font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">End Time *</Label>
-                <Input
-                  value={shiftEndTime}
-                  onChange={e => setShiftEndTime(e.target.value)}
-                  className="h-9 text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Break Window</Label>
-                <Input
-                  value={`${shiftBreakStart} - ${shiftBreakEnd}`}
-                  onChange={e => {
-                    const [s, end] = e.target.value.split('-');
-                    if (s) setShiftBreakStart(s.trim());
-                    if (end) setShiftBreakEnd(end.trim());
-                  }}
-                  className="h-9 text-xs font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Grace Period (Mins)</Label>
-                <Input
-                  type="number"
-                  value={shiftGracePeriod}
-                  onChange={e => setShiftGracePeriod(e.target.value)}
-                  className="h-9 text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="border-t pt-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsShiftOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" className="font-semibold">
-                Save Shift
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── MODAL 5: Biometric Machine Holiday Override Policy (Section 11) ── */}
-      <Dialog open={isBiometricOpen} onOpenChange={setIsBiometricOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base">Holiday Attendance & Biometric Policy</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4 text-xs" onSubmit={handleSaveBiometricPolicy}>
-            <div className="space-y-2 border rounded-lg p-3 bg-muted/20">
-              <Label className="text-xs font-semibold block text-foreground">On Declared Holiday Action</Label>
-              <div className="space-y-1.5 pt-1">
-                {[
-                  { id: 'Block Check-In', label: 'Block Check-In', desc: 'Prevent biometric check-in on declared holidays' },
-                  { id: 'Allow Check-In', label: 'Allow Check-In', desc: 'Record normal attendance without OT' },
-                  { id: 'Allow with Holiday OT', label: 'Allow with Holiday OT', desc: 'Record as Holiday Work and process OT if approved' },
-                ].map(opt => (
-                  <label key={opt.id} className="flex items-start gap-2 cursor-pointer border rounded-md p-2 bg-background">
-                    <input
-                      type="radio"
-                      name="holidayPolicy"
-                      checked={holidayAttendancePolicy === opt.id}
-                      onChange={() => setHolidayAttendancePolicy(opt.id as any)}
-                      className="mt-0.5 text-primary focus:ring-primary"
-                    />
-                    <div>
-                      <span className="font-semibold block text-foreground">{opt.label}</span>
-                      <span className="text-[10px] text-muted-foreground">{opt.desc}</span>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2 border rounded-lg p-3 bg-card">
-              <Label className="text-xs font-semibold block text-foreground">Biometric Machine Rules</Label>
-
-              <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={autoSuppressAttendance}
-                  onChange={e => setAutoSuppressAttendance(e.target.checked)}
-                  className="rounded border-input text-primary"
-                />
-                <span className="font-medium text-foreground">Automatically suppress normal attendance requirement</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs cursor-pointer select-none pt-1">
-                <input
-                  type="checkbox"
-                  checked={recordHolidayAttendance}
-                  onChange={e => setRecordHolidayAttendance(e.target.checked)}
-                  className="rounded border-input text-primary"
-                />
-                <span className="font-medium text-foreground">Record attendance if employee punches on holiday</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs cursor-pointer select-none pt-1">
-                <input
-                  type="checkbox"
-                  checked={markAsHolidayWork}
-                  onChange={e => setMarkAsHolidayWork(e.target.checked)}
-                  className="rounded border-input text-primary"
-                />
-                <span className="font-medium text-foreground">Mark status as "Present - Holiday Work"</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs cursor-pointer select-none pt-1">
-                <input
-                  type="checkbox"
-                  checked={calculateOtIfApproved}
-                  onChange={e => setCalculateOtIfApproved(e.target.checked)}
-                  className="rounded border-input text-primary"
-                />
-                <span className="font-medium text-foreground">Calculate OT / Comp-Off upon manager approval</span>
-              </label>
-            </div>
-
-            <DialogFooter className="border-t pt-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsBiometricOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" className="font-semibold">
-                Save Attendance Policy
-              </Button>
-            </DialogFooter>
-          </form>
         </DialogContent>
       </Dialog>
     </div>

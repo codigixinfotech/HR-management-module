@@ -26,7 +26,7 @@ export class ManpowerRequisitionsService {
     return this.prisma.manpowerRequisition.findMany({
       where: {
         isActive: true,
-        ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {}),
+        ...(companyId ? { companyId } : {}),
         ...(status ? { status } : {}),
       },
       include: {
@@ -110,11 +110,21 @@ export class ManpowerRequisitionsService {
         }
       }
 
+      let targetCompanyId = dto.companyId || null;
+      if (!targetCompanyId && dto.manpowerPlanId) {
+        const plan = await tx.manpowerPlan.findUnique({ where: { id: dto.manpowerPlanId } });
+        if (plan?.companyId) targetCompanyId = plan.companyId;
+      }
+      if (!targetCompanyId && dto.departmentId) {
+        const dept = await tx.department.findUnique({ where: { id: dto.departmentId } });
+        if (dept?.companyId) targetCompanyId = dept.companyId;
+      }
+
       return tx.manpowerRequisition.create({
         data: {
           mrNumber,
           manpowerPlanId: dto.manpowerPlanId || null,
-          companyId: dto.companyId || null,
+          companyId: targetCompanyId,
           branchId: dto.branchId || null,
           departmentId: dto.departmentId || null,
           departmentName: dto.departmentName,

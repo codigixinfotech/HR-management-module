@@ -486,133 +486,6 @@ export function EmployeeAttendanceView() {
         </div>
       </div>
 
-      {/* ── 3. Employee Portal: My Attendance Update Requests Section (Rendered ONLY if requests exist) ── */}
-      {myEditRequests.length > 0 && (
-        <Card className="shadow-xs border-border/80">
-          <CardHeader className="pb-3 border-b border-border/60 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <FileSignature className="h-4.5 w-4.5 text-purple-600" /> My Attendance Update Requests
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Track your attendance correction requests. Pending requests can be cancelled prior to HR review.
-              </CardDescription>
-            </div>
-            <Badge variant="outline" className="bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 text-xs font-semibold">
-              {myEditRequests.filter((r) => {
-                const isApproved = r.status === 'APPROVED' || !!approvedCorrections[r.id];
-                const isRejected = r.status === 'REJECTED';
-                return !isApproved && !isRejected;
-              }).length} Pending Requests
-            </Badge>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-5 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs font-bold text-foreground">Employee</TableHead>
-                  <TableHead className="text-xs font-bold text-foreground">Attendance Date</TableHead>
-                  <TableHead className="text-xs font-bold text-foreground">Original Punch</TableHead>
-                  <TableHead className="text-xs font-bold text-foreground">Requested Correction</TableHead>
-                  <TableHead className="text-xs font-bold text-foreground">Reason</TableHead>
-                  <TableHead className="text-xs font-bold text-foreground">Request Date</TableHead>
-                  <TableHead className="text-xs font-bold text-foreground">Status</TableHead>
-                  <TableHead className="text-right text-xs font-bold text-foreground">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {myEditRequests.map((req) => {
-                  const attDate = req.attendanceDate || req.dateDisplay;
-                  // Status is determined ONLY by req.status (the authoritative field)
-                  // and approvedCorrections keyed by request ID.
-                  // Date-based lookups are removed — they cause cross-request contamination.
-                  const isApproved = req.status === 'APPROVED' || !!approvedCorrections[req.id];
-                  const isRejected = req.status === 'REJECTED';
-                  const effectiveStatus = isApproved ? 'APPROVED' : isRejected ? 'REJECTED' : req.status;
-
-                  return (
-                    <TableRow key={req.id} className="hover:bg-accent/40 transition-colors">
-                      <TableCell className="whitespace-nowrap">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                          <div className="w-7 h-7 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-600 font-bold">
-                            {req.employeeName.charAt(0)}
-                          </div>
-                          <div>
-                            <span className="block font-bold">{req.employeeName}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{req.employeeCode} • {req.department}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-semibold text-xs text-foreground whitespace-nowrap">{attDate}</TableCell>
-                      <TableCell className="whitespace-nowrap text-xs font-mono text-muted-foreground">
-                        <span>In: {req.originalClockIn}</span> • <span>Out: {req.originalClockOut}</span>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                        <span>In: {req.requestedClockIn}</span> • <span>Out: {req.requestedClockOut}</span>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">{req.reason}</TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">{req.requestDate}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {effectiveStatus === 'PENDING' && (
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-semibold">
-                            Pending
-                          </Badge>
-                        )}
-                        {effectiveStatus === 'APPROVED' && (
-                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-semibold">
-                            Approved
-                          </Badge>
-                        )}
-                        {effectiveStatus === 'REJECTED' && (
-                          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] font-semibold">
-                            Rejected
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 text-xs px-2 font-semibold text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
-                            onClick={() => {
-                              setSelectedRecordForDetails({
-                                ...req,
-                                dateDisplay: attDate,
-                                clockIn: req.requestedClockIn,
-                                clockOut: req.requestedClockOut,
-                                totalHours: req.requestedTotalHours,
-                              });
-                              setIsVerificationDetailsOpen(true);
-                            }}
-                          >
-                            <Eye className="h-3 w-3" /> View
-                          </Button>
-
-                          {effectiveStatus === 'PENDING' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs px-2.5 font-semibold text-destructive border-destructive/30 hover:bg-destructive/10 gap-1 cursor-pointer"
-                              onClick={() => {
-                                deleteRequest(req.id);
-                                toast.success('Attendance edit request cancelled successfully.');
-                              }}
-                            >
-                              Delete
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
       {/* ── 4. Bottom Section: Real-Time Biometric Punch Feed Table (Original Punches Only) ── */}
       <Card className="shadow-xs border-border/80">
         <CardHeader className="pb-3 border-b border-border/60 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -621,7 +494,7 @@ export function EmployeeAttendanceView() {
               <Radio className="h-4 w-4 text-emerald-600 animate-pulse" /> Real-Time Biometric Punch Feed
             </CardTitle>
             <CardDescription className="text-xs">
-              Original biometric verification logs received from hardware devices. Click Edit to submit a correction request.
+              Original biometric verification logs received from hardware devices.
             </CardDescription>
           </div>
 
@@ -666,13 +539,12 @@ export function EmployeeAttendanceView() {
                 <TableHead className="text-xs font-bold text-foreground">Verification Method</TableHead>
                 <TableHead className="text-xs font-bold text-foreground">Terminal / Location</TableHead>
                 <TableHead className="text-xs font-bold text-foreground">Status</TableHead>
-                <TableHead className="text-right text-xs font-bold text-foreground">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredPunches.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-8 text-xs text-muted-foreground font-semibold">
+                  <TableCell colSpan={10} className="text-center py-8 text-xs text-muted-foreground font-semibold">
                     No biometric punch records found for this employee.
                   </TableCell>
                 </TableRow>
@@ -775,26 +647,6 @@ export function EmployeeAttendanceView() {
                           ? 'On Leave'
                           : p.status || 'In Time'}
                       </Badge>
-                    </TableCell>
-
-                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2.5 font-semibold text-primary border-primary/30 hover:bg-primary/10 gap-1 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal({
-                            ...p,
-                            dateDisplay,
-                            clockIn: clockInDisplay,
-                            clockOut: clockOutDisplay,
-                            totalHours: totalHoursDisplay,
-                          });
-                        }}
-                      >
-                        <FileSignature className="h-3 w-3" /> Edit
-                      </Button>
                     </TableCell>
                   </TableRow>
                 );

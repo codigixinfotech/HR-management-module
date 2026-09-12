@@ -53,7 +53,7 @@ interface TagInputProps {
 function TagInput({
   tags,
   onChange,
-  placeholder = 'Type a skill and press Enter or comma',
+  placeholder = '',
   disabled = false,
   error,
   popularSuggestions = [],
@@ -119,30 +119,11 @@ function TagInput({
               if (inputValue.trim()) addTag(inputValue);
               if (onBlur) onBlur();
             }}
-            placeholder={tags.length === 0 ? placeholder : 'Add more...'}
+            placeholder={tags.length === 0 ? (placeholder || '') : ''}
             className="flex-1 min-w-[120px] bg-transparent text-xs outline-none px-2 py-1 text-foreground placeholder:text-muted-foreground"
           />
         )}
       </div>
-
-      {!disabled && popularSuggestions.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-          <span className="text-[10px] font-semibold text-muted-foreground">Quick Add:</span>
-          {popularSuggestions
-            .filter((s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase()))
-            .slice(0, 6)
-            .map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => addTag(s)}
-                className="text-[10px] bg-muted hover:bg-primary/10 hover:text-primary border border-border/60 text-muted-foreground px-2 py-0.5 rounded-full transition-colors font-medium"
-              >
-                + {s}
-              </button>
-            ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -283,11 +264,36 @@ export default function CreateJobRequisitionPage() {
     },
   });
 
+  const selectedComp = useMemo(() => {
+    return companies.find((c: any) => c.id === activeCompId);
+  }, [companies, activeCompId]);
+
   // ── Cascading Dropdowns Filters ──
   const filteredBranches = useMemo(() => {
     if (!activeCompId) return [];
-    return branches.filter((b: any) => !b.companyId || b.companyId === activeCompId);
-  }, [branches, activeCompId]);
+    return branches.filter((b: any) => {
+      // Must belong strictly to this company
+      if (!b.companyId || b.companyId !== activeCompId) return false;
+      const bName = (b.name || '').trim().toLowerCase();
+      if (selectedComp) {
+        const cName = (selectedComp.name || '').trim().toLowerCase();
+        const cCode = (selectedComp.code || '').trim().toLowerCase();
+        // Do NOT show the company name or code as a branch
+        if (bName === cName || bName === cCode) return false;
+      }
+      // Exclude generic fake company/parent office branch entries
+      if (
+        bName === 'parent office/company' ||
+        bName === 'parent company' ||
+        bName === 'parent office' ||
+        bName === 'head office / company' ||
+        bName === 'cravita technology pvt ltd'
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [branches, activeCompId, selectedComp]);
 
   const filteredDepartments = useMemo(() => {
     if (!activeCompId) return [];
@@ -416,6 +422,7 @@ export default function CreateJobRequisitionPage() {
     setHiringManagerId('');
     setRecruiterId('');
     setHrbpId('');
+    setJobLocation('Head Office');
     setFieldErrors((prev) => ({ ...prev, standaloneCompanyId: '', standaloneBranchId: '', hiringManagerId: '', recruiterId: '' }));
   };
 
@@ -483,8 +490,8 @@ export default function CreateJobRequisitionPage() {
   const [preferredSkillsList, setPreferredSkillsList] = useState<string[]>([]);
 
   // Job Classification
-  const [jobCategory, setJobCategory] = useState('Software Development');
-  const [jobFamily, setJobFamily] = useState('Engineering → Software Development');
+  const [jobCategory, setJobCategory] = useState('');
+  const [jobFamily, setJobFamily] = useState('');
   const [seniorityLevel, setSeniorityLevel] = useState('Junior');
 
   const [certifications, setCertifications] = useState('');
@@ -787,8 +794,8 @@ Key Focus Areas:
   const validateStep1 = (): boolean => {
     const errors: Record<string, string> = {};
     if (!isFromMR) {
-      if (!standaloneCompanyId) errors.standaloneCompanyId = 'Please select a Company Entity.';
-      if (!standaloneBranchId && standaloneBranchIds.length === 0) errors.standaloneBranchId = 'Please select at least one Branch Location.';
+      if (!standaloneCompanyId) errors.standaloneCompanyId = 'Please select an Organization Entity.';
+      // Branch Location is optional (user can proceed with Head Office or without branch)
       if (!standaloneDepartmentId) errors.standaloneDepartmentId = 'Please select a Department.';
       if (!standaloneCostCenter.trim()) errors.standaloneCostCenter = 'Cost Center is required.';
       if (!standaloneDesignationId && !standaloneRoleInput.trim()) errors.standaloneDesignationId = 'Please enter or select a Designation / Job Role.';
@@ -1058,10 +1065,10 @@ Key Focus Areas:
       <Card className="border-border/80 bg-muted/30">
         <CardContent className="p-3.5 grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
           <div>
-            <span className="text-[10px] text-muted-foreground block font-medium">Company Entity</span>
+            <span className="text-[10px] text-muted-foreground block font-medium">Organization Entity</span>
             <span className="font-semibold truncate block">
               {isFromMR
-                ? (planCompany?.name || 'Selected Company')
+                ? (planCompany?.name || 'Selected Entity')
                 : (companies.find((c: any) => c.id === standaloneCompanyId)?.name || 'Not Selected')}
             </span>
           </div>
@@ -1069,10 +1076,10 @@ Key Focus Areas:
             <span className="text-[10px] text-muted-foreground block font-medium">Branch Location</span>
             <span className="font-semibold truncate block">
               {isFromMR
-                ? (planBranch?.name || 'Selected Branch')
+                ? (planBranch?.name || 'Head Office')
                 : (standaloneBranchIds.length > 0
-                    ? branches.filter((b: any) => standaloneBranchIds.includes(b.id)).map((b: any) => b.name).join(', ')
-                    : (branches.find((b: any) => b.id === standaloneBranchId)?.name || 'Not Selected'))}
+                    ? filteredBranches.filter((b: any) => standaloneBranchIds.includes(b.id)).map((b: any) => b.name).join(', ')
+                    : (filteredBranches.find((b: any) => b.id === standaloneBranchId)?.name || (standaloneCompanyId ? 'Head Office / No Branch' : 'Not Selected')))}
             </span>
           </div>
           <div>
@@ -1291,12 +1298,12 @@ Key Focus Areas:
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* 1. Company */}
+                    {/* 1. Organization Entity */}
                     <div className="space-y-1.5">
-                      <Label className="font-semibold text-xs">Company Entity *</Label>
+                      <Label className="font-semibold text-xs">Organization Entity *</Label>
                       <Select value={standaloneCompanyId} onValueChange={handleCompanyChange}>
                         <SelectTrigger className="h-9 text-xs bg-background font-semibold">
-                          <SelectValue placeholder="Select Company" />
+                          <SelectValue placeholder="Select Organization Entity" />
                         </SelectTrigger>
                         <SelectContent>
                           {companies.map((c: any) => (
@@ -1311,10 +1318,15 @@ Key Focus Areas:
                       )}
                     </div>
 
-                    {/* 2. Branch Location - Multi-Select Support */}
+                    {/* 2. Branch Location */}
                     <div className="space-y-1.5 relative" ref={branchComboboxRef}>
                       <Label className="font-semibold text-xs flex items-center justify-between">
-                        <span>Branch Location *</span>
+                        <span>
+                          Branch Location
+                          {filteredBranches.length > 0 && (
+                            <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
+                          )}
+                        </span>
                         {standaloneBranchIds.length > 0 && (
                           <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary font-bold">
                             {standaloneBranchIds.length} Branch{standaloneBranchIds.length > 1 ? 'es' : ''} Selected
@@ -1322,92 +1334,107 @@ Key Focus Areas:
                         )}
                       </Label>
 
-                      <div
-                        onClick={() => {
-                          if (standaloneCompanyId) setIsBranchDropdownOpen((prev) => !prev);
-                        }}
-                        className={`min-h-[36px] px-3 py-1.5 rounded-md border text-xs bg-background cursor-pointer flex items-center justify-between transition-colors ${
-                          !standaloneCompanyId ? 'opacity-50 cursor-not-allowed bg-muted/40' : 'hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="flex flex-wrap gap-1 items-center max-w-[90%]">
-                          {standaloneBranchIds.length === 0 ? (
-                            <span className="text-muted-foreground">
-                              {standaloneCompanyId ? 'Select Branch Location(s)...' : 'Select Company first'}
-                            </span>
-                          ) : (
-                            filteredBranches
-                              .filter((b: any) => standaloneBranchIds.includes(b.id))
-                              .map((b: any) => (
-                                <Badge
-                                  key={b.id}
-                                  variant="secondary"
-                                  className="text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 gap-1 py-0.5 px-2"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleBranchSelection(b.id);
-                                  }}
-                                >
-                                  {b.name}
-                                  <X className="w-3 h-3 hover:text-rose-600" />
-                                </Badge>
-                              ))
-                          )}
+                      {!standaloneCompanyId ? (
+                        <div className="h-9 px-3 py-2 rounded-md border text-xs bg-muted/40 text-muted-foreground flex items-center">
+                          Select Organization Entity first
                         </div>
-                        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
-                      </div>
-
-                      {/* Multi-Select Dropdown Menu */}
-                      {isBranchDropdownOpen && standaloneCompanyId && (
-                        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-56 overflow-y-auto animate-in fade-in-50">
-                          <div className="p-1 space-y-0.5">
-                            <div
-                              onClick={() => {
-                                if (standaloneBranchIds.length === filteredBranches.length) {
-                                  setStandaloneBranchIds([]);
-                                  setStandaloneBranchId('');
-                                } else {
-                                  const allIds = filteredBranches.map((b: any) => b.id);
-                                  setStandaloneBranchIds(allIds);
-                                  setStandaloneBranchId(allIds[0] || '');
-                                }
-                                setStandaloneDepartmentId('');
-                                setStandaloneCostCenter('');
-                                setStandaloneDesignationId('');
-                                setStandaloneRoleInput('');
-                              }}
-                              className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 rounded cursor-pointer flex items-center justify-between border-b mb-1"
-                            >
-                              <span>Select All Branches ({filteredBranches.length})</span>
-                              {standaloneBranchIds.length === filteredBranches.length && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                      ) : filteredBranches.length === 0 ? (
+                        <div className="h-9 px-3 py-2 rounded-md border text-xs bg-muted/20 text-foreground flex items-center justify-between border-dashed">
+                          <span className="flex items-center gap-1.5 font-medium text-foreground">
+                            <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Head Office / No Branch
+                          </span>
+                          <Badge variant="outline" className="text-[10px] bg-background text-emerald-600 border-emerald-500/30">
+                            Head Office
+                          </Badge>
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            onClick={() => {
+                              if (standaloneCompanyId) setIsBranchDropdownOpen((prev) => !prev);
+                            }}
+                            className="min-h-[36px] px-3 py-1.5 rounded-md border text-xs bg-background cursor-pointer flex items-center justify-between transition-colors hover:border-primary/50"
+                          >
+                            <div className="flex flex-wrap gap-1 items-center max-w-[90%]">
+                              {standaloneBranchIds.length === 0 ? (
+                                <span className="text-muted-foreground">Select Branch Location (Optional)...</span>
+                              ) : (
+                                filteredBranches
+                                  .filter((b: any) => standaloneBranchIds.includes(b.id))
+                                  .map((b: any) => (
+                                    <Badge
+                                      key={b.id}
+                                      variant="secondary"
+                                      className="text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 gap-1 py-0.5 px-2"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleBranchSelection(b.id);
+                                      }}
+                                    >
+                                      {b.name}
+                                      <X className="w-3 h-3 hover:text-rose-600" />
+                                    </Badge>
+                                  ))
+                              )}
                             </div>
-
-                            {filteredBranches.map((b: any) => {
-                              const isChecked = standaloneBranchIds.includes(b.id);
-                              return (
-                                <div
-                                  key={b.id}
-                                  onClick={() => toggleBranchSelection(b.id)}
-                                  className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
-                                    isChecked ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-accent'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => {}}
-                                      className="rounded text-primary focus:ring-primary h-3.5 w-3.5"
-                                    />
-                                    <span>{b.name}</span>
-                                    {b.city && <span className="text-[10px] text-muted-foreground">({b.city})</span>}
-                                  </div>
-                                  {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
-                                </div>
-                              );
-                            })}
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${
+                                isBranchDropdownOpen ? 'rotate-180' : ''
+                              }`}
+                            />
                           </div>
-                        </div>
+
+                          {/* Multi-Select Dropdown Menu */}
+                          {isBranchDropdownOpen && (
+                            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-56 overflow-y-auto animate-in fade-in-50">
+                              <div className="p-1 space-y-0.5">
+                                <div
+                                  onClick={() => {
+                                    if (standaloneBranchIds.length === filteredBranches.length) {
+                                      setStandaloneBranchIds([]);
+                                      setStandaloneBranchId('');
+                                      setJobLocation('Head Office');
+                                    } else {
+                                      const allIds = filteredBranches.map((b: any) => b.id);
+                                      setStandaloneBranchIds(allIds);
+                                      setStandaloneBranchId(allIds[0] || '');
+                                      setJobLocation(filteredBranches.map((b: any) => b.name + (b.city ? ` (${b.city})` : '')).join(', '));
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 rounded cursor-pointer flex items-center justify-between border-b mb-1"
+                                >
+                                  <span>Select All Branches ({filteredBranches.length})</span>
+                                  {standaloneBranchIds.length === filteredBranches.length && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                </div>
+
+                                {filteredBranches.map((b: any) => {
+                                  const isChecked = standaloneBranchIds.includes(b.id);
+                                  return (
+                                    <div
+                                      key={b.id}
+                                      onClick={() => toggleBranchSelection(b.id)}
+                                      className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
+                                        isChecked ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-accent'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => {}}
+                                          className="rounded text-primary focus:ring-primary h-3.5 w-3.5"
+                                        />
+                                        <span>{b.name}</span>
+                                        {b.city && <span className="text-[10px] text-muted-foreground">({b.city})</span>}
+                                      </div>
+                                      {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
 
                       {fieldErrors.standaloneBranchId && (
@@ -1421,10 +1448,10 @@ Key Focus Areas:
                       <Select
                         value={standaloneDepartmentId}
                         onValueChange={handleDepartmentChange}
-                        disabled={!standaloneBranchId}
+                        disabled={!standaloneCompanyId}
                       >
                         <SelectTrigger className="h-9 text-xs bg-background">
-                          <SelectValue placeholder={standaloneBranchId ? 'Select Department' : 'Select Branch first'} />
+                          <SelectValue placeholder={standaloneCompanyId ? 'Select Department' : 'Select Organization Entity first'} />
                         </SelectTrigger>
                         <SelectContent>
                           {filteredDepartments.map((d: any) => (
@@ -1471,7 +1498,7 @@ Key Focus Areas:
                             setFieldErrors((prev) => ({ ...prev, standaloneCostCenter: '' }));
                           }}
                           disabled={!standaloneDepartmentId}
-                          placeholder={standaloneDepartmentId ? 'e.g. CC-101 - IT Operations' : 'Select Department first'}
+                          placeholder={standaloneDepartmentId ? 'Select cost center' : 'Select Department first'}
                           className="h-9 text-xs bg-background font-mono font-semibold"
                         />
                       )}
@@ -1758,7 +1785,7 @@ Key Focus Areas:
                       className={`h-9 text-xs font-semibold ${
                         isFromMR ? 'bg-muted/60 text-foreground cursor-not-allowed' : 'bg-background'
                       }`}
-                      placeholder="e.g. Junior Software Engineer"
+                      placeholder=""
                     />
                     {isFromMR && (
                       <p className="text-[10px] text-muted-foreground font-medium">
@@ -1882,7 +1909,7 @@ Key Focus Areas:
                       className={`h-9 text-xs ${
                         isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'
                       }`}
-                      placeholder="e.g. B.Tech / B.E. / MCA / M.Sc. Computer Science"
+                      placeholder=""
                     />
                     {isFromMR && (
                       <p className="text-[10px] text-muted-foreground font-medium">
@@ -1902,7 +1929,7 @@ Key Focus Areas:
                       value={preferredQualification}
                       onChange={(e) => setPreferredQualification(e.target.value)}
                       className="h-9 text-xs bg-background"
-                      placeholder="e.g. M.Tech / AWS Certification / Cloud Certification"
+                      placeholder=""
                     />
                   </div>
 
@@ -1922,8 +1949,7 @@ Key Focus Areas:
                       }}
                       disabled={false}
                       error={fieldErrors.requiredSkills}
-                      placeholder="Type a skill (e.g. React, Customer Support, Communication) and press Enter"
-                      popularSuggestions={['Customer Support', 'Communication', 'Troubleshooting', 'React', 'TypeScript', 'Node.js', 'Problem Solving', 'Git']}
+                      placeholder=""
                       onBlur={() => markTouched('requiredSkills')}
                     />
                     {isFromMR && (
@@ -1947,8 +1973,7 @@ Key Focus Areas:
                     <TagInput
                       tags={preferredSkillsList}
                       onChange={(tags) => setPreferredSkillsList(tags)}
-                      placeholder="Type a preferred skill (e.g. Docker, Kubernetes, AWS, System Design) and press Enter"
-                      popularSuggestions={['Docker', 'Kubernetes', 'AWS', 'GraphQL', 'Redis', 'Microservices', 'CI/CD', 'Next.js', 'TailwindCSS']}
+                      placeholder=""
                     />
                   </div>
                 </div>
@@ -1964,32 +1989,16 @@ Key Focus Areas:
                   {/* Job Category */}
                   <div className="space-y-1.5">
                     <Label className="font-semibold text-xs">Job Category *</Label>
-                    <Select
+                    <Input
+                      type="text"
                       value={jobCategory}
-                      onValueChange={(v) => {
-                        setJobCategory(v);
+                      onChange={(e) => {
+                        setJobCategory(e.target.value);
                         setFieldErrors((prev) => ({ ...prev, jobCategory: '' }));
                       }}
-                    >
-                      <SelectTrigger className="h-9 text-xs bg-background font-medium">
-                        <SelectValue placeholder="Select Job Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Software Development" className="text-xs">Software Development</SelectItem>
-                        <SelectItem value="Engineering" className="text-xs">Engineering</SelectItem>
-                        <SelectItem value="Finance" className="text-xs">Finance & Accounting</SelectItem>
-                        <SelectItem value="Human Resources" className="text-xs">Human Resources (HR)</SelectItem>
-                        <SelectItem value="Sales & Business Development" className="text-xs">Sales & Business Development</SelectItem>
-                        <SelectItem value="Marketing" className="text-xs">Marketing & Communications</SelectItem>
-                        <SelectItem value="Operations & Logistics" className="text-xs">Operations & Logistics</SelectItem>
-                        <SelectItem value="Product Management" className="text-xs">Product Management</SelectItem>
-                        <SelectItem value="Design & UX" className="text-xs">Design & User Experience</SelectItem>
-                        <SelectItem value="Quality Assurance" className="text-xs">Quality Assurance & Testing</SelectItem>
-                        <SelectItem value="Legal & Compliance" className="text-xs">Legal & Compliance</SelectItem>
-                        <SelectItem value="Customer Success" className="text-xs">Customer Success & Support</SelectItem>
-                        <SelectItem value="Executive Leadership" className="text-xs">Executive Leadership</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      className="h-9 text-xs bg-background"
+                      placeholder=""
+                    />
                     {fieldErrors.jobCategory && (
                       <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobCategory}</p>
                     )}
@@ -2003,7 +2012,7 @@ Key Focus Areas:
                       value={jobFamily}
                       onChange={(e) => setJobFamily(e.target.value)}
                       className="h-9 text-xs bg-background"
-                      placeholder="e.g. Engineering → Software Development"
+                      placeholder=""
                     />
                   </div>
 
@@ -2100,7 +2109,7 @@ Key Focus Areas:
                       className={`h-9 text-xs ${
                         isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'
                       }`}
-                      placeholder="e.g. NASHIK DEVELOPMENT (Nashik)"
+                      placeholder=""
                     />
                     {isFromMR && (
                       <p className="text-[10px] text-muted-foreground font-medium">
@@ -2172,7 +2181,7 @@ Key Focus Areas:
                         type="text"
                         value={graduationYear}
                         onChange={(e) => setGraduationYear(e.target.value)}
-                        placeholder="e.g. 2024 / 2025 / 2026"
+                        placeholder=""
                         className="h-9 text-xs bg-background"
                       />
                     </div>
@@ -2420,7 +2429,7 @@ Key Focus Areas:
                       setFieldErrors((prev) => ({ ...prev, jobLocation: '' }));
                     }}
                     className={`h-9 text-xs ${isFromMR ? 'bg-muted/60 font-semibold cursor-not-allowed text-foreground' : 'bg-background'}`}
-                    placeholder="e.g. Nashik Development Center / Remote"
+                    placeholder=""
                   />
                   {fieldErrors.jobLocation && <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.jobLocation}</p>}
                 </div>
@@ -2572,7 +2581,7 @@ Key Focus Areas:
                       value={interviewProcess}
                       onChange={(e) => setInterviewProcess(e.target.value)}
                       className="h-9 text-xs bg-background"
-                      placeholder="e.g. Screening → Technical Assessment → Technical Interview → HR Round"
+                      placeholder=""
                     />
                   </div>
 

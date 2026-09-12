@@ -16,6 +16,7 @@ import {
   UserCheck,
   Building2,
 } from 'lucide-react';
+import { formatIndianBudget } from '@/lib/utils';
 import { branchesApi, departmentsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
 import { costCentersApi } from '@/api/cost-grades';
@@ -30,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 
 const departmentSchema = z.object({
-  companyId: z.string().min(1, 'Company is required'),
+  companyId: z.string().min(1, 'Organization Entity is required'),
   branchId: z.string().min(1, 'Branch / Office is required'),
   code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
@@ -47,16 +48,7 @@ const departmentSchema = z.object({
 
 type DepartmentFormValues = z.infer<typeof departmentSchema>;
 
-const formatAnnualBudget = (budget?: number | null) => {
-  if (budget === undefined || budget === null) return null;
-  if (budget >= 10000000) {
-    return `₹${(budget / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
-  }
-  if (budget >= 100000) {
-    return `₹${(budget / 100000).toFixed(1).replace(/\.0$/, '')} Lakh`;
-  }
-  return `₹${budget.toLocaleString('en-IN')}`;
-};
+// formatIndianBudget imported from @/lib/utils — used for all budget display
 
 const EXTRA_DEPT_METRICS: Record<string, { head: string; count: number; cap: number; budget: string; location: string; color: string }> = {
   'DEPT-ENG': { head: 'Rajesh Sharma (CTO)', count: 84, cap: 90, budget: '₹12.8 Cr', location: 'New York HQ', color: 'bg-primary' },
@@ -73,8 +65,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
   const [editing, setEditing] = useState<Department | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
-  const [deptBudgetValue, setDeptBudgetValue] = useState<string | number>('');
-  const [deptBudgetUnit, setDeptBudgetUnit] = useState<'Lakh' | 'Crore'>('Lakh');
+  // Raw rupee input — user types "28000000" and we auto-display "₹28 Crore"
+  const [deptBudgetRaw, setDeptBudgetRaw] = useState<string>('');
   const form = useForm<DepartmentFormValues>({
     resolver: zodResolver(departmentSchema) as any,
     defaultValues: {
@@ -157,10 +149,11 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
 
   const upsertMutation = useMutation({
     mutationFn: async (values: DepartmentFormValues) => {
-      const multiplier = deptBudgetUnit === 'Crore' ? 10000000 : 100000;
-      const computedBudget = deptBudgetValue !== '' && deptBudgetValue !== null && !isNaN(Number(deptBudgetValue)) && Number(deptBudgetValue) > 0
-        ? Math.round(Number(deptBudgetValue) * multiplier)
-        : null;
+      // Store raw rupees — no unit conversion needed
+      const computedBudget =
+        deptBudgetRaw !== '' && !isNaN(Number(deptBudgetRaw)) && Number(deptBudgetRaw) > 0
+          ? Math.round(Number(deptBudgetRaw))
+          : null;
 
       const payload = {
         ...values,
@@ -194,8 +187,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
 
   const openCreate = () => {
     setEditing(null);
-    setDeptBudgetValue('');
-    setDeptBudgetUnit('Lakh');
+    setDeptBudgetRaw('');
     form.reset({
       companyId: companyId ?? companies[0]?.id ?? '',
       branchId: '',
@@ -218,18 +210,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     setEditing(department);
 
     const rawBudget = department.annualBudget ? Number(department.annualBudget) : null;
-    if (rawBudget && rawBudget > 0) {
-      if (rawBudget >= 10000000) {
-        setDeptBudgetUnit('Crore');
-        setDeptBudgetValue(Number((rawBudget / 10000000).toFixed(2)));
-      } else {
-        setDeptBudgetUnit('Lakh');
-        setDeptBudgetValue(Number((rawBudget / 100000).toFixed(2)));
-      }
-    } else {
-      setDeptBudgetValue('');
-      setDeptBudgetUnit('Lakh');
-    }
+    // Pre-fill the raw rupee amount; formatter will show auto-preview
+    setDeptBudgetRaw(rawBudget && rawBudget > 0 ? String(rawBudget) : '');
 
     form.reset({
       companyId: department.companyId,
@@ -314,10 +296,10 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                 <form className="space-y-4 text-xs" onSubmit={form.handleSubmit((values) => upsertMutation.mutate(values))}>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Company Entity *</Label>
+                      <Label className="text-xs font-semibold">Organization Entity *</Label>
                       <Select value={form.watch('companyId')} onValueChange={(v) => form.setValue('companyId', v)}>
                         <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select company" />
+                          <SelectValue placeholder="Select organization" />
                         </SelectTrigger>
                         <SelectContent>
                           {companies.map((c) => (
@@ -423,25 +405,25 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Annual Budget (Optional)</Label>
-                      <div className="flex items-center gap-1.5">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold pointer-events-none">₹</span>
                         <Input
                           type="number"
-                          step="0.01"
-                          placeholder="e.g. 25.00"
-                          value={deptBudgetValue}
-                          onChange={e => setDeptBudgetValue(e.target.value)}
-                          className="h-9 text-xs font-mono flex-1"
+                          step="1"
+                          min="0"
+                          placeholder="e.g. 28000000"
+                          value={deptBudgetRaw}
+                          onChange={e => setDeptBudgetRaw(e.target.value)}
+                          className="h-9 text-xs font-mono pl-6"
                         />
-                        <Select value={deptBudgetUnit} onValueChange={(v: 'Lakh' | 'Crore') => setDeptBudgetUnit(v)}>
-                          <SelectTrigger className="h-9 text-xs w-[105px] shrink-0 font-semibold bg-muted/20">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Lakh" className="text-xs font-medium">₹ Lakh</SelectItem>
-                            <SelectItem value="Crore" className="text-xs font-medium">₹ Crore</SelectItem>
-                          </SelectContent>
-                        </Select>
                       </div>
+                      {/* Live auto-format preview */}
+                      {deptBudgetRaw && Number(deptBudgetRaw) > 0 && (
+                        <p className="text-[10px] text-primary font-semibold">
+                          → Will be stored &amp; displayed as:{' '}
+                          <span className="font-mono">{formatIndianBudget(Number(deptBudgetRaw))}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -603,7 +585,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                           </Badge>
                         )}
                         <Badge variant="outline" className="font-mono text-[9.5px] font-semibold bg-muted/30">
-                          Budget: {formatAnnualBudget(dept.annualBudget) ?? meta.budget}
+                          Budget: {formatIndianBudget(dept.annualBudget) ?? meta.budget}
                         </Badge>
                       </div>
                     </div>
@@ -660,7 +642,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                     <TableCell className="text-xs text-muted-foreground font-medium">{dept.parentDepartment?.name ?? 'None'}</TableCell>
                     <TableCell className="text-xs font-mono">{dept.costCenter ?? '—'}</TableCell>
                     <TableCell className="text-xs font-mono font-semibold">{finalCount} / {capacity} Staff</TableCell>
-                    <TableCell className="text-xs font-mono">{formatAnnualBudget(dept.annualBudget) ?? meta.budget}</TableCell>
+                    <TableCell className="text-xs font-mono">{formatIndianBudget(dept.annualBudget) ?? meta.budget}</TableCell>
                     <TableCell className="text-xs">
                       <Badge variant={dept.isActive ? 'secondary' : 'outline'} className="text-[10px]">
                         {dept.isActive ? 'Active' : 'Inactive'}

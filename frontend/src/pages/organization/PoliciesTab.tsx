@@ -36,7 +36,7 @@ import { hrPoliciesApi, type HrPolicy } from '@/api/hr-policies';
 import { useCompany } from '@/context/CompanyContext';
 
 export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }) {
-  const { activeCompanyId: ctxCompanyId } = useCompany();
+  const { activeCompanyId: ctxCompanyId, companies = [] } = useCompany();
   const activeCompanyId = propCompanyId || ctxCompanyId;
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -55,6 +55,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
   const [isNewVersionMode, setIsNewVersionMode] = useState(false);
 
   // Form States
+  const [formCompanyId, setFormCompanyId] = useState<string>('');
   const [formCode, setFormCode] = useState('');
   const [formTitle, setFormTitle] = useState('');
   const [formCategory, setFormCategory] = useState<string>('Conduct');
@@ -73,13 +74,13 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
 
   // ── Queries ──
   const { data: policies = [], isLoading: isPoliciesLoading } = useQuery({
-    queryKey: ['hr-policies', searchQuery, selectedCategory],
-    queryFn: () => hrPoliciesApi.list({ search: searchQuery, category: selectedCategory }),
+    queryKey: ['hr-policies', searchQuery, selectedCategory, activeCompanyId],
+    queryFn: () => hrPoliciesApi.list({ search: searchQuery, category: selectedCategory, companyId: activeCompanyId }),
   });
 
   const { data: kpis } = useQuery({
-    queryKey: ['hr-policies-kpis'],
-    queryFn: () => hrPoliciesApi.getKpis(),
+    queryKey: ['hr-policies-kpis', activeCompanyId],
+    queryFn: () => hrPoliciesApi.getKpis(activeCompanyId),
   });
 
   // ── Upload Mutation ──
@@ -190,6 +191,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
     setFormVersion('v1.0');
     setFormMandatory(true);
     setFormDescription('');
+    setFormCompanyId(activeCompanyId || '');
     setIsOpen(true);
   };
 
@@ -206,6 +208,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
     } else {
       setUploadedDocument(null);
     }
+    setFormCompanyId(p.companyId || '');
     setFormCode(p.policyCode);
     setFormTitle(p.title);
     setFormCategory(p.category);
@@ -228,6 +231,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
     } else {
       setUploadedDocument(null);
     }
+    setFormCompanyId(p.companyId || '');
     setFormCode(p.policyCode);
     setFormTitle(p.title);
     setFormCategory(p.category);
@@ -290,6 +294,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
       updateMutation.mutate({
         id: activePolicy.id,
         data: {
+          companyId: formCompanyId || null,
           policyCode: formCode,
           title: formTitle,
           category: formCategory,
@@ -302,6 +307,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
       });
     } else {
       createMutation.mutate({
+        companyId: formCompanyId || activeCompanyId || null,
         policyCode: formCode,
         title: formTitle,
         category: formCategory,
@@ -490,6 +496,9 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
                           <Badge variant="outline" className="text-[10px] font-semibold">
                             {p.version}
                           </Badge>
+                          <Badge variant="secondary" className="text-[9.5px] px-1.5 py-0 h-4.5 font-normal">
+                            {companies.find(c => c.id === p.companyId)?.name || 'Corporate'}
+                          </Badge>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
@@ -598,6 +607,7 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
                 <TableRow>
                   <TableHead className="text-xs">Code</TableHead>
                   <TableHead className="text-xs">Policy Manual Title</TableHead>
+                  <TableHead className="text-xs">Organization</TableHead>
                   <TableHead className="text-xs">Category</TableHead>
                   <TableHead className="text-xs">Version</TableHead>
                   <TableHead className="text-xs">E-Sign Progress</TableHead>
@@ -614,6 +624,11 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
                       <TableCell className="font-mono text-xs font-semibold text-primary">{p.policyCode}</TableCell>
                       <TableCell className="font-semibold text-xs text-foreground cursor-pointer hover:underline" onClick={() => openViewModal(p)}>
                         {p.title}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <Badge variant="outline" className="text-[10px] font-normal">
+                          {companies.find(c => c.id === p.companyId)?.name || 'Corporate'}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{p.category}</TableCell>
                       <TableCell className="text-xs font-mono font-semibold">{p.version}</TableCell>
@@ -662,6 +677,26 @@ export function PoliciesTab({ companyId: propCompanyId }: { companyId?: string }
             </DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSavePolicy}>
+            {/* ── Organization Entity * ── */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Organization Entity *</Label>
+              <Select value={formCompanyId || 'ALL'} onValueChange={(v) => setFormCompanyId(v === 'ALL' ? '' : v)} disabled={isNewVersionMode}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL" className="text-xs font-medium text-primary">
+                    All Organization Entities (Corporate Governance)
+                  </SelectItem>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">Policy Code *</Label>

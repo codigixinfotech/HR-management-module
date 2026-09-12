@@ -31,6 +31,13 @@ export class CreateLeaveTypeDto {
   carryForward?: boolean;
 
   @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  policyConfig?: any;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }

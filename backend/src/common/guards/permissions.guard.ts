@@ -56,7 +56,29 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const hasAll = required.every((code) => user.permissions?.includes(code));
+    const hasPermission = (code: string) => {
+      if (user.permissions?.includes(code) || user.permissions?.includes('*')) return true;
+      if (code.startsWith('workforce.')) {
+        if (
+          user.permissions?.includes('attendance_leave.write') ||
+          user.permissions?.includes('attendance_leave.create') ||
+          user.permissions?.includes('attendance_leave.edit')
+        ) {
+          return true;
+        }
+      }
+      if (code.endsWith('.write')) {
+        const prefix = code.replace('.write', '');
+        return (
+          user.permissions?.includes(`${prefix}.create`) ||
+          user.permissions?.includes(`${prefix}.edit`) ||
+          user.permissions?.includes(`${prefix}.write`)
+        );
+      }
+      return false;
+    };
+
+    const hasAll = required.every(hasPermission);
     if (!hasAll) {
       throw new ForbiddenException(
         `Missing required permission(s): ${required.join(', ')}`,

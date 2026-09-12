@@ -782,6 +782,47 @@ export interface Holiday {
   date: string;
   type: string;
   isActive: boolean;
+  branchId?: string | null;
+  branchName?: string | null;
+  applicableCategory?: string | null;
+  otApplicable?: boolean;
+}
+
+export interface LeavePolicyConfig {
+  category?: 'Regular' | 'Medical' | 'Unpaid' | 'Comp Off' | 'Statutory' | string;
+  accrual?: {
+    method: 'Annual' | 'Monthly' | 'Quarterly' | 'Half-Yearly' | 'Joining Date Based' | 'No Accrual' | 'Unlimited' | string;
+    rate: number;
+    prorateNewJoiner?: boolean;
+    prorateExit?: boolean;
+  };
+  carryForward?: {
+    allowed: boolean;
+    maxDays?: number;
+    expiryMonths?: number;
+    encashmentAllowed?: boolean;
+  };
+  applicationRules?: {
+    allowFullDay?: boolean;
+    allowHalfDay?: boolean;
+    allowQuarterDay?: boolean;
+    priorNoticeDays?: number;
+    backdatedDays?: number;
+    commentRequired?: boolean;
+    attachmentRequired?: boolean;
+    maxConsecutiveDays?: number;
+  };
+  sandwichPolicy?: {
+    weeklyOffCountAsLeave?: boolean;
+    holidayCountAsLeave?: boolean;
+  };
+  combinationRules?: {
+    allowedCodes?: string[];
+    disallowedCodes?: string[];
+  };
+  approvalChain?: {
+    levels?: { order: number; role: string; required: boolean; autoApproveDays?: number }[];
+  };
 }
 
 export interface LeaveType {
@@ -789,10 +830,12 @@ export interface LeaveType {
   companyId: string;
   code: string;
   name: string;
+  category?: string;
   isPaid: boolean;
   annualQuota: number;
   carryForward: boolean;
   isActive: boolean;
+  policyConfig?: LeavePolicyConfig;
 }
 
 export interface LeaveBalance {
@@ -802,7 +845,16 @@ export interface LeaveBalance {
   year: number;
   allocated: number;
   used: number;
-  leaveType?: { id: string; name: string; code: string; isPaid: boolean };
+  pending?: number;
+  available?: number;
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+    department?: { id: string; name: string } | null;
+  };
+  leaveType?: { id: string; name: string; code: string; isPaid: boolean; annualQuota?: number };
 }
 
 export interface LeaveRequest {
@@ -813,13 +865,24 @@ export interface LeaveRequest {
   startDate: string;
   endDate: string;
   totalDays: number;
+  duration?: 'FULL_DAY' | 'HALF_DAY' | 'CUSTOM' | string;
+  halfDaySession?: 'FIRST_HALF' | 'SECOND_HALF' | string;
+  attachmentUrl?: string | null;
+  approvalLevel?: number;
+  currentApproverRole?: string;
   reason?: string | null;
   status: ApprovalStatus;
   approverId?: string | null;
   approverRemarks?: string | null;
   decidedAt?: string | null;
   createdAt: string;
-  employee?: { id: string; firstName: string; lastName: string; employeeCode: string };
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+    department?: { id: string; name: string } | null;
+  };
   leaveType?: { id: string; name: string; code: string; isPaid: boolean };
   approver?: { id: string; firstName: string; lastName: string } | null;
 }

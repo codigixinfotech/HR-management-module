@@ -4,8 +4,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Sparkles } from 'lucide-react';
 import { leaveTypesApi } from '@/api/attendance-leave';
+import { autoGenerateCode } from './leave/LeaveTypeConfigModal';
 import type { Company, LeaveType } from '@/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -126,12 +127,34 @@ export function LeaveTypesTab({ companyId, companies }: { companyId?: string; co
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Code</Label>
-                  <Input {...form.register('code')} />
+                  <Label>Name</Label>
+                  <Input
+                    {...form.register('name')}
+                    onChange={(e) => {
+                      form.setValue('name', e.target.value);
+                      if (!editing) {
+                        form.setValue('code', autoGenerateCode(e.target.value));
+                      }
+                    }}
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Name</Label>
-                  <Input {...form.register('name')} />
+                  <div className="flex items-center justify-between">
+                    <Label>Code</Label>
+                    {!editing && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nameVal = form.getValues('name') || '';
+                          form.setValue('code', autoGenerateCode(nameVal));
+                        }}
+                        className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                      >
+                        <Sparkles className="h-3 w-3" /> Auto
+                      </button>
+                    )}
+                  </div>
+                  <Input {...form.register('code')} className="uppercase font-mono" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Annual Quota</Label>

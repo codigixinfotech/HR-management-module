@@ -725,10 +725,10 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                   <form className="space-y-4 text-xs" onSubmit={handleSaveCc}>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Company Entity *</Label>
+                        <Label className="text-[11px] font-semibold">Organization Entity *</Label>
                         <Select value={ccCompanyId} onValueChange={setCcCompanyId}>
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Company" />
+                            <SelectValue placeholder="Select organization" />
                           </SelectTrigger>
                           <SelectContent>
                             {companies?.map((c: any) => (
@@ -1075,7 +1075,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                   <form className="space-y-4 text-xs" onSubmit={handleSaveGrade}>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Company Entity *</Label>
+                        <Label className="text-[11px] font-semibold">Organization Entity *</Label>
                         <Select value={gradeCompanyId} onValueChange={(val) => {
                           setGradeCompanyId(val);
                           const comp = companies?.find(c => c.id === val);
@@ -1085,7 +1085,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                           }
                         }}>
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Company" />
+                            <SelectValue placeholder="Select organization" />
                           </SelectTrigger>
                           <SelectContent>
                             {companies?.map((c: any) => (
