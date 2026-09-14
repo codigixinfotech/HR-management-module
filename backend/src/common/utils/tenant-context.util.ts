@@ -1,51 +1,44 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { CurrentUserPayload } from '../decorators/current-user.decorator';
 
-export function isUserSuperAdmin(user?: CurrentUserPayload | null): boolean {
+export function isUserSuperAdmin(
+  user?: CurrentUserPayload | null,
+): boolean {
   if (!user) return false;
 
-  // 1. Email check for Super Admins
-  if (user.email === 'admin@ehcm.local') return true;
-  if (user.email?.toLowerCase().includes('ppurvesh503')) return true;
+  const roles = (user.roles ?? [])
+    .filter((r): r is string => typeof r === 'string')
+    .map((r) => r.trim().toUpperCase());
 
-  // 2. Roles check
-  const hasSuperRole = user.roles?.some((r) => {
-    const u = typeof r === 'string' ? r.toUpperCase() : '';
-    return u.includes('SUPER_ADMIN') || u === 'SUPERADMIN' || u.includes('SUPER');
-  });
-  const hasSuperPrimary =
-    user.primaryRole?.toUpperCase().includes('SUPER_ADMIN') ||
-    user.primaryRole?.toUpperCase() === 'SUPER ADMIN';
+  const primaryRole = user.primaryRole?.trim().toUpperCase();
 
-  if (hasSuperRole || hasSuperPrimary) return true;
-
-  // 3. If user is explicitly assigned as a Branch Admin or has a branchId, they are NEVER a Super Admin
+  // Explicit lower-level admin roles ALWAYS win.
   const isBranchAdmin =
-    user.roles?.some((r) => {
-      const u = typeof r === 'string' ? r.toUpperCase() : '';
-      return u.includes('BRANCH_ADMIN') || u === 'BRANCH ADMIN';
-    }) ||
-    user.primaryRole?.toUpperCase().includes('BRANCH_ADMIN') ||
-    user.primaryRole === 'Branch Admin' ||
+    roles.includes('BRANCH_ADMIN') ||
+    roles.includes('BRANCH ADMIN') ||
+    primaryRole === 'BRANCH_ADMIN' ||
+    primaryRole === 'BRANCH ADMIN' ||
     Boolean(user.branchId);
 
   if (isBranchAdmin) return false;
 
-  // 4. If user is explicitly assigned as a Company Admin, they are NEVER a Super Admin
   const isCompanyAdmin =
-    user.roles?.some((r) => {
-      const u = typeof r === 'string' ? r.toUpperCase() : '';
-      return u.includes('COMPANY_ADMIN') || u === 'COMPANY ADMIN';
-    }) ||
-    user.primaryRole?.toUpperCase().includes('COMPANY_ADMIN') ||
-    user.primaryRole === 'Company Admin';
+    roles.includes('COMPANY_ADMIN') ||
+    roles.includes('COMPANY ADMIN') ||
+    primaryRole === 'COMPANY_ADMIN' ||
+    primaryRole === 'COMPANY ADMIN';
 
   if (isCompanyAdmin) return false;
 
-  // 5. If user has no companyId and no branchId, they are a platform super admin
-  if (user.companyId === null && !user.branchId) return true;
-
-  return false;
+  // Super Admin should be determined by an explicit role,
+  // not by an email address.
+  return (
+    roles.includes('SUPER_ADMIN') ||
+    roles.includes('SUPERADMIN') ||
+    primaryRole === 'SUPER_ADMIN' ||
+    primaryRole === 'SUPERADMIN' ||
+    primaryRole === 'SUPER ADMIN'
+  );
 }
 
 export function getTenantCompanyId(
@@ -73,7 +66,7 @@ export function getTenantCompanyId(
     return ''; // empty string means ALL companies (no companyId where filter)
   }
 
-  // Company Admin and Branch Admin (and Employees) are strictly scoped to their assigned company
+  // Company Admin, Branch Admin, and Employees are strictly scoped to their assigned company
   if (user.companyId) {
     return user.companyId;
   }
@@ -111,14 +104,17 @@ export function getTenantBranchId(
     return cleanQueryBranch;
   }
 
-  // Branch Admin is strictly restricted to their assigned branch
+  // Branch Admin is strictly restricted to their assigned branch ONLY
+  const roles = (user.roles ?? [])
+    .filter((r): r is string => typeof r === 'string')
+    .map((r) => r.trim().toUpperCase());
+  const primaryRole = user.primaryRole?.trim().toUpperCase();
+
   const isBranchAdmin =
-    user.roles?.some((r) => {
-      const u = typeof r === 'string' ? r.toUpperCase() : '';
-      return u.includes('BRANCH_ADMIN') || u === 'BRANCH ADMIN';
-    }) ||
-    user.primaryRole?.toUpperCase().includes('BRANCH_ADMIN') ||
-    user.primaryRole === 'Branch Admin' ||
+    roles.includes('BRANCH_ADMIN') ||
+    roles.includes('BRANCH ADMIN') ||
+    primaryRole === 'BRANCH_ADMIN' ||
+    primaryRole === 'BRANCH ADMIN' ||
     Boolean(user.branchId);
 
   if (isBranchAdmin) {
@@ -126,6 +122,35 @@ export function getTenantBranchId(
     return assignedBranchId || 'NO_BRANCH_ASSIGNED';
   }
 
-  // Company Admin can view all branches belonging to their company or filter by requested branchId
+  // For Company Admin, return cleanQueryBranch for service-level or validateTenantBranchId validation
   return cleanQueryBranch;
+}
+
+/**
+ * Validates that if a queryBranchId is supplied by a Company Admin or other user,
+ * the branch belongs to their assigned company.
+ */
+export async function validateTenantBranchId(
+  prisma: { branch: { findUnique: (args: any) => Promise<any> } },
+  user?: CurrentUserPayload | null,
+  queryBranchId?: string,
+): Promise<string | undefined> {
+  const branchId = getTenantBranchId(user, queryBranchId);
+  if (!branchId || branchId === 'NO_BRANCH_ASSIGNED' || !user || isUserSuperAdmin(user)) {
+    return branchId;
+  }
+
+  // For Company Admin, verify the requested branch belongs to their company
+  if (user.companyId && branchId) {
+    const branch = await prisma.branch.findUnique({
+      where: { id: branchId },
+      select: { id: true, companyId: true },
+    });
+    if (!branch || branch.companyId !== user.companyId) {
+      // Cross-company branch access blocked!
+      return 'NO_BRANCH_ASSIGNED';
+    }
+  }
+
+  return branchId;
 }

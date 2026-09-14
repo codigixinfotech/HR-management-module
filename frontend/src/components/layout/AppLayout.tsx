@@ -1,11 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
-import { LayoutDashboard, Clock, CalendarClock, CheckSquare, User } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 import { isHrOrAdminUser } from '@/lib/modules';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 export function AppLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -14,6 +15,46 @@ export function AppLayout() {
   const isHrOrAdmin = isHrOrAdminUser(user);
 
   const isLandingPage = location.pathname.startsWith('/landing');
+
+  // Global safeguard: Guarantee that pointer-events, scroll locks, and aria-hidden
+  // are never stuck after route changes or Radix unmounts in React 19
+  useEffect(() => {
+    const cleanBodyLocks = () => {
+      const hasActiveModal = Boolean(document.querySelector('[role="dialog"], [data-state="open"]'));
+      if (!hasActiveModal) {
+        if (document.body.style.pointerEvents === 'none') {
+          document.body.style.pointerEvents = '';
+        }
+        document.body.removeAttribute('data-scroll-locked');
+      }
+      document.getElementById('root')?.removeAttribute('aria-hidden');
+    };
+
+    cleanBodyLocks();
+
+    // Fast-acting MutationObserver to prevent deadlocks
+    const observer = new MutationObserver(() => {
+      cleanBodyLocks();
+    });
+
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['style', 'data-scroll-locked'],
+    });
+
+    const handlePointerRecovery = () => {
+      cleanBodyLocks();
+    };
+
+    window.addEventListener('pointerdown', handlePointerRecovery, { capture: true });
+    window.addEventListener('click', handlePointerRecovery, { capture: true });
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('pointerdown', handlePointerRecovery, { capture: true });
+      window.removeEventListener('click', handlePointerRecovery, { capture: true });
+    };
+  }, [location.pathname, location.search]);
 
   const handleCloseMobile = useCallback(() => {
     setIsMobileMenuOpen(false);
@@ -52,7 +93,9 @@ export function AppLayout() {
           isLandingPage ? "p-2 sm:p-3 lg:p-4" : "p-0 md:p-6 lg:p-8"
         )}>
           <div className={cn("mx-auto w-full", isLandingPage ? "max-w-full" : "max-w-[1600px]")}>
-            <Outlet />
+            <ErrorBoundary key={location.pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
       </div>

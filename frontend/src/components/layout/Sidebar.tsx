@@ -1,7 +1,15 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getModulesForRole, isSuperAdminUser, isBranchAdminUser, isCompanyAdminUser, isManagerOrHrOrAdmin, type HcmModule, type SubModuleItem } from '@/lib/modules';
+import {
+  getModulesForRole,
+  isSuperAdminUser,
+  isBranchAdminUser,
+  isCompanyAdminUser,
+  isManagerOrHrOrAdmin,
+  type HcmModule,
+  type SubModuleItem,
+} from '@/lib/modules';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCompany } from '@/context/CompanyContext';
 import { subscriptionsApi } from '@/api/plansApi';
@@ -21,6 +29,17 @@ import {
 interface SidebarProps {
   isOpenOnMobile?: boolean;
   onCloseMobile?: () => void;
+}
+
+function normalizePath(p: string) {
+  const [base] = p.split('?');
+  if (base === '/profile') return '/employees/detail/me';
+  if (base === '/organization') return '/organization/structure';
+  if (base === '/recruitment') return '/recruitment/requisitions';
+  if (base === '/employees') return '/employees/directory';
+  if (base === '/attendance-leave') return '/attendance-leave/live';
+  if (base === '/dashboard') return '/dashboard/overview';
+  return base;
 }
 
 export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
@@ -86,8 +105,6 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
     }
 
     // Role-based visibility for Attendance & Leave
-    // Manager / HR / Admin: Attendance Register
-    // Employee: My Attendance Register
     const isManagerOrAdmin = isManagerOrHrOrAdmin(user);
     base = base.map((mod) => {
       if (mod.key === 'attendance-leave' && mod.subItems) {
@@ -121,19 +138,20 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       const currentPath = location.pathname;
       const currentSearch = location.search;
 
-      const normCurrent = currentPath === '/profile' ? '/employees/detail/me' : currentPath;
+      const normCurrent = normalizePath(currentPath);
       const [subBasePath, subQuery] = subPath.split('?');
-      const normSubBase = subBasePath === '/profile' ? '/employees/detail/me' : subBasePath;
+      const normSubBase = normalizePath(subBasePath);
 
-      // Base path must match (handle /attendance-leave and /attendance-leave/live equivalency)
+      // Base path must match
       const isPathMatch =
         normCurrent === normSubBase ||
+        currentPath === subBasePath ||
         (normCurrent === '/attendance-leave/live' && normSubBase === '/attendance-leave') ||
         (normCurrent === '/attendance-leave' && normSubBase === '/attendance-leave/live');
 
       if (!isPathMatch) return false;
 
-      // If subPath specifies a query string (e.g. ?tab=apply or ?details=me)
+      // If subPath specifies a query string
       if (subQuery) {
         const subParams = new URLSearchParams(subQuery);
         const currentParams = new URLSearchParams(currentSearch);
@@ -144,7 +162,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
         return true;
       }
 
-      // If subPath has NO query string (e.g. /attendance-leave/live or /tasks/my-tasks)
+      // If subPath has NO query string
       if (currentSearch) {
         const currentParams = new URLSearchParams(currentSearch);
         const hasSpecificParam = currentParams.get('tab') || currentParams.get('details');
@@ -158,6 +176,9 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
     [location.pathname, location.search],
   );
 
+  // Track manually collapsed sections by the user so auto-expand doesn't fight them
+  const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>({});
+
   // Auto-expand section containing the active route/tab
   useEffect(() => {
     const matchedModule = companyModules.find(
@@ -167,13 +188,85 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
     );
 
     if (matchedModule) {
-      setOpenSections((prev) => ({ ...prev, [matchedModule.key]: true }));
+      if (!userCollapsed[matchedModule.key]) {
+        setOpenSections((prev) => {
+          if (prev[matchedModule.key]) return prev;
+          return { ...prev, [matchedModule.key]: true };
+        });
+      }
     }
-  }, [companyModules, isSubItemActive]);
+  }, [companyModules, isSubItemActive, userCollapsed]);
 
-  const toggleSection = (key: string) => {
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  const toggleSection = useCallback((key: string) => {
+    setOpenSections((prev) => {
+      const willBeOpen = !prev[key];
+      setUserCollapsed((uc) => ({ ...uc, [key]: !willBeOpen }));
+      return { ...prev, [key]: willBeOpen };
+    });
+  }, []);
+
+  // Safe navigation coordinator to eliminate rapid-click freezes and duplicate history entries
+  const lastNavTimeRef = useRef<number>(0);
+  const lastNavTargetRef = useRef<string>('');
+
+  const handleSafeNavigate = useCallback(
+    (targetPath: string, parentKey?: string) => {
+      const currentFull = location.pathname + location.search;
+
+      // 1. If already on this exact path or equivalent normalized path, prevent duplicate navigation
+      if (
+        currentFull === targetPath ||
+        (normalizePath(location.pathname) === normalizePath(targetPath) && !targetPath.includes('?'))
+      ) {
+        return;
+      }
+
+      // 2. Prevent rapid duplicate clicks on the EXACT same route (< 250ms)
+      const now = Date.now();
+      if (lastNavTargetRef.current === targetPath && now - lastNavTimeRef.current < 250) {
+        return;
+      }
+
+      lastNavTimeRef.current = now;
+      lastNavTargetRef.current = targetPath;
+
+      if (parentKey) {
+        setOpenSections((prev) => (prev[parentKey] ? prev : { ...prev, [parentKey]: true }));
+        setUserCollapsed((prev) => (prev[parentKey] ? { ...prev, [parentKey]: false } : prev));
+      }
+
+      navigate(targetPath);
+      onCloseMobile?.();
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+    },
+    [location.pathname, location.search, navigate, onCloseMobile],
+  );
+
+  const handleParentClick = useCallback(
+    (mod: HcmModule) => {
+      const hasSubItems = Boolean(mod.subItems && mod.subItems.length > 0);
+      const hasActiveChild = Boolean(mod.subItems?.some((sub) => isSubItemActive(sub.path)));
+      const isDirectActive = !hasSubItems && isSubItemActive(mod.path);
+      const isCurrentlyInModule = hasActiveChild || isDirectActive;
+
+      if (hasSubItems) {
+        if (!isCurrentlyInModule) {
+          // Navigating into a new module from another page:
+          // Open section and navigate to primary sub-item (never collapse!)
+          setOpenSections((prev) => (prev[mod.key] ? prev : { ...prev, [mod.key]: true }));
+          setUserCollapsed((prev) => (prev[mod.key] ? { ...prev, [mod.key]: false } : prev));
+          const primaryTarget = mod.subItems?.[0]?.path || mod.path;
+          handleSafeNavigate(primaryTarget, mod.key);
+        } else {
+          // Already inside this module: toggle section open/closed
+          toggleSection(mod.key);
+        }
+      } else {
+        handleSafeNavigate(mod.path);
+      }
+    },
+    [isSubItemActive, handleSafeNavigate, toggleSection],
+  );
 
   // Filter modules and subItems by search query
   const filteredModules = useMemo(() => {
@@ -213,13 +306,13 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           openSections={openSections}
           toggleSection={toggleSection}
           isSubItemActive={isSubItemActive}
-          navigate={navigate}
+          onParentClick={handleParentClick}
+          handleSafeNavigate={handleSafeNavigate}
           enabledModulesCount={effectiveModulesCount}
         />
       </aside>
 
       {/* ── 2. MOBILE NAVIGATION DRAWER (Strictly md:hidden, high z-index fixed drawer) ── */}
-      {/* Mobile Backdrop */}
       {isOpenOnMobile && (
         <div
           className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-xs md:hidden animate-in fade-in duration-200"
@@ -227,7 +320,6 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
         />
       )}
 
-      {/* Mobile Left Navigation Drawer */}
       <aside
         className={cn(
           'fixed top-0 left-0 bottom-0 z-[9999] w-[min(280px,85vw)] h-[100dvh] bg-card text-card-foreground border-r border-border shadow-2xl flex flex-col transition-transform duration-250 ease-in-out overflow-hidden md:hidden select-none',
@@ -241,7 +333,8 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           openSections={openSections}
           toggleSection={toggleSection}
           isSubItemActive={isSubItemActive}
-          navigate={navigate}
+          onParentClick={handleParentClick}
+          handleSafeNavigate={handleSafeNavigate}
           onCloseMobile={onCloseMobile}
           isMobileDrawer
           enabledModulesCount={effectiveModulesCount}
@@ -258,7 +351,8 @@ interface SidebarTreeContentProps {
   openSections: Record<string, boolean>;
   toggleSection: (key: string) => void;
   isSubItemActive: (path: string) => boolean;
-  navigate: (path: string) => void;
+  onParentClick: (mod: HcmModule) => void;
+  handleSafeNavigate: (targetPath: string, parentKey?: string) => void;
   onCloseMobile?: () => void;
   isMobileDrawer?: boolean;
   enabledModulesCount?: number;
@@ -271,7 +365,8 @@ function SidebarTreeContent({
   openSections,
   toggleSection,
   isSubItemActive,
-  navigate,
+  onParentClick,
+  handleSafeNavigate,
   onCloseMobile,
   isMobileDrawer,
   enabledModulesCount,
@@ -282,10 +377,7 @@ function SidebarTreeContent({
       <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-muted/20 shrink-0">
         <div className="flex items-center gap-3">
           <div
-            onClick={() => {
-              navigate('/dashboard');
-              onCloseMobile?.();
-            }}
+            onClick={() => handleSafeNavigate('/dashboard')}
             className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/25 transition-transform hover:scale-105 active:scale-95 shrink-0"
           >
             <Building2 className="h-5 w-5 stroke-[2.2]" />
@@ -347,7 +439,7 @@ function SidebarTreeContent({
 
         {filteredModules.map((mod) => {
           const Icon = mod.icon;
-          const hasSubItems = mod.subItems && mod.subItems.length > 0;
+          const hasSubItems = Boolean(mod.subItems && mod.subItems.length > 0);
           const isExpanded = Boolean(openSections[mod.key]) || Boolean(menuSearch);
 
           const hasActiveChild = Boolean(mod.subItems?.some((sub) => isSubItemActive(sub.path)));
@@ -355,23 +447,10 @@ function SidebarTreeContent({
 
           return (
             <div key={mod.key} className="space-y-0.5">
-              {/* Parent Menu Item */}
+              {/* Parent Menu Item: Single onClick calling onParentClick */}
               <button
                 type="button"
-                onClick={() => {
-                  if (hasSubItems) {
-                    toggleSection(mod.key);
-                    if (mod.path) {
-                      navigate(mod.path);
-                      onCloseMobile?.();
-                      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                  } else {
-                    navigate(mod.path);
-                    onCloseMobile?.();
-                    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                }}
+                onClick={() => onParentClick(mod)}
                 className={cn(
                   'w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-all duration-150 group active:scale-98 relative cursor-pointer',
                   isDirectActive
@@ -410,11 +489,14 @@ function SidebarTreeContent({
                   )}
                   {hasSubItems && (
                     <span
+                      role="button"
+                      tabIndex={0}
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleSection(mod.key);
                       }}
-                      className="p-0.5 rounded hover:bg-muted text-muted-foreground"
+                      className="p-0.5 rounded hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+                      title={isExpanded ? 'Collapse section' : 'Expand section'}
                     >
                       {isExpanded ? (
                         <ChevronDown className="h-3.5 w-3.5 text-primary" />
@@ -436,9 +518,9 @@ function SidebarTreeContent({
                       <NavLink
                         key={sub.key}
                         to={sub.path}
-                        onClick={() => {
-                          onCloseMobile?.();
-                          document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleSafeNavigate(sub.path, mod.key);
                         }}
                         className={cn(
                           'group flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150 active:scale-95 relative cursor-pointer',

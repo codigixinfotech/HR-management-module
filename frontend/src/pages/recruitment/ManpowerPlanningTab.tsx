@@ -43,6 +43,10 @@ import type { ManpowerPlan, Department, Designation, Branch, Company, ManpowerRe
 import { Pagination } from '@/components/common/Pagination';
 import { useCompany } from '@/context/CompanyContext';
 
+// Sentinel for the "Organization Head" option in the Branch picker.
+// Means: company-level departments only (no branchId). Never sent to backend.
+const ORG_HEAD_SENTINEL = '__ORG_HEAD__';
+
 const HIRING_QUARTERS = [
   'Q1 2026',
   'Q2 2026',
@@ -57,7 +61,7 @@ const HIRING_QUARTERS = [
 export function ManpowerPlanningTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { activeCompanyId } = useCompany();
+  const { activeCompanyId, activeCompany, companies: contextCompanies } = useCompany();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTableDept, setSelectedTableDept] = useState<string>('all');
@@ -157,7 +161,12 @@ export function ManpowerPlanningTab() {
     const map = new Map<string, Department>();
     rawDepartments.forEach((d) => {
       if (selectedCompanyId && d.companyId !== selectedCompanyId) return;
-      if (selectedBranchId && d.branchId && d.branchId !== selectedBranchId) return;
+      // Organization Head: show only company-level depts (no branchId)
+      if (selectedBranchId === ORG_HEAD_SENTINEL) {
+        if (d.branchId) return; // skip branch-specific depts
+      } else if (selectedBranchId && d.branchId && d.branchId !== selectedBranchId) {
+        return;
+      }
 
       const cleanName = d.name ? d.name.trim() : '';
       const key = `${d.id}_${cleanName.toLowerCase()}`;
@@ -428,12 +437,12 @@ export function ManpowerPlanningTab() {
   // Open Modal for Add Forecast Plan
   const openAddModal = () => {
     setEditingPlan(null);
-    const initialCompanyId = companies[0]?.id || '';
+    // Always default to the active/logged-in company — never companies[0]
+    const initialCompanyId = activeCompanyId || companies[0]?.id || '';
     setSelectedCompanyId(initialCompanyId);
 
-    const companyBranches = rawBranches.filter((b) => !initialCompanyId || b.companyId === initialCompanyId);
-    const initialBranchId = companyBranches[0]?.id || '';
-    setSelectedBranchId(initialBranchId);
+    // Default to Organization Head (company-level) so departments are visible immediately
+    setSelectedBranchId(ORG_HEAD_SENTINEL);
 
     setSelectedDeptId('');
     setSelectedDesignationId('');
@@ -450,7 +459,8 @@ export function ManpowerPlanningTab() {
   const openEditModal = (plan: ManpowerPlan) => {
     setEditingPlan(plan);
 
-    setSelectedCompanyId(plan.companyId || companies[0]?.id || '');
+    // Keep the plan's own companyId; fall back to active company (never companies[0])
+    setSelectedCompanyId(plan.companyId || activeCompanyId || companies[0]?.id || '');
     setSelectedBranchId(plan.branchId || '');
     setSelectedDeptId(plan.departmentId || '');
     setSelectedDesignationId(plan.designationId || '');
@@ -588,7 +598,7 @@ export function ManpowerPlanningTab() {
       return;
     }
     if (!selectedBranchId) {
-      toast.error('Please select a branch.');
+      toast.error('Please select a branch or Organization Head.');
       return;
     }
     if (!selectedDeptId || !currentDept) {
@@ -634,7 +644,8 @@ export function ManpowerPlanningTab() {
 
     const payload: Partial<ManpowerPlan> = {
       companyId: selectedCompanyId,
-      branchId: selectedBranchId,
+      // Strip ORG_HEAD_SENTINEL — Organization Head means no specific branchId (company-level)
+      branchId: selectedBranchId === ORG_HEAD_SENTINEL ? undefined : selectedBranchId,
       departmentId: currentDept.id,
       departmentName: currentDept.name,
       costCenter: selectedCostCenterCode,
@@ -916,21 +927,22 @@ export function ManpowerPlanningTab() {
                   <form className="space-y-4 text-xs pt-1" onSubmit={handleSavePlan}>
                     {/* 1. Company & Branch Row */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* Company Dropdown */}
+                      {/* Company — Locked to Active Company (read-only) */}
                       <div className="space-y-1.5">
                         <Label className="font-semibold">Company *</Label>
-                        <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Company" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {companies.map((c) => (
-                              <SelectItem key={c.id} value={c.id} className="text-xs">
-                                {c.name} ({c.code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="h-9 px-3 flex items-center gap-2 rounded-md border border-input bg-muted/40 text-xs font-semibold text-foreground select-none">
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          <span className="truncate">
+                            {currentCompany
+                              ? `${currentCompany.name} (${currentCompany.code})`
+                              : activeCompany
+                              ? `${activeCompany.name} (${activeCompany.code})`
+                              : 'Loading...'}
+                          </span>
+                          <Badge className="ml-auto shrink-0 bg-emerald-500/10 text-emerald-700 border-emerald-500/25 text-[9px] font-bold px-1.5">
+                            Locked
+                          </Badge>
+                        </div>
                       </div>
 
                       {/* Branch Dropdown */}
@@ -955,11 +967,11 @@ export function ManpowerPlanningTab() {
                             />
                           </SelectTrigger>
                           <SelectContent>
-                            {branches.length === 0 ? (
-                              <div className="p-2 text-xs text-muted-foreground text-center">
-                                No branches found for the selected company.
-                              </div>
-                            ) : (
+                            {/* Organization Head option — always first */}
+                            <SelectItem value={ORG_HEAD_SENTINEL} className="text-xs font-semibold text-indigo-700 dark:text-indigo-400">
+                              🏛️ Organization Head
+                            </SelectItem>
+                            {branches.length === 0 ? null : (
                               branches.map((b) => (
                                 <SelectItem key={b.id} value={b.id} className="text-xs">
                                   {b.name} ({b.code})
@@ -987,11 +999,11 @@ export function ManpowerPlanningTab() {
                                 !selectedCompanyId
                                   ? 'Please select a company.'
                                   : !selectedBranchId
-                                  ? 'Please select a branch.'
+                                  ? 'Please select a branch or Organization Head.'
                                   : isDepartmentsLoading
                                   ? 'Loading departments...'
                                   : departments.length === 0
-                                  ? 'No departments found for the selected company and branch.'
+                                  ? 'No departments found'
                                   : 'Select Department'
                               }
                             />

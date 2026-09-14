@@ -524,18 +524,39 @@ export function isCompanyAdminUser(user?: any): boolean {
 
 export function isSuperAdminUser(user?: any): boolean {
   if (!user) return false;
-  if (user.email === 'admin@ehcm.local') return true;
-  if (user.email?.toLowerCase().includes('ppurvesh503')) return true;
-  const isSuperRole = user.roles?.some((r: string) => {
-    const u = typeof r === 'string' ? r.toUpperCase() : '';
-    return u === 'SUPER_ADMIN' || u === 'SUPERADMIN' || u.includes('SUPER');
-  });
-  const isSuperPrimary =
-    user.primaryRole?.toUpperCase() === 'SUPER_ADMIN' ||
-    user.primaryRole?.toUpperCase() === 'SUPER ADMIN';
-  if (isSuperRole || isSuperPrimary || user.isSuperAdmin) return true;
-  if (isBranchAdminUser(user) || isCompanyAdminUser(user)) return false;
-  return Boolean(user.companyId === null && !user.employee);
+
+  const roles = (user.roles ?? [])
+    .filter((r: any): r is string => typeof r === 'string')
+    .map((r: string) => r.trim().toUpperCase());
+
+  const primaryRole = user.primaryRole?.trim().toUpperCase();
+
+  // Explicit lower-level admin roles ALWAYS win.
+  const isBranchAdmin =
+    roles.includes('BRANCH_ADMIN') ||
+    roles.includes('BRANCH ADMIN') ||
+    primaryRole === 'BRANCH_ADMIN' ||
+    primaryRole === 'BRANCH ADMIN' ||
+    Boolean(user.branchId);
+
+  if (isBranchAdmin) return false;
+
+  const isCompanyAdmin =
+    roles.includes('COMPANY_ADMIN') ||
+    roles.includes('COMPANY ADMIN') ||
+    primaryRole === 'COMPANY_ADMIN' ||
+    primaryRole === 'COMPANY ADMIN';
+
+  if (isCompanyAdmin) return false;
+
+  // Super Admin should be determined by an explicit role
+  return (
+    roles.includes('SUPER_ADMIN') ||
+    roles.includes('SUPERADMIN') ||
+    primaryRole === 'SUPER_ADMIN' ||
+    primaryRole === 'SUPERADMIN' ||
+    primaryRole === 'SUPER ADMIN'
+  );
 }
 
 export function isHrOrAdminUser(user?: any): boolean {

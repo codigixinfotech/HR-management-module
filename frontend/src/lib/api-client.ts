@@ -50,6 +50,11 @@ async function refreshAccessToken(): Promise<string | null> {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+
+    const originalRequest = error.config as any;
     const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') ||
                            originalRequest?.url?.includes('/auth/refresh') ||
                            originalRequest?.url?.includes('/auth/register');

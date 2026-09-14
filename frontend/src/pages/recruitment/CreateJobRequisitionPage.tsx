@@ -39,6 +39,12 @@ import { companiesApi, branchesApi, departmentsApi, designationsApi } from '@/ap
 import { employeesApi } from '@/api/employees';
 import { costCentersApi, type CostCenter } from '@/api/cost-grades';
 import { formatSalaryInLakhs } from '@/lib/utils';
+import { useCompany } from '@/context/CompanyContext';
+
+// Sentinel value for the "Organization Head" branch picker option.
+// When this is in standaloneBranchIds, departments are filtered to company-level only (no branchId).
+// It must NOT be sent to the backend API — always strip it before API calls.
+const HEAD_OFFICE_SENTINEL = '__HEAD_OFFICE__';
 
 interface TagInputProps {
   tags: string[];
@@ -133,6 +139,7 @@ export default function CreateJobRequisitionPage() {
   const { mrId, id } = useParams<{ mrId?: string; id?: string }>();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { activeCompanyId, activeCompany } = useCompany();
 
   const editId = id || searchParams.get('id') || '';
   const isEditMode = Boolean(editId);
@@ -174,7 +181,8 @@ export default function CreateJobRequisitionPage() {
   const selectedMr = singleMr || (isFromMR ? approvedMrs.find((m: any) => m.id === targetMrId) : null);
 
   // ── Form State (Standalone Organization Setup) ──
-  const [standaloneCompanyId, setStandaloneCompanyId] = useState('');
+  // Initialize to the active/logged-in company ID — never allow arbitrary company selection
+  const [standaloneCompanyId, setStandaloneCompanyId] = useState(() => activeCompanyId || '');
   const [standaloneBranchId, setStandaloneBranchId] = useState('');
   const [standaloneBranchIds, setStandaloneBranchIds] = useState<string[]>([]);
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
@@ -186,6 +194,13 @@ export default function CreateJobRequisitionPage() {
   const [isStandaloneDesignationDropdownOpen, setIsStandaloneDesignationDropdownOpen] = useState(false);
   const standaloneDesignationComboboxRef = useRef<HTMLDivElement>(null);
   const [standaloneNumPositions, setStandaloneNumPositions] = useState(1);
+
+  // Sync standalone company to active company whenever it resolves (handles async loading)
+  useEffect(() => {
+    if (activeCompanyId && !standaloneCompanyId) {
+      setStandaloneCompanyId(activeCompanyId);
+    }
+  }, [activeCompanyId]);
 
   // Click-outside listener for comboboxes
   useEffect(() => {
@@ -216,7 +231,10 @@ export default function CreateJobRequisitionPage() {
   };
 
   const activeCompId = isFromMR ? selectedMr?.companyId : standaloneCompanyId;
-  const activeBranchId = isFromMR ? selectedMr?.branchId : (standaloneBranchIds[0] || standaloneBranchId);
+  // Strip HEAD_OFFICE_SENTINEL from activeBranchId — it must never reach the backend API.
+  // When Organization Head is selected we want ALL company departments (branchId = undefined).
+  const rawActiveBranchId = isFromMR ? selectedMr?.branchId : (standaloneBranchIds[0] || standaloneBranchId);
+  const activeBranchId = rawActiveBranchId === HEAD_OFFICE_SENTINEL ? undefined : rawActiveBranchId;
   const activeDeptId = isFromMR ? selectedMr?.departmentId : standaloneDepartmentId;
 
   const { data: companies = [] } = useQuery({
@@ -299,6 +317,10 @@ export default function CreateJobRequisitionPage() {
     if (!activeCompId) return [];
     return departments.filter((d: any) => {
       const matchComp = !d.companyId || d.companyId === activeCompId;
+      // If HEAD_OFFICE is selected: show only company-level depts (no branchId assigned)
+      if (standaloneBranchIds.includes(HEAD_OFFICE_SENTINEL)) {
+        return matchComp && !d.branchId;
+      }
       const matchBranch = standaloneBranchIds.length === 0 || !d.branchId || standaloneBranchIds.includes(d.branchId);
       return matchComp && matchBranch;
     });
@@ -981,7 +1003,9 @@ Key Focus Areas:
       const branchNamesStr = selectedBranchObjs.map((b: any) => b.name).join(', ');
 
       payload.companyId = standaloneCompanyId;
-      payload.branchId = standaloneBranchIds[0] || standaloneBranchId || undefined;
+      // Strip HEAD_OFFICE_SENTINEL — Organization Head means no branchId (company-level)
+      const realBranchId = standaloneBranchIds.find((id) => id !== HEAD_OFFICE_SENTINEL) || standaloneBranchId || undefined;
+      payload.branchId = realBranchId && realBranchId !== HEAD_OFFICE_SENTINEL ? realBranchId : undefined;
       payload.workLocation = branchNamesStr || jobLocation || undefined;
       payload.departmentId = standaloneDepartmentId;
       payload.designationId = standaloneDesignationId || matchedDesig?.id || undefined;
@@ -1297,26 +1321,29 @@ Key Focus Areas:
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* 1. Organization Entity */}
-                    <div className="space-y-1.5">
-                      <Label className="font-semibold text-xs">Organization Entity *</Label>
-                      <Select value={standaloneCompanyId} onValueChange={handleCompanyChange}>
-                        <SelectTrigger className="h-9 text-xs bg-background font-semibold">
-                          <SelectValue placeholder="Select Organization Entity" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {companies.map((c: any) => (
-                            <SelectItem key={c.id} value={c.id} className="text-xs font-semibold">
-                              {c.name} ({c.code})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {fieldErrors.standaloneCompanyId && (
-                        <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneCompanyId}</p>
-                      )}
-                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* 1. Organization Entity — Locked to Active Company */}
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold text-xs">Organization Entity *</Label>
+                        <div className="h-9 px-3 flex items-center gap-2 rounded-md border border-input bg-muted/40 text-xs font-semibold text-foreground select-none">
+                          <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <span className="truncate">
+                            {selectedComp
+                              ? `${selectedComp.name} (${selectedComp.code})`
+                              : activeCompany
+                              ? `${activeCompany.name} (${activeCompany.code})`
+                              : activeCompanyId
+                              ? 'Loading...'
+                              : 'No active company'}
+                          </span>
+                          <Badge className="ml-auto shrink-0 bg-emerald-500/10 text-emerald-700 border-emerald-500/25 text-[9px] font-bold px-1.5">
+                            Locked
+                          </Badge>
+                        </div>
+                        {fieldErrors.standaloneCompanyId && (
+                          <p className="text-[11px] text-rose-600 font-semibold mt-0.5">{fieldErrors.standaloneCompanyId}</p>
+                        )}
+                      </div>
 
                     {/* 2. Branch Location */}
                     <div className="space-y-1.5 relative" ref={branchComboboxRef}>
@@ -1357,24 +1384,40 @@ Key Focus Areas:
                           >
                             <div className="flex flex-wrap gap-1 items-center max-w-[90%]">
                               {standaloneBranchIds.length === 0 ? (
-                                <span className="text-muted-foreground">Select Branch Location (Optional)...</span>
+                                <span className="text-muted-foreground">📍 All Branches &amp; Offices</span>
                               ) : (
-                                filteredBranches
-                                  .filter((b: any) => standaloneBranchIds.includes(b.id))
-                                  .map((b: any) => (
+                                <>
+                                  {standaloneBranchIds.includes(HEAD_OFFICE_SENTINEL) && (
                                     <Badge
-                                      key={b.id}
                                       variant="secondary"
-                                      className="text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 gap-1 py-0.5 px-2"
+                                      className="text-[11px] font-semibold bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-500/20 gap-1 py-0.5 px-2"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        toggleBranchSelection(b.id);
+                                        setStandaloneBranchIds((prev) => prev.filter((id) => id !== HEAD_OFFICE_SENTINEL));
+                                        setStandaloneBranchId('');
                                       }}
                                     >
-                                      {b.name}
+                                      🏛️ Organization Head
                                       <X className="w-3 h-3 hover:text-rose-600" />
                                     </Badge>
-                                  ))
+                                  )}
+                                  {filteredBranches
+                                    .filter((b: any) => standaloneBranchIds.includes(b.id))
+                                    .map((b: any) => (
+                                      <Badge
+                                        key={b.id}
+                                        variant="secondary"
+                                        className="text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 gap-1 py-0.5 px-2"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleBranchSelection(b.id);
+                                        }}
+                                      >
+                                        {b.name}
+                                        <X className="w-3 h-3 hover:text-rose-600" />
+                                      </Badge>
+                                    ))}
+                                </>
                               )}
                             </div>
                             <ChevronDown
@@ -1386,33 +1429,79 @@ Key Focus Areas:
 
                           {/* Multi-Select Dropdown Menu */}
                           {isBranchDropdownOpen && (
-                            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-56 overflow-y-auto animate-in fade-in-50">
+                            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto animate-in fade-in-50">
                               <div className="p-1 space-y-0.5">
+
+                                {/* All Branches & Offices */}
                                 <div
                                   onClick={() => {
-                                    if (standaloneBranchIds.length === filteredBranches.length) {
-                                      setStandaloneBranchIds([]);
-                                      setStandaloneBranchId('');
-                                      setJobLocation('Head Office');
-                                    } else {
-                                      const allIds = filteredBranches.map((b: any) => b.id);
-                                      setStandaloneBranchIds(allIds);
-                                      setStandaloneBranchId(allIds[0] || '');
-                                      setJobLocation(filteredBranches.map((b: any) => b.name + (b.city ? ` (${b.city})` : '')).join(', '));
-                                    }
+                                    setStandaloneBranchIds([]);
+                                    setStandaloneBranchId('');
+                                    setJobLocation('All Branches & Offices');
+                                    setIsBranchDropdownOpen(false);
                                   }}
-                                  className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 rounded cursor-pointer flex items-center justify-between border-b mb-1"
+                                  className={`px-3 py-1.5 text-xs font-bold rounded cursor-pointer flex items-center justify-between border-b mb-1 transition-colors ${
+                                    standaloneBranchIds.length === 0
+                                      ? 'bg-primary/10 text-primary'
+                                      : 'text-primary hover:bg-primary/10'
+                                  }`}
                                 >
-                                  <span>Select All Branches ({filteredBranches.length})</span>
-                                  {standaloneBranchIds.length === filteredBranches.length && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
+                                  <span>📍 All Branches &amp; Offices</span>
+                                  {standaloneBranchIds.length === 0 && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
                                 </div>
 
+                                {/* Organization Head */}
+                                <div
+                                  onClick={() => {
+                                    const isSelected = standaloneBranchIds.includes(HEAD_OFFICE_SENTINEL);
+                                    if (isSelected) {
+                                      setStandaloneBranchIds((prev) => prev.filter((id) => id !== HEAD_OFFICE_SENTINEL));
+                                      setStandaloneBranchId('');
+                                    } else {
+                                      setStandaloneBranchIds([HEAD_OFFICE_SENTINEL]);
+                                      setStandaloneBranchId(HEAD_OFFICE_SENTINEL);
+                                      setJobLocation('Organization Head');
+                                      setStandaloneDepartmentId('');
+                                      setStandaloneCostCenter('');
+                                      setStandaloneDesignationId('');
+                                      setStandaloneRoleInput('');
+                                    }
+                                  }}
+                                  className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
+                                    standaloneBranchIds.includes(HEAD_OFFICE_SENTINEL)
+                                      ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-semibold'
+                                      : 'hover:bg-accent'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={standaloneBranchIds.includes(HEAD_OFFICE_SENTINEL)}
+                                      onChange={() => {}}
+                                      className="rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                                    />
+                                    <span>🏛️ Organization Head</span>
+                                  </div>
+                                  {standaloneBranchIds.includes(HEAD_OFFICE_SENTINEL) && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />}
+                                </div>
+
+                                {/* Real Branches */}
                                 {filteredBranches.map((b: any) => {
                                   const isChecked = standaloneBranchIds.includes(b.id);
                                   return (
                                     <div
                                       key={b.id}
-                                      onClick={() => toggleBranchSelection(b.id)}
+                                      onClick={() => {
+                                        // Clear HEAD_OFFICE when a real branch is selected
+                                        if (standaloneBranchIds.includes(HEAD_OFFICE_SENTINEL)) {
+                                          setStandaloneBranchIds([b.id]);
+                                          setStandaloneBranchId(b.id);
+                                          setStandaloneDepartmentId('');
+                                          setStandaloneCostCenter('');
+                                        } else {
+                                          toggleBranchSelection(b.id);
+                                        }
+                                      }}
                                       className={`px-3 py-2 text-xs rounded-md cursor-pointer flex items-center justify-between transition-colors ${
                                         isChecked ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-accent'
                                       }`}

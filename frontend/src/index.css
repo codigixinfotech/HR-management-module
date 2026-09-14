@@ -149,6 +149,22 @@ h4 {
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
+/* Ensure Sidebar navigation elements and main content always remain clickable */
+aside,
+aside button,
+aside a,
+aside input {
+  pointer-events: auto !important;
+}
+
+body:not(:has([role="dialog"])) {
+  pointer-events: auto !important;
+}
+
+#root, main {
+  pointer-events: auto !important;
+}
+
 /* ── EHCM Animated Enterprise Login Utilities ── */
 @keyframes floatSlow {
   0%, 100% {
