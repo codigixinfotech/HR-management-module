@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Building2, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2, CheckCircle2, Crown } from 'lucide-react';
 import { companiesApi } from '@/api/organization';
 import type { Company } from '@/api/types';
 import { Button } from '@/components/ui/button';
@@ -84,10 +84,11 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isSuperAdminUser, isBranchAdminUser } from '@/lib/modules';
 
 interface CompaniesTabProps {
+  companyId?: string;
   onCompanyCreated?: (companyId: string) => void;
 }
 
-export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
+export function CompaniesTab({ companyId, onCompanyCreated }: CompaniesTabProps) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const isSuperAdmin = isSuperAdminUser(user);
@@ -95,6 +96,14 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
+
+  const [selectedScope, setSelectedScope] = useState<string>(() => companyId || 'ALL');
+
+  useEffect(() => {
+    if (companyId) {
+      setSelectedScope(companyId);
+    }
+  }, [companyId]);
 
   const { data: companies, isLoading } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
 
@@ -123,11 +132,14 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
   }, [companies]);
 
   const filteredCompanies = useMemo(() => {
-    if (!isSuperAdmin && user?.companyId) {
-      return sortedCompanies.filter((c) => c.id === user.companyId);
+    let list = sortedCompanies;
+    if (selectedScope && selectedScope !== 'ALL') {
+      list = list.filter((c) => c.id === selectedScope || c.parentCompanyId === selectedScope);
+    } else if (!isSuperAdmin && user?.companyId) {
+      list = list.filter((c) => c.id === user.companyId);
     }
-    return sortedCompanies;
-  }, [sortedCompanies, isSuperAdmin, user?.companyId]);
+    return list;
+  }, [sortedCompanies, selectedScope, isSuperAdmin, user?.companyId]);
 
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema) as any,
@@ -249,18 +261,39 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
             </CardDescription>
           </div>
 
-          {!isBranchAdmin && (
-            <Dialog
-              open={open}
-              onOpenChange={(v) => {
-                if (!v) closeModal();
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate}>
-                  <Plus className="h-3.5 w-3.5" /> Add Entity
-                </Button>
-              </DialogTrigger>
+          <div className="flex items-center gap-2 flex-wrap">
+            {isSuperAdmin && companies && companies.length > 1 && (
+              <div className="w-56 sm:w-64">
+                <Select value={selectedScope} onValueChange={setSelectedScope}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue placeholder="Filter Legal Entities" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL" className="text-xs font-semibold">
+                      🏢 All Legal Entities (Global)
+                    </SelectItem>
+                    {companies.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
+                        {c.name} {c.code ? `(${c.code})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {!isBranchAdmin && (
+              <Dialog
+                open={open}
+                onOpenChange={(v) => {
+                  if (!v) closeModal();
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openCreate}>
+                    <Plus className="h-3.5 w-3.5" /> Add Entity
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editing ? 'Edit Entity' : 'Add Entity'}</DialogTitle>
@@ -543,6 +576,7 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
             </DialogContent>
           </Dialog>
           )}
+          </div>
         </div>
       </CardHeader>
 
@@ -582,15 +616,24 @@ export function CompaniesTab({ onCompanyCreated }: CompaniesTabProps) {
                     <div className="flex flex-col">
                       <span className="flex items-center gap-2">
                         <Building2 className={`h-3.5 w-3.5 ${isChild ? 'text-indigo-500' : 'text-primary'} shrink-0`} />
-                        {company.name}
+                        <span className="font-bold text-foreground">{company.name}</span>
                         {isChild && (
                           <Badge variant="outline" className="text-[9px] py-0 h-4 border-indigo-500/30 text-indigo-600 bg-indigo-500/5">
                             Child Entity
                           </Badge>
                         )}
                       </span>
+                      {/* Founder Info */}
+                      {(company.name.toLowerCase().includes('cravita') || company.code === 'C-0034') && (
+                        <div className="flex items-center gap-1.5 mt-1 pl-5">
+                          <Crown className="h-3 w-3 text-amber-500 shrink-0" />
+                          <span className="text-[10.5px] text-amber-700 dark:text-amber-400 font-medium">
+                            Founder: <strong className="font-semibold text-foreground">Prashant Patil</strong> (Managing Director · Corporate Head)
+                          </span>
+                        </div>
+                      )}
                       {parentInfo && (
-                        <span className="text-[10px] text-muted-foreground pl-5 font-normal">
+                        <span className="text-[10px] text-muted-foreground pl-5 font-normal mt-0.5">
                           Parent: <span className="font-medium text-foreground">{parentInfo.name}</span>
                         </span>
                       )}

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { companiesApi, branchesApi, departmentsApi } from '@/api/organization';
+import { companiesApi, branchesApi, departmentsApi, designationsApi } from '@/api/organization';
+import { employeesApi } from '@/api/employees';
 import { formatIndianBudget } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
@@ -30,7 +31,7 @@ import {
 
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
-import { isSuperAdminUser } from '@/lib/modules';
+import { isSuperAdminUser, isBranchAdminUser } from '@/lib/modules';
 
 export default function OrganizationPage() {
   const { tab: routeTab } = useParams();
@@ -39,10 +40,31 @@ export default function OrganizationPage() {
 
   const user = useAuthStore((s) => s.user);
   const isSuperAdmin = isSuperAdminUser(user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const assignedBranchId = user?.branchId || user?.employee?.branchId;
 
   const { activeCompanyId, setActiveCompanyId, companies } = useCompany();
   const { data: branches } = useQuery({ queryKey: ['branches', activeCompanyId], queryFn: () => branchesApi.list(activeCompanyId) });
   const { data: departments } = useQuery({ queryKey: ['departments', activeCompanyId], queryFn: () => departmentsApi.list(activeCompanyId) });
+  const { data: designations } = useQuery({ queryKey: ['designations', activeCompanyId], queryFn: () => designationsApi.list(activeCompanyId) });
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', 'org-stats', activeCompanyId, isBranchAdmin ? assignedBranchId : 'ALL'],
+    queryFn: () => employeesApi.list({
+      pageSize: 1000,
+      companyId: activeCompanyId,
+      branchId: isBranchAdmin && assignedBranchId ? assignedBranchId : undefined,
+    }),
+  });
+
+  const totalEmployees = useMemo(() => {
+    if (!employeesData?.items) return 0;
+    if (isBranchAdmin && assignedBranchId) {
+      return employeesData.items.filter((emp: any) => emp.branchId === assignedBranchId).length;
+    }
+    return employeesData.total ?? employeesData.items.length;
+  }, [employeesData, isBranchAdmin, assignedBranchId]);
+
+  const activeBranchName = user?.branchName || (isBranchAdmin ? 'Branch' : null);
   const [triggerAddBranchCompanyId, setTriggerAddBranchCompanyId] = useState<string | null>(null);
 
   const getPageHeaderInfo = () => {
@@ -141,10 +163,36 @@ export default function OrganizationPage() {
       {activeTab === 'departments' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <StatCard icon={Network} label="Functional Departments" value={departments?.length ?? 0} accent="primary" />
-            <StatCard icon={Award} label="Configured Designations" value={24} accent="info" />
-            <StatCard icon={Layers} label="Average Dept Size" value="41 Employees" accent="success" />
-            <StatCard icon={ShieldCheck} label="Dept Annual Budget" value={formatIndianBudget(departments?.reduce((sum, d) => sum + (Number(d.annualBudget) || 0), 0)) ?? '₹0'} accent="warning" />
+            <StatCard
+              icon={Network}
+              label={isBranchAdmin ? "Branch Departments" : "Functional Departments"}
+              value={departments?.length ?? 0}
+              accent="primary"
+            />
+            <StatCard
+              icon={Award}
+              label="Configured Designations"
+              value={designations?.length ?? 0}
+              accent="info"
+            />
+            <StatCard
+              icon={Layers}
+              label={isBranchAdmin ? "Branch Employees" : "Average Dept Size"}
+              value={
+                isBranchAdmin
+                  ? `${totalEmployees} ${totalEmployees === 1 ? 'Employee' : 'Employees'}`
+                  : (departments && departments.length > 0
+                      ? `${Math.round(totalEmployees / departments.length)} Employees`
+                      : `${totalEmployees} Employees`)
+              }
+              accent="success"
+            />
+            <StatCard
+              icon={ShieldCheck}
+              label="Dept Annual Budget"
+              value={formatIndianBudget(departments?.reduce((sum, d) => sum + (Number(d.annualBudget) || 0), 0)) ?? '₹0'}
+              accent="warning"
+            />
           </div>
 
           <div className="space-y-6">
@@ -160,12 +208,25 @@ export default function OrganizationPage() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <StatCard icon={Building2} label="Legal Entities" value={companies?.length ?? 1} accent="primary" />
             <StatCard icon={GitFork} label="Registered Branches" value={branches?.length ?? 0} accent="info" />
-            <StatCard icon={Clock} label="Primary Headquarters" value="Headquarters" accent="success" />
-            <StatCard icon={Layers} label="Manufacturing Plants" value="1 Facility" accent="warning" />
+            <StatCard
+              icon={Clock}
+              label={isBranchAdmin ? "Assigned Branch" : "Primary Headquarters"}
+              value={activeBranchName || (branches?.[0]?.name ?? 'Headquarters')}
+              accent="success"
+            />
+            <StatCard
+              icon={Layers}
+              label={isBranchAdmin ? "Branch Employees" : "Total Workforce"}
+              value={`${totalEmployees} ${totalEmployees === 1 ? 'Employee' : 'Employees'}`}
+              accent="warning"
+            />
           </div>
 
           <div className="space-y-6">
-            <CompaniesTab onCompanyCreated={(id) => setTriggerAddBranchCompanyId(id)} />
+            <CompaniesTab
+              companyId={activeCompanyId}
+              onCompanyCreated={(id) => setTriggerAddBranchCompanyId(id)}
+            />
             <BranchesTab
               companyId={activeCompanyId}
               companies={companies ?? []}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { LogOut, User, ChevronRight, Bell, ShieldCheck, Video, Menu, GraduationCap, Check } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -13,8 +14,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { logout as logoutApi } from '@/api/auth';
-import { HCM_MODULES } from '@/lib/modules';
+import { logout as logoutApi, fetchMe } from '@/api/auth';
+import { HCM_MODULES, isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 import { notificationStore, type PortalNotification } from '@/utils/notificationStore';
 
 interface TopbarProps {
@@ -63,34 +64,36 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
     navigate('/login');
   };
 
-  const isBranchAdmin = useMemo(() => {
-    return (
-      user?.role === 'Branch Admin' ||
-      user?.primaryRole === 'Branch Admin' ||
-      user?.roles?.some((r) => r.toUpperCase().includes('BRANCH_ADMIN')) ||
-      false
-    );
+  // Sync fresh authenticated profile from backend
+  const setUser = useAuthStore((s) => s.setUser);
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  useQuery({
+    queryKey: ['auth', 'me', user?.email],
+    queryFn: async () => {
+      const freshMe = await fetchMe();
+      if (freshMe) {
+        setUser(freshMe);
+      }
+      return freshMe;
+    },
+    enabled: Boolean(accessToken),
+    staleTime: 30 * 1000,
+  });
+
+  const isSuperAdmin = useMemo(() => {
+    return isSuperAdminUser(user);
   }, [user]);
 
   const isCompanyAdmin = useMemo(() => {
-    return (
-      user?.role === 'Company Admin' ||
-      user?.primaryRole === 'Company Admin' ||
-      user?.roles?.some((r) => r.toUpperCase().includes('COMPANY_ADMIN')) ||
-      false
-    );
-  }, [user]);
+    if (isSuperAdmin) return false;
+    return isCompanyAdminUser(user);
+  }, [user, isSuperAdmin]);
 
-  const isSuperAdmin = useMemo(() => {
-    if (isBranchAdmin || isCompanyAdmin) return false;
-    return (
-      user?.isSuperAdmin ||
-      user?.role === 'Super Admin' ||
-      user?.primaryRole === 'Super Admin' ||
-      user?.roles?.some((r) => r.toUpperCase().includes('SUPER_ADMIN')) ||
-      false
-    );
-  }, [user, isBranchAdmin, isCompanyAdmin]);
+  const isBranchAdmin = useMemo(() => {
+    if (isSuperAdmin || isCompanyAdmin) return false;
+    return isBranchAdminUser(user);
+  }, [user, isSuperAdmin, isCompanyAdmin]);
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
 
@@ -104,14 +107,20 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
   }, [user?.name]);
 
   const roleDisplay = useMemo(() => {
-    if (isBranchAdmin) return 'Branch Admin';
-    if (isCompanyAdmin) return 'Company Admin';
     if (isSuperAdmin) return 'Super Admin';
-    if (user?.role) return user.role;
+    if (isCompanyAdmin) return 'Company Admin';
+    if (isBranchAdmin) return 'Branch Admin';
     if (user?.primaryRole) return user.primaryRole;
-    if (user?.roles && user.roles.length > 0) return user.roles[0];
+    if (user?.role) return user.role;
+    if (user?.roles && user.roles.length > 0) {
+      const rawRole = user.roles[0];
+      return rawRole
+        .split('_')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
     return 'Employee';
-  }, [isBranchAdmin, isCompanyAdmin, isSuperAdmin, user]);
+  }, [isSuperAdmin, isCompanyAdmin, isBranchAdmin, user]);
 
   const departmentName = useMemo(() => {
     if (user?.departmentName) return user.departmentName;
@@ -308,13 +317,16 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
                 {isSuperAdmin && (
                   <ShieldCheck className="h-3 w-3 text-primary inline" />
                 )}
-                {isBranchAdmin && (
-                  <ShieldCheck className="h-3 w-3 text-indigo-600 inline" />
-                )}
-                {isCompanyAdmin && (
+                {!isSuperAdmin && isCompanyAdmin && (
                   <ShieldCheck className="h-3 w-3 text-emerald-600 inline" />
                 )}
-                {roleDisplay}{user?.branchName ? ` • ${user.branchName}` : (departmentName ? ` • ${departmentName}` : '')}
+                {!isSuperAdmin && !isCompanyAdmin && isBranchAdmin && (
+                  <ShieldCheck className="h-3 w-3 text-indigo-600 inline" />
+                )}
+                {!isSuperAdmin && !isCompanyAdmin && !isBranchAdmin && (
+                  <ShieldCheck className="h-3 w-3 text-muted-foreground inline" />
+                )}
+                {roleDisplay}{user?.branchName && !isSuperAdmin ? ` • ${user.branchName}` : (departmentName && !isSuperAdmin ? ` • ${departmentName}` : '')}
               </span>
             </div>
 

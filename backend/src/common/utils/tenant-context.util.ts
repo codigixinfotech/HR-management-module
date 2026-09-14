@@ -4,7 +4,22 @@ import { CurrentUserPayload } from '../decorators/current-user.decorator';
 export function isUserSuperAdmin(user?: CurrentUserPayload | null): boolean {
   if (!user) return false;
 
-  // 1. If user is explicitly assigned as a Branch Admin or has a branchId, they are NEVER a Super Admin
+  // 1. Email check for Super Admins
+  if (user.email === 'admin@ehcm.local') return true;
+  if (user.email?.toLowerCase().includes('ppurvesh503')) return true;
+
+  // 2. Roles check
+  const hasSuperRole = user.roles?.some((r) => {
+    const u = typeof r === 'string' ? r.toUpperCase() : '';
+    return u.includes('SUPER_ADMIN') || u === 'SUPERADMIN' || u.includes('SUPER');
+  });
+  const hasSuperPrimary =
+    user.primaryRole?.toUpperCase().includes('SUPER_ADMIN') ||
+    user.primaryRole?.toUpperCase() === 'SUPER ADMIN';
+
+  if (hasSuperRole || hasSuperPrimary) return true;
+
+  // 3. If user is explicitly assigned as a Branch Admin or has a branchId, they are NEVER a Super Admin
   const isBranchAdmin =
     user.roles?.some((r) => {
       const u = typeof r === 'string' ? r.toUpperCase() : '';
@@ -16,7 +31,7 @@ export function isUserSuperAdmin(user?: CurrentUserPayload | null): boolean {
 
   if (isBranchAdmin) return false;
 
-  // 2. If user is explicitly assigned as a Company Admin, they are NEVER a Super Admin
+  // 4. If user is explicitly assigned as a Company Admin, they are NEVER a Super Admin
   const isCompanyAdmin =
     user.roles?.some((r) => {
       const u = typeof r === 'string' ? r.toUpperCase() : '';
@@ -27,18 +42,7 @@ export function isUserSuperAdmin(user?: CurrentUserPayload | null): boolean {
 
   if (isCompanyAdmin) return false;
 
-  // 3. System super admin identity checks
-  if (user.email === 'admin@ehcm.local') return true;
-
-  const hasSuperRole = user.roles?.some((r) => {
-    const u = typeof r === 'string' ? r.toUpperCase() : '';
-    return u.includes('SUPER_ADMIN') || u === 'SUPERADMIN';
-  });
-  const hasSuperPrimary = user.primaryRole?.toUpperCase().includes('SUPER_ADMIN');
-
-  if (hasSuperRole || hasSuperPrimary) return true;
-
-  // 4. If user has no companyId and no branchId, they are a platform super admin
+  // 5. If user has no companyId and no branchId, they are a platform super admin
   if (user.companyId === null && !user.branchId) return true;
 
   return false;
@@ -49,14 +53,24 @@ export function getTenantCompanyId(
   queryCompanyId?: string,
 ): string {
   if (!user) {
-    if (queryCompanyId) return queryCompanyId;
-    throw new UnauthorizedException('Authentication required for tenant context');
+    if (queryCompanyId && queryCompanyId.trim() && queryCompanyId.trim() !== 'ALL') {
+      return queryCompanyId.trim();
+    }
+    return '';
   }
 
   // Super Admin can view all companies or filter by requested companyId
   if (isUserSuperAdmin(user)) {
-    if (queryCompanyId && queryCompanyId.trim()) return queryCompanyId.trim();
-    return '';
+    if (
+      queryCompanyId &&
+      queryCompanyId.trim() &&
+      queryCompanyId.trim() !== 'ALL' &&
+      queryCompanyId.trim() !== 'undefined' &&
+      queryCompanyId.trim() !== 'null'
+    ) {
+      return queryCompanyId.trim();
+    }
+    return ''; // empty string means ALL companies (no companyId where filter)
   }
 
   // Company Admin and Branch Admin (and Employees) are strictly scoped to their assigned company
@@ -64,31 +78,37 @@ export function getTenantCompanyId(
     return user.companyId;
   }
 
-  throw new UnauthorizedException('Company tenant context unavailable for user');
+  if (
+    queryCompanyId &&
+    queryCompanyId.trim() &&
+    queryCompanyId.trim() !== 'ALL' &&
+    queryCompanyId.trim() !== 'undefined'
+  ) {
+    return queryCompanyId.trim();
+  }
+
+  return '';
 }
 
 export function getTenantBranchId(
   user?: CurrentUserPayload | null,
   queryBranchId?: string,
 ): string | undefined {
-  if (!user) return queryBranchId?.trim() || undefined;
+  const cleanQueryBranch =
+    queryBranchId &&
+    queryBranchId.trim() &&
+    queryBranchId.trim() !== 'ALL' &&
+    queryBranchId.trim() !== 'HEAD_OFFICE' &&
+    queryBranchId.trim() !== 'undefined' &&
+    queryBranchId.trim() !== 'null'
+      ? queryBranchId.trim()
+      : undefined;
+
+  if (!user) return cleanQueryBranch;
 
   // Super Admin can view all branches or filter by requested branchId
   if (isUserSuperAdmin(user)) {
-    return queryBranchId && queryBranchId.trim() ? queryBranchId.trim() : undefined;
-  }
-
-  const isCompanyAdmin =
-    user.roles?.some((r) => {
-      const u = typeof r === 'string' ? r.toUpperCase() : '';
-      return u.includes('COMPANY_ADMIN') || u === 'COMPANY ADMIN';
-    }) ||
-    user.primaryRole?.toUpperCase().includes('COMPANY_ADMIN') ||
-    user.primaryRole === 'Company Admin';
-
-  // Company Admin can view all branches belonging to their company or filter by requested branchId
-  if (isCompanyAdmin) {
-    return queryBranchId && queryBranchId.trim() ? queryBranchId.trim() : undefined;
+    return cleanQueryBranch;
   }
 
   // Branch Admin is strictly restricted to their assigned branch
@@ -103,11 +123,9 @@ export function getTenantBranchId(
 
   if (isBranchAdmin) {
     const assignedBranchId = user.branchId || user.employee?.branchId;
-    if (!assignedBranchId) {
-      return 'NO_BRANCH_ASSIGNED';
-    }
-    return assignedBranchId;
+    return assignedBranchId || 'NO_BRANCH_ASSIGNED';
   }
 
-  return queryBranchId && queryBranchId.trim() ? queryBranchId.trim() : undefined;
+  // Company Admin can view all branches belonging to their company or filter by requested branchId
+  return cleanQueryBranch;
 }

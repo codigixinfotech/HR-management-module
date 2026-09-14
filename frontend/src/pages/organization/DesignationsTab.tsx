@@ -17,6 +17,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { useAuthStore } from '@/stores/auth-store';
+import { isBranchAdminUser } from '@/lib/modules';
 
 const designationSchema = z.object({
   companyId: z.string().min(1, 'Organization Entity is required'),
@@ -118,6 +120,10 @@ const GRADE_COLOR_MAP: Record<string, { label: string; badge: string }> = {
 
 export function DesignationsTab({ companyId, companies }: { companyId?: string; companies: Company[] }) {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const assignedBranchId = user?.branchId || user?.employee?.branchId;
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Designation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -154,8 +160,13 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   });
 
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, '', selectedCompanyId],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId }),
+    queryKey: ['employees', 1, '', selectedCompanyId, isBranchAdmin && assignedBranchId ? assignedBranchId : 'ALL'],
+    queryFn: () => employeesApi.list({
+      page: 1,
+      pageSize: 1000,
+      companyId: selectedCompanyId,
+      branchId: isBranchAdmin && assignedBranchId ? assignedBranchId : undefined,
+    }),
   });
 
   const { data: payGradesList } = useQuery({
@@ -600,9 +611,13 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                   </TableCell>
                   <TableCell className="text-xs font-mono font-semibold text-primary">
                     {(() => {
-                      const count = employeesData?.items?.filter(
-                        (emp: any) => emp.designationId === designation.id
-                      ).length ?? 0;
+                      const count = employeesData?.items?.filter((emp: any) => {
+                        if (emp.designationId !== designation.id) return false;
+                        if (isBranchAdmin && assignedBranchId) {
+                          return emp.branchId === assignedBranchId;
+                        }
+                        return true;
+                      }).length ?? 0;
                       return count;
                     })()} Staff
                   </TableCell>

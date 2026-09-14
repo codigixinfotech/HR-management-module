@@ -61,7 +61,11 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setActiveCompanyIdState(storedId);
         }
       } else {
-        const defaultId = companies[0].id;
+        const cravitaComp =
+          companies.find((c) => c.name.toLowerCase().includes('cravita') && c.code === 'C-0034') ||
+          companies.find((c) => c.name.toLowerCase().includes('cravita')) ||
+          companies[0];
+        const defaultId = cravitaComp.id;
         setActiveCompanyIdState(defaultId);
         localStorage.setItem(STORAGE_KEY, defaultId);
       }

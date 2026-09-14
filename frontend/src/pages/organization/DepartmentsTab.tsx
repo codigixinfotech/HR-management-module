@@ -122,9 +122,10 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     queryFn: () => departmentsApi.list(selectedCompanyId),
   });
 
+  const effectiveBranchIdForQuery = isBranchAdmin && assignedBranchId ? assignedBranchId : (selectedBranchFilter !== 'ALL' ? selectedBranchFilter : undefined);
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, '', selectedCompanyId],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId }),
+    queryKey: ['employees', 1, '', selectedCompanyId, effectiveBranchIdForQuery || 'ALL'],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId, branchId: effectiveBranchIdForQuery }),
   });
 
   const { data: costCentersList } = useQuery({
@@ -680,9 +681,14 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                 color: 'bg-primary',
               };
 
-              const finalCount = employeesData?.items?.filter(
-                (emp: any) => emp.departmentId === dept.id
-              ).length ?? 0;
+              const finalCount = employeesData?.items?.filter((emp: any) => {
+                if (emp.departmentId !== dept.id) return false;
+                const effectiveBranch = isBranchAdmin && assignedBranchId ? assignedBranchId : selectedBranchFilter;
+                if (effectiveBranch && effectiveBranch !== 'ALL') {
+                  return emp.branchId === effectiveBranch;
+                }
+                return true;
+              }).length ?? 0;
               const capacity = dept.headcountCapacity ?? 10;
               const percentage = capacity > 0 ? Math.round((finalCount / capacity) * 100) : 0;
 

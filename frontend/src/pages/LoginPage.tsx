@@ -143,7 +143,8 @@ export default function LoginPage() {
   // Sign In Mutation
   const signInMutation = useMutation({
     mutationFn: async () => {
-      const tokens = await login(signInEmail, signInPassword);
+      const trimmedEmail = signInEmail.trim();
+      const tokens = await login(trimmedEmail, signInPassword);
       setTokens(tokens.accessToken, tokens.refreshToken);
       const me = await fetchMe(tokens.accessToken);
       setUser(me);

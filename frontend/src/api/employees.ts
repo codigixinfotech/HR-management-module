@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/api-client';
 import type { ApprovalStatus, Employee, OnboardingTask, PaginatedResult } from './types';
 
 export const employeesApi = {
-  list: async (params: { page?: number; pageSize?: number; search?: string; companyId?: string }) =>
+  list: async (params: { page?: number; pageSize?: number; search?: string; companyId?: string; branchId?: string }) =>
     (await apiClient.get<PaginatedResult<Employee>>('/employees', { params })).data,
   get: async (id: string) => (await apiClient.get<Employee>(`/employees/${id}`)).data,
   findOne: async (id: string) => (await apiClient.get<Employee>(`/employees/${id}`)).data,

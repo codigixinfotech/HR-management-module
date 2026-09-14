@@ -294,7 +294,8 @@ export class AuthService implements OnModuleInit {
   }
 
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const cleanEmail = (email || '').trim();
+    const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Invalid credentials');
     }
