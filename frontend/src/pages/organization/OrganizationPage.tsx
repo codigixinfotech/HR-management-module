@@ -137,18 +137,17 @@ export default function OrganizationPage() {
           isSuperAdmin ? (
             <div className="w-64">
               <Select
-                value={activeCompanyId || 'ALL'}
+                value={activeCompanyId || companies[0]?.id || ''}
                 onValueChange={(val) => {
-                  setActiveCompanyId(val);
+                  if (val && val !== 'ALL') {
+                    setActiveCompanyId(val);
+                  }
                 }}
               >
                 <SelectTrigger className="h-9 text-xs bg-background">
                   <SelectValue placeholder="Select Organization" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs font-semibold">
-                    🏢 All Organizations
-                  </SelectItem>
                   {companies.map((c) => (
                     <SelectItem key={c.id} value={c.id} className="text-xs">
                       {c.name} {c.code ? `(${c.code})` : ''}

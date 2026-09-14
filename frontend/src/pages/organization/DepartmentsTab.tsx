@@ -392,40 +392,43 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                 <SelectTrigger className="h-8 text-xs bg-background border-border/80 font-medium">
                   <div className="flex items-center gap-1.5 truncate">
                     <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <SelectValue placeholder="All Branches" />
+                    <SelectValue placeholder="All Branches & Offices">
+                      {selectedBranchFilter === 'ALL'
+                        ? 'All Branches & Offices'
+                        : selectedBranchFilter === 'HEAD_OFFICE'
+                        ? 'Corporate / Head Office'
+                        : filteredBranches.find((b) => b.id === selectedBranchFilter)?.name}
+                    </SelectValue>
                   </div>
                 </SelectTrigger>
                 <SelectContent>
                   {!isBranchAdmin && (
                     <>
-                      <SelectItem value="ALL" className="text-xs font-medium">
-                        All Branches &amp; Offices {departments ? `(${departments.length})` : ''}
+                      <SelectItem value="ALL" className="text-xs font-semibold">
+                        All Branches &amp; Offices
                       </SelectItem>
                       <SelectItem value="HEAD_OFFICE" className="text-xs font-medium">
-                        🏛️ Corporate / Head Office {headOfficeDepartments.length > 0 ? `(${headOfficeDepartments.length})` : ''}
+                        Corporate / Head Office
                       </SelectItem>
                     </>
                   )}
-                  {filteredBranches.map((br) => {
-                    const deptCount = (departments || []).filter(
-                      (d) => d.branchId === br.id || d.branch?.id === br.id
-                    ).length;
-                    return (
-                      <SelectItem key={br.id} value={br.id} className="text-xs">
-                        <div className="flex items-center justify-between w-full gap-2">
-                          <span className="truncate">{br.name}</span>
+                  {filteredBranches.map((br) => (
+                    <SelectItem key={br.id} value={br.id} className="text-xs">
+                      <div className="flex items-center justify-between w-full gap-2">
+                        <span className="truncate">{br.name}</span>
+                        {br.code && (
                           <span className="text-[10px] text-muted-foreground font-mono">
-                            {br.code} {deptCount > 0 ? `(${deptCount})` : ''}
+                            {br.code}
                           </span>
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Department Filter Dropdown (Grouped by Scope) */}
+            {/* Department Filter Dropdown (Grouped by Scope with tree glyphs) */}
             <div className="w-52 sm:w-60">
               <Select
                 value={selectedDeptFilter}
@@ -434,49 +437,73 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                 <SelectTrigger className="h-8 text-xs bg-background border-border/80 font-medium">
                   <div className="flex items-center gap-1.5 truncate">
                     <Network className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <SelectValue placeholder="All Departments" />
+                    <SelectValue placeholder="All Departments">
+                      {selectedDeptFilter === 'ALL'
+                        ? 'All Departments'
+                        : departments?.find((d) => d.id === selectedDeptFilter)?.name}
+                    </SelectValue>
                   </div>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL" className="text-xs font-semibold">
-                    🏷️ All Departments {availableDeptsForDropdown.length > 0 ? `(${availableDeptsForDropdown.length})` : ''}
+                    All Departments
                   </SelectItem>
                   {selectedBranchFilter === 'HEAD_OFFICE' ? (
-                    headOfficeDepartments.map((d) => (
-                      <SelectItem key={d.id} value={d.id} className="text-xs">
-                        {d.name} {d.code ? `(${d.code})` : ''}
-                      </SelectItem>
-                    ))
+                    headOfficeDepartments.map((d, idx) => {
+                      const isLast = idx === headOfficeDepartments.length - 1;
+                      return (
+                        <SelectItem key={d.id} value={d.id} className="text-xs pl-4 font-normal">
+                          <span className="font-mono text-muted-foreground mr-1.5">{isLast ? '└─' : '├─'}</span>
+                          <span>{d.name}</span>
+                          {d.code && <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">({d.code})</span>}
+                        </SelectItem>
+                      );
+                    })
                   ) : selectedBranchFilter !== 'ALL' ? (
-                    availableDeptsForDropdown.map((d) => (
-                      <SelectItem key={d.id} value={d.id} className="text-xs">
-                        {d.name} {d.code ? `(${d.code})` : ''}
-                      </SelectItem>
-                    ))
+                    availableDeptsForDropdown.map((d, idx) => {
+                      const isLast = idx === availableDeptsForDropdown.length - 1;
+                      return (
+                        <SelectItem key={d.id} value={d.id} className="text-xs pl-4 font-normal">
+                          <span className="font-mono text-muted-foreground mr-1.5">{isLast ? '└─' : '├─'}</span>
+                          <span>{d.name}</span>
+                          {d.code && <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">({d.code})</span>}
+                        </SelectItem>
+                      );
+                    })
                   ) : (
                     <>
                       {headOfficeDepartments.length > 0 && (
                         <SelectGroup>
                           <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
-                            🏛️ Company / Head Office
+                            Company / Head Office
                           </SelectLabel>
-                          {headOfficeDepartments.map((d) => (
-                            <SelectItem key={d.id} value={d.id} className="text-xs pl-4">
-                              {d.name} {d.code ? `(${d.code})` : ''}
-                            </SelectItem>
-                          ))}
+                          {headOfficeDepartments.map((d, idx) => {
+                            const isLast = idx === headOfficeDepartments.length - 1;
+                            return (
+                              <SelectItem key={d.id} value={d.id} className="text-xs pl-4 font-normal">
+                                <span className="font-mono text-muted-foreground mr-1.5">{isLast ? '└─' : '├─'}</span>
+                                <span>{d.name}</span>
+                                {d.code && <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">({d.code})</span>}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectGroup>
                       )}
                       {branchDepartmentGroups.map((bg) => (
                         <SelectGroup key={bg.branchId}>
                           <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
-                            📍 {bg.branchName}
+                            {bg.branchName}
                           </SelectLabel>
-                          {bg.depts.map((d) => (
-                            <SelectItem key={d.id} value={d.id} className="text-xs pl-4">
-                              {d.name} {d.code ? `(${d.code})` : ''}
-                            </SelectItem>
-                          ))}
+                          {bg.depts.map((d, idx) => {
+                            const isLast = idx === bg.depts.length - 1;
+                            return (
+                              <SelectItem key={d.id} value={d.id} className="text-xs pl-4 font-normal">
+                                <span className="font-mono text-muted-foreground mr-1.5">{isLast ? '└─' : '├─'}</span>
+                                <span>{d.name}</span>
+                                {d.code && <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">({d.code})</span>}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectGroup>
                       ))}
                     </>

@@ -244,8 +244,8 @@ interface OrgStructureTabProps {
 }
 
 export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabProps) {
-  const { activeCompanyId: ctxCompanyId } = useCompany();
-  const effectivePropCompanyId = propCompanyId || ctxCompanyId;
+  const { activeCompanyId: ctxCompanyId, setActiveCompanyId } = useCompany();
+  const effectiveCompanyId = propCompanyId || ctxCompanyId || '';
 
   const user = useAuthStore((s) => s.user);
   const isSuperAdmin = isSuperAdminUser(user);
@@ -253,10 +253,17 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
   const assignedBranchId = user?.branchId || user?.employee?.branchId;
   const userCompanyId = user?.companyId;
 
+  // ── Queries: Companies ──
+  const { data: companies = [] } = useQuery<Company[]>({
+    queryKey: ['companies'],
+    queryFn: () => companiesApi.list(),
+  });
+
   // ── Cascaded Scope Filter States ──
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() => {
-    if (isSuperAdmin) return 'ALL';
-    return userCompanyId || 'ALL';
+    if (effectiveCompanyId && effectiveCompanyId !== 'ALL') return effectiveCompanyId;
+    if (userCompanyId) return userCompanyId;
+    return '';
   });
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
@@ -276,35 +283,37 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
     }
   }, [isBranchAdmin, assignedBranchId, selectedBranchId]);
 
-  // Sync selectedCompanyId when organization selector in header changes
+  // Sync selectedCompanyId when organization selector in header or context changes
   useEffect(() => {
-    if (propCompanyId && propCompanyId !== selectedCompanyId) {
-      setSelectedCompanyId(propCompanyId);
+    if (effectiveCompanyId && effectiveCompanyId !== 'ALL' && effectiveCompanyId !== selectedCompanyId) {
+      setSelectedCompanyId(effectiveCompanyId);
       if (!isBranchAdmin) {
         setSelectedBranchId('ALL');
       }
       setSelectedDeptId('ALL');
     }
-  }, [propCompanyId, isBranchAdmin]);
+  }, [effectiveCompanyId, isBranchAdmin]);
 
-  // ── Queries ──
-  const { data: companies = [] } = useQuery<Company[]>({
-    queryKey: ['companies'],
-    queryFn: () => companiesApi.list(),
-  });
-
-  // Validated scopes: never empty or broken
+  // Validated scope: strictly a specific, valid company ID (never 'ALL')
   const validCompanyId = useMemo(() => {
-    if (isSuperAdmin) {
-      if (!selectedCompanyId || selectedCompanyId === 'ALL') return 'ALL';
-      return companies.some((c) => c.id === selectedCompanyId) ? selectedCompanyId : 'ALL';
-    }
-    if (userCompanyId) return userCompanyId;
     if (selectedCompanyId && selectedCompanyId !== 'ALL' && companies.some((c) => c.id === selectedCompanyId)) {
       return selectedCompanyId;
     }
-    return companies[0]?.id || 'ALL';
-  }, [isSuperAdmin, selectedCompanyId, companies, userCompanyId]);
+    if (userCompanyId && companies.some((c) => c.id === userCompanyId)) {
+      return userCompanyId;
+    }
+    if (effectiveCompanyId && effectiveCompanyId !== 'ALL' && companies.some((c) => c.id === effectiveCompanyId)) {
+      return effectiveCompanyId;
+    }
+    return companies[0]?.id || '';
+  }, [selectedCompanyId, companies, userCompanyId, effectiveCompanyId]);
+
+  // Auto-sync selectedCompanyId when validCompanyId becomes known
+  useEffect(() => {
+    if (validCompanyId && (!selectedCompanyId || selectedCompanyId === 'ALL')) {
+      setSelectedCompanyId(validCompanyId);
+    }
+  }, [validCompanyId, selectedCompanyId]);
 
   const validBranchId = useMemo(() => {
     if (isBranchAdmin && assignedBranchId) return assignedBranchId;
@@ -314,7 +323,8 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
 
   const { data: branches = [] } = useQuery<Branch[]>({
     queryKey: ['branches', validCompanyId],
-    queryFn: () => branchesApi.list(validCompanyId !== 'ALL' ? validCompanyId : undefined),
+    queryFn: () => branchesApi.list(validCompanyId || undefined),
+    enabled: Boolean(validCompanyId),
   });
 
   const assignedCompanyName = useMemo(() => {
@@ -323,8 +333,12 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
       const match = companies.find((c) => c.id === userCompanyId);
       if (match) return match.name;
     }
+    if (validCompanyId) {
+      const match = companies.find((c) => c.id === validCompanyId);
+      if (match) return match.name;
+    }
     return companies[0]?.name || 'Assigned Organization';
-  }, [user, userCompanyId, companies]);
+  }, [user, userCompanyId, companies, validCompanyId]);
 
   const assignedBranchName = useMemo(() => {
     if (user?.branchName) return user.branchName;
@@ -339,9 +353,10 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
     queryKey: ['departments', validCompanyId, validBranchId],
     queryFn: () =>
       departmentsApi.list(
-        validCompanyId !== 'ALL' ? validCompanyId : undefined,
+        validCompanyId || undefined,
         validBranchId !== 'ALL' && validBranchId !== 'HEAD_OFFICE' ? validBranchId : undefined,
       ),
+    enabled: Boolean(validCompanyId),
   });
 
   const { data: employeesData, isLoading } = useQuery({
@@ -350,25 +365,26 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
       employeesApi.list({
         page: 1,
         pageSize: 1000,
-        companyId: validCompanyId !== 'ALL' ? validCompanyId : undefined,
+        companyId: validCompanyId || undefined,
         branchId:
           validBranchId !== 'ALL' && validBranchId !== 'HEAD_OFFICE'
             ? validBranchId
             : undefined,
       }),
+    enabled: Boolean(validCompanyId),
   });
 
   // Filter branches for dropdown
   const availableBranches = useMemo(() => {
-    if (validCompanyId === 'ALL') return branches;
+    if (!validCompanyId) return branches;
     return branches.filter((b) => !b.companyId || b.companyId === validCompanyId);
   }, [branches, validCompanyId]);
 
   // Filter departments for dropdown
   const availableDepartments = useMemo(() => {
     let list = departments;
-    if (validCompanyId !== 'ALL') {
-      list = list.filter((d) => d.companyId === validCompanyId);
+    if (validCompanyId) {
+      list = list.filter((d) => !d.companyId || d.companyId === validCompanyId);
     }
     if (validBranchId === 'HEAD_OFFICE') {
       list = list.filter((d) => !d.branchId);
@@ -491,15 +507,39 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
   // 3. Branch A – Branch Admin → Departments → Employees
   // 4. Branch B – Branch Admin → Departments → Employees
   const unifiedHierarchyTrees = useMemo<UnifiedOrgNode[]>(() => {
-    if (filteredEmployees.length === 0) return [];
+    // If no employees found in scope, check if we have a valid company and branches to show structure
+    if (filteredEmployees.length === 0) {
+      const activeComp = companies.find((c) => c.id === validCompanyId);
+      if (!activeComp) return [];
+      const branchNodes: UnifiedOrgNode[] = availableBranches.map((b) => ({
+        id: `branch-${activeComp.id}-${b.id}`,
+        type: 'branch',
+        name: b.name,
+        subtitle: `Branch ${b.code || 'BR'}`,
+        code: b.code || 'BR',
+        metaBadge: 'Branch Admin',
+        headcount: 0,
+      }));
+      return [
+        {
+          id: `comp-${activeComp.id}`,
+          type: 'company',
+          name: activeComp.name,
+          subtitle: 'Organization',
+          code: activeComp.code,
+          headcount: 0,
+          children: branchNodes.length > 0 ? branchNodes : undefined,
+        },
+      ];
+    }
 
     // Group employees by companyId
     const companyMap = new Map<string, { companyName: string; companyCode: string; emps: Employee[] }>();
 
     filteredEmployees.forEach((emp) => {
-      const cId = emp.companyId || 'DEFAULT_COMPANY';
-      const cName = emp.company?.name || 'Cravita Technology Pvt Ltd';
-      const cCode = (emp.company as any)?.code || '';
+      const cId = emp.companyId || validCompanyId || 'DEFAULT_COMPANY';
+      const cName = emp.company?.name || companies.find((c) => c.id === cId)?.name || 'Cravita Technology Pvt Ltd';
+      const cCode = (emp.company as any)?.code || companies.find((c) => c.id === cId)?.code || '';
       if (!companyMap.has(cId)) {
         companyMap.set(cId, { companyName: cName, companyCode: cCode, emps: [] });
       }
@@ -611,7 +651,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
     });
 
     return companyNodes;
-  }, [filteredEmployees, availableBranches, validBranchId]);
+  }, [filteredEmployees, availableBranches, validBranchId, validCompanyId, companies]);
 
   const expandAll = () => {
     setCollapsedNodes({});
@@ -642,9 +682,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
   }, [filteredEmployees]);
 
   const resetFilters = () => {
-    if (isSuperAdmin) {
-      setSelectedCompanyId('ALL');
-    }
+    setSelectedCompanyId(validCompanyId);
     if (!isBranchAdmin) {
       setSelectedBranchId('ALL');
     }
@@ -653,7 +691,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
   };
 
   const hasActiveFilters =
-    (isSuperAdmin && selectedCompanyId !== 'ALL') ||
+    (selectedCompanyId && selectedCompanyId !== validCompanyId) ||
     (!isBranchAdmin && selectedBranchId !== 'ALL') ||
     selectedDeptId !== 'ALL' ||
     Boolean(searchQuery.trim());
@@ -819,22 +857,22 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
                 <label className="text-[10px] font-semibold uppercase text-muted-foreground">Organization</label>
                 {isSuperAdmin ? (
                   <Select
-                    value={selectedCompanyId}
+                    value={validCompanyId}
                     onValueChange={(val) => {
-                      setSelectedCompanyId(val);
-                      if (!isBranchAdmin) {
-                        setSelectedBranchId('ALL');
+                      if (val && val !== 'ALL') {
+                        setSelectedCompanyId(val);
+                        setActiveCompanyId(val);
+                        if (!isBranchAdmin) {
+                          setSelectedBranchId('ALL');
+                        }
+                        setSelectedDeptId('ALL');
                       }
-                      setSelectedDeptId('ALL');
                     }}
                   >
                     <SelectTrigger className="h-8 text-xs bg-background">
                       <SelectValue placeholder="Select Organization" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL" className="text-xs font-semibold">
-                        🏢 All Organizations
-                      </SelectItem>
                       {companies.map((c) => (
                         <SelectItem key={c.id} value={c.id} className="text-xs">
                           {c.name} {c.code ? `(${c.code})` : ''}
@@ -898,18 +936,27 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
                   onValueChange={(val) => setSelectedDeptId(val)}
                 >
                   <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue placeholder="Select Department" />
+                    <SelectValue placeholder="Select Department">
+                      {selectedDeptId === 'ALL'
+                        ? 'All Departments'
+                        : availableDepartments.find((d) => d.id === selectedDeptId)?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL" className="text-xs font-semibold">
                       🏷️ All Departments
                     </SelectItem>
                     {validBranchId !== 'ALL' ? (
-                      availableDepartments.map((d) => (
-                        <SelectItem key={d.id} value={d.id} className="text-xs">
-                          {d.name} {d.code ? `(${d.code})` : ''}
-                        </SelectItem>
-                      ))
+                      availableDepartments.map((d, idx) => {
+                        const isLast = idx === availableDepartments.length - 1;
+                        return (
+                          <SelectItem key={d.id} value={d.id} className="text-xs pl-4 font-normal">
+                            <span className="font-mono text-muted-foreground mr-1.5">{isLast ? '└─' : '├─'}</span>
+                            <span>{d.name}</span>
+                            {d.code && <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">({d.code})</span>}
+                          </SelectItem>
+                        );
+                      })
                     ) : (
                       <>
                         {orgHeadOfficeDepartments.length > 0 && (
@@ -917,11 +964,16 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
                             <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
                               🏛️ Company / Head Office
                             </SelectLabel>
-                            {orgHeadOfficeDepartments.map((d) => (
-                              <SelectItem key={d.id} value={d.id} className="text-xs pl-4">
-                                {d.name} {d.code ? `(${d.code})` : ''}
-                              </SelectItem>
-                            ))}
+                            {orgHeadOfficeDepartments.map((d, idx) => {
+                              const isLast = idx === orgHeadOfficeDepartments.length - 1;
+                              return (
+                                <SelectItem key={d.id} value={d.id} className="text-xs pl-4 font-normal">
+                                  <span className="font-mono text-muted-foreground mr-1.5">{isLast ? '└─' : '├─'}</span>
+                                  <span>{d.name}</span>
+                                  {d.code && <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">({d.code})</span>}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectGroup>
                         )}
                         {orgBranchDeptGroups.map((bg) => (
@@ -929,11 +981,16 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
                             <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
                               📍 {bg.branchName}
                             </SelectLabel>
-                            {bg.depts.map((d) => (
-                              <SelectItem key={d.id} value={d.id} className="text-xs pl-4">
-                                {d.name} {d.code ? `(${d.code})` : ''}
-                              </SelectItem>
-                            ))}
+                            {bg.depts.map((d, idx) => {
+                              const isLast = idx === bg.depts.length - 1;
+                              return (
+                                <SelectItem key={d.id} value={d.id} className="text-xs pl-4 font-normal">
+                                  <span className="font-mono text-muted-foreground mr-1.5">{isLast ? '└─' : '├─'}</span>
+                                  <span>{d.name}</span>
+                                  {d.code && <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">({d.code})</span>}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectGroup>
                         ))}
                       </>
@@ -965,9 +1022,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">ORGANIZATIONAL ROOT</p>
               <p className="text-sm font-semibold text-foreground mt-0.5 truncate max-w-[170px]">
-                {selectedCompanyId !== 'ALL'
-                  ? companies.find((c) => c.id === selectedCompanyId)?.name ?? 'Selected Organization'
-                  : 'All Organizations'}
+                {companies.find((c) => c.id === validCompanyId)?.name ?? assignedCompanyName}
               </p>
               <p className="text-[10px] text-primary font-semibold">
                 Organization &rarr; Founder Flow

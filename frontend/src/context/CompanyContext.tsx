@@ -37,46 +37,71 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | undefined>(() => {
     if (!isSuperAdmin && user?.companyId) return user.companyId;
-    return localStorage.getItem(STORAGE_KEY) || user?.companyId || undefined;
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored && stored !== 'ALL') return stored;
+    return user?.companyId || undefined;
   });
 
   useEffect(() => {
-    if (!isSuperAdmin && user?.companyId) {
-      setActiveCompanyIdState(user.companyId);
-      localStorage.setItem(STORAGE_KEY, user.companyId);
-    } else if (isSuperAdmin) {
-      const storedId = localStorage.getItem(STORAGE_KEY);
-      if (storedId && (storedId === 'ALL' || companies.some((c) => c.id === storedId))) {
-        if (activeCompanyId !== storedId) {
-          setActiveCompanyIdState(storedId);
+    // If companies are still loading or empty, do NOT reset or overwrite localStorage
+    if (isLoading || rawCompanies.length === 0) return;
+
+    const storedId = localStorage.getItem(STORAGE_KEY);
+    // If legacy 'ALL' is stored, purge it immediately
+    if (storedId === 'ALL') {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    const userAssignedMatch = user?.companyId ? rawCompanies.find((c) => c.id === user.companyId) : null;
+    const empAssignedMatch = user?.employee?.companyId ? rawCompanies.find((c) => c.id === user?.employee?.companyId) : null;
+
+    if (!isSuperAdmin) {
+      const targetId = userAssignedMatch?.id || empAssignedMatch?.id || rawCompanies[0]?.id;
+      if (targetId) {
+        if (activeCompanyId !== targetId) {
+          setActiveCompanyIdState(targetId);
         }
-      } else {
-        setActiveCompanyIdState('ALL');
-        localStorage.setItem(STORAGE_KEY, 'ALL');
+        localStorage.setItem(STORAGE_KEY, targetId);
       }
-    } else if (user?.companyId) {
-      const storedId = localStorage.getItem(STORAGE_KEY);
-      if (storedId && companies.some((c) => c.id === storedId)) {
+      return;
+    }
+
+    // Super Admin:
+    // If valid specific company is stored in localStorage, use it
+    if (storedId && storedId !== 'ALL' && rawCompanies.some((c) => c.id === storedId)) {
+      if (activeCompanyId !== storedId) {
         setActiveCompanyIdState(storedId);
-      } else {
-        setActiveCompanyIdState(user.companyId);
-        localStorage.setItem(STORAGE_KEY, user.companyId);
+      }
+    } else {
+      // Auto-fetch default organization: user.companyId, Cravita, or first valid company
+      const defaultCompany =
+        userAssignedMatch?.id ||
+        empAssignedMatch?.id ||
+        rawCompanies.find((c) => c.name.toLowerCase().includes('cravita'))?.id ||
+        rawCompanies[0]?.id;
+
+      if (defaultCompany) {
+        if (activeCompanyId !== defaultCompany) {
+          setActiveCompanyIdState(defaultCompany);
+        }
+        localStorage.setItem(STORAGE_KEY, defaultCompany);
       }
     }
-  }, [user?.companyId, isSuperAdmin, companies]);
+  }, [user?.companyId, user?.employee?.companyId, isSuperAdmin, rawCompanies, isLoading, activeCompanyId]);
 
   const setActiveCompanyId = (id: string) => {
     if (!isSuperAdmin && user?.companyId) {
       return;
     }
+    if (!id || id === 'ALL') return;
     setActiveCompanyIdState(id);
     localStorage.setItem(STORAGE_KEY, id);
     queryClient.invalidateQueries();
   };
 
   const activeCompany = activeCompanyId && activeCompanyId !== 'ALL'
-    ? companies.find((c) => c.id === activeCompanyId)
-    : undefined;
+    ? rawCompanies.find((c) => c.id === activeCompanyId) || rawCompanies[0]
+    : rawCompanies[0];
 
   return (
     <CompanyContext.Provider
