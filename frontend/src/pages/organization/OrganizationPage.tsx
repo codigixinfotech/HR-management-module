@@ -27,6 +27,7 @@ import {
   Calendar,
   Clock,
   Layers,
+  Lock,
 } from 'lucide-react';
 
 import { useCompany } from '@/context/CompanyContext';
@@ -43,7 +44,7 @@ export default function OrganizationPage() {
   const isBranchAdmin = isBranchAdminUser(user);
   const assignedBranchId = user?.branchId || user?.employee?.branchId;
 
-  const { activeCompanyId, setActiveCompanyId, companies } = useCompany();
+  const { activeCompanyId, activeCompany, setActiveCompanyId, companies } = useCompany();
   const { data: branches } = useQuery({ queryKey: ['branches', activeCompanyId], queryFn: () => branchesApi.list(activeCompanyId) });
   const { data: departments } = useQuery({ queryKey: ['departments', activeCompanyId], queryFn: () => departmentsApi.list(activeCompanyId) });
   const { data: designations } = useQuery({ queryKey: ['designations', activeCompanyId], queryFn: () => designationsApi.list(activeCompanyId) });
@@ -133,24 +134,37 @@ export default function OrganizationPage() {
         description={headerInfo.description}
         badge={headerInfo.badge}
         actions={
-          isSuperAdmin &&
-          companies &&
-          companies.length > 1 ? (
+          isSuperAdmin ? (
             <div className="w-64">
-              <Select value={activeCompanyId} onValueChange={setActiveCompanyId}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Select Company" />
+              <Select
+                value={activeCompanyId || 'ALL'}
+                onValueChange={(val) => {
+                  setActiveCompanyId(val);
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs bg-background">
+                  <SelectValue placeholder="Select Organization" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ALL" className="text-xs font-semibold">
+                    🏢 All Organizations
+                  </SelectItem>
                   {companies.map((c) => (
                     <SelectItem key={c.id} value={c.id} className="text-xs">
-                      {c.name}
+                      {c.name} {c.code ? `(${c.code})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          ) : undefined
+          ) : (
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-muted/60 rounded-xl border border-border/80 text-xs font-semibold text-foreground cursor-not-allowed select-none shadow-2xs">
+              <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="truncate max-w-[220px]">
+                {activeCompany?.name || user?.companyName || 'Assigned Organization'}
+              </span>
+            </div>
+          )
         }
       />
 

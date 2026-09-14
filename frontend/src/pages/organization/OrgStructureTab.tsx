@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Briefcase,
   Crown,
+  Lock,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -80,7 +81,7 @@ function OrgTreeNode({ node, toggleNode, collapsedNodes }: OrgTreeNodeProps) {
               {node.name}
             </p>
           </div>
-          <p className="text-[11px] text-indigo-100 font-medium mt-0.5">Company</p>
+          <p className="text-[11px] text-indigo-100 font-medium mt-0.5">Organization</p>
           <p className="text-[10px] text-indigo-200 font-normal">Legal Entity</p>
         </div>
       );
@@ -273,6 +274,17 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
     }
   }, [isBranchAdmin, assignedBranchId, selectedBranchId]);
 
+  // Sync selectedCompanyId when organization selector in header changes
+  useEffect(() => {
+    if (propCompanyId && propCompanyId !== selectedCompanyId) {
+      setSelectedCompanyId(propCompanyId);
+      if (!isBranchAdmin) {
+        setSelectedBranchId('ALL');
+      }
+      setSelectedDeptId('ALL');
+    }
+  }, [propCompanyId, isBranchAdmin]);
+
   // ── Queries ──
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ['companies'],
@@ -302,6 +314,24 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
     queryKey: ['branches', validCompanyId],
     queryFn: () => branchesApi.list(validCompanyId !== 'ALL' ? validCompanyId : undefined),
   });
+
+  const assignedCompanyName = useMemo(() => {
+    if (user?.companyName) return user.companyName;
+    if (userCompanyId) {
+      const match = companies.find((c) => c.id === userCompanyId);
+      if (match) return match.name;
+    }
+    return companies[0]?.name || 'Assigned Organization';
+  }, [user, userCompanyId, companies]);
+
+  const assignedBranchName = useMemo(() => {
+    if (user?.branchName) return user.branchName;
+    if (assignedBranchId) {
+      const match = branches.find((b) => b.id === assignedBranchId);
+      if (match) return match.name;
+    }
+    return 'Assigned Branch';
+  }, [user, assignedBranchId, branches]);
 
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ['departments', validCompanyId, validBranchId],
@@ -554,7 +584,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
         id: `comp-${cId}`,
         type: 'company',
         name: cData.companyName.replace(/Craviita/gi, 'Cravita'),
-        subtitle: 'Company',
+        subtitle: 'Organization',
         code: cData.companyCode,
         headcount: cData.emps.length,
         children: companyChildren,
@@ -711,13 +741,13 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
             <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-semibold font-mono uppercase">
               Corporate Hierarchy
             </Badge>
-            <span className="text-xs text-muted-foreground">Company &rarr; Founder &rarr; Branch Architecture</span>
+            <span className="text-xs text-muted-foreground">Organization &rarr; Founder &rarr; Branch Architecture</span>
           </div>
           <h2 className="text-xl font-semibold text-foreground mt-1">
             Organization Structure & Reporting
           </h2>
           <p className="text-xs text-muted-foreground">
-            Complete executive hierarchy: Company &rarr; Founder &amp; Managing Director &rarr; Regional Branches &rarr; Branch Staff.
+            Complete executive hierarchy: Organization &rarr; Founder &amp; Managing Director &rarr; Regional Branches &rarr; Branch Staff.
           </p>
         </div>
 
@@ -765,70 +795,80 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 flex-1 max-w-4xl">
-              {/* 1. Company Filter */}
+              {/* 1. Organization Filter */}
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold uppercase text-muted-foreground">Company</label>
-                <Select
-                  value={selectedCompanyId}
-                  onValueChange={(val) => {
-                    setSelectedCompanyId(val);
-                    if (!isBranchAdmin) {
-                      setSelectedBranchId('ALL');
-                    }
-                    setSelectedDeptId('ALL');
-                  }}
-                  disabled={!isSuperAdmin && companies.length <= 1}
-                >
-                  <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue placeholder="Select Company" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isSuperAdmin && (
+                <label className="text-[10px] font-semibold uppercase text-muted-foreground">Organization</label>
+                {isSuperAdmin ? (
+                  <Select
+                    value={selectedCompanyId}
+                    onValueChange={(val) => {
+                      setSelectedCompanyId(val);
+                      if (!isBranchAdmin) {
+                        setSelectedBranchId('ALL');
+                      }
+                      setSelectedDeptId('ALL');
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Select Organization" />
+                    </SelectTrigger>
+                    <SelectContent>
                       <SelectItem value="ALL" className="text-xs font-semibold">
-                        🏢 All Companies
+                        🏢 All Organizations
                       </SelectItem>
-                    )}
-                    {companies.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.name} {c.code ? `(${c.code})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      {companies.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-xs">
+                          {c.name} {c.code ? `(${c.code})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="h-8 px-3 rounded-md border border-border/80 bg-muted/40 flex items-center gap-1.5 text-xs text-foreground cursor-not-allowed select-none shadow-2xs">
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate font-semibold">{assignedCompanyName}</span>
+                  </div>
+                )}
               </div>
 
               {/* 2. Branch Filter */}
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold uppercase text-muted-foreground">Branch / Facility</label>
-                <Select
-                  value={selectedBranchId}
-                  onValueChange={(val) => {
-                    setSelectedBranchId(val);
-                    setSelectedDeptId('ALL');
-                  }}
-                  disabled={isBranchAdmin}
-                >
-                  <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue placeholder="Select Branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {!isBranchAdmin && (
-                      <>
-                        <SelectItem value="ALL" className="text-xs font-semibold">
-                          📍 All Branches &amp; Offices
+                {isBranchAdmin ? (
+                  <div className="h-8 px-3 rounded-md border border-border/80 bg-muted/40 flex items-center gap-1.5 text-xs text-foreground cursor-not-allowed select-none shadow-2xs">
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate font-semibold">{assignedBranchName}</span>
+                  </div>
+                ) : (
+                  <Select
+                    value={selectedBranchId}
+                    onValueChange={(val) => {
+                      setSelectedBranchId(val);
+                      setSelectedDeptId('ALL');
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {!isBranchAdmin && (
+                        <>
+                          <SelectItem value="ALL" className="text-xs font-semibold">
+                            📍 All Branches &amp; Offices
+                          </SelectItem>
+                          <SelectItem value="HEAD_OFFICE" className="text-xs font-semibold">
+                            🏛️ Corporate / Head Office
+                          </SelectItem>
+                        </>
+                      )}
+                      {availableBranches.map((b) => (
+                        <SelectItem key={b.id} value={b.id} className="text-xs">
+                          {b.name} {b.city ? `(${b.city})` : ''}
                         </SelectItem>
-                        <SelectItem value="HEAD_OFFICE" className="text-xs font-semibold">
-                          🏛️ Corporate / Head Office
-                        </SelectItem>
-                      </>
-                    )}
-                    {availableBranches.map((b) => (
-                      <SelectItem key={b.id} value={b.id} className="text-xs">
-                        {b.name} {b.city ? `(${b.city})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* 3. Department Filter */}
@@ -878,11 +918,11 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">ORGANIZATIONAL ROOT</p>
               <p className="text-sm font-semibold text-foreground mt-0.5 truncate max-w-[170px]">
                 {selectedCompanyId !== 'ALL'
-                  ? companies.find((c) => c.id === selectedCompanyId)?.name ?? 'Selected Company'
-                  : 'All Corporate Entities'}
+                  ? companies.find((c) => c.id === selectedCompanyId)?.name ?? 'Selected Organization'
+                  : 'All Organizations'}
               </p>
               <p className="text-[10px] text-primary font-semibold">
-                Company &rarr; Founder Flow
+                Organization &rarr; Founder Flow
               </p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -937,7 +977,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Network className="h-4 w-4 text-primary" />
-              {viewMode === 'chart' ? 'Company → Founder → Branch Hierarchy' : 'Hierarchical Explorer'}
+              {viewMode === 'chart' ? 'Organization → Founder → Branch Hierarchy' : 'Hierarchical Explorer'}
             </CardTitle>
             <div className="w-full sm:w-72">
               <div className="relative">
@@ -966,7 +1006,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
               <div>
                 <p className="font-semibold text-foreground text-sm">No Employees in Selected Scope</p>
                 <p className="mt-1 text-muted-foreground">
-                  No employee records matched the selected company, branch, or department filters.
+                  No employee records matched the selected organization, branch, or department filters.
                 </p>
               </div>
               {hasActiveFilters && (

@@ -44,6 +44,16 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!isSuperAdmin && user?.companyId) {
       setActiveCompanyIdState(user.companyId);
       localStorage.setItem(STORAGE_KEY, user.companyId);
+    } else if (isSuperAdmin) {
+      const storedId = localStorage.getItem(STORAGE_KEY);
+      if (storedId && (storedId === 'ALL' || companies.some((c) => c.id === storedId))) {
+        if (activeCompanyId !== storedId) {
+          setActiveCompanyIdState(storedId);
+        }
+      } else {
+        setActiveCompanyIdState('ALL');
+        localStorage.setItem(STORAGE_KEY, 'ALL');
+      }
     } else if (user?.companyId) {
       const storedId = localStorage.getItem(STORAGE_KEY);
       if (storedId && companies.some((c) => c.id === storedId)) {
@@ -51,23 +61,6 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       } else {
         setActiveCompanyIdState(user.companyId);
         localStorage.setItem(STORAGE_KEY, user.companyId);
-      }
-    } else if (companies.length > 0) {
-      const storedId = localStorage.getItem(STORAGE_KEY);
-      const validStored = storedId && companies.some((c) => c.id === storedId);
-
-      if (validStored) {
-        if (activeCompanyId !== storedId) {
-          setActiveCompanyIdState(storedId);
-        }
-      } else {
-        const cravitaComp =
-          companies.find((c) => c.name.toLowerCase().includes('cravita') && c.code === 'C-0034') ||
-          companies.find((c) => c.name.toLowerCase().includes('cravita')) ||
-          companies[0];
-        const defaultId = cravitaComp.id;
-        setActiveCompanyIdState(defaultId);
-        localStorage.setItem(STORAGE_KEY, defaultId);
       }
     }
   }, [user?.companyId, isSuperAdmin, companies]);
@@ -81,7 +74,9 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     queryClient.invalidateQueries();
   };
 
-  const activeCompany = companies.find((c) => c.id === activeCompanyId);
+  const activeCompany = activeCompanyId && activeCompanyId !== 'ALL'
+    ? companies.find((c) => c.id === activeCompanyId)
+    : undefined;
 
   return (
     <CompanyContext.Provider
