@@ -32,6 +32,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from '@/components/ui/select';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
@@ -368,11 +370,28 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
     if (validCompanyId !== 'ALL') {
       list = list.filter((d) => d.companyId === validCompanyId);
     }
-    if (validBranchId !== 'ALL' && validBranchId !== 'HEAD_OFFICE') {
+    if (validBranchId === 'HEAD_OFFICE') {
+      list = list.filter((d) => !d.branchId);
+    } else if (validBranchId !== 'ALL') {
       list = list.filter((d) => !d.branchId || d.branchId === validBranchId);
     }
     return list;
   }, [departments, validCompanyId, validBranchId]);
+
+  const orgHeadOfficeDepartments = useMemo(() => {
+    return availableDepartments.filter((d) => !d.branchId);
+  }, [availableDepartments]);
+
+  const orgBranchDeptGroups = useMemo(() => {
+    const groups: { branchId: string; branchName: string; depts: Department[] }[] = [];
+    availableBranches.forEach((br) => {
+      const depts = availableDepartments.filter((d) => d.branchId === br.id);
+      if (depts.length > 0) {
+        groups.push({ branchId: br.id, branchName: br.name, depts });
+      }
+    });
+    return groups;
+  }, [availableBranches, availableDepartments]);
 
   // Filter employees based on active dropdowns & search
   const filteredEmployees = useMemo(() => {
@@ -885,11 +904,40 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
                     <SelectItem value="ALL" className="text-xs font-semibold">
                       🏷️ All Departments
                     </SelectItem>
-                    {availableDepartments.map((d) => (
-                      <SelectItem key={d.id} value={d.id} className="text-xs">
-                        {d.name} {d.code ? `(${d.code})` : ''}
-                      </SelectItem>
-                    ))}
+                    {validBranchId !== 'ALL' ? (
+                      availableDepartments.map((d) => (
+                        <SelectItem key={d.id} value={d.id} className="text-xs">
+                          {d.name} {d.code ? `(${d.code})` : ''}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        {orgHeadOfficeDepartments.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
+                              🏛️ Company / Head Office
+                            </SelectLabel>
+                            {orgHeadOfficeDepartments.map((d) => (
+                              <SelectItem key={d.id} value={d.id} className="text-xs pl-4">
+                                {d.name} {d.code ? `(${d.code})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {orgBranchDeptGroups.map((bg) => (
+                          <SelectGroup key={bg.branchId}>
+                            <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
+                              📍 {bg.branchName}
+                            </SelectLabel>
+                            {bg.depts.map((d) => (
+                              <SelectItem key={d.id} value={d.id} className="text-xs pl-4">
+                                {d.name} {d.code ? `(${d.code})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

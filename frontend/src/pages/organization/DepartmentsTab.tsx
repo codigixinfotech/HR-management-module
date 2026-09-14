@@ -31,7 +31,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 
 const departmentSchema = z.object({
@@ -82,6 +82,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     return 'ALL';
   });
 
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('ALL');
+
   useEffect(() => {
     if (isBranchAdmin && assignedBranchId) {
       setSelectedBranchFilter(assignedBranchId);
@@ -115,6 +117,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     if (!isBranchAdmin) {
       setSelectedBranchFilter('ALL');
     }
+    setSelectedDeptFilter('ALL');
   }, [companyId, isBranchAdmin]);
 
   const { data: departments, isLoading } = useQuery({
@@ -174,6 +177,33 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     });
     return map;
   }, [branchOptions]);
+
+  // Group departments by scope (Head Office vs Branches)
+  const headOfficeDepartments = useMemo(() => {
+    return (departments || []).filter((d) => !d.branchId && !d.branch?.id);
+  }, [departments]);
+
+  const availableDeptsForDropdown = useMemo(() => {
+    if (!departments) return [];
+    if (selectedBranchFilter === 'HEAD_OFFICE') {
+      return headOfficeDepartments;
+    }
+    if (selectedBranchFilter !== 'ALL') {
+      return departments.filter((d) => d.branchId === selectedBranchFilter || d.branch?.id === selectedBranchFilter);
+    }
+    return departments;
+  }, [departments, selectedBranchFilter, headOfficeDepartments]);
+
+  const branchDepartmentGroups = useMemo(() => {
+    const groups: { branchId: string; branchName: string; depts: Department[] }[] = [];
+    filteredBranches.forEach((br) => {
+      const depts = (departments || []).filter((d) => d.branchId === br.id || d.branch?.id === br.id);
+      if (depts.length > 0) {
+        groups.push({ branchId: br.id, branchName: br.name, depts });
+      }
+    });
+    return groups;
+  }, [filteredBranches, departments]);
 
   const employeeOptions = useMemo(() => {
     return employeesData?.items ?? [];
@@ -298,8 +328,13 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
   const filteredDepartments = useMemo(() => {
     if (!departments) return [];
     let list = departments;
-    if (selectedBranchFilter !== 'ALL') {
+    if (selectedBranchFilter === 'HEAD_OFFICE') {
+      list = list.filter(d => !d.branchId && !d.branch?.id);
+    } else if (selectedBranchFilter !== 'ALL') {
       list = list.filter(d => d.branchId === selectedBranchFilter || d.branch?.id === selectedBranchFilter);
+    }
+    if (selectedDeptFilter !== 'ALL') {
+      list = list.filter(d => d.id === selectedDeptFilter);
     }
     if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
@@ -310,7 +345,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
         (d.manager && d.manager.toLowerCase().includes(q)) ||
         (d.branch?.name && d.branch.name.toLowerCase().includes(q))
     );
-  }, [departments, selectedBranchFilter, searchQuery]);
+  }, [departments, selectedBranchFilter, selectedDeptFilter, searchQuery]);
 
   return (
     <Card className="shadow-xs border-border/80">
@@ -348,7 +383,10 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
             <div className="w-48 sm:w-56">
               <Select
                 value={selectedBranchFilter}
-                onValueChange={(val) => setSelectedBranchFilter(val)}
+                onValueChange={(val) => {
+                  setSelectedBranchFilter(val);
+                  setSelectedDeptFilter('ALL');
+                }}
                 disabled={isBranchAdmin}
               >
                 <SelectTrigger className="h-8 text-xs bg-background border-border/80 font-medium">
@@ -359,9 +397,14 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                 </SelectTrigger>
                 <SelectContent>
                   {!isBranchAdmin && (
-                    <SelectItem value="ALL" className="text-xs font-medium">
-                      All Branches {departments ? `(${departments.length})` : ''}
-                    </SelectItem>
+                    <>
+                      <SelectItem value="ALL" className="text-xs font-medium">
+                        All Branches &amp; Offices {departments ? `(${departments.length})` : ''}
+                      </SelectItem>
+                      <SelectItem value="HEAD_OFFICE" className="text-xs font-medium">
+                        🏛️ Corporate / Head Office {headOfficeDepartments.length > 0 ? `(${headOfficeDepartments.length})` : ''}
+                      </SelectItem>
+                    </>
                   )}
                   {filteredBranches.map((br) => {
                     const deptCount = (departments || []).filter(
@@ -382,14 +425,77 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
               </Select>
             </div>
 
+            {/* Department Filter Dropdown (Grouped by Scope) */}
+            <div className="w-52 sm:w-60">
+              <Select
+                value={selectedDeptFilter}
+                onValueChange={(val) => setSelectedDeptFilter(val)}
+              >
+                <SelectTrigger className="h-8 text-xs bg-background border-border/80 font-medium">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Network className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <SelectValue placeholder="All Departments" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL" className="text-xs font-semibold">
+                    🏷️ All Departments {availableDeptsForDropdown.length > 0 ? `(${availableDeptsForDropdown.length})` : ''}
+                  </SelectItem>
+                  {selectedBranchFilter === 'HEAD_OFFICE' ? (
+                    headOfficeDepartments.map((d) => (
+                      <SelectItem key={d.id} value={d.id} className="text-xs">
+                        {d.name} {d.code ? `(${d.code})` : ''}
+                      </SelectItem>
+                    ))
+                  ) : selectedBranchFilter !== 'ALL' ? (
+                    availableDeptsForDropdown.map((d) => (
+                      <SelectItem key={d.id} value={d.id} className="text-xs">
+                        {d.name} {d.code ? `(${d.code})` : ''}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      {headOfficeDepartments.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
+                            🏛️ Company / Head Office
+                          </SelectLabel>
+                          {headOfficeDepartments.map((d) => (
+                            <SelectItem key={d.id} value={d.id} className="text-xs pl-4">
+                              {d.name} {d.code ? `(${d.code})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      {branchDepartmentGroups.map((bg) => (
+                        <SelectGroup key={bg.branchId}>
+                          <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1">
+                            📍 {bg.branchName}
+                          </SelectLabel>
+                          {bg.depts.map((d) => (
+                            <SelectItem key={d.id} value={d.id} className="text-xs pl-4">
+                              {d.name} {d.code ? `(${d.code})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Clear Filter Button if active and not branch admin */}
-            {!isBranchAdmin && selectedBranchFilter !== 'ALL' && (
+            {!isBranchAdmin && (selectedBranchFilter !== 'ALL' || selectedDeptFilter !== 'ALL') && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
-                onClick={() => setSelectedBranchFilter('ALL')}
-                title="Clear branch filter"
+                onClick={() => {
+                  setSelectedBranchFilter('ALL');
+                  setSelectedDeptFilter('ALL');
+                }}
+                title="Clear filters"
               >
                 <X className="h-3 w-3" /> Clear
               </Button>
