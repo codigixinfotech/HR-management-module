@@ -428,7 +428,7 @@ model Department {
   travelBookings       TravelBooking[]
   assets               Asset[]
 
-  @@unique([companyId, code])
+  @@unique([companyId, branchId, code])
   @@index([branchId])
   @@map("departments")
 }

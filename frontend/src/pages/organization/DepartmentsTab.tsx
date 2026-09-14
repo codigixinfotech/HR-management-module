@@ -63,6 +63,57 @@ const EXTRA_DEPT_METRICS: Record<string, { head: string; count: number; cap: num
   'DEPT-PRD': { head: 'Alex Vance (VP Product)', count: 18, cap: 20, budget: '₹2.6 Cr', location: 'Boston Hub', color: 'bg-rose-500' },
 };
 
+export function getDepartmentAbbr(name: string): string {
+  if (!name) return '';
+  return name
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      if (word === 'ADMINISTRATION' || word === 'ADMIN') return 'ADM';
+      if (word === 'MANAGEMENT' || word === 'MANAGER') return 'MAN';
+      if (word === 'TECHNOLOGY' || word === 'ENGINEERING') return 'TECH';
+      if (word === 'FINANCE' || word === 'ACCOUNTING') return 'FIN';
+      if (word === 'MARKETING') return 'MKT';
+      if (word === 'OPERATIONS') return 'OPS';
+      if (word === 'SALES') return 'SLS';
+      if (word === 'DEVELOPMENT') return 'DEV';
+      if (word === 'HUMAN' || word === 'RESOURCE' || word === 'RESOURCES') return word === 'HUMAN' ? 'HUM' : 'RES';
+      return word.slice(0, 3);
+    })
+    .join('-');
+}
+
+export function getBranchTag(branch: any, company?: any): string {
+  if (!branch) return '';
+  // 1. If branch has a branch code, use that instead of branch name.
+  // Example: Branch code BR-27 -> BR27. Code 'B' -> 'B'.
+  if (branch.code && String(branch.code).trim()) {
+    const cleanCode = String(branch.code).trim().replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (cleanCode) return cleanCode;
+  }
+
+  // 2. If no branch code, derive a clean identifier from branch name.
+  // Example: "Cravita B" -> remove company name "Cravita" -> "B"
+  let bName = String(branch.name || '').trim();
+  if (company?.name) {
+    const cWords = company.name.split(/\s+/);
+    cWords.forEach((w: string) => {
+      if (w.length > 2) {
+        const reg = new RegExp(`\\b${w}\\b`, 'gi');
+        bName = bName.replace(reg, '');
+      }
+    });
+  }
+  bName = bName.replace(/\b(branch|office|location|hub|plant)\b/gi, '').trim();
+  const cleanName = bName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (cleanName) return cleanName;
+
+  return branch.name ? String(branch.name).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 3) : '';
+}
+
 export function DepartmentsTab({ companyId, companies }: { companyId?: string; companies: Company[] }) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -110,8 +161,13 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
   });
 
   const effectiveCompanyId = companyId || companies[0]?.id || '';
-  const selectedCompanyId = form.watch('companyId') || effectiveCompanyId;
-  const selectedCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId), [companies, selectedCompanyId]);
+  const watchedCompanyId = form.watch('companyId') || effectiveCompanyId;
+  const watchedBranchId = form.watch('branchId');
+  const watchedName = form.watch('name');
+  const watchedCode = form.watch('code');
+
+  const selectedCompanyId = watchedCompanyId;
+  const selectedCompany = useMemo(() => companies.find(c => c.id === watchedCompanyId), [companies, watchedCompanyId]);
 
   useEffect(() => {
     if (!isBranchAdmin) {
@@ -131,12 +187,17 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId, branchId: effectiveBranchIdForQuery }),
   });
 
+  // Query all employees for the selected company for modal Department Head selection
+  const { data: allCompanyEmployees } = useQuery({
+    queryKey: ['employees', 'modal-all-company', watchedCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: watchedCompanyId }),
+    enabled: !!watchedCompanyId,
+  });
+
   const { data: costCentersList } = useQuery({
     queryKey: ['cost-centers', selectedCompanyId],
     queryFn: () => costCentersApi.list(selectedCompanyId),
   });
-
-  const watchedName = form.watch('name');
 
   const { data: branchOptions } = useQuery({
     queryKey: ['branches', selectedCompanyId],
@@ -169,6 +230,11 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
       return true;
     });
   }, [branchOptions, selectedCompanyId, selectedCompany]);
+
+  const selectedBranchObj = useMemo(() => {
+    if (!watchedBranchId || watchedBranchId === 'NONE') return null;
+    return (branchOptions || []).find((b: any) => b.id === watchedBranchId) || null;
+  }, [branchOptions, watchedBranchId]);
 
   const branchMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -205,49 +271,153 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
     return groups;
   }, [filteredBranches, departments]);
 
-  const employeeOptions = useMemo(() => {
-    return employeesData?.items ?? [];
-  }, [employeesData]);
+  // ── Scoped Modal Cascade Options ──────────────────────────────────────────
+  const modalParentDeptOptions = useMemo(() => {
+    if (!departments) return [];
+    const cleanBranchId = watchedBranchId && watchedBranchId !== 'NONE' ? watchedBranchId : null;
+    return departments.filter((d) => {
+      if (editing && d.id === editing.id) return false;
+      if (d.companyId !== watchedCompanyId) return false;
+      // If branch is selected: allow departments in same branch OR Head Office primary departments
+      if (cleanBranchId) {
+        return d.branchId === cleanBranchId || !d.branchId;
+      }
+      // If Head Office: only Head Office departments
+      return !d.branchId;
+    });
+  }, [departments, editing, watchedCompanyId, watchedBranchId]);
 
-  const parentDeptOptions = useMemo(() => {
-    return departments?.filter(d => d.id !== editing?.id) ?? [];
-  }, [departments, editing]);
+  const modalEmployeeOptions = useMemo(() => {
+    const items = allCompanyEmployees?.items ?? [];
+    const cleanBranchId = watchedBranchId && watchedBranchId !== 'NONE' ? watchedBranchId : null;
+    if (cleanBranchId) {
+      const branchEmps = items.filter((emp: any) => emp.branchId === cleanBranchId);
+      return branchEmps.length > 0 ? branchEmps : items;
+    }
+    const hoEmps = items.filter((emp: any) => !emp.branchId);
+    return hoEmps.length > 0 ? hoEmps : items;
+  }, [allCompanyEmployees, watchedBranchId]);
 
-  // Code Auto Generator
+  const modalCostCenterOptions = useMemo(() => {
+    if (!costCentersList) return [];
+    const cleanBranchId = watchedBranchId && watchedBranchId !== 'NONE' ? watchedBranchId : null;
+    return costCentersList.filter((cc: any) => {
+      if (cc.companyId && cc.companyId !== watchedCompanyId) return false;
+      if (cleanBranchId) {
+        return !cc.branchId || cc.branchId === cleanBranchId;
+      }
+      return !cc.branchId;
+    });
+  }, [costCentersList, watchedCompanyId, watchedBranchId]);
+
+  // ── Scoped Duplicate Checks ───────────────────────────────────────────────
+  const isDuplicateCodeInScope = useMemo(() => {
+    if (!watchedCode || !watchedCode.trim()) return false;
+    const cleanBranchId = watchedBranchId && watchedBranchId !== 'NONE' ? watchedBranchId : null;
+    return (departments || []).some((d) => {
+      if (editing && d.id === editing.id) return false;
+      if (d.companyId !== watchedCompanyId) return false;
+      const dBranchId = d.branchId || null;
+      return dBranchId === cleanBranchId && d.code.toUpperCase() === watchedCode.trim().toUpperCase();
+    });
+  }, [watchedCode, watchedBranchId, watchedCompanyId, departments, editing]);
+
+  const isDuplicateNameInScope = useMemo(() => {
+    if (!watchedName || !watchedName.trim()) return false;
+    const cleanBranchId = watchedBranchId && watchedBranchId !== 'NONE' ? watchedBranchId : null;
+    return (departments || []).some((d) => {
+      if (editing && d.id === editing.id) return false;
+      if (d.companyId !== watchedCompanyId) return false;
+      const dBranchId = d.branchId || null;
+      return dBranchId === cleanBranchId && d.name.trim().toLowerCase() === watchedName.trim().toLowerCase();
+    });
+  }, [watchedName, watchedBranchId, watchedCompanyId, departments, editing]);
+
+  // ── Code Auto Generator (Scoped by Company + Branch + Department) ─────────
   useEffect(() => {
     if (editing) return;
-    if (!watchedName) {
+    if (!watchedName || !watchedName.trim()) {
       form.setValue('code', '');
       return;
     }
-    const cleanName = watchedName
-      .toUpperCase()
-      .replace(/[^A-Z0-9\s]/g, '')
-      .trim()
-      .split(/\s+/)
-      .map(word => {
-        if (word === 'TECHNOLOGY' || word === 'ENGINEERING') return 'TECH';
-        if (word === 'FINANCE' || word === 'ACCOUNTING') return 'FIN';
-        if (word === 'MARKETING') return 'MKT';
-        if (word === 'OPERATIONS') return 'OPS';
-        if (word === 'SALES') return 'SLS';
-        if (word === 'DEVELOPMENT') return 'DEV';
-        return word.slice(0, 3);
-      })
-      .join('-');
-      
-    form.setValue('code', cleanName ? `DEPT-${cleanName}` : '');
-  }, [watchedName, form, editing]);
+
+    const deptAbbr = getDepartmentAbbr(watchedName);
+    if (!deptAbbr) {
+      form.setValue('code', '');
+      return;
+    }
+
+    let branchTag = '';
+    const cleanBranchId = watchedBranchId && watchedBranchId !== 'NONE' ? watchedBranchId : null;
+    if (cleanBranchId && selectedBranchObj) {
+      branchTag = getBranchTag(selectedBranchObj, selectedCompany);
+    }
+
+    const baseCode = branchTag ? `DEPT-${branchTag}-${deptAbbr}` : `DEPT-${deptAbbr}`;
+
+    // Check if code already exists within the SAME company + SAME branch
+    const isCodeTaken = (candidate: string) => {
+      return (departments || []).some((d) => {
+        if (editing && d.id === editing.id) return false;
+        if (d.companyId !== watchedCompanyId) return false;
+        const dBranchId = d.branchId || null;
+        return dBranchId === cleanBranchId && d.code.toUpperCase() === candidate.toUpperCase();
+      });
+    };
+
+    let generatedCode = baseCode;
+    if (isCodeTaken(generatedCode)) {
+      let counter = 2;
+      while (isCodeTaken(`${baseCode}-${counter}`)) {
+        counter++;
+      }
+      generatedCode = `${baseCode}-${counter}`;
+    }
+
+    form.setValue('code', generatedCode);
+  }, [
+    watchedName,
+    watchedBranchId,
+    watchedCompanyId,
+    selectedBranchObj,
+    selectedCompany,
+    departments,
+    editing,
+    form,
+  ]);
 
   const upsertMutation = useMutation({
     mutationFn: async (values: DepartmentFormValues) => {
+      const cleanBranchId = values.branchId && values.branchId !== 'NONE' ? values.branchId : null;
+      const cleanCode = values.code.trim();
+      const cleanName = values.name.trim();
+
+      // Check scoped duplicates before submission
+      const duplicateCode = (departments || []).some((d) => {
+        if (editing && d.id === editing.id) return false;
+        if (d.companyId !== values.companyId) return false;
+        const dBranchId = d.branchId || null;
+        return dBranchId === cleanBranchId && d.code.toUpperCase() === cleanCode.toUpperCase();
+      });
+      if (duplicateCode) {
+        throw new Error('Department code already exists for this company and branch.');
+      }
+
+      const duplicateName = (departments || []).some((d) => {
+        if (editing && d.id === editing.id) return false;
+        if (d.companyId !== values.companyId) return false;
+        const dBranchId = d.branchId || null;
+        return dBranchId === cleanBranchId && d.name.trim().toLowerCase() === cleanName.toLowerCase();
+      });
+      if (duplicateName) {
+        throw new Error('A department with this name already exists for this company and branch.');
+      }
+
       // Store raw rupees — no unit conversion needed
       const computedBudget =
         deptBudgetRaw !== '' && !isNaN(Number(deptBudgetRaw)) && Number(deptBudgetRaw) > 0
           ? Math.round(Number(deptBudgetRaw))
           : null;
-
-      const cleanBranchId = values.branchId && values.branchId !== 'NONE' ? values.branchId : null;
 
       const payload = {
         ...values,
@@ -268,7 +438,8 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
       setEditing(null);
       form.reset();
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? err?.message ?? 'Something went wrong'),
   });
 
   const deleteMutation = useMutation({
@@ -282,9 +453,13 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
   const openCreate = () => {
     setEditing(null);
     setDeptBudgetRaw('');
+    const defaultBranch =
+      selectedBranchFilter !== 'ALL' && selectedBranchFilter !== 'HEAD_OFFICE'
+        ? selectedBranchFilter
+        : '';
     form.reset({
       companyId: selectedCompanyId,
-      branchId: selectedBranchFilter !== 'ALL' ? selectedBranchFilter : '',
+      branchId: defaultBranch,
       code: '',
       name: '',
       type: 'Functional',
@@ -560,6 +735,9 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                         onValueChange={(v) => {
                           form.setValue('companyId', v);
                           form.setValue('branchId', '');
+                          form.setValue('parentDepartmentId', '');
+                          form.setValue('manager', '');
+                          form.setValue('costCenter', '');
                         }}
                       >
                         <SelectTrigger className="h-9 text-xs">
@@ -596,7 +774,13 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                       ) : (
                         <Select
                           value={form.watch('branchId') || 'NONE'}
-                          onValueChange={(val) => form.setValue('branchId', val === 'NONE' ? '' : val)}
+                          onValueChange={(val) => {
+                            const nextBranch = val === 'NONE' ? '' : val;
+                            form.setValue('branchId', nextBranch);
+                            form.setValue('parentDepartmentId', '');
+                            form.setValue('manager', '');
+                            form.setValue('costCenter', '');
+                          }}
                         >
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Select branch (Optional)" />
@@ -622,11 +806,21 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                       <Label className="text-xs font-semibold">Department Name *</Label>
                       <Input placeholder="" {...form.register('name')} className="h-9 text-xs" />
                       {form.formState.errors.name && <p className="text-[10px] text-destructive">{form.formState.errors.name.message}</p>}
+                      {isDuplicateNameInScope && (
+                        <p className="text-[10px] text-destructive font-medium">
+                          A department with this name already exists for this company and branch.
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Department Code (Auto)</Label>
                       <Input placeholder="" {...form.register('code')} className="h-9 text-xs font-mono" />
                       {form.formState.errors.code && <p className="text-[10px] text-destructive">{form.formState.errors.code.message}</p>}
+                      {isDuplicateCodeInScope && (
+                        <p className="text-[10px] text-destructive font-medium">
+                          Department code already exists for this company and branch.
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -638,9 +832,9 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="" className="text-xs">None / Primary Department</SelectItem>
-                        {parentDeptOptions?.map((d) => (
+                        {modalParentDeptOptions?.map((d) => (
                           <SelectItem key={d.id} value={d.id} className="text-xs">
-                            {d.name}
+                            {d.name} {d.branch?.name ? `(${d.branch.name})` : '(Head Office)'}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -656,11 +850,11 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="" className="text-xs">Not Assigned</SelectItem>
-                          {employeeOptions?.map((emp) => {
+                          {modalEmployeeOptions?.map((emp: any) => {
                             const fullName = `${emp.firstName} ${emp.lastName}`;
                             return (
                               <SelectItem key={emp.id} value={fullName} className="text-xs">
-                                {emp.employeeCode} - {fullName}
+                                {emp.employeeCode} - {fullName} {emp.branch?.name ? `(${emp.branch.name})` : ''}
                               </SelectItem>
                             );
                           })}
@@ -675,7 +869,7 @@ export function DepartmentsTab({ companyId, companies }: { companyId?: string; c
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="" className="text-xs">None</SelectItem>
-                          {costCentersList?.map((cc) => (
+                          {modalCostCenterOptions?.map((cc: any) => (
                             <SelectItem key={cc.id} value={cc.code} className="text-xs font-mono">
                               {cc.code} ({cc.name})
                             </SelectItem>

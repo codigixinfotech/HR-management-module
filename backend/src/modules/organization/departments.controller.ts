@@ -26,7 +26,10 @@ export class DepartmentsController {
     @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    const tenantBranchId = getTenantBranchId(user, branchId);
+    let tenantBranchId = getTenantBranchId(user, branchId);
+    if (!tenantBranchId && (branchId === 'HEAD_OFFICE' || branchId === 'NONE')) {
+      tenantBranchId = 'HEAD_OFFICE';
+    }
     return this.departmentsService.list(tenantCompanyId, tenantBranchId);
   }
 

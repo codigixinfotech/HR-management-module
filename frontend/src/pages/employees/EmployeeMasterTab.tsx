@@ -699,8 +699,14 @@ export function EmployeeMasterTab() {
 
   const departmentOptions = useMemo(() => {
     if (!allDepartments || !selectedCompanyId) return [];
-    return allDepartments.filter((d: any) => d.companyId === selectedCompanyId);
-  }, [allDepartments, selectedCompanyId]);
+    return allDepartments.filter((d: any) => {
+      if (d.companyId !== selectedCompanyId) return false;
+      if (selectedBranchId && selectedBranchId !== 'NONE') {
+        return d.branchId === selectedBranchId || !d.branchId;
+      }
+      return true;
+    });
+  }, [allDepartments, selectedCompanyId, selectedBranchId]);
 
   const designationOptions = useMemo(() => {
     if (!allDesignations || !selectedCompanyId || !watchedDeptId) return [];
@@ -1776,7 +1782,7 @@ export function EmployeeMasterTab() {
                               ) : (
                                 departmentOptions.map((d: any) => (
                                   <SelectItem key={d.id} value={d.id} className="text-xs">
-                                    {d.name}
+                                    {d.name} {d.branch?.name ? `(${d.branch.name})` : '(Head Office)'} {d.code ? `- ${d.code}` : ''}
                                   </SelectItem>
                                 ))
                               )}
