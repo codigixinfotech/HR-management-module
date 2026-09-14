@@ -14,9 +14,9 @@ export class SkillMatchingService {
   matchSkills(candidateSkills: string[], requiredSkillsRaw?: string | null): SkillMatchResult {
     if (!requiredSkillsRaw || !requiredSkillsRaw.trim()) {
       return {
-        matchedSkills: candidateSkills,
+        matchedSkills: candidateSkills || [],
         missingSkills: [],
-        score: 100,
+        score: candidateSkills && candidateSkills.length > 0 ? 100 : 0,
       };
     }
 
@@ -28,9 +28,17 @@ export class SkillMatchingService {
 
     if (requiredSkillsList.length === 0) {
       return {
-        matchedSkills: candidateSkills,
+        matchedSkills: candidateSkills || [],
         missingSkills: [],
-        score: 100,
+        score: candidateSkills && candidateSkills.length > 0 ? 100 : 0,
+      };
+    }
+
+    if (!candidateSkills || candidateSkills.length === 0) {
+      return {
+        matchedSkills: [],
+        missingSkills: requiredSkillsList,
+        score: 0,
       };
     }
 
@@ -60,33 +68,52 @@ export class SkillMatchingService {
   }
 
   private areSkillsEquivalent(candSkill: string, reqSkill: string): boolean {
-    const normCand = this.normalize(candSkill);
-    const normReq = this.normalize(reqSkill);
+    if (!candSkill || !reqSkill) return false;
 
-    if (normCand === normReq) return true;
-    if (normCand.includes(normReq) || normReq.includes(normCand)) return true;
+    const trimmedCand = candSkill.trim();
+    const trimmedReq = reqSkill.trim();
 
-    // Synonyms & Aliases
-    const aliases: Record<string, string[]> = {
-      react: ['reactjs', 'react.js', 'react native', 'frontend', 'fullstack', 'full stack developer'],
-      node: ['nodejs', 'node.js', 'express', 'backend', 'fullstack', 'full stack developer'],
-      postgres: ['postgresql', 'postgres sql', 'pg', 'sql'],
-      mysql: ['sql', 'database', 'relational database'],
-      sql: ['mysql', 'postgresql', 'postgres', 'sqlite', 'database'],
-      aws: ['amazon web services', 'cloud', 'devops'],
-      docker: ['containers', 'kubernetes', 'k8s', 'devops'],
-      typescript: ['ts', 'javascript', 'js'],
-      devops: ['docker', 'kubernetes', 'ci/cd', 'aws', 'azure', 'gcp', 'jenkins', 'devops eng', 'devops engineer'],
-      software: ['software engineer', 'full stack developer', 'developer', 'engineer', 'tech lead'],
-      fullstack: ['full stack', 'full stack developer', 'react', 'node', 'express', 'mysql', 'software engineer'],
-    };
+    // 1. Direct case-insensitive match
+    if (trimmedCand.toLowerCase() === trimmedReq.toLowerCase()) return true;
 
-    for (const [key, synonymList] of Object.entries(aliases)) {
-      const matchesKey = normCand.includes(key) || normReq.includes(key);
-      if (matchesKey) {
-        if (synonymList.some((syn) => normCand.includes(this.normalize(syn)) || normReq.includes(this.normalize(syn)))) {
-          return true;
-        }
+    const normCand = this.normalize(trimmedCand);
+    const normReq = this.normalize(trimmedReq);
+
+    // 2. Normalized match (e.g. "React.js" -> "reactjs" === "ReactJS" -> "reactjs")
+    if (normCand === normReq && normCand.length >= 2) return true;
+
+    // 3. Synonym Groups: Both candidate skill and required skill must belong to the same synonym group
+    const SYNONYM_GROUPS: string[][] = [
+      ['react', 'reactjs', 'react.js', 'react native'],
+      ['node', 'nodejs', 'node.js', 'express', 'express.js', 'expressjs'],
+      ['typescript', 'ts'],
+      ['javascript', 'js', 'es6', 'ecmascript'],
+      ['postgres', 'postgresql', 'pgsql'],
+      ['mysql', 'mariadb'],
+      ['k8s', 'kubernetes'],
+      ['golang', 'go', 'golang developer'],
+      ['aws', 'amazon web services'],
+      ['gcp', 'google cloud', 'google cloud platform'],
+      ['azure', 'microsoft azure'],
+      ['docker', 'containerization'],
+      ['ci/cd', 'cicd', 'continuous integration', 'continuous deployment'],
+      ['ui/ux', 'uiux', 'ui/ux design', 'ui designer', 'ux designer'],
+      ['qa', 'quality assurance', 'software testing', 'manual testing', 'automation testing'],
+      ['rest api', 'rest', 'restful api', 'restful'],
+      ['graphql', 'apollo'],
+      ['c#', 'csharp', '.net', 'dotnet'],
+      ['c++', 'cpp'],
+    ];
+
+    for (const group of SYNONYM_GROUPS) {
+      const candInGroup = group.some(
+        (term) => this.normalize(term) === normCand || normCand.includes(this.normalize(term))
+      );
+      const reqInGroup = group.some(
+        (term) => this.normalize(term) === normReq || normReq.includes(this.normalize(term))
+      );
+      if (candInGroup && reqInGroup) {
+        return true;
       }
     }
 

@@ -48,41 +48,44 @@ export class AtsService {
     // Resolve requisition criteria (skills, minExperience, qualification)
     const reqCriteria = this.resolveRequisitionRequirements(jobOpening);
 
-    // 1. Parse Resume & Extract Candidate Entities
-    const parsedData = this.resumeParserService.parseCandidateResume(candidate);
+    // 1. Parse Resume & Extract Candidate Entities from physical file & candidate data
+    const parsedData = await this.resumeParserService.parseCandidateResume(candidate);
 
     // 2. Perform Skill Matching against Target Requisition Requirements
     const skillResult = this.skillMatchingService.matchSkills(
       parsedData.skills,
-      reqCriteria.requiredSkills
+      reqCriteria.requiredSkills,
     );
 
     // 3. Perform Experience Matching against Min/Max Experience
     const expResult = this.experienceMatchingService.matchExperience(
       parsedData.experienceYears,
       reqCriteria.minExperience,
-      jobOpening.maxExperience
+      jobOpening?.maxExperience,
     );
 
     // 4. Perform Qualification Matching
+    const candidateQual =
+      candidate.qualification || (parsedData.education && parsedData.education[0]) || null;
     const qualResult = this.experienceMatchingService.matchQualification(
-      candidate.qualification || parsedData.education[0],
-      reqCriteria.qualification
+      candidateQual,
+      reqCriteria.qualification,
     );
 
     // 5. Calculate Dynamic Weighted ATS Match Score:
     //    - Skill Match Weight: 50%
     //    - Experience Match Weight: 30%
     //    - Qualification Match Weight: 20%
+    //    finalScore = (skillMatchPercentage * 0.50) + (experienceMatchPercentage * 0.30) + (qualificationMatchPercentage * 0.20)
     const weightedScore =
-      skillResult.score * 0.5 + expResult.score * 0.3 + qualResult.score * 0.2;
-    const finalScore = Math.min(100, Math.max(10, Math.round(weightedScore * 10) / 10));
+      skillResult.score * 0.50 + expResult.score * 0.30 + qualResult.score * 0.20;
+    const finalScore = Math.min(100, Math.max(0, Math.round(weightedScore)));
 
     // 6. Save or Update ATS Analysis Record in Database
     const atsAnalysis = await this.prisma.atsAnalysis.upsert({
       where: { candidateId: candidate.id },
       update: {
-        jobOpeningId: jobOpening.id,
+        jobOpeningId: jobOpening?.id ?? '',
         matchScore: finalScore,
         skillsMatched: skillResult.matchedSkills,
         skillsMissing: skillResult.missingSkills,
@@ -95,7 +98,7 @@ export class AtsService {
       },
       create: {
         candidateId: candidate.id,
-        jobOpeningId: jobOpening.id,
+        jobOpeningId: jobOpening?.id ?? '',
         matchScore: finalScore,
         skillsMatched: skillResult.matchedSkills,
         skillsMissing: skillResult.missingSkills,
@@ -107,7 +110,7 @@ export class AtsService {
       },
     });
 
-    // 7. Update Candidate Record aiMatchScore
+    // 7. Update Candidate Record aiMatchScore with the same calculated score
     await this.prisma.candidate.update({
       where: { id: candidate.id },
       data: { aiMatchScore: finalScore },
@@ -133,36 +136,24 @@ export class AtsService {
   }
 
   private resolveRequisitionRequirements(jobOpening: any) {
-    let requiredSkills = jobOpening.requiredSkills || jobOpening.preferredSkills || '';
-    let minExperience = jobOpening.minExperience;
-    let qualification = jobOpening.qualification || jobOpening.preferredQualification || 'Graduate';
-
-    const titleLower = (jobOpening.title || '').toLowerCase();
-
-    // Fallback required skills & min experience based on job title if not explicitly set in database
-    if (!requiredSkills.trim()) {
-      if (titleLower.includes('devops')) {
-        requiredSkills = 'Docker, Kubernetes, AWS, CI/CD, Linux, Terraform, Shell Scripting';
-      } else if (titleLower.includes('senior')) {
-        requiredSkills = 'React, TypeScript, Node.js, System Architecture, SQL, Microservices, Git, CI/CD';
-      } else if (titleLower.includes('product designer') || titleLower.includes('design')) {
-        requiredSkills = 'Figma, UI/UX Design, Wireframing, Prototyping, User Research, Design Systems';
-      } else {
-        requiredSkills = 'React, TypeScript, Node.js, MySQL, REST API, Git, Problem Solving';
-      }
+    if (!jobOpening) {
+      return { requiredSkills: '', minExperience: 0, qualification: '' };
     }
 
-    if (minExperience === null || minExperience === undefined || minExperience === 0) {
-      if (titleLower.includes('senior') || titleLower.includes('lead')) {
-        minExperience = 5;
-      } else if (titleLower.includes('devops')) {
-        minExperience = 3;
-      } else if (jobOpening.candidateType === 'EXPERIENCED') {
-        minExperience = 2;
-      } else {
-        minExperience = 0;
-      }
-    }
+    const requiredSkills = (
+      jobOpening.requiredSkills ||
+      jobOpening.preferredSkills ||
+      ''
+    ).trim();
+    const minExperience =
+      jobOpening.minExperience !== null && jobOpening.minExperience !== undefined
+        ? jobOpening.minExperience
+        : 0;
+    const qualification = (
+      jobOpening.qualification ||
+      jobOpening.preferredQualification ||
+      ''
+    ).trim();
 
     return { requiredSkills, minExperience, qualification };
   }

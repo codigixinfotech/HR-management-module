@@ -172,7 +172,7 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
             </span>
           </div>
           <Progress
-            value={matchedSkills.length + missingSkills.length > 0 ? (matchedSkills.length / (matchedSkills.length + missingSkills.length)) * 100 : 100}
+            value={matchedSkills.length + missingSkills.length > 0 ? (matchedSkills.length / (matchedSkills.length + missingSkills.length)) * 100 : 0}
             className="h-1.5 bg-slate-200 dark:bg-slate-700"
           />
         </div>
@@ -183,11 +183,11 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
             <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
               <Briefcase className="h-3.5 w-3.5 text-indigo-500" /> Experience Match (30%)
             </span>
-            <span className="font-bold text-emerald-600 font-mono">
-              {ats.experienceMatch?.isMatch ? '✓ Eligible' : `${ats.experienceMatch?.candidateExpYears || 0} Yrs`}
+            <span className={`font-bold font-mono ${ats.experienceMatch?.isMatch ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {ats.experienceMatch?.isMatch ? '✓ Eligible' : 'Not Eligible'}
             </span>
           </div>
-          <Progress value={ats.experienceMatch?.score || 100} className="h-1.5 bg-slate-200 dark:bg-slate-700" />
+          <Progress value={ats.experienceMatch?.score ?? 0} className="h-1.5 bg-slate-200 dark:bg-slate-700" />
         </div>
 
         {/* 3. Qualification Match Card */}
@@ -196,11 +196,11 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
             <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
               <GraduationCap className="h-3.5 w-3.5 text-indigo-500" /> Qualification (20%)
             </span>
-            <span className="font-bold text-emerald-600 font-mono">
-              {ats.qualificationMatch?.isMatch ? '✓ Verified' : 'Partial'}
+            <span className={`font-bold font-mono ${ats.qualificationMatch?.isMatch ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {ats.qualificationMatch?.isMatch ? '✓ Verified' : 'Not Verified'}
             </span>
           </div>
-          <Progress value={ats.qualificationMatch?.score || 80} className="h-1.5 bg-slate-200 dark:bg-slate-700" />
+          <Progress value={ats.qualificationMatch?.score ?? 0} className="h-1.5 bg-slate-200 dark:bg-slate-700" />
         </div>
       </div>
 

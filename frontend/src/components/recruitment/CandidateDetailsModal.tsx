@@ -71,7 +71,15 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
       })
     : '27 Aug 2026';
 
-  const displayScore = liveScore || (candidate.atsAnalysis?.matchScore !== undefined ? `${candidate.atsAnalysis.matchScore}%` : (candidate.aiMatchScore ? `${candidate.aiMatchScore}%` : (candidate.score && candidate.score !== '88%' ? candidate.score : 'N/A')));
+  const displayScore =
+    liveScore ??
+    (candidate.atsAnalysis?.matchScore !== undefined && candidate.atsAnalysis?.matchScore !== null
+      ? `${candidate.atsAnalysis.matchScore}%`
+      : candidate.aiMatchScore !== null && candidate.aiMatchScore !== undefined
+      ? `${candidate.aiMatchScore}%`
+      : candidate.score && candidate.score !== '88%'
+      ? candidate.score
+      : 'N/A');
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

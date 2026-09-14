@@ -20,33 +20,39 @@ export interface ParsedResumeData {
 
 @Injectable()
 export class ResumeParserService {
-  private readonly logger = Logger;
+  private readonly logger = new Logger(ResumeParserService.name);
 
   /**
-   * Parses text from candidate profile data & attached resume file
+   * Parses text from candidate profile data & attached resume file asynchronously
    */
-  parseCandidateResume(candidate: any): ParsedResumeData {
+  async parseCandidateResume(candidate: any): Promise<ParsedResumeData> {
     let fileContentText = '';
 
-    // Read resume file if local path exists
-    if (candidate.resumePath) {
-      try {
-        const fullPath = path.isAbsolute(candidate.resumePath)
-          ? candidate.resumePath
-          : path.join(process.cwd(), candidate.resumePath);
+    const resolvedFilePath = this.resolvePhysicalResumePath(candidate.resumePath);
 
-        if (fs.existsSync(fullPath)) {
-          const stat = fs.statSync(fullPath);
-          if (stat.size < 5 * 1024 * 1024) {
-            fileContentText = fs.readFileSync(fullPath, 'utf8');
-          }
+    if (resolvedFilePath && fs.existsSync(resolvedFilePath)) {
+      try {
+        const ext = path.extname(resolvedFilePath).toLowerCase();
+        if (ext === '.pdf') {
+          const pdfParse = require('pdf-parse');
+          const dataBuffer = fs.readFileSync(resolvedFilePath);
+          const pdfData = await pdfParse(dataBuffer);
+          fileContentText = pdfData.text || '';
+        } else if (ext === '.txt' || ext === '.csv') {
+          fileContentText = fs.readFileSync(resolvedFilePath, 'utf8');
+        } else {
+          // For docx/other formats, attempt to read printable strings
+          const buffer = fs.readFileSync(resolvedFilePath);
+          fileContentText = buffer.toString('utf8', 0, Math.min(buffer.length, 100000));
         }
       } catch (err: any) {
-        this.logger.warn(`Could not read physical resume file at ${candidate.resumePath}: ${err.message}`);
+        this.logger.warn(
+          `Could not extract text from resume file at ${resolvedFilePath}: ${err.message}`,
+        );
       }
     }
 
-    // Combine raw text from candidate profile fields & file content
+    // Combine raw text from candidate profile fields & actual parsed resume content
     const combinedRawText = [
       `${candidate.firstName || ''} ${candidate.lastName || ''}`,
       candidate.email || '',
@@ -73,12 +79,20 @@ export class ResumeParserService {
     const education = this.extractEducation(candidate.qualification, combinedRawText);
 
     // Extract companies & job titles
-    const companies = candidate.currentCompany ? [candidate.currentCompany] : this.extractCompanies(combinedRawText);
+    const companies = candidate.currentCompany
+      ? [candidate.currentCompany]
+      : this.extractCompanies(combinedRawText);
     const jobTitles = this.extractJobTitles(combinedRawText);
 
     // Extract URLs
-    const linkedinUrl = this.extractRegex(combinedRawText, /https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i);
-    const githubUrl = this.extractRegex(combinedRawText, /https?:\/\/(www\.)?github\.com\/[a-zA-Z0-9_-]+/i);
+    const linkedinUrl = this.extractRegex(
+      combinedRawText,
+      /https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i,
+    );
+    const githubUrl = this.extractRegex(
+      combinedRawText,
+      /https?:\/\/(www\.)?github\.com\/[a-zA-Z0-9_-]+/i,
+    );
 
     return {
       name: `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim(),
@@ -95,6 +109,25 @@ export class ResumeParserService {
       githubUrl,
       rawTextPreview: combinedRawText.substring(0, 500),
     };
+  }
+
+  private resolvePhysicalResumePath(resumePath?: string | null): string | null {
+    if (!resumePath || !resumePath.trim()) return null;
+    const trimmed = resumePath.trim();
+
+    // 1. Direct path exists
+    if (fs.existsSync(trimmed)) return trimmed;
+
+    // 2. Relative to process.cwd()
+    const fromCwd = path.join(process.cwd(), trimmed.replace(/^\//, ''));
+    if (fs.existsSync(fromCwd)) return fromCwd;
+
+    // 3. Look in uploads/resumes/
+    const filename = path.basename(trimmed);
+    const uploadsPath = path.join(process.cwd(), 'uploads', 'resumes', filename);
+    if (fs.existsSync(uploadsPath)) return uploadsPath;
+
+    return null;
   }
 
   private extractSkills(rawText: string, explicitSkills?: string | null): string[] {
@@ -141,35 +174,25 @@ export class ResumeParserService {
       'GraphQL',
       'REST API',
       'Microservices',
-      'Full Stack',
-      'Full Stack Developer',
-      'Frontend',
-      'Backend',
-      'DevOps',
+      'Software Engineering',
       'ERP',
       'CRM',
       'Problem Solving',
       'Communication',
-      'Teamwork',
       'Customer Support',
-      'Leadership',
+      'System Architecture',
+      'UI/UX Design',
+      'Figma',
+      'Wireframing',
       'Agile',
       'Scrum',
     ];
 
-    const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
     commonSkills.forEach((skill) => {
-      try {
-        const escaped = escapeRegExp(skill);
-        const regex = new RegExp(`(?:\\b|\\s|^)${escaped}(?:\\b|\\s|$)`, 'i');
-        if (regex.test(rawText) || rawText.toLowerCase().includes(skill.toLowerCase())) {
-          skillSet.add(skill);
-        }
-      } catch (e) {
-        if (rawText.toLowerCase().includes(skill.toLowerCase())) {
-          skillSet.add(skill);
-        }
+      const escaped = skill.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+      if (regex.test(rawText)) {
+        skillSet.add(skill);
       }
     });
 
@@ -178,7 +201,7 @@ export class ResumeParserService {
 
   private extractExperienceYears(explicitExp?: string | null, rawText?: string): number {
     if (explicitExp) {
-      const match = explicitExp.match(/([\d.]+)/);
+      const match = String(explicitExp).match(/([\d.]+)/);
       if (match) {
         const val = parseFloat(match[1]);
         if (!isNaN(val)) return val;
@@ -196,17 +219,41 @@ export class ResumeParserService {
 
   private extractEducation(explicitQual?: string | null, rawText?: string): string[] {
     const list: string[] = [];
-    if (explicitQual) list.push(explicitQual);
+    if (explicitQual && explicitQual.trim()) {
+      list.push(explicitQual.trim());
+    }
 
-    const keywords = ['B.Tech', 'B.E.', 'M.Tech', 'MCA', 'BCA', 'B.Sc', 'MBA', 'Diploma', 'Doctorate', 'PhD', '12th', '10th'];
+    const keywords = [
+      'B.Tech',
+      'B.E.',
+      'BE',
+      'M.Tech',
+      'MCA',
+      'BCA',
+      'B.Sc',
+      'M.Sc',
+      'MBA',
+      'Diploma',
+      'Doctorate',
+      'PhD',
+      '12th',
+      '10th',
+      'Bachelor of Engineering',
+      'Bachelor of Technology',
+      'Undergraduate',
+      'Graduation',
+    ];
+
     if (rawText) {
       keywords.forEach((kw) => {
-        if (new RegExp(`\\b${kw.replace('.', '\\.')}\\b`, 'i').test(rawText) && !list.includes(kw)) {
+        const escaped = kw.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        if (new RegExp(`\\b${escaped}\\b`, 'i').test(rawText) && !list.includes(kw)) {
           list.push(kw);
         }
       });
     }
-    return list.length > 0 ? list : ['Graduate'];
+
+    return list;
   }
 
   private extractCompanies(text: string): string[] {
@@ -216,12 +263,30 @@ export class ResumeParserService {
   }
 
   private extractJobTitles(text: string): string[] {
-    const titles = ['Software Engineer', 'Senior Software Engineer', 'Tech Lead', 'Full Stack Developer', 'Frontend Developer', 'Backend Developer', 'DevOps Engineer', 'Product Manager', 'HR Manager'];
+    const titles = [
+      'Software Engineer',
+      'Senior Software Engineer',
+      'Tech Lead',
+      'Full Stack Developer',
+      'Frontend Developer',
+      'Backend Developer',
+      'DevOps Engineer',
+      'Product Manager',
+      'HR Manager',
+    ];
     return titles.filter((t) => new RegExp(`\\b${t}\\b`, 'i').test(text));
   }
 
   private extractCertifications(text: string): string[] {
-    const certs = ['AWS Certified', 'Azure Certified', 'PMP', 'Scrum Master', 'Google Cloud Certified', 'CISSP', 'CKA'];
+    const certs = [
+      'AWS Certified',
+      'Azure Certified',
+      'PMP',
+      'Scrum Master',
+      'Google Cloud Certified',
+      'CISSP',
+      'CKA',
+    ];
     return certs.filter((c) => new RegExp(`\\b${c}\\b`, 'i').test(text));
   }
 
