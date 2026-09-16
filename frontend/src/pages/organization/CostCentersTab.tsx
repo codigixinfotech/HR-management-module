@@ -252,7 +252,6 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   const [gradeName, setGradeName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('L1');
   const [gradeCategory, setGradeCategory] = useState('Professional');
-  const [gradeJobFamily, setGradeJobFamily] = useState('');
   const [gradeDepartmentId, setGradeDepartmentId] = useState('');
   const [gradeSalaryMode, setGradeSalaryMode] = useState<'monthly' | 'annual'>('monthly');
 
@@ -606,7 +605,6 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setGradeName('');
     setGradeLevel('L1');
     setGradeCategory('Worker');
-    setGradeJobFamily('Production');
     setGradeDepartmentId(departments?.[0]?.id ?? '');
     setGradeSalaryMode('monthly');
     setGradeMinSalary(20000);
@@ -633,7 +631,6 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setGradeName(item.gradeName);
     setGradeLevel(item.level);
     setGradeCategory(item.category ?? 'Professional');
-    setGradeJobFamily(item.jobFamily ?? '');
     setGradeDepartmentId(item.departmentId ?? '');
     setGradeSalaryMode('monthly');
 
@@ -698,7 +695,6 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
       gradeName,
       level:         finalLevel,
       category:      gradeCategory,
-      jobFamily:     gradeJobFamily || undefined,
       departmentId:  gradeDepartmentId && gradeDepartmentId !== '__none__' ? gradeDepartmentId : undefined,
       minSalary:     Number(gradeMinSalary),
       maxSalary:     Number(gradeMaxSalary),
@@ -1492,41 +1488,29 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Job Family</Label>
-                        <Input
-                          placeholder=""
-                          value={gradeJobFamily}
-                          onChange={e => setGradeJobFamily(e.target.value)}
-                          className="h-9 text-xs"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold flex items-center gap-1">
-                          Department Mapping
-                          {isBranchAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
-                        </Label>
-                        <Select value={gradeDepartmentId} onValueChange={setGradeDepartmentId}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder={isBranchAdmin ? 'Your branch departments' : 'Select Department'} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {!isBranchAdmin && (
-                              <SelectItem value="__none__" className="text-xs text-muted-foreground italic">None (Global)</SelectItem>
-                            )}
-                            {departments?.map((d: any) => (
-                              <SelectItem key={d.id} value={d.id} className="text-xs">
-                                {d.name}
-                              </SelectItem>
-                            ))}
-                            {isBranchAdmin && (!departments || departments.length === 0) && (
-                              <div className="text-xs text-muted-foreground p-2 text-center">No departments found for your branch</div>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold flex items-center gap-1">
+                        Department Mapping
+                        {isBranchAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
+                      </Label>
+                      <Select value={gradeDepartmentId} onValueChange={setGradeDepartmentId}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder={isBranchAdmin ? 'Your branch departments' : 'Select Department'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {!isBranchAdmin && (
+                            <SelectItem value="__none__" className="text-xs text-muted-foreground italic">None (Global)</SelectItem>
+                          )}
+                          {departments?.map((d: any) => (
+                            <SelectItem key={d.id} value={d.id} className="text-xs">
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                          {isBranchAdmin && (!departments || departments.length === 0) && (
+                            <div className="text-xs text-muted-foreground p-2 text-center">No departments found for your branch</div>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {/* Salary Configuration Block */}
@@ -1728,7 +1712,6 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                 <TableHead className="text-xs">Grade Name</TableHead>
                 <TableHead className="text-xs">Level</TableHead>
                 <TableHead className="text-xs">Category</TableHead>
-                <TableHead className="text-xs">Job Family</TableHead>
                 <TableHead className="text-xs">Branch</TableHead>
                 <TableHead className="text-xs">Mapped Dept</TableHead>
                 <TableHead className="text-xs">Salary CTC Range</TableHead>
@@ -1746,7 +1729,6 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                     <TableCell className="font-semibold text-xs text-foreground">{g.gradeName}</TableCell>
                     <TableCell className="text-xs font-semibold text-muted-foreground">{g.level}</TableCell>
                     <TableCell className="text-xs font-medium">{g.category ?? '—'}</TableCell>
-                    <TableCell className="text-xs font-semibold text-muted-foreground">{g.jobFamily ?? '—'}</TableCell>
                     <TableCell className="text-xs">
                       {g.branch?.name || branches?.find((b: any) => b.id === g.branchId)?.name ? (
                         <Badge variant="outline" className="text-[10px] font-medium border-primary/30 text-primary bg-primary/5 flex items-center gap-1 w-fit">
