@@ -10,7 +10,9 @@ import {
   Download,
   FileText,
   UserCheck,
+  Building2,
 } from 'lucide-react';
+import { useCompany } from '@/context/CompanyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +39,10 @@ export function DocumentVaultTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDocType, setSelectedDocType] = useState<string>('all');
 
+  // Company filter — defaults to the globally active company
+  const { activeCompanyId, companies } = useCompany();
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>(activeCompanyId);
+
   // Modal State
   const [isOpen, setIsOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
@@ -44,10 +50,10 @@ export function DocumentVaultTab() {
   const [formNumber, setFormNumber] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // Load database employees
+  // Load database employees filtered by selected company
   const { data: employeesData, isLoading } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+    queryKey: ['employees', 1, '', selectedCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId }),
   });
 
   const employees = employeesData?.items ?? [];
@@ -345,9 +351,38 @@ export function DocumentVaultTab() {
               <CardDescription className="text-xs">
                 Aadhaar, PAN, Passport, Education Degree Certificates & Verification Auditing Statuses
               </CardDescription>
+              {/* Active company badge */}
+              {companies.length > 0 && (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <Building2 className="h-3 w-3 text-primary" />
+                  <span className="text-[11px] font-semibold text-primary">
+                    {companies.find(c => c.id === selectedCompanyId)?.name ?? 'All Companies'}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Company Selector */}
+              {companies.length > 1 && (
+                <Select
+                  value={selectedCompanyId ?? ''}
+                  onValueChange={val => setSelectedCompanyId(val || undefined)}
+                >
+                  <SelectTrigger className="h-8 w-44 text-xs gap-1.5 bg-background">
+                    <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Select company..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map(c => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
               {/* Category Filter Pills */}
               <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
                 {[

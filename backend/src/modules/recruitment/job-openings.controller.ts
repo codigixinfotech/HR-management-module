@@ -153,6 +153,12 @@ export class JobOpeningsController {
     return this.jobOpeningsService.publishOpening(id);
   }
 
+  @Patch(':id/unpublish')
+  @Permissions('recruitment.write')
+  unpublishOpening(@Param('id') id: string) {
+    return this.jobOpeningsService.unpublishOpening(id);
+  }
+
   @Patch(':id')
   @Permissions('recruitment.write')
   update(@Param('id') id: string, @Body() dto: UpdateJobOpeningDto) {

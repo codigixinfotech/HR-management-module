@@ -143,6 +143,18 @@ export class JobOpeningsService {
     });
   }
 
+  async unpublishOpening(id: string) {
+    await this.findById(id);
+    return this.prisma.jobOpening.update({
+      where: { id },
+      data: {
+        status: 'DRAFT',
+        isActive: false,
+        publishedAt: null,
+      },
+    });
+  }
+
   async update(id: string, dto: UpdateJobOpeningDto) {
     await this.findById(id);
     return this.prisma.jobOpening.update({
@@ -296,67 +308,7 @@ export class JobOpeningsService {
       },
     });
 
-    const DEMO_BACKEND_JOBS: any[] = [
-      {
-        id: 'demo-job-1',
-        title: 'Senior Software Engineer',
-        requisitionCode: 'JR-2026-001',
-        numPositions: 5,
-        workLocation: 'Pune Head Office',
-        employmentType: 'FULL_TIME',
-        status: 'PUBLISHED',
-        isActive: true,
-        candidateType: 'BOTH',
-        minExperience: 2,
-        maxExperience: 5,
-        minSalary: 1200000,
-        maxSalary: 1800000,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        department: { id: 'd1', name: 'Information Technology' },
-        company: { id: 'c1', name: 'StockPulse Inc.', code: 'SP' },
-      },
-      {
-        id: 'demo-job-2',
-        title: 'Junior Software Engineer',
-        requisitionCode: 'JR-2026-002',
-        numPositions: 3,
-        workLocation: 'Pune Head Office',
-        employmentType: 'FULL_TIME',
-        status: 'PUBLISHED',
-        isActive: true,
-        candidateType: 'FRESHER',
-        minExperience: 0,
-        maxExperience: 2,
-        minSalary: 600000,
-        maxSalary: 900000,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        department: { id: 'd1', name: 'Information Technology' },
-        company: { id: 'c1', name: 'StockPulse Inc.', code: 'SP' },
-      },
-      {
-        id: 'demo-job-3',
-        title: 'Lead Product Manager',
-        requisitionCode: 'JR-2026-003',
-        numPositions: 2,
-        workLocation: 'Remote / Pune',
-        employmentType: 'FULL_TIME',
-        status: 'PUBLISHED',
-        isActive: true,
-        candidateType: 'EXPERIENCED',
-        minExperience: 5,
-        maxExperience: 8,
-        minSalary: 2000000,
-        maxSalary: 2800000,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        department: { id: 'd2', name: 'Product Management' },
-        company: { id: 'c1', name: 'StockPulse Inc.', code: 'SP' },
-      },
-    ];
-
-    const sourceJobs = allPublishedJobs.length > 0 ? allPublishedJobs : DEMO_BACKEND_JOBS;
+    const sourceJobs = allPublishedJobs;
 
     let filtered = sourceJobs.filter((job) => {
       const title = job.title || '';

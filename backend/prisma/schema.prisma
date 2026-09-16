@@ -356,6 +356,7 @@ model Branch {
   users       User[]
   locations   Location[]
   costCenters CostCenter[]
+  payGrades   PayGrade[]
   travelBookings TravelBooking[]
   assets Asset[]
   manpowerPlans ManpowerPlan[]
@@ -500,6 +501,7 @@ model CostCenter {
 model PayGrade {
   id            String   @id @default(cuid())
   companyId     String
+  branchId      String?
   businessUnit  String?
   gradeCode     String   @unique
   gradeName     String
@@ -517,9 +519,11 @@ model PayGrade {
   updatedAt     DateTime @updatedAt
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch     Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
+  @@index([branchId])
   @@index([departmentId])
   @@map("pay_grades")
 }

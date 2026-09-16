@@ -7,6 +7,10 @@ export class CreatePayGradeDto {
 
   @IsOptional()
   @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
   businessUnit?: string;
 
   @IsString()

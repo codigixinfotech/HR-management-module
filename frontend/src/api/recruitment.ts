@@ -36,6 +36,8 @@ export const jobOpeningsApi = {
     (await apiClient.post<JobOpening>('/recruitment/job-openings', payload)).data,
   publish: async (id: string) =>
     (await apiClient.patch<JobOpening>(`/recruitment/job-openings/${id}/publish`)).data,
+  unpublish: async (id: string) =>
+    (await apiClient.patch<JobOpening>(`/recruitment/job-openings/${id}/unpublish`)).data,
   update: async (id: string, payload: Partial<JobOpening>) =>
     (await apiClient.patch<JobOpening>(`/recruitment/job-openings/${id}`, payload)).data,
   remove: async (id: string) => (await apiClient.delete(`/recruitment/job-openings/${id}`)).data,

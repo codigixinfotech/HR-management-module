@@ -15,6 +15,8 @@ import {
   Award,
   Building2,
   Calendar,
+  Lock,
+  GitFork,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,8 +29,8 @@ import { Badge } from '@/components/ui/badge';
 import { companiesApi, branchesApi, departmentsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
 import { costCentersApi, payGradesApi, type CostCenter, type PayGrade } from '@/api/cost-grades';
-
-
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser } from '@/lib/modules';
 
 import { useCompany } from '@/context/CompanyContext';
 
@@ -39,6 +41,15 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   const [searchCcQuery, setSearchCcQuery] = useState('');
   const [searchGradeQuery, setSearchGradeQuery] = useState('');
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
+
+  // ── User scope detection ──
+  const authUser = useAuthStore((s) => s.user);
+  const isSuperAdmin = isSuperAdminUser(authUser);
+  // A Branch Admin is anyone with a branchId that is not a super admin
+  const isBranchAdmin = !isSuperAdmin && Boolean(authUser?.branchId || authUser?.employee?.branchId);
+  const userBranchId = authUser?.branchId || authUser?.employee?.branchId || undefined;
+  const userCompanyId = authUser?.companyId || undefined;
+  const userCompanyName = authUser?.companyName || undefined;
 
   // ── Real API queries ──
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
@@ -55,9 +66,18 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     queryKey: ['branches-all'],
     queryFn: () => branchesApi.list(),
   });
+
+  const userBranchName =
+    authUser?.branchName ||
+    authUser?.employee?.branchName ||
+    allBranches?.find((b: any) => b.id === userBranchId)?.name ||
+    branches?.find((b: any) => b.id === userBranchId)?.name ||
+    'Branch';
+
+  // ── Departments — scoped by branch for Branch Admins ──
   const { data: departments } = useQuery({
-    queryKey: ['departments', companyIdForLists],
-    queryFn: () => departmentsApi.list(companyIdForLists),
+    queryKey: ['departments', companyIdForLists, userBranchId],
+    queryFn: () => departmentsApi.list(companyIdForLists, isBranchAdmin ? userBranchId : undefined),
     enabled: !!companyIdForLists,
   });
 
@@ -409,7 +429,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setCcName('');
     setCcType('Department');
     setCcDeptId(departments?.[0]?.id ?? '');
-    setCcBranchId('');
+    setCcBranchId(isBranchAdmin && userBranchId ? userBranchId : '');
     setCcManagerId('');
     setCcManagerName('');
     setCcBudgetValue(25);
@@ -471,8 +491,12 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     };
 
     if (!editingCc?.id) {
-      payloadData.companyId = ccCompanyId || companyIdForLists;
+      payloadData.companyId = isBranchAdmin ? (userCompanyId || ccCompanyId || companyIdForLists) : (ccCompanyId || companyIdForLists);
       payloadData.code = ccCode || generateUniqueCcCode();
+      // Branch Admin: always include their branch in the cost center
+      if (isBranchAdmin && userBranchId) {
+        payloadData.branchId = userBranchId;
+      }
     }
 
     ccUpsertMutation.mutate({
@@ -586,7 +610,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
       level:         finalLevel,
       category:      gradeCategory,
       jobFamily:     gradeJobFamily || undefined,
-      departmentId:  gradeDepartmentId || undefined,
+      departmentId:  gradeDepartmentId && gradeDepartmentId !== '__none__' ? gradeDepartmentId : undefined,
       minSalary:     Number(gradeMinSalary),
       maxSalary:     Number(gradeMaxSalary),
       currency:      gradeCurrency,
@@ -596,8 +620,12 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     };
 
     if (!editingGrade?.id) {
-      payloadData.companyId = gradeCompanyId;
+      // Branch Admin: always use their own company + branch (backend enforces too)
+      payloadData.companyId = isBranchAdmin ? (userCompanyId || gradeCompanyId) : gradeCompanyId;
       payloadData.gradeCode = gradeCode;
+      if (isBranchAdmin && userBranchId) {
+        payloadData.branchId = userBranchId;
+      }
     }
 
     gradeUpsertMutation.mutate({
@@ -761,23 +789,42 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                   <form className="space-y-4 text-xs" onSubmit={handleSaveCc}>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Organization Entity *</Label>
-                        <Select value={ccCompanyId} onValueChange={(val) => {
-                          setCcCompanyId(val);
-                          setCcBranchId('');
-                        }}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select organization" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {companies?.map((c: any) => (
-                              <SelectItem key={c.id} value={c.id} className="text-xs">
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-[11px] font-semibold flex items-center gap-1">
+                          {isBranchAdmin ? 'Organization & Branch *' : 'Organization Entity *'}
+                          {isBranchAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
+                        </Label>
+                        {isBranchAdmin ? (
+                          <div className="min-h-9 px-3 py-1.5 rounded-md border border-dashed border-border bg-muted/30 text-xs font-medium text-foreground flex items-center justify-between gap-2">
+                            <div className="flex flex-col min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <span className="font-semibold text-foreground truncate">{userBranchName}</span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground truncate pl-5">
+                                {userCompanyName || companies?.find((c: any) => c.id === userCompanyId)?.name || 'Your Company'}
+                              </span>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] text-primary border-primary/30 shrink-0">Branch Locked</Badge>
+                          </div>
+                        ) : (
+                          <Select value={ccCompanyId} onValueChange={(val) => {
+                            setCcCompanyId(val);
+                            setCcBranchId('');
+                          }}>
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Select organization" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {companies?.map((c: any) => (
+                                <SelectItem key={c.id} value={c.id} className="text-xs">
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
+
 
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold">Cost Center Code (Auto Generated) *</Label>
@@ -821,14 +868,23 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
 
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold flex items-center justify-between">
-                          <span>
+                          <span className="flex items-center gap-1">
                             Branch / Location
-                            {filteredBranchesForCc.length > 0 && (
+                            {isBranchAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
+                            {!isBranchAdmin && filteredBranchesForCc.length > 0 && (
                               <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
                             )}
                           </span>
                         </Label>
-                        {filteredBranchesForCc.length === 0 ? (
+                        {isBranchAdmin ? (
+                          <div className="h-9 px-3 py-2 rounded-md border border-dashed border-border bg-muted/30 text-xs font-medium text-foreground flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <GitFork className="w-3.5 h-3.5 text-primary shrink-0" />
+                              <span className="font-semibold">{userBranchName}</span>
+                            </span>
+                            <Badge variant="outline" className="text-[10px] text-primary border-primary/30">Locked</Badge>
+                          </div>
+                        ) : filteredBranchesForCc.length === 0 ? (
                           <div className="h-9 px-3 py-2 rounded-md border text-xs bg-muted/20 text-foreground flex items-center justify-between border-dashed">
                             <span className="flex items-center gap-1.5 font-medium text-foreground">
                               <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Head Office / No Branch
@@ -1137,26 +1193,45 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                   <form className="space-y-4 text-xs" onSubmit={handleSaveGrade}>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Organization Entity *</Label>
-                        <Select value={gradeCompanyId} onValueChange={(val) => {
-                          setGradeCompanyId(val);
-                          const comp = companies?.find(c => c.id === val);
-                          if (comp) {
-                            setGradeBusinessUnit(comp.businessUnit ?? '');
-                            setGradeCurrency(comp.currency ?? 'INR');
-                          }
-                        }}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select organization" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {companies?.map((c: any) => (
-                              <SelectItem key={c.id} value={c.id} className="text-xs">
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-[11px] font-semibold flex items-center gap-1">
+                          {isBranchAdmin ? 'Organization & Branch *' : 'Organization Entity *'}
+                          {isBranchAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
+                        </Label>
+                        {isBranchAdmin ? (
+                          // Branch Admin: read-only branch & company display
+                          <div className="min-h-9 px-3 py-1.5 rounded-md border border-dashed border-border bg-muted/30 text-xs font-medium text-foreground flex items-center justify-between gap-2">
+                            <div className="flex flex-col min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <span className="font-semibold text-foreground truncate">{userBranchName}</span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground truncate pl-5">
+                                {userCompanyName || companies?.find((c: any) => c.id === userCompanyId)?.name || 'Your Company'}
+                              </span>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] text-primary border-primary/30 shrink-0">Branch Locked</Badge>
+                          </div>
+                        ) : (
+                          <Select value={gradeCompanyId} onValueChange={(val) => {
+                            setGradeCompanyId(val);
+                            const comp = companies?.find(c => c.id === val);
+                            if (comp) {
+                              setGradeBusinessUnit(comp.businessUnit ?? '');
+                              setGradeCurrency(comp.currency ?? 'INR');
+                            }
+                          }}>
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Select organization" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {companies?.map((c: any) => (
+                                <SelectItem key={c.id} value={c.id} className="text-xs">
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
 
                       <div className="space-y-1">
@@ -1239,18 +1314,26 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       </div>
 
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Department Mapping</Label>
+                        <Label className="text-[11px] font-semibold flex items-center gap-1">
+                          Department Mapping
+                          {isBranchAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
+                        </Label>
                         <Select value={gradeDepartmentId} onValueChange={setGradeDepartmentId}>
                           <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select Department" />
+                            <SelectValue placeholder={isBranchAdmin ? 'Your branch departments' : 'Select Department'} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__" className="text-xs text-muted-foreground italic">None (Global)</SelectItem>
+                            {!isBranchAdmin && (
+                              <SelectItem value="__none__" className="text-xs text-muted-foreground italic">None (Global)</SelectItem>
+                            )}
                             {departments?.map((d: any) => (
                               <SelectItem key={d.id} value={d.id} className="text-xs">
                                 {d.name}
                               </SelectItem>
                             ))}
+                            {isBranchAdmin && (!departments || departments.length === 0) && (
+                              <div className="text-xs text-muted-foreground p-2 text-center">No departments found for your branch</div>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

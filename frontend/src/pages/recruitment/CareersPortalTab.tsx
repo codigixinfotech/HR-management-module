@@ -7,6 +7,7 @@ import {
   Trash2,
   Copy,
   Eye,
+  EyeOff,
   Settings,
   Image,
   ExternalLink,
@@ -166,19 +167,55 @@ export function CareersPortalTab() {
     queryFn: () => jobOpeningsApi.list(activeCompanyId),
   });
 
-  // Toggle Visibility Status Mutation
+  // Toggle Visibility Status Mutation (Publish / Unpublish)
   const toggleVisibilityMutation = useMutation({
     mutationFn: ({ id, isPublished }: { id: string; isPublished: boolean }) =>
-      jobOpeningsApi.update(id, {
-        isActive: !isPublished,
-        status: !isPublished ? 'PUBLISHED' : 'DRAFT',
-      }),
+      isPublished ? jobOpeningsApi.unpublish(id) : jobOpeningsApi.publish(id),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings-paginated'] });
+      toast.success(
+        vars.isPublished
+          ? 'Job requisition unpublished. It is no longer visible on the public careers portal.'
+          : 'Job requisition published! It is now live on the public careers portal.'
+      );
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to update visibility status'),
+  });
+
+  // Delete Job Opening Mutation
+  const deleteJobMutation = useMutation({
+    mutationFn: (id: string) => jobOpeningsApi.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['job-openings'] });
-      toast.success('Job visibility status updated in database.');
+      queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings-paginated'] });
+      toast.success('Job requisition deleted successfully.');
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to update visibility'),
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to delete job requisition'),
   });
+
+  const handleDeleteJob = (job: JobOpening) => {
+    const code = job.requisitionCode || job.title;
+    if (
+      window.confirm(
+        `Are you sure you want to permanently delete job "${code}"?\n\nThis will remove it from both the internal portal and public careers site.`
+      )
+    ) {
+      deleteJobMutation.mutate(job.id);
+    }
+  };
+
+  const handleSyncJobs = () => {
+    queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+    queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
+    queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
+    queryClient.invalidateQueries({ queryKey: ['public-job-openings-paginated'] });
+    toast.success('Job portal synchronized with public site and database!');
+  };
 
   const openApplyModal = (job: JobOpening) => {
     setSelectedJob(job);
@@ -230,8 +267,8 @@ export function CareersPortalTab() {
     enabled: !!viewingJob?.id && isViewCandidatesOpen,
   });
 
-  // Published jobs for public site preview
-  const displayOpenings = openings.length > 0 ? openings : DEMO_JOB_OPENINGS;
+  // Real database job openings (no fallback to fake demo data)
+  const displayOpenings = openings;
   const livePublishedJobs = displayOpenings.filter((o) => o.status === 'PUBLISHED' || o.isActive);
 
   return (
@@ -282,7 +319,7 @@ export function CareersPortalTab() {
                 Synchronize, publish or unpublish open ATS requisitions directly to public search engines
               </CardDescription>
             </div>
-            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => toast.success('Jobs synced with search engines!')}>
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={handleSyncJobs}>
               <TrendingUp className="h-3.5 w-3.5" /> Sync Jobs
             </Button>
           </div>
@@ -308,7 +345,19 @@ export function CareersPortalTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(() => {
+                {displayOpenings.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Briefcase className="h-8 w-8 text-muted-foreground/40" />
+                        <p className="text-sm font-semibold text-foreground">No Job Requisitions Found</p>
+                        <p className="text-xs text-muted-foreground max-w-sm">
+                          There are currently no job openings in the database. Approved job requisitions will appear here to publish to the public careers portal.
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (() => {
                   const totalCount = displayOpenings.length;
                   const totalPages = Math.max(1, Math.ceil(totalCount / portalPageSize));
                   const clampedPage = Math.min(Math.max(1, portalPage), totalPages);
@@ -341,15 +390,24 @@ export function CareersPortalTab() {
                           </Button>
                         </TableCell>
                         <TableCell className="text-xs">
-                          <Badge
-                            className={
-                              isPublished
-                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                                : 'bg-muted text-muted-foreground'
-                            }
+                          <button
+                            type="button"
+                            onClick={() => toggleVisibilityMutation.mutate({ id: j.id, isPublished })}
+                            disabled={toggleVisibilityMutation.isPending}
+                            className="cursor-pointer transition-transform active:scale-95 text-left"
+                            title={isPublished ? 'Click to unpublish from public careers site' : 'Click to publish to public careers site'}
                           >
-                            {isPublished ? 'Published' : 'Draft / Unpublished'}
-                          </Badge>
+                            <Badge
+                              className={
+                                isPublished
+                                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20 gap-1.5'
+                                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/20 gap-1.5'
+                              }
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${isPublished ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                              {isPublished ? 'Published' : 'Draft / Unpublished'}
+                            </Badge>
+                          </button>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1.5">
@@ -358,8 +416,31 @@ export function CareersPortalTab() {
                               variant="outline"
                               className="h-7 text-[10.5px] px-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold gap-1"
                               onClick={() => openViewCandidatesModal(j)}
+                              title="View candidates who applied"
                             >
                               <Users className="h-3 w-3" /> View Candidates
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={isPublished ? 'outline' : 'default'}
+                              className={`h-7 text-[10.5px] px-2 font-semibold gap-1 ${
+                                isPublished
+                                  ? 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                                  : 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                              }`}
+                              onClick={() => toggleVisibilityMutation.mutate({ id: j.id, isPublished })}
+                              disabled={toggleVisibilityMutation.isPending}
+                              title={isPublished ? 'Unpublish from public careers site' : 'Publish to public careers site'}
+                            >
+                              {isPublished ? (
+                                <>
+                                  <EyeOff className="h-3 w-3" /> Unpublish
+                                </>
+                              ) : (
+                                <>
+                                  <Globe className="h-3 w-3" /> Publish
+                                </>
+                              )}
                             </Button>
                             <Button
                               variant="ghost"
@@ -369,6 +450,16 @@ export function CareersPortalTab() {
                               title="Copy Job URL"
                             >
                               <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                              onClick={() => handleDeleteJob(j)}
+                              disabled={deleteJobMutation.isPending}
+                              title="Permanently delete this job requisition"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>

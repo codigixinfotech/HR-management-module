@@ -6,11 +6,23 @@ import { CreatePayGradeDto, UpdatePayGradeDto } from './dto/pay-grade.dto';
 export class PayGradesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(companyId?: string) {
+  async list(companyId?: string, branchId?: string) {
+    const where: any = {};
+
+    if (companyId) {
+      where.companyId = companyId;
+    }
+
+    if (branchId && branchId !== 'NO_BRANCH_ASSIGNED') {
+      // Branch-scoped users see only their branch grades (plus grades with no branch assignment)
+      where.OR = [{ branchId }, { branchId: null }];
+    }
+
     return this.prisma.payGrade.findMany({
-      where: companyId ? { companyId } : undefined,
+      where: Object.keys(where).length > 0 ? where : undefined,
       include: {
         department: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
       },
       orderBy: { level: 'asc' },
     });
@@ -21,10 +33,36 @@ export class PayGradesService {
       where: { id },
       include: {
         department: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
       },
     });
     if (!grade) throw new NotFoundException(`Pay Grade ${id} not found`);
     return grade;
+  }
+
+  /**
+   * Validates that a department belongs to the specified company and branch.
+   * Used to prevent cross-branch department injection on create/update.
+   */
+  async isDepartmentInScope(
+    departmentId: string,
+    companyId: string,
+    branchId?: string | null,
+  ): Promise<boolean> {
+    const dept = await this.prisma.department.findUnique({
+      where: { id: departmentId },
+      select: { id: true, companyId: true, branchId: true },
+    });
+
+    if (!dept) return false;
+    if (dept.companyId !== companyId) return false;
+
+    // If the user has a specific branch, the department must belong to that branch
+    if (branchId) {
+      return dept.branchId === branchId;
+    }
+
+    return true;
   }
 
   async create(dto: CreatePayGradeDto) {
@@ -38,6 +76,7 @@ export class PayGradesService {
     return this.prisma.payGrade.create({
       data: {
         companyId:     dto.companyId,
+        branchId:      dto.branchId || null,
         businessUnit:  dto.businessUnit || null,
         gradeCode:     dto.gradeCode,
         gradeName:     dto.gradeName,
@@ -51,6 +90,10 @@ export class PayGradesService {
         effectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : new Date(),
         description:   dto.description || null,
         isActive:      dto.isActive ?? true,
+      },
+      include: {
+        department: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
       },
     });
   }
@@ -72,6 +115,10 @@ export class PayGradesService {
         ...(dto.effectiveFrom !== undefined && { effectiveFrom: new Date(dto.effectiveFrom) }),
         ...(dto.description   !== undefined && { description: dto.description || null }),
         ...(dto.isActive      !== undefined && { isActive: dto.isActive }),
+      },
+      include: {
+        department: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
       },
     });
   }

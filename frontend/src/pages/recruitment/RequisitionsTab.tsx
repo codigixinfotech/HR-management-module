@@ -20,6 +20,8 @@ import {
   DollarSign,
   UserCheck,
   Eye,
+  EyeOff,
+  Trash2,
 } from 'lucide-react';
 import { formatSalaryInLakhs, formatSalaryRangeInLakhs } from '@/lib/utils';
 import { jobOpeningsApi, manpowerRequisitionsApi } from '@/api/recruitment';
@@ -443,6 +445,43 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
   const handleConfirmPublish = () => {
     if (!publishingJob) return;
     publishOpeningMutation.mutate(publishingJob.id);
+  };
+
+  // Unpublish Job Opening Mutation
+  const unpublishOpeningMutation = useMutation({
+    mutationFn: (id: string) => jobOpeningsApi.unpublish(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings-paginated'] });
+      toast.success('Job requisition unpublished from public site.');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to unpublish job opening'),
+  });
+
+  // Delete Job Opening Mutation
+  const deleteJobOpeningMutation = useMutation({
+    mutationFn: (id: string) => jobOpeningsApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['job-openings-all'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings'] });
+      queryClient.invalidateQueries({ queryKey: ['public-job-openings-paginated'] });
+      toast.success('Job requisition deleted successfully.');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to delete job requisition'),
+  });
+
+  const handleDeleteJobOpening = (opening: any) => {
+    const code = opening.requisitionCode || opening.title;
+    if (
+      window.confirm(
+        `Are you sure you want to permanently delete job "${code}"?\n\nThis will remove it from both the internal portal and public careers site.`
+      )
+    ) {
+      deleteJobOpeningMutation.mutate(opening.id);
+    }
   };
 
   // Handle Approve MR with Clean Confirmation Prompt
@@ -2246,6 +2285,16 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                                     <Globe className="h-3 w-3" /> View Career Page
                                   </Button>
                                 </a>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-semibold gap-1"
+                                  onClick={() => unpublishOpeningMutation.mutate(opening.id)}
+                                  disabled={unpublishOpeningMutation.isPending}
+                                  title="Unpublish from public careers site"
+                                >
+                                  <EyeOff className="h-3 w-3" /> Unpublish
+                                </Button>
                                 <Link to={`/recruitment/candidates?jobOpeningId=${opening.id}`}>
                                   <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-semibold gap-1">
                                     View Candidates <ArrowUpRight className="h-3 w-3" />
@@ -2253,6 +2302,16 @@ export function RequisitionsTab({ isStandaloneOpen, onStandaloneClose }: Requisi
                                 </Link>
                               </div>
                             )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                              onClick={() => handleDeleteJobOpening(opening)}
+                              disabled={deleteJobOpeningMutation.isPending}
+                              title="Permanently delete job opening"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
