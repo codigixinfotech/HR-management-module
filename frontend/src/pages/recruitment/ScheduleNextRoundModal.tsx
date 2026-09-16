@@ -30,6 +30,9 @@ import { Badge } from '@/components/ui/badge';
 import { employeesApi } from '@/api/employees';
 import { interviewsApi } from '@/api/interviews';
 import type { CandidateInterview, Employee } from '@/api/types';
+import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isBranchAdminUser, isCompanyAdminUser } from '@/lib/modules';
 
 interface ScheduleNextRoundModalProps {
   isOpen: boolean;
@@ -50,6 +53,28 @@ export function ScheduleNextRoundModal({
   onSuccess,
 }: ScheduleNextRoundModalProps) {
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = useMemo(() => isSuperAdminUser(user), [user]);
+  const isBranchAdmin = useMemo(() => isBranchAdminUser(user), [user]);
+  const isCompanyAdmin = useMemo(() => isCompanyAdminUser(user), [user]);
+
+  const userCompanyId = user?.companyId || (user?.employee as any)?.companyId || '';
+  const userBranchId = user?.branchId || user?.employee?.branchId || '';
+
+  const scopedCompanyId = useMemo(() => {
+    if (isBranchAdmin || isCompanyAdmin) {
+      return userCompanyId;
+    }
+    return activeCompanyId || (previousInterview as any)?.candidate?.jobOpening?.companyId || userCompanyId || '';
+  }, [isBranchAdmin, isCompanyAdmin, userCompanyId, activeCompanyId, previousInterview]);
+
+  const scopedBranchId = useMemo(() => {
+    if (isBranchAdmin) {
+      return userBranchId;
+    }
+    return '';
+  }, [isBranchAdmin, userBranchId]);
 
   // Form states
   const [interviewRound, setInterviewRound] = useState<string>('Round 2');
@@ -66,51 +91,67 @@ export function ScheduleNextRoundModal({
   const [selectedPanel, setSelectedPanel] = useState<PanelSelectionItem[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState<string>('');
 
-  // Fetch Master Employee List for Panel Selection
+  // Fetch Master Employee List for Panel Selection with strict company & branch scoping
   const { data: employeesData } = useQuery({
-    queryKey: ['employees-panel-roster'],
-    queryFn: () => employeesApi.list({ pageSize: 100 }),
+    queryKey: ['employees-panel-roster', scopedCompanyId, scopedBranchId],
+    queryFn: () =>
+      employeesApi.list({
+        pageSize: 500,
+        companyId: scopedCompanyId || undefined,
+        branchId: scopedBranchId || undefined,
+      }),
   });
 
   const employeesList = useMemo(() => {
-    let list: any[] = [];
+    let list: Employee[] = [];
     if (Array.isArray(employeesData)) list = employeesData;
     else if (employeesData && Array.isArray((employeesData as any).items)) list = (employeesData as any).items;
     else if (employeesData && Array.isArray((employeesData as any).data)) list = (employeesData as any).data;
 
-    // Fallback roster if DB is empty or loading
-    if (list.length === 0) {
-      return [
-        { id: 'emp-priya', firstName: 'Priya', lastName: 'Nair', employeeCode: 'EMP-101', department: { name: 'Human Resources' }, designation: { title: 'HR Interviewer' } },
-        { id: 'emp-liam', firstName: 'Liam', lastName: 'Bose', employeeCode: 'EMP-102', department: { name: 'Human Resources' }, designation: { title: 'Panel Member' } },
-        { id: 'emp-sanika', firstName: 'Sanika', lastName: 'Mote', employeeCode: 'EMP-103', department: { name: 'Human Resources' }, designation: { title: 'Technical Interviewer' } },
-        { id: 'emp-rajesh', firstName: 'Rajesh', lastName: 'Sharma', employeeCode: 'EMP-8265', department: { name: 'Engineering' }, designation: { title: 'Chief Technology Officer' } },
-      ];
-    }
-    return list;
-  }, [employeesData]);
+    return list.filter((e) => {
+      if (e.status && (e.status === 'TERMINATED' || e.status === 'INACTIVE')) return false;
 
-  // Pre-fill panel from previous interview if available
+      // Filter by company
+      if (scopedCompanyId && e.companyId && e.companyId !== scopedCompanyId) {
+        return false;
+      }
+
+      // Filter by branch for Branch Admin
+      if (isBranchAdmin && scopedBranchId) {
+        const empBranchId = e.branchId || (e as any).branch?.id;
+        if (empBranchId !== scopedBranchId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [employeesData, scopedCompanyId, scopedBranchId, isBranchAdmin]);
+
+  // Prune any panel members that do not belong to the current filtered branch roster
+  useEffect(() => {
+    if (selectedPanel.length > 0 && employeesList.length > 0) {
+      setSelectedPanel((prev) =>
+        prev.filter((p) => employeesList.some((e) => e.id === p.employee.id)),
+      );
+    }
+  }, [employeesList]);
+
+  // Pre-fill panel from previous interview if available and matching branch
   useEffect(() => {
     if (isOpen && previousInterview) {
       const prefilled: PanelSelectionItem[] = [];
 
       if (previousInterview.panelMembers && previousInterview.panelMembers.length > 0) {
-        previousInterview.panelMembers.forEach((pm, idx) => {
+        previousInterview.panelMembers.forEach((pm) => {
           let found = employeesList.find((e) => e.id === pm.interviewerId);
           if (!found && pm.interviewerName) {
             found = employeesList.find(
               (e) => `${e.firstName} ${e.lastName}`.toLowerCase() === pm.interviewerName.toLowerCase(),
             );
           }
-          if (!found && employeesList.length > idx) {
-            found = employeesList[idx];
-          }
-          if (!found && employeesList.length > 0) {
-            found = employeesList[0];
-          }
 
-          if (found) {
+          if (found && !prefilled.some((item) => item.employee.id === found!.id)) {
             prefilled.push({
               employee: found,
               role: pm.panelRole || 'Panel Member',
@@ -120,10 +161,10 @@ export function ScheduleNextRoundModal({
       }
 
       if (prefilled.length === 0 && employeesList.length > 0) {
-        employeesList.slice(0, 3).forEach((emp, idx) => {
+        employeesList.slice(0, 2).forEach((emp, idx) => {
           prefilled.push({
             employee: emp,
-            role: idx === 0 ? 'Technical Interviewer' : idx === 1 ? 'HR Interviewer' : 'Panel Member',
+            role: idx === 0 ? 'Technical Interviewer' : 'HR Interviewer',
           });
         });
       }
@@ -426,11 +467,17 @@ export function ScheduleNextRoundModal({
                   <SelectValue placeholder="Select employee to add to interview panel..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-56">
-                  {filteredEmployees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                      {emp.firstName} {emp.lastName} ({emp.designation?.title || 'Employee'}) — {emp.department?.name || 'HR'}
-                    </SelectItem>
-                  ))}
+                  {filteredEmployees.length === 0 ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">
+                      No employees available in this branch roster
+                    </div>
+                  ) : (
+                    filteredEmployees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                        {emp.firstName} {emp.lastName} ({emp.designation?.title || 'Employee'}) — {emp.department?.name || 'HR'}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

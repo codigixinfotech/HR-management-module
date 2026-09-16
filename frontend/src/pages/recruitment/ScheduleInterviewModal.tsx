@@ -46,6 +46,8 @@ interface PanelSelectionItem {
 }
 
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isBranchAdminUser, isCompanyAdminUser } from '@/lib/modules';
 
 export function ScheduleInterviewModal({
   isOpen,
@@ -56,6 +58,31 @@ export function ScheduleInterviewModal({
 }: ScheduleInterviewModalProps) {
   const queryClient = useQueryClient();
   const { activeCompanyId } = useCompany();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = useMemo(() => isSuperAdminUser(user), [user]);
+  const isBranchAdmin = useMemo(() => isBranchAdminUser(user), [user]);
+  const isCompanyAdmin = useMemo(() => isCompanyAdminUser(user), [user]);
+
+  const userCompanyId = user?.companyId || (user?.employee as any)?.companyId || '';
+  const userBranchId = user?.branchId || user?.employee?.branchId || '';
+
+  // Determine effective tenant scope:
+  // Branch Admin: strictly user's company and user's branch
+  // Company Admin: strictly user's company, all branches
+  // Super Admin: activeCompanyId (or candidate's job company, or user's company)
+  const scopedCompanyId = useMemo(() => {
+    if (isBranchAdmin || isCompanyAdmin) {
+      return userCompanyId;
+    }
+    return activeCompanyId || initialCandidate?.jobOpening?.companyId || userCompanyId || '';
+  }, [isBranchAdmin, isCompanyAdmin, userCompanyId, activeCompanyId, initialCandidate]);
+
+  const scopedBranchId = useMemo(() => {
+    if (isBranchAdmin) {
+      return userBranchId;
+    }
+    return '';
+  }, [isBranchAdmin, userBranchId]);
 
   // Recruitment config → drives interview mode & default offline venue values
   const {
@@ -185,15 +212,41 @@ export function ScheduleInterviewModal({
     return list;
   }, [jobOpenings]);
 
-  // Fetch Master Employee List for Panel Selection
+  // Fetch Master Employee List for Panel Selection with strict company & branch scoping
   const { data: employeesData } = useQuery({
-    queryKey: ['employees-panel-roster'],
-    queryFn: () => employeesApi.list({ pageSize: 100 }),
+    queryKey: ['employees-panel-roster', scopedCompanyId, scopedBranchId],
+    queryFn: () =>
+      employeesApi.list({
+        pageSize: 500,
+        companyId: scopedCompanyId || undefined,
+        branchId: scopedBranchId || undefined,
+      }),
   });
 
   const employeesList = useMemo(() => {
-    return employeesData?.items || [];
-  }, [employeesData]);
+    const rawItems: Employee[] =
+      employeesData?.items || (Array.isArray(employeesData) ? (employeesData as any) : []);
+
+    return rawItems.filter((e) => {
+      // Exclude inactive / terminated
+      if (e.status && (e.status === 'TERMINATED' || e.status === 'INACTIVE')) return false;
+
+      // Filter by company
+      if (scopedCompanyId && e.companyId && e.companyId !== scopedCompanyId) {
+        return false;
+      }
+
+      // Strict Branch Isolation for Branch Admin
+      if (isBranchAdmin && scopedBranchId) {
+        const empBranchId = e.branchId || (e as any).branch?.id;
+        if (empBranchId !== scopedBranchId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [employeesData, scopedCompanyId, scopedBranchId, isBranchAdmin]);
 
   // Filtered employees for dropdown search
   const filteredEmployees = useMemo(() => {
@@ -245,60 +298,63 @@ export function ScheduleInterviewModal({
     }
   }, [initialCandidate, initialCandidateId, availableCandidates]);
 
-  // Set default panel members (Rajesh Sharma CTO & Priya Mehta HR Manager) if available
+  // Prune any panel members that do not belong to the current filtered branch roster
   useEffect(() => {
-    if (selectedPanel.length === 0) {
-      if (employeesList.length > 0) {
-        const defaults: PanelSelectionItem[] = [];
-        const rajesh = employeesList.find(
-          (e) => e.firstName.toLowerCase().includes('rajesh') || e.employeeCode === 'EMP-8265',
-        );
-        const priya = employeesList.find(
-          (e) => e.firstName.toLowerCase().includes('priya') || e.firstName.toLowerCase().includes('aishwarya'),
-        );
-
-        if (rajesh) {
-          defaults.push({ employee: rajesh, role: 'Technical Interviewer' });
-        }
-        if (priya && priya.id !== rajesh?.id) {
-          defaults.push({ employee: priya, role: 'Hiring Manager' });
-        } else if (employeesList.length > 1 && !rajesh) {
-          defaults.push({ employee: employeesList[0], role: 'Technical Interviewer' });
-          defaults.push({ employee: employeesList[1], role: 'Hiring Manager' });
-        } else if (employeesList.length > 0 && defaults.length === 0) {
-          defaults.push({ employee: employeesList[0], role: 'Technical Interviewer' });
-        }
-        setSelectedPanel(defaults);
-      } else {
-        setSelectedPanel([
-          {
-            employee: {
-              id: 'emp-demo-1',
-              employeeCode: 'EMP-8265',
-              firstName: 'Rajesh',
-              lastName: 'Kumar',
-              email: 'rajesh@codigixinfotech.com',
-              department: { id: 'd1', name: 'Engineering' },
-              designation: { id: 'ds1', title: 'Technical Interviewer' },
-            } as any,
-            role: 'Technical Interviewer',
-          },
-          {
-            employee: {
-              id: 'emp-demo-2',
-              employeeCode: 'EMP-8266',
-              firstName: 'Priya',
-              lastName: 'Nair',
-              email: 'priya@codigixinfotech.com',
-              department: { id: 'd2', name: 'Sales & Marketing' },
-              designation: { id: 'ds2', title: 'Hiring Manager' },
-            } as any,
-            role: 'Hiring Manager',
-          },
-        ]);
-      }
+    if (selectedPanel.length > 0 && employeesList.length > 0) {
+      setSelectedPanel((prev) =>
+        prev.filter((p) => employeesList.some((e) => e.id === p.employee.id)),
+      );
     }
   }, [employeesList]);
+
+  // Set default panel members strictly from the filtered branch roster
+  useEffect(() => {
+    if (selectedPanel.length === 0 && employeesList.length > 0) {
+      const defaults: PanelSelectionItem[] = [];
+
+      // 1. Find a technical / engineering / operations member in this branch
+      const techInterviewer =
+        employeesList.find((e) => {
+          const title = (e.designation?.title || '').toLowerCase();
+          const dept = (e.department?.name || '').toLowerCase();
+          return (
+            title.includes('tech') ||
+            title.includes('engineer') ||
+            title.includes('lead') ||
+            title.includes('developer') ||
+            dept.includes('eng') ||
+            dept.includes('prod')
+          );
+        }) || employeesList[0];
+
+      if (techInterviewer) {
+        defaults.push({ employee: techInterviewer, role: 'Technical Interviewer' });
+      }
+
+      // 2. Find an HR or managerial member in this branch (different from tech interviewer)
+      const hrInterviewer =
+        employeesList.find((e) => {
+          if (e.id === techInterviewer?.id) return false;
+          const title = (e.designation?.title || '').toLowerCase();
+          const dept = (e.department?.name || '').toLowerCase();
+          return (
+            title.includes('hr') ||
+            title.includes('manager') ||
+            dept.includes('hr') ||
+            dept.includes('human')
+          );
+        }) ||
+        (employeesList.length > 1
+          ? employeesList.find((e) => e.id !== techInterviewer?.id)
+          : null);
+
+      if (hrInterviewer) {
+        defaults.push({ employee: hrInterviewer, role: 'Hiring Manager' });
+      }
+
+      setSelectedPanel(defaults);
+    }
+  }, [employeesList, selectedPanel.length]);
 
   // Format link auto generator
   const handleFormatChange = (fmt: string) => {
@@ -682,11 +738,17 @@ export function ScheduleInterviewModal({
                       <SelectValue placeholder="+ Select Employee to add to Interview Panel..." />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {filteredEmployees.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id} className="text-xs">
-                          {emp.firstName} {emp.lastName} — {emp.designation?.title || 'Employee'} ({emp.department?.name || 'Dept'})
-                        </SelectItem>
-                      ))}
+                      {filteredEmployees.length === 0 ? (
+                        <div className="p-3 text-xs text-muted-foreground text-center">
+                          No employees available in this branch roster
+                        </div>
+                      ) : (
+                        filteredEmployees.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                            {emp.firstName} {emp.lastName} — {emp.designation?.title || 'Employee'} ({emp.department?.name || 'Dept'})
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

@@ -45,6 +45,8 @@ import { jobOpeningsApi, candidatesApi, offersApi } from '@/api/recruitment';
 import type { CandidateStage } from '@/api/types';
 import { Pagination } from '@/components/common/Pagination';
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isBranchAdminUser, isCompanyAdminUser } from '@/lib/modules';
 
 export type CtcUnit = 'YEAR' | 'LAKH' | 'CRORE';
 export type CtcDisplayFormat = 'STANDARD' | 'YEAR' | 'LAKH' | 'CRORE';
@@ -235,6 +237,8 @@ export function calculateSalaryBreakdown(
 
 export interface OfferItem {
   id: string;
+  companyId?: string;
+  branchId?: string;
   candidateId?: string;
   candidate: string;
   email?: string;
@@ -275,6 +279,7 @@ export interface OfferItem {
 const INITIAL_OFFERS: OfferItem[] = [
   {
     id: 'OFR-701',
+    companyId: 'cmsofshgq0014ip4cjrdes1it',
     candidate: 'Siddharth Rao',
     email: 'siddharth.rao@example.com',
     phone: '+91 98190 22311',
@@ -302,6 +307,7 @@ const INITIAL_OFFERS: OfferItem[] = [
   },
   {
     id: 'OFR-702',
+    companyId: 'cmsofshgq0014ip4cjrdes1it',
     candidate: 'Neha Gupta',
     email: 'neha.gupta@example.com',
     phone: '+91 97660 55412',
@@ -329,6 +335,7 @@ const INITIAL_OFFERS: OfferItem[] = [
   },
   {
     id: 'OFR-703',
+    companyId: 'cmsofshgq0014ip4cjrdes1it',
     candidate: 'Vikramaditya Singh',
     email: 'vikram.singh@example.com',
     phone: '+91 98221 99014',
@@ -361,6 +368,27 @@ export function OffersTab() {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { activeCompanyId } = useCompany();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = useMemo(() => isSuperAdminUser(user), [user]);
+  const isBranchAdmin = useMemo(() => isBranchAdminUser(user), [user]);
+  const isCompanyAdmin = useMemo(() => isCompanyAdminUser(user), [user]);
+
+  const userCompanyId = user?.companyId || (user?.employee as any)?.companyId || '';
+  const userBranchId = user?.branchId || user?.employee?.branchId || '';
+
+  const scopedCompanyId = useMemo(() => {
+    if (isBranchAdmin || isCompanyAdmin) {
+      return userCompanyId;
+    }
+    return activeCompanyId || userCompanyId || '';
+  }, [isBranchAdmin, isCompanyAdmin, userCompanyId, activeCompanyId]);
+
+  const scopedBranchId = useMemo(() => {
+    if (isBranchAdmin) {
+      return userBranchId;
+    }
+    return '';
+  }, [isBranchAdmin, userBranchId]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -386,13 +414,24 @@ export function OffersTab() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
 
-  // Fetch real Job Openings & candidates from DB
+  // Fetch real Job Openings & candidates from DB for current company/branch
   const { data: openings = [] } = useQuery({
-    queryKey: ['job-openings', activeCompanyId],
-    queryFn: () => jobOpeningsApi.list(activeCompanyId),
+    queryKey: ['job-openings', scopedCompanyId],
+    queryFn: () => jobOpeningsApi.list(scopedCompanyId || undefined),
   });
 
-  // Dynamically map DB candidates in OFFERED / HIRED / SELECTED stage
+  // Available candidates from current company/branch
+  const eligibleCandidates = useMemo(() => {
+    const list: Array<{ candidate: any; job: any }> = [];
+    openings.forEach((job) => {
+      (job.candidates || []).forEach((c: any) => {
+        list.push({ candidate: c, job });
+      });
+    });
+    return list;
+  }, [openings]);
+
+  // Dynamically map DB candidates in OFFERED / HIRED stage belonging to current company/branch
   const dbOfferedCandidates = useMemo(() => {
     const list: OfferItem[] = [];
     openings.forEach((job) => {
@@ -404,14 +443,16 @@ export function OffersTab() {
             const formattedCtc = formatStandardCtc(safeCtc);
             list.push({
               id: `OFR-${c.id.substring(0, 6).toUpperCase()}`,
+              companyId: job.companyId,
+              branchId: (c as any).branchId || job.branchId,
               candidateId: c.id,
               candidate: `${c.firstName} ${c.lastName}`,
               email: c.email || 'candidate@example.com',
-              phone: '+91 98230 44112',
+              phone: (c as any).phone || '+91 98230 44112',
               applicationId: `APP-${c.id.substring(0, 4).toUpperCase()}`,
               role: job.title,
-              department: 'Product Design',
-              employmentType: 'Full-time',
+              department: (job as any).department?.name || 'Product Design',
+              employmentType: job.employmentType || 'Full-time',
               requisitionCode: job.requisitionCode || 'JR-2026-001',
               annualCTC: safeCtc,
               currency: 'INR',
@@ -426,8 +467,8 @@ export function OffersTab() {
               status: c.stage === 'HIRED' ? 'ACCEPTED' : 'PENDING_SIGNATURE',
               probation: '3 Months',
               noticePeriod: '30 Days',
-              location: 'Pune HQ',
-              manager: 'Rajesh Sharma (CTO)',
+              location: job.workLocation || 'Pune HQ',
+              manager: 'HR Administrator',
             });
           }
         });
@@ -436,7 +477,7 @@ export function OffersTab() {
     return list;
   }, [openings]);
 
-  // Combine DB candidates with local state (localOffers takes precedence for edited offers)
+  // Combine DB candidates with local state with strict tenant boundary enforcement
   const allOffers = useMemo(() => {
     const result: OfferItem[] = [];
     const localMapByCandidateId = new Map<string, OfferItem>();
@@ -444,6 +485,15 @@ export function OffersTab() {
     const localMapById = new Map<string, OfferItem>();
 
     localOffers.forEach((loc) => {
+      // Exclude offers from other companies
+      if (loc.companyId && scopedCompanyId && loc.companyId !== scopedCompanyId) {
+        return;
+      }
+      // Exclude offers from other branches if Branch Admin
+      if (isBranchAdmin && scopedBranchId && loc.branchId && loc.branchId !== scopedBranchId) {
+        return;
+      }
+
       if (loc.id) localMapById.set(loc.id, loc);
       if (loc.candidateId) localMapByCandidateId.set(loc.candidateId, loc);
       if (loc.candidate) localMapByName.set(loc.candidate.toLowerCase().trim(), loc);
@@ -452,7 +502,7 @@ export function OffersTab() {
     const processedCandidateIds = new Set<string>();
     const processedNames = new Set<string>();
 
-    // 1. Process DB candidates: if a user-edited localOffer exists, use the localOffer!
+    // 1. Process DB candidates belonging to current company/branch
     dbOfferedCandidates.forEach((dbItem) => {
       const match =
         (dbItem.candidateId && localMapByCandidateId.get(dbItem.candidateId)) ||
@@ -470,11 +520,33 @@ export function OffersTab() {
       }
     });
 
-    // 2. Also add any localOffers that were not in DB (e.g. newly created drafts, offline offers)
+    // 2. Also add any localOffers that belong to this company/branch
     localOffers.forEach((loc) => {
+      // Exclude offers from other companies
+      if (loc.companyId && scopedCompanyId && loc.companyId !== scopedCompanyId) {
+        return;
+      }
+      if (isBranchAdmin && scopedBranchId && loc.branchId && loc.branchId !== scopedBranchId) {
+        return;
+      }
+
+      // If loc has no companyId: only allow if candidateId or name belongs to this company's candidates
+      if (!loc.companyId && scopedCompanyId) {
+        const belongsToScope = eligibleCandidates.some(
+          (ec) =>
+            (loc.candidateId && ec.candidate.id === loc.candidateId) ||
+            `${ec.candidate.firstName} ${ec.candidate.lastName}`.toLowerCase() === loc.candidate.toLowerCase().trim()
+        );
+        if (!belongsToScope) {
+          // Foreign demo or other company offer: skip!
+          return;
+        }
+      }
+
       const alreadyAdded =
         (loc.candidateId && processedCandidateIds.has(loc.candidateId)) ||
         (loc.candidate && processedNames.has(loc.candidate.toLowerCase().trim()));
+
       if (!alreadyAdded) {
         result.push(loc);
         if (loc.candidateId) processedCandidateIds.add(loc.candidateId);
@@ -483,7 +555,7 @@ export function OffersTab() {
     });
 
     return result;
-  }, [dbOfferedCandidates, localOffers]);
+  }, [dbOfferedCandidates, localOffers, scopedCompanyId, scopedBranchId, isBranchAdmin, eligibleCandidates]);
 
   // Stage Mutation for Triggering Onboarding -> HIRED
   const updateStageMutation = useMutation({
@@ -674,16 +746,31 @@ export function OffersTab() {
   const openAddModal = () => {
     const newId = `OFR-${Math.floor(700 + Math.random() * 99)}`;
     setCurrentOfferId(newId);
-    setFormCandidateId('');
-    setFormCandidate('Casey Stone');
-    setFormEmail('candidate34@example-mail.com');
-    setFormPhone('+91 98230 44112');
-    setFormApplicationId('APP-2026-082');
-    setFormRole('Product Designer');
-    setFormDepartment('Product Design');
-    setFormEmploymentType('Full-time Permanent');
-    setFormRequisition('JR-2026-001');
-    setFormInterviewCode('INT-2026-005');
+
+    const firstEligible = eligibleCandidates[0];
+    if (firstEligible) {
+      setFormCandidateId(firstEligible.candidate.id);
+      setFormCandidate(`${firstEligible.candidate.firstName} ${firstEligible.candidate.lastName}`);
+      setFormEmail(firstEligible.candidate.email || 'candidate@example.com');
+      setFormPhone((firstEligible.candidate as any).phone || '+91 98230 44112');
+      setFormApplicationId(`APP-${firstEligible.candidate.id.substring(0, 4).toUpperCase()}`);
+      setFormRole(firstEligible.job.title);
+      setFormDepartment((firstEligible.job as any).department?.name || 'Engineering');
+      setFormEmploymentType(firstEligible.job.employmentType || 'Full-time Permanent');
+      setFormRequisition(firstEligible.job.requisitionCode || 'JR-2026-001');
+      setFormInterviewCode('INT-2026-005');
+    } else {
+      setFormCandidateId('');
+      setFormCandidate('Select Candidate');
+      setFormEmail('');
+      setFormPhone('');
+      setFormApplicationId('');
+      setFormRole('');
+      setFormDepartment('');
+      setFormEmploymentType('Full-time Permanent');
+      setFormRequisition('');
+      setFormInterviewCode('');
+    }
 
     setFormAnnualCtc(2400000);
     setFormCtcUnit('YEAR');
@@ -694,7 +781,7 @@ export function OffersTab() {
     setFormProbation('3 Months');
     setFormNoticePeriod('30 Days');
     setFormLocation('Pune HQ - Executive Suite');
-    setFormManager('Rajesh Sharma (CTO)');
+    setFormManager('HR Administrator');
     setIsOpen(true);
   };
 
@@ -731,6 +818,8 @@ export function OffersTab() {
     const formatted = formatStandardCtc(formAnnualCtc);
     return {
       id: currentOfferId || `OFR-${Math.floor(700 + Math.random() * 99)}`,
+      companyId: scopedCompanyId,
+      branchId: scopedBranchId,
       candidateId: formCandidateId || undefined,
       candidate: formCandidate,
       email: formEmail,
@@ -1175,13 +1264,47 @@ export function OffersTab() {
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                           <span className="font-bold text-xs text-emerald-900 dark:text-emerald-300 uppercase tracking-wide">
-                            Auto-Fetched Recruitment Profile (Read-Only)
+                            Auto-Fetched Recruitment Profile
                           </span>
                         </div>
                         <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-400 bg-emerald-50 font-mono font-bold">
                           {currentOfferId || 'OFR-791'}
                         </Badge>
                       </div>
+
+                      {eligibleCandidates.length > 0 && (
+                        <div className="space-y-1 pb-1">
+                          <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Select Candidate from Current Company</Label>
+                          <Select
+                            value={formCandidateId}
+                            onValueChange={(cId) => {
+                              const match = eligibleCandidates.find((ec) => ec.candidate.id === cId);
+                              if (match) {
+                                setFormCandidateId(match.candidate.id);
+                                setFormCandidate(`${match.candidate.firstName} ${match.candidate.lastName}`);
+                                setFormEmail(match.candidate.email || '');
+                                setFormPhone((match.candidate as any).phone || '+91 98230 44112');
+                                setFormApplicationId(`APP-${match.candidate.id.substring(0, 4).toUpperCase()}`);
+                                setFormRole(match.job.title);
+                                setFormDepartment((match.job as any).department?.name || 'Operations');
+                                setFormEmploymentType(match.job.employmentType || 'Full-time Permanent');
+                                setFormRequisition(match.job.requisitionCode || 'JR-2026-001');
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-background">
+                              <SelectValue placeholder="Select candidate..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {eligibleCandidates.map((ec) => (
+                                <SelectItem key={ec.candidate.id} value={ec.candidate.id} className="text-xs">
+                                  {ec.candidate.firstName} {ec.candidate.lastName} — {ec.job.title} ({ec.candidate.stage})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
                         <div>

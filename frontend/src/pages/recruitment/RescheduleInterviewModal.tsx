@@ -36,6 +36,9 @@ import { useRecruitmentConfig } from '@/hooks/useRecruitmentConfig';
 import { employeesApi } from '@/api/employees';
 import { interviewsApi } from '@/api/interviews';
 import type { CandidateInterview, Employee } from '@/api/types';
+import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isBranchAdminUser, isCompanyAdminUser } from '@/lib/modules';
 
 interface RescheduleInterviewModalProps {
   isOpen: boolean;
@@ -68,6 +71,29 @@ export function RescheduleInterviewModal({
   onSuccess,
 }: RescheduleInterviewModalProps) {
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = useMemo(() => isSuperAdminUser(user), [user]);
+  const isBranchAdmin = useMemo(() => isBranchAdminUser(user), [user]);
+  const isCompanyAdmin = useMemo(() => isCompanyAdminUser(user), [user]);
+
+  const userCompanyId = user?.companyId || (user?.employee as any)?.companyId || '';
+  const userBranchId = user?.branchId || user?.employee?.branchId || '';
+
+  const scopedCompanyId = useMemo(() => {
+    if (isBranchAdmin || isCompanyAdmin) {
+      return userCompanyId;
+    }
+    return activeCompanyId || (interview as any)?.candidate?.jobOpening?.companyId || userCompanyId || '';
+  }, [isBranchAdmin, isCompanyAdmin, userCompanyId, activeCompanyId, interview]);
+
+  const scopedBranchId = useMemo(() => {
+    if (isBranchAdmin) {
+      return userBranchId;
+    }
+    return '';
+  }, [isBranchAdmin, userBranchId]);
+
   const {
     interviewMode: configInterviewMode,
     defaultInterviewLocation,
@@ -75,13 +101,41 @@ export function RescheduleInterviewModal({
     defaultInterviewRoom,
   } = useRecruitmentConfig();
 
-  // Master employees roster for panel assignment
+  // Master employees roster for panel assignment with strict branch & company scoping
   const { data: employeesData } = useQuery({
-    queryKey: ['employees-panel-roster'],
-    queryFn: () => employeesApi.list({ pageSize: 100 }),
+    queryKey: ['employees-panel-roster', scopedCompanyId, scopedBranchId],
+    queryFn: () =>
+      employeesApi.list({
+        pageSize: 500,
+        companyId: scopedCompanyId || undefined,
+        branchId: scopedBranchId || undefined,
+      }),
     enabled: isOpen,
   });
-  const employeesList = useMemo(() => employeesData?.items || [], [employeesData]);
+
+  const employeesList = useMemo(() => {
+    const rawItems: Employee[] =
+      employeesData?.items || (Array.isArray(employeesData) ? (employeesData as any) : []);
+
+    return rawItems.filter((e) => {
+      if (e.status && (e.status === 'TERMINATED' || e.status === 'INACTIVE')) return false;
+
+      // Filter by company
+      if (scopedCompanyId && e.companyId && e.companyId !== scopedCompanyId) {
+        return false;
+      }
+
+      // Filter by branch for Branch Admin
+      if (isBranchAdmin && scopedBranchId) {
+        const empBranchId = e.branchId || (e as any).branch?.id;
+        if (empBranchId !== scopedBranchId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [employeesData, scopedCompanyId, scopedBranchId, isBranchAdmin]);
 
   // Form states
   const [interviewDate, setInterviewDate] = useState<string>('');

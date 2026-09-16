@@ -22,7 +22,9 @@ import {
   HelpCircle,
   ExternalLink,
   Users,
+  Loader2,
 } from 'lucide-react';
+import { jobOpeningsApi } from '@/api/recruitment';
 import {
   Dialog,
   DialogContent,
@@ -188,6 +190,7 @@ export const CandidateFullFormModal: React.FC<CandidateFullFormModalProps> = ({
   // 8. Resume & Documents
   const [resumeFileName, setResumeFileName] = useState('');
   const [resumePath, setResumePath] = useState('');
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
   const [coverLetter, setCoverLetter] = useState('');
 
   // 9. Screening & Preferences
@@ -397,7 +400,7 @@ export const CandidateFullFormModal: React.FC<CandidateFullFormModalProps> = ({
     setIsAddingEdu(false);
   };
 
-  const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleResumeFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 15 * 1024 * 1024) {
@@ -405,13 +408,20 @@ export const CandidateFullFormModal: React.FC<CandidateFullFormModalProps> = ({
         return;
       }
       setResumeFileName(file.name);
+      setIsUploadingResume(true);
       try {
-        const objectUrl = URL.createObjectURL(file);
-        setResumePath(objectUrl);
+        const res = await jobOpeningsApi.uploadResume(file);
+        const serverUrl = res.documentUrl || `/uploads/resumes/${file.name}`;
+        setResumePath(serverUrl);
+        setResumeFileName(res.originalName || file.name);
+        toast.success(`Resume "${file.name}" uploaded successfully!`);
       } catch (err) {
+        console.error('Failed to upload resume file to server:', err);
         setResumePath(`/uploads/resumes/${file.name}`);
+        toast.warning(`Resume "${file.name}" attached, but server upload failed. Saved path.`);
+      } finally {
+        setIsUploadingResume(false);
       }
-      toast.success(`Attached "${file.name}"`);
     }
   };
 
@@ -1302,11 +1312,17 @@ export const CandidateFullFormModal: React.FC<CandidateFullFormModalProps> = ({
 
               <div className="space-y-2">
                 <Label className="font-semibold text-xs">Resume / CV Document *</Label>
-                {resumeFileName ? (
+                {isUploadingResume ? (
+                  <div className="border border-indigo-200 rounded-xl p-4 bg-indigo-50/70 flex items-center gap-3 text-xs text-indigo-700 font-medium">
+                    <Loader2 className="h-4 w-4 animate-spin text-indigo-600 shrink-0" />
+                    <span>Uploading resume document to secure server...</span>
+                  </div>
+                ) : resumeFileName ? (
                   <div className="border border-emerald-300 rounded-xl p-3 bg-emerald-50/70 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs text-emerald-800 font-medium">
                       <FileCheck className="h-4 w-4 text-emerald-600" />
-                      <span>{resumeFileName}</span>
+                      <span className="font-semibold">{resumeFileName}</span>
+                      <span className="text-[10px] text-emerald-600 font-normal bg-emerald-100/60 px-1.5 py-0.5 rounded">Uploaded</span>
                     </div>
                     <Button
                       type="button"
@@ -1323,7 +1339,7 @@ export const CandidateFullFormModal: React.FC<CandidateFullFormModalProps> = ({
                   </div>
                 ) : (
                   <div className="border border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">📄 Upload Resume (PDF, DOC, DOCX • Max 5 MB)</span>
+                    <span className="text-xs text-slate-500">📄 Upload Resume (PDF, DOC, DOCX • Max 15 MB)</span>
                     <Label htmlFor="resume-file-input" className="cursor-pointer">
                       <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-semibold pointer-events-none">
                         Choose File
@@ -1377,12 +1393,12 @@ export const CandidateFullFormModal: React.FC<CandidateFullFormModalProps> = ({
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isUploadingResume}
                 size="sm"
                 className="h-9 px-7 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md"
               >
                 <Save className="h-3.5 w-3.5 mr-1.5" />
-                {isSubmitting ? 'Saving...' : isEdit ? 'Update Candidate' : 'Add Candidate'}
+                {isSubmitting ? 'Saving...' : isUploadingResume ? 'Uploading Resume...' : isEdit ? 'Update Candidate' : 'Add Candidate'}
               </Button>
             </div>
           </form>

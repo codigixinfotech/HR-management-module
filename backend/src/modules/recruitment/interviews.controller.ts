@@ -22,8 +22,11 @@ export class InterviewsController {
   constructor(private readonly interviewsService: InterviewsService) {}
 
   @Post()
-  create(@Body() dto: CreateInterviewDto) {
-    return this.interviewsService.createInterview(dto);
+  create(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: CreateInterviewDto,
+  ) {
+    return this.interviewsService.createInterview(dto, user);
   }
 
   @Get()
@@ -77,16 +80,21 @@ export class InterviewsController {
   }
 
   @Patch(':id/schedule')
-  updateSchedule(@Param('id') id: string, @Body() dto: UpdateInterviewScheduleDto) {
-    return this.interviewsService.rescheduleInterview(id, dto);
+  updateSchedule(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateInterviewScheduleDto,
+  ) {
+    return this.interviewsService.rescheduleInterview(id, dto, user);
   }
 
   @Patch(':id/reschedule')
   rescheduleInterview(
+    @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateInterviewScheduleDto
+    @Body() dto: UpdateInterviewScheduleDto,
   ) {
-    return this.interviewsService.rescheduleInterview(id, dto);
+    return this.interviewsService.rescheduleInterview(id, dto, user);
   }
 
   @Post(':id/cancel')

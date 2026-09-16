@@ -81,6 +81,38 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     enabled: !!companyIdForLists,
   });
 
+  const validBranches = useMemo(() => {
+    const list = allBranches.length > 0 ? allBranches : (branches || []);
+    return list.filter((b: any) => {
+      if (!companyIdForLists || b.companyId === companyIdForLists) {
+        const bName = (b.name || '').trim().toLowerCase();
+        if (
+          bName === 'parent office/company' ||
+          bName === 'parent company' ||
+          bName === 'parent office' ||
+          bName === 'head office / company' ||
+          bName === 'cravita technology pvt ltd'
+        ) return false;
+        return true;
+      }
+      return false;
+    });
+  }, [allBranches, branches, companyIdForLists]);
+
+  const [selectedGradeBranchFilter, setSelectedGradeBranchFilter] = useState<string>(() => {
+    return isBranchAdmin && userBranchId ? userBranchId : 'ALL';
+  });
+
+  useEffect(() => {
+    if (isBranchAdmin && userBranchId && userBranchId !== selectedGradeBranchFilter) {
+      setSelectedGradeBranchFilter(userBranchId);
+    }
+  }, [isBranchAdmin, userBranchId, selectedGradeBranchFilter]);
+
+  const effectiveGradeBranchForQuery = isBranchAdmin && userBranchId
+    ? userBranchId
+    : (selectedGradeBranchFilter !== 'ALL' ? selectedGradeBranchFilter : undefined);
+
   // Real cost centers and pay grades from DB
   const { data: costCenters = [] } = useQuery({
     queryKey: ['cost-centers', companyIdForLists],
@@ -88,8 +120,8 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     enabled: !!companyIdForLists,
   });
   const { data: payGrades = [] } = useQuery({
-    queryKey: ['pay-grades', companyIdForLists],
-    queryFn: () => payGradesApi.list(companyIdForLists),
+    queryKey: ['pay-grades', companyIdForLists, effectiveGradeBranchForQuery],
+    queryFn: () => payGradesApi.list(companyIdForLists, effectiveGradeBranchForQuery),
     enabled: !!companyIdForLists,
   });
 
@@ -214,6 +246,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   const [editingGrade, setEditingGrade] = useState<PayGrade | null>(null);
 
   const [gradeCompanyId, setGradeCompanyId] = useState('');
+  const [gradeBranchId, setGradeBranchId] = useState('');
   const [gradeBusinessUnit, setGradeBusinessUnit] = useState('');
   const [gradeCode, setGradeCode] = useState('');
   const [gradeName, setGradeName] = useState('');
@@ -222,6 +255,26 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   const [gradeJobFamily, setGradeJobFamily] = useState('');
   const [gradeDepartmentId, setGradeDepartmentId] = useState('');
   const [gradeSalaryMode, setGradeSalaryMode] = useState<'monthly' | 'annual'>('monthly');
+
+  const targetGradeCompanyId = gradeCompanyId || companyIdForLists;
+  const filteredBranchesForGrade = useMemo(() => {
+    if (!targetGradeCompanyId) return [];
+    const sourceBranches = allBranches.length > 0 ? allBranches : (branches || []);
+    return sourceBranches.filter((b: any) => {
+      if (!b.companyId || b.companyId !== targetGradeCompanyId) return false;
+      const bName = (b.name || '').trim().toLowerCase();
+      if (
+        bName === 'parent office/company' ||
+        bName === 'parent company' ||
+        bName === 'parent office' ||
+        bName === 'head office / company' ||
+        bName === 'cravita technology pvt ltd'
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [allBranches, branches, targetGradeCompanyId]);
 
   // Monthly Values
   const [gradeMinSalary, setGradeMinSalary] = useState<number | string>(20000);
@@ -396,30 +449,55 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     return code;
   };
 
-  // Fetch all pay grades across companies for global grade code uniqueness
-  const { data: allPayGradesForCodes = [] } = useQuery({
-    queryKey: ['pay-grades-all-codes'],
-    queryFn: () => payGradesApi.list(),
-  });
-
-  const generateUniqueGradeCode = () => {
-    const listToUse = allPayGradesForCodes.length > 0 ? allPayGradesForCodes : payGrades;
-    const existingCodes = new Set(listToUse.map((g: any) => g.gradeCode));
-    let count = listToUse.length + 1;
-    let code = `GR-${String(count).padStart(2, '0')}`;
-    while (existingCodes.has(code)) {
-      count++;
-      code = `GR-${String(count).padStart(2, '0')}`;
+  const fetchAndSetNextGradeCode = async (branchId?: string, companyId?: string) => {
+    try {
+      const res = await payGradesApi.getNextCode(branchId, companyId);
+      if (res?.nextCode) {
+        setGradeCode(res.nextCode);
+        return res.nextCode;
+      }
+    } catch (e) {
+      console.error('Failed to fetch next grade code from API', e);
     }
-    return code;
+
+    // Client-side fallback if backend call fails
+    const targetBranch = (allBranches.length > 0 ? allBranches : (branches || [])).find(
+      (b: any) => b.id === branchId
+    );
+    let branchCode = 'BR';
+    if (targetBranch?.code) {
+      const raw = targetBranch.code.trim();
+      const brMatch = raw.match(/^BR-?0*([0-9]+)$/i);
+      const brNumMatch = raw.match(/^Br0*([0-9]+)$/i);
+      if (brMatch) branchCode = `Br${brMatch[1]}`;
+      else if (brNumMatch) branchCode = `Br${brNumMatch[1]}`;
+      else if (/^BR-/i.test(raw)) branchCode = raw.replace(/^BR-/i, 'Br').replace(/[^a-zA-Z0-9]/g, '');
+      else branchCode = raw.replace(/[^a-zA-Z0-9]/g, '') || 'BR';
+    }
+    const prefix = `GR-${branchCode}-`;
+    const seqRegex = new RegExp(`^GR-${branchCode}-(\\d+)$`, 'i');
+    const existing = payGrades
+      .filter((g: any) => g.branchId === branchId || (g.gradeCode && g.gradeCode.startsWith(prefix)))
+      .map((g: any) => {
+        const m = (g.gradeCode || '').match(seqRegex);
+        return m ? parseInt(m[1], 10) : 0;
+      });
+    const maxSeq = existing.length > 0 ? Math.max(...existing) : 0;
+    const fallbackCode = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+    setGradeCode(fallbackCode);
+    return fallbackCode;
   };
 
-  // Auto-generate Grade Code if empty when modal opens or in create mode
+  // Auto-generate branch-isolated Grade Code if empty when modal opens or in create mode
   useEffect(() => {
-    if (isGradeOpen && !editingGrade && (!gradeCode || gradeCode.trim() === '')) {
-      setGradeCode(generateUniqueGradeCode());
+    if (isGradeOpen && !editingGrade) {
+      const effectiveBranchId = isBranchAdmin && userBranchId ? userBranchId : gradeBranchId;
+      const effectiveCompId = gradeCompanyId || companyIdForLists;
+      if (!gradeCode || /^GR-\d+$/i.test(gradeCode.trim())) {
+        fetchAndSetNextGradeCode(effectiveBranchId, effectiveCompId);
+      }
     }
-  }, [isGradeOpen, editingGrade, gradeCode, payGrades, allPayGradesForCodes]);
+  }, [isGradeOpen, editingGrade, gradeBranchId, gradeCompanyId, isBranchAdmin, userBranchId]);
 
   // Cost Center Actions
   const openAddCc = () => {
@@ -512,11 +590,19 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   };
 
   // Grade Actions
-  const openAddGrade = () => {
+  const openAddGrade = async () => {
     setEditingGrade(null);
-    setGradeCompanyId(companyIdForLists);
-    setGradeBusinessUnit(companies?.[0]?.businessUnit ?? '');
-    setGradeCode(generateUniqueGradeCode());
+    const targetCompId = isBranchAdmin ? (userCompanyId || companyIdForLists) : companyIdForLists;
+    const initialBranchId = isBranchAdmin && userBranchId
+      ? userBranchId
+      : (selectedGradeBranchFilter !== 'ALL' && selectedGradeBranchFilter !== 'HEAD_OFFICE'
+          ? selectedGradeBranchFilter
+          : (selectedGradeBranchFilter === 'HEAD_OFFICE' ? '' : (filteredBranchesForGrade?.[0]?.id || '')));
+
+    setGradeCompanyId(targetCompId);
+    setGradeBranchId(initialBranchId);
+    setGradeBusinessUnit(companies?.find((c: any) => c.id === targetCompId)?.businessUnit ?? '');
+    setGradeCode('');
     setGradeName('');
     setGradeLevel('L1');
     setGradeCategory('Worker');
@@ -529,16 +615,19 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
     setGradeMinAnnualUnit('Lakh');
     setGradeMaxAnnualVal(3.24);
     setGradeMaxAnnualUnit('Lakh');
-    setGradeCurrency(companies?.[0]?.currency ?? 'INR');
+    setGradeCurrency(companies?.find((c: any) => c.id === targetCompId)?.currency ?? 'INR');
     setGradeEffectiveFrom(new Date().toISOString().split('T')[0]);
     setGradeStatus('Active');
     setGradeDescription('');
     setIsGradeOpen(true);
+
+    fetchAndSetNextGradeCode(initialBranchId, targetCompId);
   };
 
   const openEditGrade = (item: PayGrade) => {
     setEditingGrade(item);
     setGradeCompanyId(item.companyId);
+    setGradeBranchId(item.branchId || (isBranchAdmin ? (userBranchId || '') : ''));
     setGradeBusinessUnit(item.businessUnit ?? '');
     setGradeCode(item.gradeCode);
     setGradeName(item.gradeName);
@@ -619,13 +708,16 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
       isActive:      gradeStatus === 'Active',
     };
 
+    const effectiveBranchId = isBranchAdmin ? (userBranchId || gradeBranchId) : (gradeBranchId || undefined);
     if (!editingGrade?.id) {
       // Branch Admin: always use their own company + branch (backend enforces too)
       payloadData.companyId = isBranchAdmin ? (userCompanyId || gradeCompanyId) : gradeCompanyId;
       payloadData.gradeCode = gradeCode;
-      if (isBranchAdmin && userBranchId) {
-        payloadData.branchId = userBranchId;
+      if (effectiveBranchId) {
+        payloadData.branchId = effectiveBranchId;
       }
+    } else {
+      payloadData.branchId = effectiveBranchId || null;
     }
 
     gradeUpsertMutation.mutate({
@@ -653,17 +745,28 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
   }, [costCenters, searchCcQuery]);
 
   const filteredPayGrades = useMemo(() => {
-    if (!searchGradeQuery.trim()) return payGrades;
+    let list = payGrades;
+
+    if (selectedGradeBranchFilter === 'HEAD_OFFICE') {
+      list = list.filter(g => !g.branchId);
+    } else if (selectedGradeBranchFilter !== 'ALL') {
+      list = list.filter(g => g.branchId === selectedGradeBranchFilter || g.branch?.id === selectedGradeBranchFilter);
+    }
+
+    if (!searchGradeQuery.trim()) return list;
     const q = searchGradeQuery.toLowerCase();
-    return payGrades.filter(
+    return list.filter(
       g =>
         g.gradeName.toLowerCase().includes(q) ||
         g.gradeCode.toLowerCase().includes(q) ||
         g.level.toLowerCase().includes(q) ||
         (g.jobFamily?.toLowerCase() ?? '').includes(q) ||
-        (g.category?.toLowerCase() ?? '').includes(q)
+        (g.category?.toLowerCase() ?? '').includes(q) ||
+        (g.branch?.name?.toLowerCase() ?? '').includes(q) ||
+        (branches?.find((b: any) => b.id === g.branchId)?.name?.toLowerCase() ?? '').includes(q) ||
+        (!g.branchId && ('head office'.includes(q) || 'no branch'.includes(q)))
     );
-  }, [payGrades, searchGradeQuery]);
+  }, [payGrades, selectedGradeBranchFilter, searchGradeQuery, branches]);
 
   // Dashboard Stats Calculations
   const totalBudget = useMemo(() => {
@@ -1168,7 +1271,53 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
-              <div className="relative w-48 sm:w-60">
+              {/* Branch Filter Dropdown */}
+              <div className="w-44 sm:w-52">
+                <Select
+                  value={selectedGradeBranchFilter}
+                  onValueChange={setSelectedGradeBranchFilter}
+                  disabled={isBranchAdmin}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background border-border/80 font-medium">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <SelectValue placeholder="All Branches & Offices">
+                        {selectedGradeBranchFilter === 'ALL'
+                          ? 'All Branches & Offices'
+                          : selectedGradeBranchFilter === 'HEAD_OFFICE'
+                          ? 'Head Office / No Branch'
+                          : (validBranches.find((b: any) => b.id === selectedGradeBranchFilter)?.name || userBranchName)}
+                      </SelectValue>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!isBranchAdmin && (
+                      <>
+                        <SelectItem value="ALL" className="text-xs font-semibold">
+                          All Branches &amp; Offices
+                        </SelectItem>
+                        <SelectItem value="HEAD_OFFICE" className="text-xs font-medium">
+                          Head Office / No Branch
+                        </SelectItem>
+                      </>
+                    )}
+                    {validBranches.map((br: any) => (
+                      <SelectItem key={br.id} value={br.id} className="text-xs">
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <span className="truncate">{br.name}</span>
+                          {br.code && (
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {br.code}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="relative w-44 sm:w-52">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   type="text"
@@ -1194,31 +1343,28 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold flex items-center gap-1">
-                          {isBranchAdmin ? 'Organization & Branch *' : 'Organization Entity *'}
+                          Organization Entity *
                           {isBranchAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
                         </Label>
                         {isBranchAdmin ? (
-                          // Branch Admin: read-only branch & company display
-                          <div className="min-h-9 px-3 py-1.5 rounded-md border border-dashed border-border bg-muted/30 text-xs font-medium text-foreground flex items-center justify-between gap-2">
-                            <div className="flex flex-col min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-                                <span className="font-semibold text-foreground truncate">{userBranchName}</span>
-                              </div>
-                              <span className="text-[10px] text-muted-foreground truncate pl-5">
+                          // Branch Admin: read-only organization display
+                          <div className="h-9 px-3 py-2 rounded-md border border-dashed border-border bg-muted/30 text-xs font-medium text-foreground flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 truncate">
+                              <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />
+                              <span className="font-semibold truncate">
                                 {userCompanyName || companies?.find((c: any) => c.id === userCompanyId)?.name || 'Your Company'}
                               </span>
-                            </div>
-                            <Badge variant="outline" className="text-[10px] text-primary border-primary/30 shrink-0">Branch Locked</Badge>
+                            </span>
+                            <Badge variant="outline" className="text-[10px] text-primary border-primary/30 shrink-0">Locked</Badge>
                           </div>
                         ) : (
                           <Select value={gradeCompanyId} onValueChange={(val) => {
                             setGradeCompanyId(val);
                             const comp = companies?.find(c => c.id === val);
                             if (comp) {
-                              setGradeBusinessUnit(comp.businessUnit ?? '');
                               setGradeCurrency(comp.currency ?? 'INR');
                             }
+                            fetchAndSetNextGradeCode(gradeBranchId, val);
                           }}>
                             <SelectTrigger className="h-9 text-xs">
                               <SelectValue placeholder="Select organization" />
@@ -1235,24 +1381,68 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                       </div>
 
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Business Unit</Label>
-                        <Input
-                          placeholder=""
-                          value={gradeBusinessUnit}
-                          onChange={e => setGradeBusinessUnit(e.target.value)}
-                          className="h-9 text-xs"
-                        />
+                        <Label className="text-[11px] font-semibold flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            Branch
+                            {isBranchAdmin && <Lock className="h-3 w-3 text-muted-foreground" />}
+                            {!isBranchAdmin && filteredBranchesForGrade.length > 0 && (
+                              <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
+                            )}
+                          </span>
+                        </Label>
+                        {isBranchAdmin ? (
+                          // Branch Admin: read-only branch display
+                          <div className="h-9 px-3 py-2 rounded-md border border-dashed border-border bg-muted/30 text-xs font-medium text-foreground flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 truncate">
+                              <GitFork className="w-3.5 h-3.5 text-primary shrink-0" />
+                              <span className="font-semibold truncate">{userBranchName}</span>
+                            </span>
+                            <Badge variant="outline" className="text-[10px] text-primary border-primary/30 shrink-0">Branch Locked</Badge>
+                          </div>
+                        ) : filteredBranchesForGrade.length === 0 ? (
+                          <div className="h-9 px-3 py-2 rounded-md border text-xs bg-muted/20 text-foreground flex items-center justify-between border-dashed">
+                            <span className="flex items-center gap-1.5 font-medium text-foreground">
+                              <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Head Office / No Branch
+                            </span>
+                            <Badge variant="outline" className="text-[10px] bg-background text-emerald-600 border-emerald-500/30">
+                              Head Office
+                            </Badge>
+                          </div>
+                        ) : (
+                          <Select value={gradeBranchId || 'NONE'} onValueChange={(val) => {
+                            const selected = val === 'NONE' ? '' : val;
+                            setGradeBranchId(selected);
+                            fetchAndSetNextGradeCode(selected, gradeCompanyId);
+                          }}>
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Select Branch (Optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="NONE" className="text-xs text-muted-foreground italic">
+                                Head Office / No Branch
+                              </SelectItem>
+                              {filteredBranchesForGrade?.map((b: any) => (
+                                <SelectItem key={b.id} value={b.id} className="text-xs">
+                                  {b.name} ({b.code || 'BR'})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Grade Code (Auto Generated) *</Label>
+                        <Label className="text-[11px] font-semibold flex items-center justify-between">
+                          <span>Grade Code (Auto Generated) *</span>
+                          <span className="text-[10px] text-muted-foreground font-mono font-normal">GR-Branch-Seq</span>
+                        </Label>
                         <Input
-                          placeholder=""
+                          placeholder="e.g. GR-Br1-01"
                           value={gradeCode}
                           onChange={e => setGradeCode(e.target.value)}
-                          className="h-9 text-xs font-mono"
+                          className="h-9 text-xs font-mono font-semibold text-primary"
                         />
                       </div>
 
@@ -1539,6 +1729,7 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                 <TableHead className="text-xs">Level</TableHead>
                 <TableHead className="text-xs">Category</TableHead>
                 <TableHead className="text-xs">Job Family</TableHead>
+                <TableHead className="text-xs">Branch</TableHead>
                 <TableHead className="text-xs">Mapped Dept</TableHead>
                 <TableHead className="text-xs">Salary CTC Range</TableHead>
                 <TableHead className="text-xs text-center">Active Employees</TableHead>
@@ -1556,6 +1747,19 @@ export function CostCentersTab({ companyId: propCompanyId }: { companyId?: strin
                     <TableCell className="text-xs font-semibold text-muted-foreground">{g.level}</TableCell>
                     <TableCell className="text-xs font-medium">{g.category ?? '—'}</TableCell>
                     <TableCell className="text-xs font-semibold text-muted-foreground">{g.jobFamily ?? '—'}</TableCell>
+                    <TableCell className="text-xs">
+                      {g.branch?.name || branches?.find((b: any) => b.id === g.branchId)?.name ? (
+                        <Badge variant="outline" className="text-[10px] font-medium border-primary/30 text-primary bg-primary/5 flex items-center gap-1 w-fit">
+                          <GitFork className="h-3 w-3 shrink-0" />
+                          {g.branch?.name || branches?.find((b: any) => b.id === g.branchId)?.name}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] font-medium border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 flex items-center gap-1 w-fit">
+                          <Building2 className="h-3 w-3 shrink-0" />
+                          Head Office
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {departments?.find((d: any) => d.id === g.departmentId)?.name ?? 'Global'}
                     </TableCell>

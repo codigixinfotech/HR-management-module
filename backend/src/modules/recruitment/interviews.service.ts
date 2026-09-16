@@ -9,6 +9,8 @@ import {
   UpdateInterviewStatusDto,
   SubmitEvaluationDto,
 } from './dto/interview.dto';
+import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId, getTenantBranchId } from '../../common/utils/tenant-context.util';
 
 @Injectable()
 export class InterviewsService {
@@ -26,7 +28,7 @@ export class InterviewsService {
     return `INT-${year}-${seq}`;
   }
 
-  async createInterview(dto: CreateInterviewDto) {
+  async createInterview(dto: CreateInterviewDto, user?: CurrentUserPayload) {
     let candidate = await this.prisma.candidate.findUnique({
       where: { id: dto.candidateId },
       include: { jobOpening: true },
@@ -53,6 +55,34 @@ export class InterviewsService {
         designation: { select: { title: true } },
       },
     });
+
+    // Enforce strict branch and company tenant boundaries
+    if (user && panelEmployees.length > 0) {
+      const tenantCompanyId = getTenantCompanyId(user);
+      const tenantBranchId = getTenantBranchId(user);
+
+      if (tenantBranchId && tenantBranchId !== 'NO_BRANCH_ASSIGNED') {
+        const foreignBranchMember = panelEmployees.find(
+          (e) => e.branchId && e.branchId !== tenantBranchId,
+        );
+        if (foreignBranchMember) {
+          throw new BadRequestException(
+            `Panel member ${foreignBranchMember.firstName} ${foreignBranchMember.lastName} belongs to a different branch. Only employees from your branch can be selected.`,
+          );
+        }
+      }
+
+      if (tenantCompanyId) {
+        const foreignCompanyMember = panelEmployees.find(
+          (e) => e.companyId && e.companyId !== tenantCompanyId,
+        );
+        if (foreignCompanyMember) {
+          throw new BadRequestException(
+            `Panel member ${foreignCompanyMember.firstName} ${foreignCompanyMember.lastName} belongs to a different company.`,
+          );
+        }
+      }
+    }
 
     if (panelEmployees.length === 0) {
       panelEmployees = (dto.panelMemberIds || ['emp-1']).map((id, idx) => ({
@@ -762,7 +792,7 @@ export class InterviewsService {
    * Reschedules an existing interview without creating duplicates,
    * validates slot & room availability, records audit history, and dispatches updates.
    */
-  async rescheduleInterview(id: string, dto: UpdateInterviewScheduleDto) {
+  async rescheduleInterview(id: string, dto: UpdateInterviewScheduleDto, user?: CurrentUserPayload) {
     const interview: any = await this.prisma.candidateInterview.findUnique({
       where: { id },
       include: {
@@ -864,6 +894,33 @@ export class InterviewsService {
       const realDbEmployees = await this.prisma.employee.findMany({
         where: { id: { in: dto.panelMemberIds } },
       });
+
+      if (user && realDbEmployees.length > 0) {
+        const tenantCompanyId = getTenantCompanyId(user);
+        const tenantBranchId = getTenantBranchId(user);
+
+        if (tenantBranchId && tenantBranchId !== 'NO_BRANCH_ASSIGNED') {
+          const foreignBranchEmp = realDbEmployees.find(
+            (e) => e.branchId && e.branchId !== tenantBranchId,
+          );
+          if (foreignBranchEmp) {
+            throw new BadRequestException(
+              `Panel member ${foreignBranchEmp.firstName} ${foreignBranchEmp.lastName} belongs to a different branch.`,
+            );
+          }
+        }
+
+        if (tenantCompanyId) {
+          const foreignCompanyEmp = realDbEmployees.find(
+            (e) => e.companyId && e.companyId !== tenantCompanyId,
+          );
+          if (foreignCompanyEmp) {
+            throw new BadRequestException(
+              `Panel member ${foreignCompanyEmp.firstName} ${foreignCompanyEmp.lastName} belongs to a different company.`,
+            );
+          }
+        }
+      }
 
       for (const emp of realDbEmployees) {
         const role = dto.panelMemberRoles?.[emp.id] || 'Interviewer';

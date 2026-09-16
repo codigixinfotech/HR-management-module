@@ -60,6 +60,36 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
     }
   }, [candidate]);
 
+  const handleViewResume = () => {
+    if (!candidate.resumePath) {
+      setIsResumeModalOpen(true);
+      return;
+    }
+
+    const cleanPath = candidate.resumePath.trim();
+    if (!cleanPath || cleanPath.startsWith('blob:')) {
+      setIsResumeModalOpen(true);
+      return;
+    }
+
+    const candidateName = candidate.name || `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim() || 'Candidate';
+    const safeName = encodeURIComponent(candidateName);
+
+    let targetUrl = '';
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+      targetUrl = cleanPath;
+    } else if (cleanPath.startsWith('/api/recruitment/job-openings/resumes/download/')) {
+      targetUrl = cleanPath.includes('?') ? `${cleanPath}&name=${safeName}` : `${cleanPath}?name=${safeName}`;
+    } else if (cleanPath.startsWith('/api') || cleanPath.startsWith('/uploads')) {
+      targetUrl = cleanPath;
+    } else {
+      const filename = cleanPath.split('/').pop() || cleanPath;
+      targetUrl = `/api/recruitment/job-openings/resumes/download/${filename}?name=${safeName}`;
+    }
+
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  };
+
   if (!candidate) return null;
 
   const candidateIdShort = candidate.id ? candidate.id.substring(0, 8) : 'CMT-2026';
@@ -248,7 +278,14 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
                 <FileText className="h-4 w-4 text-indigo-600" />
                 <div>
                   <span className="font-semibold text-slate-900 dark:text-white block text-xs">
-                    {candidate.resumePath ? candidate.resumePath.split('/').pop() : `${candidate.name || 'Candidate'}_Resume.pdf`}
+                    {(() => {
+                      if (!candidate.resumePath) return `${candidate.name || 'Candidate'}_Resume.pdf`;
+                      const rawName = candidate.resumePath.split('/').pop() || '';
+                      if (rawName.startsWith('blob:') || /^[a-f0-9-]{32,}$/i.test(rawName)) {
+                        return `${candidate.name || 'Candidate'}_Resume.pdf`;
+                      }
+                      return rawName;
+                    })()}
                   </span>
                   <span className="text-[10px] text-slate-400 block">Verified Candidate Resume Document</span>
                 </div>
@@ -256,10 +293,11 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs font-semibold gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-                onClick={() => setIsResumeModalOpen(true)}
+                className="h-8 text-xs font-semibold gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                onClick={handleViewResume}
+                title="Open resume PDF in new tab"
               >
-                <Eye className="h-3.5 w-3.5" /> View Resume
+                <ExternalLink className="h-3.5 w-3.5" /> View Resume
               </Button>
             </div>
           </div>

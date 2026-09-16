@@ -24,10 +24,30 @@ export class PayGradesController {
   list(
     @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    const tenantBranchId = getTenantBranchId(user, undefined);
+    let tenantBranchId = getTenantBranchId(user, branchId);
+    if (!tenantBranchId && (branchId === 'HEAD_OFFICE' || branchId === 'NONE')) {
+      tenantBranchId = 'HEAD_OFFICE';
+    }
     return this.service.list(tenantCompanyId, tenantBranchId);
+  }
+
+  @Get('next-code')
+  async getNextCode(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('branchId') branchId?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const isSuperAdmin = isUserSuperAdmin(user);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    const tenantBranchId = isSuperAdmin
+      ? branchId
+      : (user.branchId || user.employee?.branchId || branchId);
+
+    const nextCode = await this.service.generateNextGradeCode(tenantBranchId, tenantCompanyId);
+    return { nextCode };
   }
 
   @Get(':id')
@@ -45,7 +65,7 @@ export class PayGradesController {
     // For non-super-admin users, enforce their company and branch scope
     if (!isSuperAdmin) {
       dto.companyId = user.companyId!;
-      dto.branchId = user.branchId || user.employee?.branchId || undefined;
+      dto.branchId = user.branchId || user.employee?.branchId || dto.branchId || undefined;
     }
 
     // Validate that the selected department belongs to the user's company+branch

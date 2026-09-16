@@ -13,9 +13,11 @@ export class PayGradesService {
       where.companyId = companyId;
     }
 
-    if (branchId && branchId !== 'NO_BRANCH_ASSIGNED') {
-      // Branch-scoped users see only their branch grades (plus grades with no branch assignment)
-      where.OR = [{ branchId }, { branchId: null }];
+    if (branchId === 'HEAD_OFFICE' || branchId === 'NONE') {
+      where.branchId = null;
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'ALL_BRANCHES' && branchId !== 'NO_BRANCH_ASSIGNED') {
+      // Show ONLY the specific branch's job grade entries
+      where.branchId = branchId;
     }
 
     return this.prisma.payGrade.findMany({
@@ -65,7 +67,104 @@ export class PayGradesService {
     return true;
   }
 
+  /**
+   * Helper to normalize/clean branch code for Job Grade formatting:
+   * e.g., 'Br1' -> 'Br1', 'BR-01' / 'BR-1' -> 'Br1', 'BR-27' -> 'Br27', 'MUM' -> 'MUM'.
+   */
+  extractBranchCode(rawCode?: string | null): string {
+    if (!rawCode || !rawCode.trim()) return 'BR';
+    const trimmed = rawCode.trim();
+    // If format is like BR-01 or BR-1 -> Br1, BR-02 -> Br2
+    const brMatch = trimmed.match(/^BR-?0*([0-9]+)$/i);
+    if (brMatch) {
+      return `Br${brMatch[1]}`;
+    }
+    // If format is like Br1, Br01
+    const brNumMatch = trimmed.match(/^Br0*([0-9]+)$/i);
+    if (brNumMatch) {
+      return `Br${brNumMatch[1]}`;
+    }
+    // If starts with BR- (e.g. BR-PUN)
+    if (/^BR-/i.test(trimmed)) {
+      return trimmed.replace(/^BR-/i, 'Br').replace(/[^a-zA-Z0-9]/g, '');
+    }
+    // Otherwise alphanumeric cleaned code
+    return trimmed.replace(/[^a-zA-Z0-9]/g, '') || 'BR';
+  }
+
+  /**
+   * Computes the next grade code following the rule:
+   * GR-{BranchCode}-{Sequence}
+   * Sequences restart for each branch independently (e.g. GR-Br1-01, GR-Br1-02; GR-Br2-01).
+   */
+  async generateNextGradeCode(branchId?: string, companyId?: string): Promise<string> {
+    let branchCode = 'BR';
+    let targetBranchId = branchId;
+
+    if (targetBranchId && targetBranchId !== 'NO_BRANCH_ASSIGNED') {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: targetBranchId },
+        select: { id: true, code: true, name: true, companyId: true },
+      });
+      if (branch && branch.code) {
+        branchCode = this.extractBranchCode(branch.code);
+      }
+    } else if (companyId) {
+      const branch = await this.prisma.branch.findFirst({
+        where: { companyId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, code: true, name: true },
+      });
+      if (branch) {
+        targetBranchId = branch.id;
+        if (branch.code) {
+          branchCode = this.extractBranchCode(branch.code);
+        }
+      }
+    }
+
+    const prefix = `GR-${branchCode}-`;
+
+    // Query existing grades for this branch or matching this prefix
+    const existingGrades = await this.prisma.payGrade.findMany({
+      where: {
+        OR: [
+          ...(targetBranchId ? [{ branchId: targetBranchId }] : []),
+          { gradeCode: { startsWith: prefix } },
+        ],
+      },
+      select: { gradeCode: true },
+    });
+
+    const seqRegex = new RegExp(`^GR-${branchCode}-(\\d+)$`, 'i');
+    const sequences: number[] = [];
+
+    for (const g of existingGrades) {
+      const match = (g.gradeCode || '').match(seqRegex);
+      if (match && match[1]) {
+        sequences.push(parseInt(match[1], 10));
+      }
+    }
+
+    const maxSeq = sequences.length > 0 ? Math.max(...sequences) : 0;
+    let nextSeq = maxSeq + 1;
+    let candidateCode = `${prefix}${String(nextSeq).padStart(2, '0')}`;
+
+    // Guarantee global database uniqueness
+    while (await this.prisma.payGrade.findUnique({ where: { gradeCode: candidateCode } })) {
+      nextSeq++;
+      candidateCode = `${prefix}${String(nextSeq).padStart(2, '0')}`;
+    }
+
+    return candidateCode;
+  }
+
   async create(dto: CreatePayGradeDto) {
+    // If gradeCode is empty or legacy generic 'GR-XX', auto-generate branch-isolated code
+    if (!dto.gradeCode || /^GR-\d+$/i.test(dto.gradeCode.trim())) {
+      dto.gradeCode = await this.generateNextGradeCode(dto.branchId, dto.companyId);
+    }
+
     const existing = await this.prisma.payGrade.findUnique({
       where: { gradeCode: dto.gradeCode },
     });

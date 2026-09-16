@@ -29,6 +29,7 @@ export interface PayGrade {
   level: string;
   category: string;
   jobFamily?: string | null;
+  branchId?: string | null;
   departmentId?: string | null;
   minSalary: number;
   maxSalary: number;
@@ -38,6 +39,7 @@ export interface PayGrade {
   isActive: boolean;
   createdAt: string;
   department?: { id: string; name: string } | null;
+  branch?: { id: string; name: string; code?: string } | null;
 }
 
 export const costCentersApi = {
@@ -55,8 +57,11 @@ export const costCentersApi = {
 };
 
 export const payGradesApi = {
-  list: async (companyId?: string) =>
-    (await apiClient.get<PayGrade[]>('/organization/pay-grades', { params: { companyId } })).data,
+  list: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<PayGrade[]>('/organization/pay-grades', { params: { companyId, branchId } })).data,
+
+  getNextCode: async (branchId?: string, companyId?: string) =>
+    (await apiClient.get<{ nextCode: string }>('/organization/pay-grades/next-code', { params: { branchId, companyId } })).data,
 
   create: async (payload: Partial<PayGrade>) =>
     (await apiClient.post<PayGrade>('/organization/pay-grades', payload)).data,

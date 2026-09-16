@@ -67,36 +67,65 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
     const cleanUrl = resumeUrl.trim();
     if (!cleanUrl) return null;
 
-    if (
-      cleanUrl.startsWith('blob:') ||
-      cleanUrl.startsWith('data:') ||
-      cleanUrl.startsWith('http://') ||
-      cleanUrl.startsWith('https://')
-    ) {
+    // Check for invalid or legacy dead blob strings (e.g. from previous sessions or other hosts)
+    if (cleanUrl.startsWith('blob:')) {
+      if (typeof window !== 'undefined' && !cleanUrl.startsWith(`blob:${window.location.origin}`)) {
+        return null;
+      }
+      return cleanUrl;
+    }
+
+    if (cleanUrl.startsWith('data:')) {
       return cleanUrl;
     }
 
     const host = getBackendHost();
 
-    if (cleanUrl.startsWith('/uploads')) {
-      return `${host}${cleanUrl}`;
+    // If it is a full web URL
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+      if (cleanUrl.includes('/recruitment/portal') || cleanUrl.includes('/careers')) {
+        return null;
+      }
+      return cleanUrl;
     }
 
-    // Extract filename e.g. "resume (1).pdf"
+    // Direct API route or uploads path from NestJS recruitment controller (proxied same-origin by Vite)
+    if (cleanUrl.startsWith('/api') || cleanUrl.startsWith('/uploads')) {
+      return cleanUrl;
+    }
+
+    // If it's a file name e.g. "resume-xxx.pdf"
     const filename = cleanUrl.split('/').pop() || cleanUrl;
-    return `${host}/uploads/resumes/${filename}`;
+    return `/api/recruitment/job-openings/resumes/download/${filename}`;
   };
 
   const finalUrl = getFullResumeUrl();
+  const isWordDoc = Boolean(finalUrl && (finalUrl.toLowerCase().endsWith('.docx') || finalUrl.toLowerCase().endsWith('.doc')));
 
   useEffect(() => {
     setIframeError(false);
-    if (finalUrl && (finalUrl.startsWith('http://') || finalUrl.startsWith('https://'))) {
-      fetch(finalUrl, { method: 'HEAD' })
+    if (!finalUrl) {
+      setIframeError(true);
+      return;
+    }
+
+    if (finalUrl.startsWith('blob:')) {
+      fetch(finalUrl)
         .then((res) => {
           if (!res.ok) setIframeError(true);
         })
         .catch(() => setIframeError(true));
+      return;
+    }
+
+    if (finalUrl.startsWith('http://') || finalUrl.startsWith('https://')) {
+      fetch(finalUrl, { method: 'HEAD' })
+        .then((res) => {
+          if (!res.ok && res.status !== 405 && res.status !== 403) setIframeError(true);
+        })
+        .catch(() => {
+          // Keep default if HEAD is blocked by CORS
+        });
     }
   }, [finalUrl]);
 
@@ -149,7 +178,7 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {finalUrl && (
+            {finalUrl && !iframeError && !isWordDoc && (
               <a
                 href={finalUrl}
                 target="_blank"
@@ -166,7 +195,7 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
               onClick={handleDownload}
               className="h-8 text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white border-0"
             >
-              <Download className="h-3.5 w-3.5" /> Download PDF
+              <Download className="h-3.5 w-3.5" /> {isWordDoc ? 'Download Word (.docx)' : finalUrl && !iframeError ? 'Download PDF' : 'Download Profile'}
             </Button>
             <Button
               type="button"
@@ -182,33 +211,30 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
 
         {/* Modal Body: PDF Iframe / Object or Structured Digital Resume Fallback */}
         <div className="flex-1 overflow-y-auto p-5 bg-slate-50 dark:bg-slate-950">
-          {finalUrl && !iframeError ? (
+          {finalUrl && !iframeError && !isWordDoc ? (
             <div className="w-full h-[620px] rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
-              <object
-                data={finalUrl}
-                type="application/pdf"
+              <iframe
+                src={`${finalUrl}#toolbar=1`}
+                title={`${candidateName} Resume PDF`}
                 className="w-full h-full border-0"
                 onError={() => setIframeError(true)}
-              >
-                <iframe
-                  src={finalUrl}
-                  title={`${candidateName} Resume PDF`}
-                  className="w-full h-full border-0"
-                  onError={() => setIframeError(true)}
-                />
-              </object>
+              />
             </div>
           ) : (
             <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-md space-y-6">
-              {/* Top Banner Notice if PDF URL not directly loadable */}
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+              {/* Top Banner Notice */}
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 rounded-xl flex items-center justify-between text-xs text-indigo-900 dark:text-indigo-200">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                  <span>Viewing parsed digital resume profile document for <strong>{candidateName}</strong>.</span>
+                  <AlertCircle className="h-4 w-4 text-indigo-600 shrink-0" />
+                  <span>
+                    {isWordDoc
+                      ? `Resume uploaded in Microsoft Word format. You can download the file directly or view the parsed profile below.`
+                      : `Viewing verified digital candidate profile for ${candidateName}.`}
+                  </span>
                 </div>
                 {finalUrl && (
-                  <a href={finalUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline text-amber-900 dark:text-amber-200">
-                    Open File directly ↗
+                  <a href={finalUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline text-indigo-700 dark:text-indigo-300 ml-2 shrink-0">
+                    Open File ↗
                   </a>
                 )}
               </div>

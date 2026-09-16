@@ -27,6 +27,7 @@ import {
   Layers,
   Brain,
   Settings,
+  ExternalLink,
 } from 'lucide-react';
 import { jobOpeningsApi, candidatesApi, assessmentsApi } from '@/api/recruitment';
 import { AtsAnalysisCard } from '@/components/recruitment/AtsAnalysisCard';
@@ -1141,10 +1142,28 @@ export function CandidatesTab() {
                       size="sm"
                       className="h-7 text-[11px] text-primary border-primary/30 hover:bg-primary/10 px-2 mt-0.5 gap-1"
                       onClick={() => {
-                        setResumeViewerCandidate(screeningCandidate);
+                        if (screeningCandidate?.resumePath && !screeningCandidate.resumePath.startsWith('blob:')) {
+                          const cleanPath = screeningCandidate.resumePath.trim();
+                          const candidateName = screeningCandidate.name || `${screeningCandidate.firstName || ''} ${screeningCandidate.lastName || ''}`.trim() || 'Candidate';
+                          const safeName = encodeURIComponent(candidateName);
+                          let targetUrl = '';
+                          if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+                            targetUrl = cleanPath;
+                          } else if (cleanPath.startsWith('/api/recruitment/job-openings/resumes/download/')) {
+                            targetUrl = cleanPath.includes('?') ? `${cleanPath}&name=${safeName}` : `${cleanPath}?name=${safeName}`;
+                          } else if (cleanPath.startsWith('/api') || cleanPath.startsWith('/uploads')) {
+                            targetUrl = cleanPath;
+                          } else {
+                            const filename = cleanPath.split('/').pop() || cleanPath;
+                            targetUrl = `/api/recruitment/job-openings/resumes/download/${filename}?name=${safeName}`;
+                          }
+                          window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                        } else {
+                          setResumeViewerCandidate(screeningCandidate);
+                        }
                       }}
                     >
-                      <Eye className="h-3 w-3" /> View Resume
+                      <ExternalLink className="h-3 w-3" /> View Resume
                     </Button>
                   </div>
                 </div>

@@ -127,11 +127,24 @@ export class JobOpeningsController {
 
   @Public()
   @Get('resumes/download/:filename')
-  downloadResume(@Param('filename') filename: string, @Res() res: any) {
+  downloadResume(
+    @Param('filename') filename: string,
+    @Query('name') name: string,
+    @Res() res: any,
+  ) {
     const filePath = join(process.cwd(), 'uploads', 'resumes', filename);
     if (!existsSync(filePath)) {
       throw new NotFoundException('Resume document file not found');
     }
+    const cleanName = (name || '').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
+    const displayName = cleanName
+      ? (cleanName.toLowerCase().endsWith('.pdf') ? cleanName : `${cleanName}_Resume.pdf`)
+      : filename;
+
+    if (filename.toLowerCase().endsWith('.pdf')) {
+      res.setHeader('Content-Type', 'application/pdf');
+    }
+    res.setHeader('Content-Disposition', `inline; filename="${displayName}"`);
     return res.sendFile(filePath);
   }
 
