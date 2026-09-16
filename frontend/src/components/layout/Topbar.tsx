@@ -17,6 +17,8 @@ import {
 import { logout as logoutApi, fetchMe } from '@/api/auth';
 import { HCM_MODULES, isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 import { notificationStore, type PortalNotification } from '@/utils/notificationStore';
+import { useCompany } from '@/context/CompanyContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TopbarProps {
   onToggleMobileMenu?: () => void;
@@ -26,6 +28,7 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, refreshToken, clear } = useAuthStore();
+  const { activeCompanyId, companies, setActiveCompanyId } = useCompany();
 
   // Dynamic Notifications State
   const [notifications, setNotifications] = useState<PortalNotification[]>([]);
@@ -205,6 +208,24 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
 
       {/* Right Side Control Panel & User Menu */}
       <div className="flex items-center gap-3">
+        {/* Company Switcher for Super Admin */}
+        {isSuperAdmin && companies && companies.length > 1 && (
+          <div className="w-48 sm:w-60 hidden md:block">
+            <Select value={activeCompanyId || ''} onValueChange={setActiveCompanyId}>
+              <SelectTrigger className="h-8 text-xs font-semibold bg-background border-border/80 shadow-2xs">
+                <SelectValue placeholder="Select Organization" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id} className="text-xs font-medium">
+                    {c.name} {c.code ? `(${c.code})` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Status Indicator */}
         <Badge variant="outline" className="hidden lg:flex items-center gap-1.5 text-[11px] font-normal py-0.5 px-2.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />

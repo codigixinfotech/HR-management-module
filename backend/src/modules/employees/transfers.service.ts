@@ -166,7 +166,7 @@ export class TransfersService {
       dto.newDepartmentId ?? null,
       dto.newDesignationId ?? null,
       dto.newGradeId ?? null,
-      dto.newBranchId ?? null,
+      (dto.newBranchId === 'NONE' || !dto.newBranchId) ? null : dto.newBranchId,
       dto.newReportingManagerId ?? null,
       effDate,
       dto.reason,
@@ -189,7 +189,7 @@ export class TransfersService {
         dto.newDepartmentId ?? null,
         dto.newDesignationId ?? null,
         dto.newGradeId ?? null,
-        dto.newBranchId ?? null,
+        (dto.newBranchId === 'NONE' || !dto.newBranchId) ? null : dto.newBranchId,
         dto.newReportingManagerId ?? null,
         effDate,
         dto.reason ?? '',
@@ -263,7 +263,9 @@ export class TransfersService {
         updatePayload.level = resolved.level;
       }
     }
-    if (t.newBranchId) updatePayload.branchId = t.newBranchId;
+    if (t.newBranchId !== undefined) {
+      updatePayload.branchId = (t.newBranchId === 'NONE' || !t.newBranchId) ? null : t.newBranchId;
+    }
     if (t.newReportingManagerId) updatePayload.reportingManagerId = t.newReportingManagerId;
 
     // Apply changes to Employee Master

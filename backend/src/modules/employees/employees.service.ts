@@ -450,12 +450,14 @@ export class EmployeesService implements OnModuleInit {
       });
       if (!valid) data.reportingManagerId = null;
     }
-    if (data.branchId) {
+    if (data.branchId && data.branchId !== 'NONE') {
       const valid = await this.prisma.branch.findUnique({
         where: { id: data.branchId },
         select: { id: true },
       });
       if (!valid) data.branchId = null;
+    } else if (data.branchId === 'NONE' || data.branchId === '') {
+      data.branchId = null;
     }
     if (data.departmentId) {
       const valid = await this.prisma.department.findUnique({

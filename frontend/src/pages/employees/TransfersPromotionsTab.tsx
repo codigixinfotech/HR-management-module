@@ -203,7 +203,7 @@ export function TransfersPromotionsTab() {
       newDepartmentId: newDeptId || undefined,
       newDesignationId: newDesgId || undefined,
       newGradeId: newGradeId || undefined,
-      newBranchId: newBranchId || undefined,
+      newBranchId: (newBranchId === 'NONE' || !newBranchId) ? undefined : newBranchId,
       newReportingManagerId: newReportingManagerId || undefined,
       effectiveDate,
       reason,
@@ -469,13 +469,16 @@ export function TransfersPromotionsTab() {
                         {(movementType === 'BRANCH_TRANSFER' || movementType === 'PROMOTION_TRANSFER') && (
                           <div className="space-y-1.5">
                             <Label>New Branch / Location *</Label>
-                            <Select value={newBranchId} onValueChange={setNewBranchId}>
+                            <Select value={newBranchId || 'NONE'} onValueChange={setNewBranchId}>
                               <SelectTrigger className="h-9 text-xs">
                                 <SelectValue placeholder="Choose target branch..." />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="NONE" className="text-xs text-muted-foreground italic font-medium">
+                                  Head Office / No Branch
+                                </SelectItem>
                                 {branches.map(b => (
-                                  <SelectItem key={b.id} value={b.id} className="text-xs">{b.name}</SelectItem>
+                                  <SelectItem key={b.id} value={b.id} className="text-xs">{b.name} {b.city ? `(${b.city})` : ''}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>

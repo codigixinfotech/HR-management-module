@@ -28,18 +28,20 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     queryFn: companiesApi.list,
   });
 
+  const userCompanyId = user?.companyId || (user?.employee as any)?.companyId;
   const companies = useMemo(() => {
-    if (!isSuperAdmin && user?.companyId) {
-      return rawCompanies.filter((c) => c.id === user.companyId);
+    if (!isSuperAdmin && userCompanyId) {
+      return rawCompanies.filter((c) => c.id === userCompanyId);
     }
     return rawCompanies;
-  }, [rawCompanies, isSuperAdmin, user?.companyId]);
+  }, [rawCompanies, isSuperAdmin, userCompanyId]);
 
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | undefined>(() => {
-    if (!isSuperAdmin && user?.companyId) return user.companyId;
+    const userCompany = user?.companyId || user?.employee?.companyId;
+    if (userCompany) return userCompany;
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && stored !== 'ALL') return stored;
-    return user?.companyId || undefined;
+    return undefined;
   });
 
   useEffect(() => {
@@ -54,9 +56,10 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const userAssignedMatch = user?.companyId ? rawCompanies.find((c) => c.id === user.companyId) : null;
     const empAssignedMatch = user?.employee?.companyId ? rawCompanies.find((c) => c.id === user?.employee?.companyId) : null;
+    const userCompany = userAssignedMatch?.id || empAssignedMatch?.id;
 
     if (!isSuperAdmin) {
-      const targetId = userAssignedMatch?.id || empAssignedMatch?.id || rawCompanies[0]?.id;
+      const targetId = userCompany || rawCompanies[0]?.id;
       if (targetId) {
         if (activeCompanyId !== targetId) {
           setActiveCompanyIdState(targetId);
@@ -67,7 +70,18 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     // Super Admin:
-    // If valid specific company is stored in localStorage, use it
+    // If user has an assigned company, prioritize their company as default unless they explicitly switched
+    const hasSwitchedInSession = sessionStorage.getItem('ehcm_session_switched_company') === 'true';
+    if (userCompany && (!hasSwitchedInSession || storedId !== activeCompanyId)) {
+      if (!hasSwitchedInSession) {
+        if (activeCompanyId !== userCompany) {
+          setActiveCompanyIdState(userCompany);
+        }
+        localStorage.setItem(STORAGE_KEY, userCompany);
+        return;
+      }
+    }
+
     if (storedId && storedId !== 'ALL' && rawCompanies.some((c) => c.id === storedId)) {
       if (activeCompanyId !== storedId) {
         setActiveCompanyIdState(storedId);
@@ -75,8 +89,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } else {
       // Auto-fetch default organization: user.companyId, Cravita, or first valid company
       const defaultCompany =
-        userAssignedMatch?.id ||
-        empAssignedMatch?.id ||
+        userCompany ||
         rawCompanies.find((c) => c.name.toLowerCase().includes('cravita'))?.id ||
         rawCompanies[0]?.id;
 
@@ -90,10 +103,8 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [user?.companyId, user?.employee?.companyId, isSuperAdmin, rawCompanies, isLoading, activeCompanyId]);
 
   const setActiveCompanyId = (id: string) => {
-    if (!isSuperAdmin && user?.companyId) {
-      return;
-    }
     if (!id || id === 'ALL') return;
+    sessionStorage.setItem('ehcm_session_switched_company', 'true');
     setActiveCompanyIdState(id);
     localStorage.setItem(STORAGE_KEY, id);
     queryClient.invalidateQueries();

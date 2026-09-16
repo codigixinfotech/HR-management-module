@@ -39,6 +39,8 @@ import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/ap
 import { costCentersApi, payGradesApi } from '@/api/cost-grades';
 import { shiftTypesApi } from '@/api/workforce';
 import { candidatesApi } from '@/api/recruitment';
+import { isSuperAdminUser, isBranchAdminUser, isCompanyAdminUser } from '@/lib/modules';
+import { useAuthStore } from '@/stores/auth-store';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,8 +127,8 @@ const employeeSchema = z.object({
   // 3. Corporate Organization
   companyId: z.string().min(1, 'Company is required'),
   businessUnit: z.string().min(1, 'Business Unit is required'),
-  branchId: z.string().min(1, 'Branch is required'),
-  location: z.string().min(1, 'Location is required'),
+  branchId: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
   costCenter: z.string().optional(),
 
   // 4. Work Information
@@ -230,7 +232,7 @@ const STEPS = [
 import { useCompany } from '@/context/CompanyContext';
 
 export function EmployeeMasterTab() {
-  const { activeCompanyId } = useCompany();
+  const { activeCompanyId, setActiveCompanyId, companies: contextCompanies } = useCompany();
   const searchParams = useSearchParams()[0];
   const setSearchParams = useSearchParams()[1];
   const navigate = useNavigate();
@@ -319,7 +321,106 @@ export function EmployeeMasterTab() {
     enabled: isEditing,
   });
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
+  const { data: rawCompanies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
+  const companies = (contextCompanies && contextCompanies.length > 0) ? contextCompanies : (rawCompanies || []);
+
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = useMemo(() => isSuperAdminUser(user), [user]);
+  const isBranchAdmin = useMemo(() => isBranchAdminUser(user), [user]);
+  const isCompanyAdmin = useMemo(() => isCompanyAdminUser(user), [user]);
+
+  const userCompanyId = user?.companyId || (user?.employee as any)?.companyId;
+  const userBranchId = user?.branchId || user?.employee?.branchId;
+
+  const allowedCompanies = useMemo(() => {
+    const list =
+      companies && companies.length > 0
+        ? companies
+        : contextCompanies || [];
+
+    if (!list.length) return [];
+
+    // Super Admin can see all companies
+    if (isSuperAdmin) {
+      return list;
+    }
+
+    // Company / Branch Admin must be restricted
+    const companyId =
+      user?.companyId ||
+      (user?.employee as any)?.companyId ||
+      '';
+
+    const companyName =
+      user?.companyName ||
+      (user?.employee as any)?.companyName ||
+      '';
+
+    // First try exact ID
+    if (companyId) {
+      const byId = list.filter(
+        (c: any) => String(c.id) === String(companyId)
+      );
+
+      if (byId.length > 0) {
+        return byId;
+      }
+    }
+
+    // Then try company name
+    if (companyName) {
+      const byName = list.filter(
+        (c: any) =>
+          String(c.name || '').trim().toLowerCase() ===
+          String(companyName).trim().toLowerCase()
+      );
+
+      if (byName.length > 0) {
+        return byName;
+      }
+    }
+
+    // IMPORTANT:
+    // Never expose all companies when the user is not Super Admin.
+    return [];
+  }, [
+    companies,
+    contextCompanies,
+    isSuperAdmin,
+    user?.companyId,
+    (user?.employee as any)?.companyId,
+    user?.companyName,
+    (user?.employee as any)?.companyName,
+  ]);
+
+  const targetCompanyId = useMemo(() => {
+    if (isSuperAdmin && activeCompanyId) {
+      const active = allowedCompanies.find(
+        (c: any) => c.id === activeCompanyId
+      );
+
+      if (active) return active.id;
+    }
+
+    if (allowedCompanies.length === 1) {
+      return allowedCompanies[0].id;
+    }
+
+    if (userCompanyId) {
+      const userCompany = allowedCompanies.find(
+        (c: any) => String(c.id) === String(userCompanyId)
+      );
+
+      if (userCompany) return userCompany.id;
+    }
+
+    return allowedCompanies[0]?.id || '';
+  }, [
+    isSuperAdmin,
+    activeCompanyId,
+    allowedCompanies,
+    userCompanyId,
+  ]);
 
   const { data: employeesData } = useQuery({
     queryKey: ['employees', 1, '', activeCompanyId],
@@ -329,10 +430,10 @@ export function EmployeeMasterTab() {
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema) as any,
     defaultValues: {
-      companyId: activeCompanyId || '',
+      companyId: activeCompanyId || userCompanyId || '',
       businessUnit: 'Technology Services',
       branchId: '',
-      location: '',
+      location: 'Head Office',
       costCenter: '',
       firstName: '',
       middleName: '',
@@ -443,16 +544,13 @@ export function EmployeeMasterTab() {
   const watchedDesigId = form.watch('designationId');
   const watchedDeptId = form.watch('departmentId');
 
-  // Auto-sync companyId with activeCompanyId or first available company
+  // Auto-sync companyId with targetCompanyId
   useEffect(() => {
-    if (activeCompanyId) {
-      if (form.getValues('companyId') !== activeCompanyId) {
-        form.setValue('companyId', activeCompanyId);
-      }
-    } else if (!form.getValues('companyId') && companies && companies.length > 0) {
-      form.setValue('companyId', companies[0].id);
+    if (targetCompanyId && form.getValues('companyId') !== targetCompanyId) {
+      form.setValue('companyId', targetCompanyId, { shouldValidate: true, shouldDirty: true });
     }
-  }, [activeCompanyId, companies, form]);
+  }, [targetCompanyId, form]);
+
 
   // Auto-generate sequential employeeCode (e.g. EMP-001) if empty and not editing
   useEffect(() => {
@@ -674,8 +772,18 @@ export function EmployeeMasterTab() {
 
   const branchOptions = useMemo(() => {
     if (!allBranches || !selectedCompanyId) return [];
-    return allBranches.filter((b: any) => b.companyId === selectedCompanyId);
-  }, [allBranches, selectedCompanyId]);
+    let list = allBranches.filter((b: any) => b.companyId === selectedCompanyId);
+
+    // Branch Admin should ONLY see their assigned branch(es)
+    if (isBranchAdmin && userBranchId) {
+      const filtered = list.filter((b: any) => b.id === userBranchId);
+      if (filtered.length > 0) return filtered;
+      const matchDirect = allBranches.filter((b: any) => b.id === userBranchId);
+      if (matchDirect.length > 0) return matchDirect;
+    }
+
+    return list;
+  }, [allBranches, selectedCompanyId, isBranchAdmin, userBranchId]);
 
   const selectedBranch = useMemo(() => {
     return branchOptions?.find((b: any) => b.id === selectedBranchId);
@@ -688,14 +796,27 @@ export function EmployeeMasterTab() {
     if (selectedBranch?.city) {
       return [{ name: selectedBranch.city }, { name: `${selectedBranch.city} Main Facility` }];
     }
-    return [];
+    return [{ name: 'Head Office' }, { name: 'Corporate HQ' }, { name: 'Main Campus' }, { name: 'Remote' }];
   }, [selectedBranch]);
 
   useEffect(() => {
-    if (locationOptions.length > 0 && !form.getValues('location')) {
-      form.setValue('location', locationOptions[0].name);
+    if (!form.getValues('location')) {
+      form.setValue('location', locationOptions[0]?.name || 'Head Office');
     }
   }, [selectedBranchId, locationOptions, form]);
+
+  // Auto-sync branch for Branch Admin
+  useEffect(() => {
+    if (isBranchAdmin && userBranchId) {
+      if (form.getValues('branchId') !== userBranchId) {
+        form.setValue('branchId', userBranchId, { shouldValidate: true, shouldDirty: true });
+        const matched = branchOptions.find((b: any) => b.id === userBranchId);
+        if (matched) {
+          form.setValue('location', matched.name || matched.city || 'Head Office');
+        }
+      }
+    }
+  }, [isBranchAdmin, userBranchId, branchOptions, form]);
 
   const departmentOptions = useMemo(() => {
     if (!allDepartments || !selectedCompanyId) return [];
@@ -803,7 +924,7 @@ export function EmployeeMasterTab() {
         companyId: defaultCompId,
         businessUnit: editEmployee.businessUnit ?? 'Technology Services',
         branchId: editEmployee.branchId ?? '',
-        location: editEmployee.location ?? '',
+        location: editEmployee.location ?? 'Head Office',
         costCenter: editEmployee.costCenter ?? '',
         firstName: editEmployee.firstName ?? '',
         middleName: editEmployee.middleName ?? '',
@@ -906,7 +1027,8 @@ export function EmployeeMasterTab() {
         emergencyContactRelationship: values.emergencyContactRelationship || null,
         emergencyContactPhone: values.emergencyContactPhone || null,
         reportingManagerId: values.reportingManagerId || null,
-        branchId: values.branchId || null,
+        branchId: (values.branchId === 'NONE' || !values.branchId) ? null : values.branchId,
+        location: values.location || 'Head Office',
         departmentId: values.departmentId || null,
         designationId: values.designationId || null,
         dateOfJoining: values.dateOfJoining || undefined,
@@ -978,12 +1100,23 @@ export function EmployeeMasterTab() {
     },
   });
 
-  // Set default company & branch on enter adding state
+  // Set default company on enter adding state
   useEffect(() => {
-    if (isAdding && companies && companies.length > 0) {
-      form.setValue('companyId', companies[0].id);
+    if (isAdding && allowedCompanies.length > 0) {
+      const currentCompanyId = form.getValues('companyId');
+
+      const isAllowed = allowedCompanies.some(
+        (c: any) => c.id === currentCompanyId
+      );
+
+      if (!isAllowed) {
+        form.setValue('companyId', allowedCompanies[0].id, {
+          shouldValidate: true,
+          shouldDirty: false,
+        });
+      }
     }
-  }, [isAdding, companies, form]);
+  }, [isAdding, allowedCompanies, form]);
 
   // ── Auto-Fill from Accepted Offer & Recruitment Data Across All 12 Steps ──
   useEffect(() => {
@@ -1014,7 +1147,7 @@ export function EmployeeMasterTab() {
       }
       const nextCode = 'EMP' + String(maxNum === 0 ? (employeesData?.total ?? 0) + 1 : maxNum + 1).padStart(4, '0');
 
-      const compId = companies && companies.length > 0 ? companies[0].id : '';
+      const compId = targetCompanyId || activeCompanyId || userCompanyId || (companies && companies.length > 0 ? companies[0].id : '');
       const branchId = allBranches && allBranches.length > 0 ? allBranches[0].id : '';
 
       let matchedDeptId = '';
@@ -1055,8 +1188,8 @@ export function EmployeeMasterTab() {
       form.reset({
         companyId: compId,
         businessUnit: 'HQ Operations',
-        branchId: branchId,
-        location: location || 'Pune HQ - Executive Suite',
+        branchId: branchId || '',
+        location: location || 'Head Office',
         costCenter: 'CC-ENG-001',
         firstName: firstName,
         middleName: middleName,
@@ -1163,10 +1296,10 @@ export function EmployeeMasterTab() {
     const nextCode = 'EMP' + String(maxNum === 0 ? (employeesData?.total ?? 0) + 1 : maxNum + 1).padStart(4, '0');
 
     form.reset({
-      companyId: companies?.[0]?.id ?? '',
+      companyId: targetCompanyId || activeCompanyId || userCompanyId || (companies && companies.length > 0 ? companies[0].id : ''),
       businessUnit: 'Technology Services',
       branchId: '',
-      location: '',
+      location: 'Head Office',
       costCenter: '',
       firstName: '',
       middleName: '',
@@ -1216,7 +1349,8 @@ export function EmployeeMasterTab() {
         emergencyContactRelationship: values.emergencyContactRelationship || null,
         emergencyContactPhone: values.emergencyContactPhone || null,
         reportingManagerId: values.reportingManagerId || null,
-        branchId: values.branchId || null,
+        branchId: (values.branchId === 'NONE' || !values.branchId) ? null : values.branchId,
+        location: values.location || 'Head Office',
         departmentId: values.departmentId || null,
         designationId: values.designationId || null,
         dateOfJoining: values.dateOfJoining || undefined,
@@ -1307,9 +1441,9 @@ export function EmployeeMasterTab() {
     if (activeStep === 0) {
       isValid = await form.trigger(['firstName', 'lastName', 'dateOfBirth', 'phone']);
     } else if (activeStep === 1) {
-      isValid = await form.trigger(['companyId', 'branchId', 'employeeCode', 'dateOfJoining', 'departmentId', 'designationId']);
+      isValid = await form.trigger(['companyId', 'employeeCode', 'dateOfJoining', 'departmentId', 'designationId']);
     } else if (activeStep === 2) {
-      isValid = await form.trigger(['companyId', 'branchId', 'location']);
+      isValid = await form.trigger(['companyId', 'businessUnit']);
     } else if (activeStep === 3) {
       isValid = await form.trigger(['workEmail']);
     }
@@ -1576,16 +1710,22 @@ export function EmployeeMasterTab() {
                             <Building2 className="h-3.5 w-3.5" /> Company Entity *
                           </Label>
                           <Select
-                            value={form.watch('companyId') || ''}
-                            onValueChange={(v) => form.setValue('companyId', v, { shouldValidate: true })}
+                            key={`step2-company-${form.watch('companyId') || targetCompanyId || activeCompanyId || 'none'}`}
+                            value={form.watch('companyId') || targetCompanyId || activeCompanyId || ''}
+                            onValueChange={(v) => {
+                              form.setValue('companyId', v, { shouldValidate: true, shouldDirty: true });
+                              if (isSuperAdmin) {
+                                setActiveCompanyId(v);
+                              }
+                            }}
                           >
                             <SelectTrigger className="h-9 text-xs font-semibold bg-background">
                               <SelectValue placeholder="Select Corporate Entity" />
                             </SelectTrigger>
                             <SelectContent>
-                              {companies?.map((c: any) => (
+                              {allowedCompanies?.map((c: any) => (
                                 <SelectItem key={c.id} value={c.id} className="text-xs font-medium">
-                                  {c.name} ({c.code})
+                                  {c.name} {c.code ? `(${c.code})` : ''}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1597,39 +1737,39 @@ export function EmployeeMasterTab() {
 
                         <div className="space-y-1.5">
                           <Label className="font-semibold text-primary flex items-center gap-1.5 text-xs">
-                            <MapPin className="h-3.5 w-3.5" /> Branch / Location *
+                            <MapPin className="h-3.5 w-3.5" /> Branch / Office
+                            <span className="text-muted-foreground font-normal ml-0.5">(Optional)</span>
                           </Label>
                           <Select
-                            value={form.watch('branchId') || ''}
+                            key={`step2-branch-${form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : 'NONE')}`}
+                            value={form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : 'NONE')}
                             onValueChange={(v) => {
-                              form.setValue('branchId', v, { shouldValidate: true });
-                              const br = branchOptions.find((b: any) => b.id === v);
-                              if (br) {
-                                form.setValue('location', br.name || br.city || '');
+                              const nextBranch = v === 'NONE' ? '' : v;
+                              form.setValue('branchId', nextBranch, { shouldValidate: true, shouldDirty: true });
+                              if (v === 'NONE' || !v) {
+                                form.setValue('location', 'Head Office');
+                              } else {
+                                const br = branchOptions.find((b: any) => b.id === v);
+                                if (br) {
+                                  form.setValue('location', br.name || br.city || 'Head Office');
+                                }
                               }
                             }}
                           >
                             <SelectTrigger className="h-9 text-xs font-semibold bg-background">
-                              <SelectValue
-                                placeholder={
-                                  branchOptions.length === 0
-                                    ? 'No branches configured for this company'
-                                    : 'Select Branch / Location'
-                                }
-                              />
+                              <SelectValue placeholder="Select Branch / Office (Optional)" />
                             </SelectTrigger>
                             <SelectContent>
-                              {branchOptions.length === 0 ? (
-                                <SelectItem value="__empty_branch__" disabled className="text-xs text-muted-foreground italic">
-                                  No branches configured for this company
+                              {!isBranchAdmin && (
+                                <SelectItem value="NONE" className="text-xs text-muted-foreground italic font-medium">
+                                  Head Office / No Branch
                                 </SelectItem>
-                              ) : (
-                                branchOptions.map((b: any) => (
-                                  <SelectItem key={b.id} value={b.id} className="text-xs font-medium">
-                                    {b.name} ({b.code})
-                                  </SelectItem>
-                                ))
                               )}
+                              {branchOptions.map((b: any) => (
+                                <SelectItem key={b.id} value={b.id} className="text-xs font-medium">
+                                  {b.name} {b.code ? `(${b.code})` : b.city ? `(${b.city})` : ''}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           {form.formState.errors.branchId && (
@@ -2591,14 +2731,23 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Company Entity *</Label>
-                          <Select value={form.watch('companyId')} onValueChange={(v) => form.setValue('companyId', v)}>
+                          <Select
+                            key={`step3-company-${form.watch('companyId') || targetCompanyId || activeCompanyId || 'none'}`}
+                            value={form.watch('companyId') || targetCompanyId || activeCompanyId || ''}
+                            onValueChange={(v) => {
+                              form.setValue('companyId', v, { shouldValidate: true, shouldDirty: true });
+                              if (isSuperAdmin) {
+                                setActiveCompanyId(v);
+                              }
+                            }}
+                          >
                             <SelectTrigger className="h-9 text-xs">
                               <SelectValue placeholder="Select company" />
                             </SelectTrigger>
                             <SelectContent>
-                              {companies?.map((c: any) => (
-                                <SelectItem key={c.id} value={c.id} className="text-xs">
-                                  {c.name}
+                              {allowedCompanies?.map((c: any) => (
+                                <SelectItem key={c.id} value={c.id} className="text-xs font-medium">
+                                  {c.name} {c.code ? `(${c.code})` : ''}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -2623,15 +2772,38 @@ export function EmployeeMasterTab() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="font-semibold">Branch / Facility *</Label>
-                          <Select value={form.watch('branchId')} onValueChange={(v) => form.setValue('branchId', v)}>
+                          <Label className="font-semibold">
+                            Branch / Office
+                            <span className="text-muted-foreground font-normal ml-1 text-xs">(Optional)</span>
+                          </Label>
+                          <Select
+                            key={`step3-branch-${form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : 'NONE')}`}
+                            value={form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : 'NONE')}
+                            onValueChange={(v) => {
+                              const nextBranch = v === 'NONE' ? '' : v;
+                              form.setValue('branchId', nextBranch, { shouldValidate: true, shouldDirty: true });
+                              if (v === 'NONE' || !v) {
+                                form.setValue('location', 'Head Office');
+                              } else {
+                                const br = branchOptions.find((b: any) => b.id === v);
+                                if (br) {
+                                  form.setValue('location', br.name || br.city || 'Head Office');
+                                }
+                              }
+                            }}
+                          >
                             <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select branch" />
+                              <SelectValue placeholder="Select branch (Optional)" />
                             </SelectTrigger>
                             <SelectContent>
+                              {!isBranchAdmin && (
+                                <SelectItem value="NONE" className="text-xs text-muted-foreground italic font-medium">
+                                  Head Office / No Branch
+                                </SelectItem>
+                              )}
                               {branchOptions?.map((b: any) => (
-                                <SelectItem key={b.id} value={b.id} className="text-xs">
-                                  {b.name}
+                                <SelectItem key={b.id} value={b.id} className="text-xs font-medium">
+                                  {b.name} {b.code ? `(${b.code})` : b.city ? `(${b.city})` : ''}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -2639,8 +2811,11 @@ export function EmployeeMasterTab() {
                           {form.formState.errors.branchId && <p className="text-[10px] text-destructive">{form.formState.errors.branchId.message}</p>}
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="font-semibold">Location *</Label>
-                          <Select value={form.watch('location')} onValueChange={(v) => form.setValue('location', v)}>
+                          <Label className="font-semibold">Location / Office</Label>
+                          <Select
+                            value={form.watch('location') || (locationOptions?.[0]?.name ?? 'Head Office')}
+                            onValueChange={(v) => form.setValue('location', v)}
+                          >
                             <SelectTrigger className="h-9 text-xs">
                               <SelectValue placeholder="Select location" />
                             </SelectTrigger>
