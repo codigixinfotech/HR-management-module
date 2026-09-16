@@ -278,7 +278,11 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
                     <Briefcase className="h-3.5 w-3.5 text-indigo-500" /> Relevant Experience
                   </span>
                   <strong className="text-sm font-bold text-slate-900 dark:text-white">
-                    {experienceYears ? `${experienceYears} Years` : 'Fresher / Entry Level'}
+                    {experienceYears !== null && experienceYears !== undefined
+                      ? Number(experienceYears) === 0
+                        ? '0 Years / Fresher'
+                        : `${experienceYears} Years`
+                      : 'Not Found in Resume'}
                   </strong>
                 </div>
 

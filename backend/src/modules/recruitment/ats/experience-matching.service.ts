@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 export interface ExperienceMatchResult {
-  candidateExpYears: number;
+  status: 'VERIFIED' | 'NOT_VERIFIED' | 'FRESHER';
+  candidateExpYears: number | null;
   minRequiredYears: number;
   maxRequiredYears?: number;
   isMatch: boolean;
@@ -23,48 +24,77 @@ export class ExperienceMatchingService {
    * Matches candidate experience against Job Opening experience requirement
    */
   matchExperience(
-    candidateExpYears: number,
+    candidateExpYears: number | null | undefined,
     minReqYears?: number | null,
     maxReqYears?: number | null,
   ): ExperienceMatchResult {
     const minReq = minReqYears ?? 0;
-    const maxReq = maxReqYears ?? 10;
-    const candidateYears = Math.max(0, candidateExpYears || 0);
+    const maxReq = maxReqYears ?? (minReq > 0 ? minReq + 3 : 10);
 
-    // 1. Fresher / No min experience required
-    if (minReq === 0) {
+    // 1. Candidate experience NOT found in uploaded PDF resume
+    if (candidateExpYears === null || candidateExpYears === undefined) {
       return {
-        candidateExpYears: candidateYears,
+        status: 'NOT_VERIFIED',
+        candidateExpYears: null,
         minRequiredYears: minReq,
         maxRequiredYears: maxReq,
-        isMatch: true,
-        score: 100,
-        summary: `Eligible for Fresher / Entry Level requirements (${candidateYears} Yrs found).`,
+        isMatch: false,
+        score: 0,
+        summary: `Not Verified — Candidate experience not found in uploaded resume. Required: ${minReq}${maxReq ? `–${maxReq}` : ''} years.`,
       };
     }
 
-    // 2. Meets or exceeds minimum required experience
+    // 2. Candidate is verified 0 years / Fresher in resume
+    if (candidateExpYears === 0) {
+      if (minReq === 0) {
+        return {
+          status: 'FRESHER',
+          candidateExpYears: 0,
+          minRequiredYears: minReq,
+          maxRequiredYears: maxReq,
+          isMatch: true,
+          score: 100,
+          summary: `Eligible for Fresher / Entry Level requirements (0 Yrs found in resume).`,
+        };
+      } else {
+        return {
+          status: 'VERIFIED',
+          candidateExpYears: 0,
+          minRequiredYears: minReq,
+          maxRequiredYears: maxReq,
+          isMatch: false,
+          score: 0,
+          summary: `Below required minimum experience of ${minReq} Years (0 Yrs / Fresher found in resume).`,
+        };
+      }
+    }
+
+    // 3. Normal experience calculation (> 0 years)
+    const candidateYears = candidateExpYears;
+
     if (candidateYears >= minReq) {
       return {
+        status: 'VERIFIED',
         candidateExpYears: candidateYears,
         minRequiredYears: minReq,
         maxRequiredYears: maxReq,
         isMatch: true,
         score: 100,
-        summary: `Meets minimum experience requirement of ${minReq} Years (${candidateYears} Yrs found).`,
+        summary: `Meets minimum experience requirement of ${minReq} Years (${candidateYears} Yrs found in resume).`,
       };
     }
 
-    // 3. Below minimum requirement -> proportional score, but isMatch is FALSE
-    const score = Math.round(Math.min(100, Math.max(0, (candidateYears / minReq) * 100)));
+    // Below minimum requirement -> proportional score, but isMatch is FALSE
+    const score = minReq > 0 ? Math.round(Math.min(100, Math.max(0, (candidateYears / minReq) * 100))) : 100;
 
     return {
+      status: 'VERIFIED',
       candidateExpYears: candidateYears,
       minRequiredYears: minReq,
       maxRequiredYears: maxReq,
       isMatch: false,
       score,
-      summary: `Below required minimum experience of ${minReq} Years (${candidateYears} Yrs found).`,
+      summary: `Below required minimum experience of ${minReq} Years (${candidateYears} Yrs found in resume).`,
     };
   }
 

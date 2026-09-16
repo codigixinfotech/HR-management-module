@@ -7,7 +7,9 @@ export interface ParsedResumeData {
   email: string;
   phone?: string;
   location?: string;
-  experienceYears: number;
+  experienceYears: number | null;
+  totalExperienceYears?: number | null;
+  experienceFound: boolean;
   skills: string[];
   education: string[];
   certifications: string[];
@@ -52,7 +54,7 @@ export class ResumeParserService {
       }
     }
 
-    // Combine raw text from candidate profile fields & actual parsed resume content
+    // Combine raw text from candidate profile fields & actual parsed resume content for skill/metadata discovery
     const combinedRawText = [
       `${candidate.firstName || ''} ${candidate.lastName || ''}`,
       candidate.email || '',
@@ -60,7 +62,6 @@ export class ResumeParserService {
       candidate.currentLocation || '',
       candidate.qualification || '',
       candidate.skills || '',
-      candidate.experience || '',
       candidate.currentCompany || '',
       candidate.notes || '',
       candidate.coverLetter || '',
@@ -72,8 +73,8 @@ export class ResumeParserService {
     // Extract skills array
     const extractedSkills = this.extractSkills(combinedRawText, candidate.skills);
 
-    // Extract experience years
-    const experienceYears = this.extractExperienceYears(candidate.experience, combinedRawText);
+    // Extract experience years strictly from uploaded resume document text (NOT fallback profile data)
+    const experienceYears = this.extractExperienceFromResume(fileContentText);
 
     // Extract education
     const education = this.extractEducation(candidate.qualification, combinedRawText);
@@ -100,6 +101,8 @@ export class ResumeParserService {
       phone: candidate.phone || undefined,
       location: candidate.currentLocation || undefined,
       experienceYears,
+      totalExperienceYears: experienceYears,
+      experienceFound: experienceYears !== null,
       skills: extractedSkills,
       education,
       certifications: this.extractCertifications(combinedRawText),
@@ -166,26 +169,27 @@ export class ResumeParserService {
       'Azure',
       'GCP',
       'Git',
-      'Linux',
       'CI/CD',
-      'HTML',
-      'CSS',
-      'Tailwind',
       'GraphQL',
       'REST API',
-      'Microservices',
-      'Software Engineering',
-      'ERP',
-      'CRM',
-      'Problem Solving',
-      'Communication',
-      'Customer Support',
-      'System Architecture',
-      'UI/UX Design',
-      'Figma',
-      'Wireframing',
       'Agile',
       'Scrum',
+      'Project Management',
+      'Hospital Operations',
+      'Healthcare Management',
+      'Patient Services',
+      'Team Management',
+      'Budget Management',
+      'Communication',
+      'Leadership',
+      'Problem Solving',
+      'ERP',
+      'Accounting',
+      'Finance',
+      'HR Operations',
+      'Payroll',
+      'Recruitment',
+      'Compliance',
     ];
 
     commonSkills.forEach((skill) => {
@@ -199,22 +203,114 @@ export class ResumeParserService {
     return Array.from(skillSet);
   }
 
-  private extractExperienceYears(explicitExp?: string | null, rawText?: string): number {
-    if (explicitExp) {
-      const match = String(explicitExp).match(/([\d.]+)/);
-      if (match) {
-        const val = parseFloat(match[1]);
-        if (!isNaN(val)) return val;
+  /**
+   * Extracts experience years strictly from uploaded resume document text.
+   * Returns:
+   * - null: If no experience section, employment history, or experience years found (NOT VERIFIED)
+   * - 0: If candidate is explicitly declared as Fresher / Entry Level / 0 years
+   * - number (> 0): Years of experience calculated from resume text
+   */
+  public extractExperienceFromResume(resumeText?: string | null): number | null {
+    if (!resumeText || !resumeText.trim()) {
+      return null;
+    }
+
+    const text = resumeText.trim();
+
+    // 1. Check for explicit Fresher / Entry Level declaration in resume text
+    const fresherRegex = /\b(fresher|entry\s*level|fresh\s*graduate|trainee|no\s*(?:prior\s*)?experience|0\s*(?:years?|yrs?)(?:\s*(?:of)?\s*experience)?)\b/i;
+    if (fresherRegex.test(text)) {
+      const hasExpYears = /(?:total\s+experience|work\s+experience|experience)\s*[:=-]?\s*([1-9]\d*(?:\.\d+)?)\s*(?:years?|yrs?)/i.test(text);
+      if (!hasExpYears) {
+        return 0; // Verified Fresher (0 years)
       }
     }
-    if (rawText) {
-      const match = rawText.match(/(\d+)\+?\s*(years?|yrs?)/i);
-      if (match) {
-        const val = parseFloat(match[1]);
-        if (!isNaN(val)) return val;
+
+    // 2. Check for explicit total experience statements:
+    // e.g. "Total Experience: 5 Years", "Experience: 3.5 Yrs", "Overall Experience - 6 years"
+    const explicitTotalExpRegex = /(?:total\s+(?:work\s+)?experience|overall\s+experience|experience\s+summary|relevant\s+experience)\s*[:=-]?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)/i;
+    const totalMatch = text.match(explicitTotalExpRegex);
+    if (totalMatch) {
+      const val = parseFloat(totalMatch[1]);
+      if (!isNaN(val) && val >= 0) {
+        return val;
       }
     }
-    return 0;
+
+    // 3. Check for general experience statement:
+    // e.g. "5+ years of experience", "having 4 years experience in...", "3 years of professional experience"
+    const generalExpRegex = /(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)(?:\s*(?:of)?\s*(?:relevant|hands-on|industry|work|professional|domain)?\s*experience)\b/i;
+    const generalMatch = text.match(generalExpRegex);
+    if (generalMatch) {
+      const val = parseFloat(generalMatch[1]);
+      if (!isNaN(val) && val >= 0) {
+        return val;
+      }
+    }
+
+    // 4. Look for an Experience / Employment History section header and extract date ranges or years within it
+    const expSectionRegex = /(?:WORK\s+EXPERIENCE|EMPLOYMENT\s+HISTORY|PROFESSIONAL\s+EXPERIENCE|WORK\s+HISTORY|CAREER\s+HISTORY|EXPERIENCE)\b[\s\S]{10,2500}?(?=(?:EDUCATION|ACADEMIC|PROJECTS|SKILLS|CERTIFICATIONS|AWARDS|DECLARATION|$))/i;
+    const sectionMatch = text.match(expSectionRegex);
+    if (sectionMatch) {
+      const sectionText = sectionMatch[0];
+
+      // Check if within this experience section there is a year mention e.g. "3 years"
+      const inSectionExp = sectionText.match(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)/i);
+      if (inSectionExp) {
+        const val = parseFloat(inSectionExp[1]);
+        if (!isNaN(val) && val > 0 && val < 50) {
+          return val;
+        }
+      }
+
+      // Check for date intervals e.g. "2019 - 2023", "Jan 2020 - Present", "06/2018 - 08/2022"
+      const dateRanges = this.extractYearsFromDateRanges(sectionText);
+      if (dateRanges !== null && dateRanges > 0) {
+        return dateRanges;
+      }
+    }
+
+    // 5. If no experience section, no employment history, and no years of experience found:
+    return null;
+  }
+
+  private extractYearsFromDateRanges(text: string): number | null {
+    const currentYear = new Date().getFullYear();
+    const rangeRegex = /\b(19[89]\d|20[012]\d)\s*(?:-|–|—|to)\s*(19[89]\d|20[012]\d|Present|Current|Till\s*Date|Now)\b/gi;
+    let match: RegExpExecArray | null;
+    const intervals: Array<{ start: number; end: number }> = [];
+
+    while ((match = rangeRegex.exec(text)) !== null) {
+      const startYear = parseInt(match[1], 10);
+      const endYear = /present|current|till\s*date|now/i.test(match[2])
+        ? currentYear
+        : parseInt(match[2], 10);
+
+      if (startYear >= 1970 && endYear >= startYear && (endYear - startYear) <= 45) {
+        intervals.push({ start: startYear, end: endYear });
+      }
+    }
+
+    if (intervals.length === 0) return null;
+
+    // Merge overlapping intervals to avoid double counting
+    intervals.sort((a, b) => a.start - b.start);
+    let mergedYears = 0;
+    let curStart = intervals[0].start;
+    let curEnd = intervals[0].end;
+
+    for (let i = 1; i < intervals.length; i++) {
+      if (intervals[i].start <= curEnd) {
+        curEnd = Math.max(curEnd, intervals[i].end);
+      } else {
+        mergedYears += curEnd - curStart;
+        curStart = intervals[i].start;
+        curEnd = intervals[i].end;
+      }
+    }
+    mergedYears += curEnd - curStart;
+
+    return mergedYears > 0 ? mergedYears : null;
   }
 
   private extractEducation(explicitQual?: string | null, rawText?: string): string[] {

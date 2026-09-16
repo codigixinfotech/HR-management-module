@@ -9,8 +9,6 @@ import {
   FileText,
   RefreshCw,
   ExternalLink,
-  Download,
-  Award,
   Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -38,7 +36,7 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
   const queryClient = useQueryClient();
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
 
-  const { data: ats, isLoading, isError, refetch } = useQuery({
+  const { data: ats, isLoading, isError } = useQuery({
     queryKey: ['candidate-ats-analysis', candidateId],
     queryFn: async () => {
       const res = await atsApi.get(candidateId);
@@ -105,12 +103,15 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
   const scoreBadgeColor = isHighMatch
     ? 'bg-emerald-500 text-white dark:bg-emerald-600'
     : isMediumMatch
-    ? 'bg-amber-500 text-white dark:bg-amber-600'
-    : 'bg-rose-500 text-white dark:bg-rose-600';
+      ? 'bg-amber-500 text-white dark:bg-amber-600'
+      : 'bg-rose-500 text-white dark:bg-rose-600';
 
   const matchedSkills: string[] = Array.isArray(ats.skillsMatched) ? ats.skillsMatched : [];
   const missingSkills: string[] = Array.isArray(ats.skillsMissing) ? ats.skillsMissing : [];
   const extracted = ats.extractedData || {};
+
+  const isExpNotVerified =
+    ats.experienceMatch?.status === 'NOT_VERIFIED' || ats.experienceMatch?.candidateExpYears == null;
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-5">
@@ -183,11 +184,43 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
             <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
               <Briefcase className="h-3.5 w-3.5 text-indigo-500" /> Experience Match (30%)
             </span>
-            <span className={`font-bold font-mono ${ats.experienceMatch?.isMatch ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {ats.experienceMatch?.isMatch ? '✓ Eligible' : 'Not Eligible'}
+            <span
+              className={`font-bold font-mono ${
+                isExpNotVerified
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : ats.experienceMatch?.isMatch
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-rose-600 dark:text-rose-400'
+              }`}
+            >
+              {isExpNotVerified
+                ? 'Not Verified'
+                : ats.experienceMatch?.isMatch
+                  ? '✓ Eligible'
+                  : 'Not Eligible'}
             </span>
           </div>
           <Progress value={ats.experienceMatch?.score ?? 0} className="h-1.5 bg-slate-200 dark:bg-slate-700" />
+          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+            <span>
+              Candidate:{' '}
+              <strong className="text-slate-700 dark:text-slate-300">
+                {ats.experienceMatch?.candidateExpYears != null
+                  ? `${ats.experienceMatch.candidateExpYears} Yrs`
+                  : 'Not Found'}
+              </strong>
+            </span>
+            <span>
+              Required:{' '}
+              <strong className="text-slate-700 dark:text-slate-300">
+                {ats.experienceMatch?.minRequiredYears ?? 0}
+                {ats.experienceMatch?.maxRequiredYears ? `–${ats.experienceMatch.maxRequiredYears}` : ''} Yrs
+              </strong>
+            </span>
+            <span>
+              Score: <strong className="font-mono">{ats.experienceMatch?.score ?? 0}%</strong>
+            </span>
+          </div>
         </div>
 
         {/* 3. Qualification Match Card */}
@@ -252,7 +285,7 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-600 dark:text-slate-300">
             <p><strong>Candidate Name:</strong> {extracted.name || candidateName}</p>
             <p><strong>Email:</strong> {extracted.email || 'N/A'}</p>
-            <p><strong>Experience:</strong> {extracted.experienceYears ?? 0} Years</p>
+            <p><strong>Experience:</strong> {extracted.experienceYears != null ? `${extracted.experienceYears} Years` : 'Not Found in Resume'}</p>
             <p><strong>Education:</strong> {Array.isArray(extracted.education) ? extracted.education.join(', ') : 'Graduate'}</p>
             <p><strong>Companies:</strong> {Array.isArray(extracted.companies) && extracted.companies.length > 0 ? extracted.companies.join(', ') : 'N/A'}</p>
             <p><strong>Certifications:</strong> {Array.isArray(extracted.certifications) && extracted.certifications.length > 0 ? extracted.certifications.join(', ') : 'None'}</p>

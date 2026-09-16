@@ -53,10 +53,12 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
 }) => {
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
   const [liveScore, setLiveScore] = useState<string | null>(null);
+  const [liveAtsData, setLiveAtsData] = useState<any>(null);
 
   React.useEffect(() => {
     if (candidate) {
       setLiveScore(candidate.atsAnalysis?.matchScore !== undefined ? `${candidate.atsAnalysis.matchScore}%` : (candidate.aiMatchScore !== null && candidate.aiMatchScore !== undefined ? `${candidate.aiMatchScore}%` : null));
+      setLiveAtsData(candidate.atsAnalysis || null);
     }
   }, [candidate]);
 
@@ -90,6 +92,36 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // 1. Candidate's own skills (from profile/form or ATS extracted from resume)
+  const candidateSkillsList = React.useMemo(() => {
+    if (candidate?.skills && typeof candidate.skills === 'string' && candidate.skills.trim()) {
+      return candidate.skills
+        .split(/[,;\n•|]/)
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+    }
+    const atsExtracted = liveAtsData?.extractedData?.skills || candidate?.atsAnalysis?.extractedData?.skills;
+    if (Array.isArray(atsExtracted) && atsExtracted.length > 0) {
+      return atsExtracted.map((s: any) => String(s).trim()).filter(Boolean);
+    }
+    return [];
+  }, [candidate, liveAtsData]);
+
+  // 2. Job Opening required skills (from candidate.jobOpening or candidate's requisition)
+  const jobRequiredSkillsList = React.useMemo(() => {
+    const raw = candidate?.jobOpening?.requiredSkills || candidate?.jobOpening?.skills || '';
+    if (!raw || typeof raw !== 'string' || !raw.trim()) return [];
+    return raw
+      .split(/[,;\n•|]/)
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+  }, [candidate]);
+
+  const matchedSkills: string[] = React.useMemo(() => {
+    const list = liveAtsData?.skillsMatched || candidate?.atsAnalysis?.skillsMatched;
+    return Array.isArray(list) ? list : [];
+  }, [candidate, liveAtsData]);
+
   if (!candidate) return null;
 
   const candidateIdShort = candidate.id ? candidate.id.substring(0, 8) : 'CMT-2026';
@@ -99,7 +131,7 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
         month: 'short',
         year: 'numeric',
       })
-    : '27 Aug 2026';
+    : 'N/A';
 
   const displayScore =
     liveScore ??
@@ -173,6 +205,7 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
             jobTitle={candidate.role}
             resumePath={candidate.resumePath}
             onAnalysisLoaded={(atsData) => {
+              setLiveAtsData(atsData);
               if (atsData && atsData.matchScore !== undefined) {
                 setLiveScore(`${atsData.matchScore}%`);
               }
@@ -196,7 +229,7 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
               <div className="flex items-center gap-2">
                 <MapPin className="h-3.5 w-3.5 text-slate-400" />
                 <span className="text-slate-500">Location:</span>
-                <span className="font-semibold text-slate-900 dark:text-white">{candidate.currentLocation || 'Pune, India'}</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{candidate.currentLocation || 'N/A'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar className="h-3.5 w-3.5 text-slate-400" />
@@ -214,7 +247,9 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div>
                 <span className="text-slate-500 block text-[11px]">Total Experience</span>
-                <span className="font-semibold text-slate-900 dark:text-white font-mono">{candidate.experience || '3 Years'}</span>
+                <span className="font-semibold text-slate-900 dark:text-white font-mono">
+                  {candidate.experience || (candidate.candidateType === 'FRESHER' ? 'Fresher (0 Years)' : 'N/A')}
+                </span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[11px]">Current / Last Company</span>
@@ -222,29 +257,29 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
               </div>
               <div>
                 <span className="text-slate-500 block text-[11px]">Notice Period</span>
-                <span className="font-semibold text-slate-900 dark:text-white">{candidate.noticePeriod || '30 Days'}</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{candidate.noticePeriod || 'Immediate / Not Specified'}</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[11px]">Current CTC</span>
                 <span className="font-semibold text-slate-900 dark:text-white font-mono">
-                  {candidate.currentCtc ? (
-                    Number(candidate.currentCtc) < 100
+                  {candidate.currentCtc != null && candidate.currentCtc !== '' && candidate.currentCtc !== 'N/A' ? (
+                    Number(candidate.currentCtc) <= 100
                       ? `₹ ${(Number(candidate.currentCtc) * 100000).toLocaleString('en-IN')} (${Number(candidate.currentCtc).toFixed(1)} LPA)`
                       : `₹ ${Number(candidate.currentCtc).toLocaleString('en-IN')} (${(Number(candidate.currentCtc) / 100000).toFixed(1)} LPA)`
                   ) : (
-                    '₹ 8,00,000 (8.0 LPA)'
+                    'Not Disclosed'
                   )}
                 </span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[11px]">Expected CTC</span>
                 <span className="font-semibold text-slate-900 dark:text-white font-mono">
-                  {candidate.expectedCtc ? (
-                    Number(candidate.expectedCtc) < 100
+                  {candidate.expectedCtc != null && candidate.expectedCtc !== '' && candidate.expectedCtc !== 'N/A' ? (
+                    Number(candidate.expectedCtc) <= 100
                       ? `₹ ${(Number(candidate.expectedCtc) * 100000).toLocaleString('en-IN')} (${Number(candidate.expectedCtc).toFixed(1)} LPA)`
                       : `₹ ${Number(candidate.expectedCtc).toLocaleString('en-IN')} (${(Number(candidate.expectedCtc) / 100000).toFixed(1)} LPA)`
                   ) : (
-                    '₹ 12,00,000 (12.0 LPA)'
+                    'Not Disclosed'
                   )}
                 </span>
               </div>
@@ -252,20 +287,76 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
           </div>
 
           {/* 3. Skills & Competencies */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <h4 className="font-bold text-xs text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b pb-1.5">
               <Star className="h-4 w-4 text-indigo-600" /> Skills & Competencies
             </h4>
-            <div className="space-y-2">
-              <span className="text-slate-500 block text-[11px] font-semibold">Technical Skills:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {(candidate.skills || 'React.js, TypeScript, Node.js, SQL').split(/[,;\n]/).map((sk: string, i: number) => (
-                  <Badge key={i} variant="outline" className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
-                    {sk.trim()}
-                  </Badge>
-                ))}
+
+            {/* Candidate Profile Skills */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 block text-[11px] font-semibold">
+                  Candidate Profile Skills:
+                </span>
+                {candidateSkillsList.length > 0 && (
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {candidateSkillsList.length} skill{candidateSkillsList.length !== 1 ? 's' : ''} listed
+                  </span>
+                )}
               </div>
+              {candidateSkillsList.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {candidateSkillsList.map((sk: string, i: number) => (
+                    <Badge
+                      key={i}
+                      variant="outline"
+                      className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800"
+                    >
+                      {sk}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 italic bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
+                  No candidate profile skills specified.
+                </p>
+              )}
             </div>
+
+            {/* Requisition Required Skills */}
+            {jobRequiredSkillsList.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 block text-[11px] font-semibold">
+                    Requisition Required Skills ({candidate.role || 'Job'}):
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {jobRequiredSkillsList.length} required
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {jobRequiredSkillsList.map((sk: string, i: number) => {
+                    const isMatched = matchedSkills.some(
+                      (m: string) => m.toLowerCase().trim() === sk.toLowerCase().trim()
+                    );
+                    return (
+                      <Badge
+                        key={i}
+                        variant="outline"
+                        className={`text-[11px] font-semibold ${
+                          isMatched
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                            : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                        }`}
+                      >
+                        {isMatched && <span className="mr-1 text-emerald-600 font-bold">✓</span>}
+                        {sk}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 4. Resume & Attached Documents */}

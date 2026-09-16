@@ -135,7 +135,8 @@ export interface AtsAnalysisData {
   skillsMatched: string[];
   skillsMissing: string[];
   experienceMatch: {
-    candidateExpYears: number;
+    status?: 'VERIFIED' | 'NOT_VERIFIED' | 'FRESHER';
+    candidateExpYears: number | null;
     minRequiredYears: number;
     maxRequiredYears?: number;
     isMatch: boolean;
@@ -147,13 +148,16 @@ export interface AtsAnalysisData {
     requiredQual: string;
     isMatch: boolean;
     score: number;
+    summary?: string;
   };
   extractedData: {
     name: string;
     email: string;
     phone?: string;
     location?: string;
-    experienceYears: number;
+    experienceYears: number | null;
+    totalExperienceYears?: number | null;
+    experienceFound?: boolean;
     skills: string[];
     education: string[];
     certifications?: string[];
@@ -172,5 +176,3 @@ export const atsApi = {
   reanalyze: async (candidateId: string) =>
     (await apiClient.post<AtsAnalysisData>(`/recruitment/candidates/${candidateId}/ats/reanalyze`)).data,
 };
-
-
