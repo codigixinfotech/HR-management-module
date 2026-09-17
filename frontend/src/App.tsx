@@ -42,6 +42,35 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
 
+function UploadsRedirectHandler() {
+  if (typeof window !== 'undefined') {
+    const pathname = window.location.pathname;
+    const rawFilename = pathname.split('/').pop() || '';
+    const filename = decodeURIComponent(rawFilename).trim();
+    const serverBase =
+      import.meta.env.VITE_SERVER_URL &&
+      !import.meta.env.VITE_SERVER_URL.includes('localhost') &&
+      !import.meta.env.VITE_SERVER_URL.includes('127.0.0.1')
+        ? import.meta.env.VITE_SERVER_URL.replace(/\/+$/, '')
+        : window.location.origin;
+
+    if (filename && !['uploads', 'resumes', 'download'].includes(filename.toLowerCase())) {
+      window.location.replace(`${serverBase}/api/recruitment/job-openings/resumes/download/${encodeURIComponent(filename)}`);
+    } else {
+      window.location.replace('/recruitment');
+    }
+  }
+
+  return (
+    <div className="flex h-screen w-screen items-center justify-center bg-slate-900 text-white">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+        <p className="text-sm font-medium">Opening candidate document...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -57,6 +86,10 @@ export default function App() {
           {/* Public Auth & Password Setup Routes — No login session required */}
           <Route path="/auth/set-password" element={<SetPasswordPage />} />
           <Route path="/auth/verify-invitation" element={<SetPasswordPage />} />
+
+          {/* Uploads & Resume Direct Download Interceptor — Prevents SPA fallback redirect to /dashboard */}
+          <Route path="/uploads/*" element={<UploadsRedirectHandler />} />
+          <Route path="/api/uploads/*" element={<UploadsRedirectHandler />} />
 
           {/* Root & Public Landing Page — No login required */}
           <Route path="/" element={<LandingPage />} />

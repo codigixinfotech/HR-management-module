@@ -901,6 +901,7 @@ export function CandidatesTab() {
                               openResumeInNewTab(
                                 c.resumePath,
                                 c.name || `${c.firstName || ''} ${c.lastName || ''}`,
+                                () => setResumeViewerCandidate(c),
                               )
                             }
                             title="Open Resume PDF in New Tab"

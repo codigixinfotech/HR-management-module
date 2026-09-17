@@ -40,6 +40,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Badge } from '@/components/ui/badge';
 import type { JobOpening, Candidate, CandidateStage } from '@/api/types';
 import { CandidateApplicationWizard } from '@/components/recruitment/CandidateApplicationWizard';
+import { openResumeInNewTab } from '@/utils/resume-url.util';
 
 const DEMO_JOB_OPENINGS: JobOpening[] = [
   {
@@ -137,20 +138,8 @@ export function CareersPortalTab() {
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobOpening | null>(null);
 
-  const handleViewResume = (path?: string | null, _candidateName?: string) => {
-    if (!path) {
-      toast.error('No resume document attached for this candidate.');
-      return;
-    }
-    const serverBaseUrl =
-      import.meta.env.VITE_SERVER_URL ||
-      (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : typeof window !== 'undefined' ? window.location.origin : '');
-    const fullUrl = path.startsWith('http')
-      ? path
-      : path.startsWith('/api')
-      ? `${serverBaseUrl}${path}`
-      : path;
-    window.open(fullUrl, '_blank');
+  const handleViewResume = (path?: string | null, candidateName?: string) => {
+    openResumeInNewTab(path, candidateName);
   };
 
   // View Candidates for Specific Job Requisition Modal State
