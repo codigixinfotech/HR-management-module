@@ -32,6 +32,7 @@ import {
 import { jobOpeningsApi, candidatesApi, assessmentsApi } from '@/api/recruitment';
 import { AtsAnalysisCard } from '@/components/recruitment/AtsAnalysisCard';
 import { ResumeViewerModal } from '@/components/recruitment/ResumeViewerModal';
+import { openResumeInNewTab } from '@/utils/resume-url.util';
 import { employeesApi } from '@/api/employees';
 import { tasksApi } from '@/api/tasks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -891,6 +892,23 @@ export function CandidatesTab() {
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
 
+                        {c.resumePath && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+                            onClick={() =>
+                              openResumeInNewTab(
+                                c.resumePath,
+                                c.name || `${c.firstName || ''} ${c.lastName || ''}`,
+                              )
+                            }
+                            title="Open Resume PDF in New Tab"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1146,25 +1164,11 @@ export function CandidatesTab() {
                       size="sm"
                       className="h-7 text-[11px] text-primary border-primary/30 hover:bg-primary/10 px-2 mt-0.5 gap-1"
                       onClick={() => {
-                        if (screeningCandidate?.resumePath && !screeningCandidate.resumePath.startsWith('blob:')) {
-                          const cleanPath = screeningCandidate.resumePath.trim();
-                          const candidateName = screeningCandidate.name || `${screeningCandidate.firstName || ''} ${screeningCandidate.lastName || ''}`.trim() || 'Candidate';
-                          const safeName = encodeURIComponent(candidateName);
-                          let targetUrl = '';
-                          if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-                            targetUrl = cleanPath;
-                          } else if (cleanPath.startsWith('/api/recruitment/job-openings/resumes/download/')) {
-                            targetUrl = cleanPath.includes('?') ? `${cleanPath}&name=${safeName}` : `${cleanPath}?name=${safeName}`;
-                          } else if (cleanPath.startsWith('/api') || cleanPath.startsWith('/uploads')) {
-                            targetUrl = cleanPath;
-                          } else {
-                            const filename = cleanPath.split('/').pop() || cleanPath;
-                            targetUrl = `/api/recruitment/job-openings/resumes/download/${filename}?name=${safeName}`;
-                          }
-                          window.open(targetUrl, '_blank', 'noopener,noreferrer');
-                        } else {
-                          setResumeViewerCandidate(screeningCandidate);
-                        }
+                        openResumeInNewTab(
+                          screeningCandidate?.resumePath,
+                          screeningCandidate?.name || `${screeningCandidate?.firstName || ''} ${screeningCandidate?.lastName || ''}`,
+                          () => setResumeViewerCandidate(screeningCandidate),
+                        );
                       }}
                     >
                       <ExternalLink className="h-3 w-3" /> View Resume

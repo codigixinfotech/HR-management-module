@@ -33,6 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { AtsAnalysisCard } from './AtsAnalysisCard';
 
 import { ResumeViewerModal } from './ResumeViewerModal';
+import { openResumeInNewTab } from '@/utils/resume-url.util';
 
 interface CandidateDetailsModalProps {
   isOpen: boolean;
@@ -63,33 +64,8 @@ export const CandidateDetailsModal: React.FC<CandidateDetailsModalProps> = ({
   }, [candidate]);
 
   const handleViewResume = () => {
-    if (!candidate.resumePath) {
-      setIsResumeModalOpen(true);
-      return;
-    }
-
-    const cleanPath = candidate.resumePath.trim();
-    if (!cleanPath || cleanPath.startsWith('blob:')) {
-      setIsResumeModalOpen(true);
-      return;
-    }
-
-    const candidateName = candidate.name || `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim() || 'Candidate';
-    const safeName = encodeURIComponent(candidateName);
-
-    let targetUrl = '';
-    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-      targetUrl = cleanPath;
-    } else if (cleanPath.startsWith('/api/recruitment/job-openings/resumes/download/')) {
-      targetUrl = cleanPath.includes('?') ? `${cleanPath}&name=${safeName}` : `${cleanPath}?name=${safeName}`;
-    } else if (cleanPath.startsWith('/api') || cleanPath.startsWith('/uploads')) {
-      targetUrl = cleanPath;
-    } else {
-      const filename = cleanPath.split('/').pop() || cleanPath;
-      targetUrl = `/api/recruitment/job-openings/resumes/download/${filename}?name=${safeName}`;
-    }
-
-    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    const candidateName = candidate?.name || `${candidate?.firstName || ''} ${candidate?.lastName || ''}`.trim() || 'Candidate';
+    openResumeInNewTab(candidate?.resumePath, candidateName, () => setIsResumeModalOpen(true));
   };
 
   // 1. Candidate's own skills (from profile/form or ATS extracted from resume)

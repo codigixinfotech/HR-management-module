@@ -17,6 +17,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { atsApi, type AtsAnalysisData } from '@/api/recruitment';
 import { ResumeViewerModal } from './ResumeViewerModal';
+import { openResumeInNewTab } from '@/utils/resume-url.util';
 
 interface AtsAnalysisCardProps {
   candidateId: string;
@@ -141,7 +142,7 @@ export const AtsAnalysisCard: React.FC<AtsAnalysisCardProps> = ({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setIsResumeModalOpen(true)}
+            onClick={() => openResumeInNewTab(resumePath, candidateName, () => setIsResumeModalOpen(true))}
             className="h-8 text-xs font-semibold gap-1.5 border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200"
           >
             <ExternalLink className="h-3.5 w-3.5 text-indigo-500" /> View Resume

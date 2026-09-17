@@ -50,6 +50,7 @@ import { jobOpeningsApi, candidatesApi, assessmentsApi } from '@/api/recruitment
 import { interviewsApi } from '@/api/interviews';
 import { teamsChatApi, type CandidateTeamsMessage } from '@/api/teams-chat';
 import { ResumeViewerModal } from '@/components/recruitment/ResumeViewerModal';
+import { openResumeInNewTab } from '@/utils/resume-url.util';
 import { ScheduleInterviewModal } from './ScheduleInterviewModal';
 import { SendAssessmentModal } from './SendAssessmentModal';
 import { TeamsLinkPoolManagementModal } from '@/components/recruitment/TeamsLinkPoolManagementModal';
@@ -1097,7 +1098,7 @@ export function CandidateCommunicationTab() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setIsResumeModalOpen(true)}
+                      onClick={() => openResumeInNewTab(activeCandidate?.resumePath, activeCandidate?.name, () => setIsResumeModalOpen(true))}
                       className="h-8 text-[11px] font-semibold gap-1 border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200"
                     >
                       <FileText className="h-3 w-3 text-indigo-500" /> View Resume

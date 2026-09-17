@@ -212,35 +212,30 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
           </div>
         </DialogHeader>
 
-        {/* Modal Body: PDF Iframe / Object or Structured Digital Resume Fallback */}
+        {/* Modal Body: Verified Digital Candidate Profile Card with Direct PDF Open Actions */}
         <div className="flex-1 overflow-y-auto p-5 bg-slate-50 dark:bg-slate-950">
-          {finalUrl && !iframeError && !isWordDoc ? (
-            <div className="w-full h-[620px] rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
-              <iframe
-                src={`${finalUrl}#toolbar=1`}
-                title={`${candidateName} Resume PDF`}
-                className="w-full h-full border-0"
-                onError={() => setIframeError(true)}
-              />
-            </div>
-          ) : (
-            <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-md space-y-6">
-              {/* Top Banner Notice */}
-              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 rounded-xl flex items-center justify-between text-xs text-indigo-900 dark:text-indigo-200">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-indigo-600 shrink-0" />
-                  <span>
-                    {isWordDoc
-                      ? `Resume uploaded in Microsoft Word format. You can download the file directly or view the parsed profile below.`
-                      : `Viewing verified digital candidate profile for ${candidateName}.`}
-                  </span>
-                </div>
-                {finalUrl && (
-                  <a href={finalUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline text-indigo-700 dark:text-indigo-300 ml-2 shrink-0">
-                    Open File ↗
-                  </a>
-                )}
+          <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-md space-y-6">
+            {/* Top Banner Notice with Direct New Tab Launch Button */}
+            <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/50 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-indigo-900 dark:text-indigo-200">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-indigo-600 shrink-0" />
+                <span>
+                  {finalUrl
+                    ? `Candidate resume document attached. Click below to view the original PDF directly in a new browser tab.`
+                    : `Viewing verified digital candidate profile summary for ${candidateName}.`}
+                </span>
               </div>
+              {finalUrl && (
+                <a
+                  href={finalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors shrink-0 shadow-xs"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Open Full PDF in New Tab ↗
+                </a>
+              )}
+            </div>
 
               {/* Candidate Profile Header Card */}
               <div className="border-b border-slate-100 dark:border-slate-800 pb-5 flex flex-col sm:flex-row justify-between gap-4">
@@ -327,7 +322,6 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
                 </div>
               )}
             </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
