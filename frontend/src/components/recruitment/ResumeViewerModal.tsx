@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { getFullResumeUrl as resolveResumeUrl } from '@/utils/resume-url.util';
 
 interface ResumeViewerModalProps {
   isOpen: boolean;
@@ -53,56 +54,10 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
 }) => {
   const [iframeError, setIframeError] = useState(false);
 
-  const getBackendHost = () => {
-    if (import.meta.env.VITE_SERVER_URL) {
-      return import.meta.env.VITE_SERVER_URL.replace(/\/+$/, '');
-    }
-    if (import.meta.env.VITE_API_URL) {
-      return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
-    }
-    const hostname = typeof window !== 'undefined' && window.location?.hostname ? window.location.hostname : 'localhost';
-    return `http://${hostname}:3001`;
-  };
-
-  // Normalize document URL
-  const getFullResumeUrl = () => {
-    if (!resumeUrl || typeof resumeUrl !== 'string') return null;
-    const cleanUrl = resumeUrl.trim();
-    if (!cleanUrl) return null;
-
-    // Check for invalid or legacy dead blob strings (e.g. from previous sessions or other hosts)
-    if (cleanUrl.startsWith('blob:')) {
-      if (typeof window !== 'undefined' && !cleanUrl.startsWith(`blob:${window.location.origin}`)) {
-        return null;
-      }
-      return cleanUrl;
-    }
-
-    if (cleanUrl.startsWith('data:')) {
-      return cleanUrl;
-    }
-
-    const host = getBackendHost();
-
-    // If it is a full web URL
-    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
-      if (cleanUrl.includes('/recruitment/portal') || cleanUrl.includes('/careers')) {
-        return null;
-      }
-      return cleanUrl;
-    }
-
-    // Direct API route or uploads path from NestJS recruitment controller (proxied same-origin by Vite)
-    if (cleanUrl.startsWith('/api') || cleanUrl.startsWith('/uploads')) {
-      return cleanUrl;
-    }
-
-    // If it's a file name e.g. "resume-xxx.pdf"
-    const filename = cleanUrl.split('/').pop() || cleanUrl;
-    return `/api/recruitment/job-openings/resumes/download/${filename}`;
-  };
-
-  const finalUrl = getFullResumeUrl();
+  // Use the shared utility to build a full URL including the backend server origin.
+  // This is critical on live/production where there is no Vite dev proxy to forward
+  // relative /api/ paths to port 3001 — the shared util always prepends the backend host.
+  const finalUrl = resolveResumeUrl(resumeUrl, candidateName);
   const isWordDoc = Boolean(finalUrl && (finalUrl.toLowerCase().endsWith('.docx') || finalUrl.toLowerCase().endsWith('.doc')));
 
   useEffect(() => {
