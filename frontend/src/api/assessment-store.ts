@@ -1418,43 +1418,7 @@ class AssessmentStore {
       list = [];
     }
 
-    if (!Array.isArray(list) || list.length === 0) {
-      const now = new Date().toISOString();
-      const defaultSeeds: { name: string; category: string; description: string }[] = [
-        { name: 'React.js', category: 'Frontend', description: 'React component lifecycle, hooks, virtual DOM, and modern SPA state management' },
-        { name: 'Node.js', category: 'Backend', description: 'Node.js runtime, Express.js APIs, event loop, and asynchronous stream handling' },
-        { name: 'Python', category: 'Backend', description: 'Python syntax, data structures, OOP, backend frameworks, and automation scripting' },
-        { name: 'Java', category: 'Backend', description: 'Core Java, OOP principles, collections framework, multithreading, and Spring Boot' },
-        { name: 'JavaScript', category: 'Frontend', description: 'ECMAScript standards, closures, prototypes, asynchronous events, and DOM manipulation' },
-        { name: 'TypeScript', category: 'Frontend', description: 'Static typing, interfaces, generics, type utility functions, and TS compiler' },
-        { name: 'SQL', category: 'Database', description: 'Relational database design, querying, complex joins, indexing, and transactions' },
-        { name: 'DevOps', category: 'Cloud/DevOps', description: 'CI/CD pipeline automation, Docker containers, Kubernetes, and cloud infrastructure' },
-        { name: 'AWS', category: 'Cloud/DevOps', description: 'Amazon Web Services core cloud architecture (EC2, S3, IAM, Lambda, RDS, VPC)' },
-        { name: 'Azure', category: 'Cloud/DevOps', description: 'Microsoft Azure cloud platform, App Services, Entra ID, and cloud governance' },
-        { name: 'General Aptitude', category: 'Aptitude', description: 'Quantitative mathematics, percentages, numerical problem solving, and analytical data' },
-        { name: 'Logical Reasoning', category: 'Reasoning', description: 'Deductive reasoning, analytical patterns, syllogisms, and problem solving' },
-        { name: 'Programming', category: 'Coding', description: 'Algorithmic problem solving, data structures, recursion, and time complexity' },
-      ];
-
-      const cleanBranchId = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
-      list = defaultSeeds.map((seed, idx) => ({
-        id: `TECH-${String(idx + 1).padStart(3, '0')}-${companyId.slice(-4)}`,
-        name: seed.name,
-        category: seed.category,
-        description: seed.description,
-        status: 'Active',
-        companyId,
-        branchId: cleanBranchId,
-        createdAt: now,
-        updatedAt: now,
-      }));
-
-      try {
-        localStorage.setItem(key, JSON.stringify(list));
-      } catch {
-        // ignore
-      }
-    }
+    if (!Array.isArray(list)) list = [];
 
     return list.filter((t) => {
       if (activeOnly && t.status !== 'Active') return false;
@@ -1546,10 +1510,20 @@ class AssessmentStore {
 
   deleteTechnologyLocal(id: string, companyId?: string): { success: boolean } {
     if (!companyId) throw new Error('Company ID is required');
+    localStorage.setItem(`ehcm_technologies_init_${companyId.trim()}`, 'true');
     const existingList = this.getTechnologies(companyId);
     const updated = existingList.filter((t) => t.id !== id);
     this.saveTechnologiesLocal(companyId, updated);
     return { success: true };
+  }
+
+  clearAllTechnologiesLocal(companyId?: string): { count: number } {
+    if (!companyId) throw new Error('Company ID is required');
+    localStorage.setItem(`ehcm_technologies_init_${companyId.trim()}`, 'true');
+    const existingList = this.getTechnologies(companyId);
+    const count = existingList.length;
+    this.saveTechnologiesLocal(companyId, []);
+    return { count };
   }
 }
 
@@ -1751,6 +1725,22 @@ export const technologiesApi = {
         throw new Error(e.response.data.message);
       }
       return assessmentStore.deleteTechnologyLocal(id, companyId);
+    }
+  },
+
+  clearAllTechnologies: async (companyId?: string): Promise<{ count: number }> => {
+    if (!companyId) return { count: 0 };
+    try {
+      const { data } = await apiClient.delete<{ count: number }>('/recruitment/assessments/technologies', {
+        params: { companyId },
+      });
+      assessmentStore.clearAllTechnologiesLocal(companyId);
+      return data;
+    } catch (e: any) {
+      if (e?.response?.data?.message) {
+        throw new Error(e.response.data.message);
+      }
+      return assessmentStore.clearAllTechnologiesLocal(companyId);
     }
   },
 };

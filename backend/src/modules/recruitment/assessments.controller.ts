@@ -78,6 +78,16 @@ export class AssessmentsController {
     return this.assessmentsService.deleteTechnology(id, tenantCompanyId);
   }
 
+  @Delete('technologies')
+  @Permissions('recruitment.write')
+  clearAllTechnologies(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.assessmentsService.clearAllTechnologies(tenantCompanyId);
+  }
+
   @Get('kpis')
   @Permissions('recruitment.read')
   getKpis(

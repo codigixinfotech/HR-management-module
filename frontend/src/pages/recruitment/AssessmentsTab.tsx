@@ -196,11 +196,9 @@ export function AssessmentsTab() {
   // Technology / Skill Master State
   const [techSearch, setTechSearch] = useState('');
   const [techStatusFilter, setTechStatusFilter] = useState<'ALL' | 'Active' | 'Inactive'>('ALL');
-  const [techCategoryFilter, setTechCategoryFilter] = useState('ALL');
   const [isTechModalOpen, setIsTechModalOpen] = useState(false);
   const [editingTech, setEditingTech] = useState<TechnologyMaster | null>(null);
   const [techFormName, setTechFormName] = useState('');
-  const [techFormCategory, setTechFormCategory] = useState('Frontend');
   const [techFormDescription, setTechFormDescription] = useState('');
   const [techFormStatus, setTechFormStatus] = useState<'Active' | 'Inactive'>('Active');
   const [isSavingTech, setIsSavingTech] = useState(false);
@@ -261,15 +259,13 @@ export function AssessmentsTab() {
       const matchSearch =
         !techSearch.trim() ||
         t.name.toLowerCase().includes(techSearch.trim().toLowerCase()) ||
-        (t.category || '').toLowerCase().includes(techSearch.trim().toLowerCase()) ||
         (t.description || '').toLowerCase().includes(techSearch.trim().toLowerCase());
 
-      const matchCategory = techCategoryFilter === 'ALL' || t.category === techCategoryFilter;
       const matchStatus = techStatusFilter === 'ALL' || t.status === techStatusFilter;
 
-      return matchSearch && matchCategory && matchStatus;
+      return matchSearch && matchStatus;
     });
-  }, [technologies, techSearch, techCategoryFilter, techStatusFilter]);
+  }, [technologies, techSearch, techStatusFilter]);
 
   const refreshData = async () => {
     if (!activeCompanyId) {
@@ -637,13 +633,11 @@ export function AssessmentsTab() {
     if (tm) {
       setEditingTech(tm);
       setTechFormName(tm.name);
-      setTechFormCategory(tm.category || 'Frontend');
       setTechFormDescription(tm.description || '');
       setTechFormStatus(tm.status);
     } else {
       setEditingTech(null);
       setTechFormName('');
-      setTechFormCategory('Frontend');
       setTechFormDescription('');
       setTechFormStatus('Active');
     }
@@ -675,7 +669,6 @@ export function AssessmentsTab() {
           editingTech.id,
           {
             name: trimmed,
-            category: techFormCategory,
             description: techFormDescription,
             status: techFormStatus,
           },
@@ -686,7 +679,6 @@ export function AssessmentsTab() {
         await technologiesApi.createTechnology(
           {
             name: trimmed,
-            category: techFormCategory,
             description: techFormDescription,
             status: techFormStatus,
           },
@@ -725,27 +717,19 @@ export function AssessmentsTab() {
     }
   };
 
-  const getCategoryBadgeStyle = (category?: string) => {
-    switch ((category || '').toLowerCase()) {
-      case 'frontend':
-        return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300';
-      case 'backend':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300';
-      case 'cloud/devops':
-      case 'devops':
-        return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300';
-      case 'database':
-        return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300';
-      case 'aptitude':
-        return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300';
-      case 'reasoning':
-        return 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-950 dark:text-fuchsia-300';
-      case 'coding':
-        return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300';
-      default:
-        return 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300';
+  const handleDeleteAllTech = async () => {
+    if (!activeCompanyId) return;
+    if (!confirm('Are you sure you want to delete ALL technologies/skills in this company? They will not be automatically recreated.')) return;
+    try {
+      const res = await technologiesApi.clearAllTechnologies(activeCompanyId);
+      toast.success(`Deleted all skills (${res.count} removed)`);
+      refreshData();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete skills');
     }
   };
+
+
 
   // Metrics
   const activeAssessmentsCount = useMemo(() => assessments.filter((a) => a.status === 'Published' || a.status === 'Ready').length, [assessments]);
@@ -2186,22 +2170,7 @@ export function AssessmentsTab() {
                 />
               </div>
 
-              <Select value={techCategoryFilter} onValueChange={setTechCategoryFilter}>
-                <SelectTrigger className="h-8 text-xs w-36 bg-slate-50 dark:bg-slate-800">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Categories</SelectItem>
-                  <SelectItem value="Frontend">Frontend</SelectItem>
-                  <SelectItem value="Backend">Backend</SelectItem>
-                  <SelectItem value="Cloud/DevOps">Cloud/DevOps</SelectItem>
-                  <SelectItem value="Database">Database</SelectItem>
-                  <SelectItem value="Aptitude">Aptitude</SelectItem>
-                  <SelectItem value="Reasoning">Reasoning</SelectItem>
-                  <SelectItem value="Coding">Coding</SelectItem>
-                  <SelectItem value="General">General</SelectItem>
-                </SelectContent>
-              </Select>
+
 
               <Select value={techStatusFilter} onValueChange={(v: any) => setTechStatusFilter(v)}>
                 <SelectTrigger className="h-8 text-xs w-32 bg-slate-50 dark:bg-slate-800">
@@ -2221,6 +2190,18 @@ export function AssessmentsTab() {
                 <Plus className="h-3.5 w-3.5" />
                 Add Technology
               </Button>
+
+              {technologies.length > 0 && (
+                <Button
+                  onClick={handleDeleteAllTech}
+                  variant="outline"
+                  className="h-8 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/50 gap-1.5 shadow-xs"
+                  title="Delete all skills in this company"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete All
+                </Button>
+              )}
             </div>
           </div>
 
@@ -2256,7 +2237,6 @@ export function AssessmentsTab() {
                   <TableRow className="bg-slate-50/50 dark:bg-slate-800/50">
                     <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 w-28">Code</TableHead>
                     <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Technology / Skill Name</TableHead>
-                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Category</TableHead>
                     <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Description</TableHead>
                     <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 text-center">Questions Linked</TableHead>
                     <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Status</TableHead>
@@ -2266,7 +2246,7 @@ export function AssessmentsTab() {
                 <TableBody>
                   {filteredTechnologies.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center text-muted-foreground text-xs">
+                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground text-xs">
                         No technology or skill master records found matching your filters.
                       </TableCell>
                     </TableRow>
@@ -2283,11 +2263,6 @@ export function AssessmentsTab() {
                               <span className="h-2 w-2 rounded-full bg-indigo-500 shrink-0" />
                               <span>{tm.name}</span>
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`text-[10px] font-medium ${getCategoryBadgeStyle(tm.category)}`}>
-                              {tm.category || 'General'}
-                            </Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
                             {tm.description || '—'}
@@ -2564,12 +2539,7 @@ export function AssessmentsTab() {
                   ) : (
                     activeTechnologies.map((tm) => (
                       <SelectItem key={tm.id} value={tm.id}>
-                        <div className="flex items-center justify-between w-full gap-2">
-                          <span>{tm.name}</span>
-                          {tm.category && (
-                            <span className="text-[10px] text-muted-foreground font-normal">({tm.category})</span>
-                          )}
-                        </div>
+                        <span>{tm.name}</span>
                       </SelectItem>
                     ))
                   )}
@@ -2768,26 +2738,7 @@ export function AssessmentsTab() {
               />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Skill Category *</Label>
-              <Select value={techFormCategory} onValueChange={setTechFormCategory}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Frontend">Frontend</SelectItem>
-                  <SelectItem value="Backend">Backend</SelectItem>
-                  <SelectItem value="Cloud/DevOps">Cloud/DevOps</SelectItem>
-                  <SelectItem value="Database">Database</SelectItem>
-                  <SelectItem value="Aptitude">Aptitude</SelectItem>
-                  <SelectItem value="Reasoning">Reasoning</SelectItem>
-                  <SelectItem value="Coding">Coding</SelectItem>
-                  <SelectItem value="Mobile">Mobile</SelectItem>
-                  <SelectItem value="Testing/QA">Testing/QA</SelectItem>
-                  <SelectItem value="General">General</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Description / Competency Area</Label>

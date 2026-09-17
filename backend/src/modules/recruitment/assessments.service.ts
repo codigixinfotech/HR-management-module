@@ -116,6 +116,7 @@ export class AssessmentsService implements OnModuleInit {
   private questions: Question[] = [];
   private attempts: CandidateAssessmentAttempt[] = [];
   private technologies: TechnologyMaster[] = [];
+  private initializedCompanies: string[] = [];
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -141,6 +142,14 @@ export class AssessmentsService implements OnModuleInit {
         this.questions = Array.isArray(data.questions) ? data.questions : [];
         this.attempts = Array.isArray(data.attempts) ? data.attempts : [];
         this.technologies = Array.isArray(data.technologies) ? data.technologies : [];
+        this.initializedCompanies = Array.isArray(data.initializedCompanies) ? data.initializedCompanies : [];
+
+        // Any company that previously had technologies is already initialized
+        for (const t of this.technologies) {
+          if (t.companyId && !this.initializedCompanies.includes(t.companyId)) {
+            this.initializedCompanies.push(t.companyId);
+          }
+        }
       }
     } catch (e) {
       console.warn('Failed to load recruitment assessments store from disk:', e);
@@ -155,6 +164,7 @@ export class AssessmentsService implements OnModuleInit {
         questions: this.questions,
         attempts: this.attempts,
         technologies: this.technologies,
+        initializedCompanies: this.initializedCompanies,
       };
       writeFileSync(file, JSON.stringify(payload, null, 2), 'utf-8');
     } catch (e) {
@@ -167,47 +177,10 @@ export class AssessmentsService implements OnModuleInit {
    */
   async getTechnologies(companyId?: string, branchId?: string, activeOnly?: boolean): Promise<TechnologyMaster[]> {
     if (!companyId) return [];
+    this.loadFromDisk();
 
-    let companyTechs = this.technologies.filter((t) => t.companyId === companyId);
-
-    // Auto-seed default standard technologies if company has 0 master records
-    if (companyTechs.length === 0) {
-      const now = new Date().toISOString();
-      const defaultSeeds: { name: string; category: string; description: string }[] = [
-        { name: 'React.js', category: 'Frontend', description: 'React component lifecycle, hooks, virtual DOM, and modern SPA state management' },
-        { name: 'Node.js', category: 'Backend', description: 'Node.js runtime, Express.js APIs, event loop, and asynchronous stream handling' },
-        { name: 'Python', category: 'Backend', description: 'Python syntax, data structures, OOP, backend frameworks, and automation scripting' },
-        { name: 'Java', category: 'Backend', description: 'Core Java, OOP principles, collections framework, multithreading, and Spring Boot' },
-        { name: 'JavaScript', category: 'Frontend', description: 'ECMAScript standards, closures, prototypes, asynchronous events, and DOM manipulation' },
-        { name: 'TypeScript', category: 'Frontend', description: 'Static typing, interfaces, generics, type utility functions, and TS compiler' },
-        { name: 'SQL', category: 'Database', description: 'Relational database design, querying, complex joins, indexing, and transactions' },
-        { name: 'DevOps', category: 'Cloud/DevOps', description: 'CI/CD pipeline automation, Docker containers, Kubernetes, and cloud infrastructure' },
-        { name: 'AWS', category: 'Cloud/DevOps', description: 'Amazon Web Services core cloud architecture (EC2, S3, IAM, Lambda, RDS, VPC)' },
-        { name: 'Azure', category: 'Cloud/DevOps', description: 'Microsoft Azure cloud platform, App Services, Entra ID, and cloud governance' },
-        { name: 'General Aptitude', category: 'Aptitude', description: 'Quantitative mathematics, percentages, numerical problem solving, and analytical data' },
-        { name: 'Logical Reasoning', category: 'Reasoning', description: 'Deductive reasoning, analytical patterns, syllogisms, and problem solving' },
-        { name: 'Programming', category: 'Coding', description: 'Algorithmic problem solving, data structures, recursion, and time complexity' },
-      ];
-
-      const cleanBranchId = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
-      const createdSeeds: TechnologyMaster[] = defaultSeeds.map((seed, idx) => ({
-        id: `TECH-${String(idx + 1).padStart(3, '0')}-${companyId.slice(-4)}`,
-        name: seed.name,
-        category: seed.category,
-        description: seed.description,
-        status: 'Active',
-        companyId,
-        branchId: cleanBranchId,
-        createdAt: now,
-        updatedAt: now,
-      }));
-
-      this.technologies.push(...createdSeeds);
-      this.persistToDisk();
-      companyTechs = createdSeeds;
-    }
-
-    return companyTechs.filter((t) => {
+    return this.technologies.filter((t) => {
+      if (t.companyId !== companyId) return false;
       if (activeOnly && t.status !== 'Active') return false;
       if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
         return !t.branchId || t.branchId === branchId;
@@ -223,6 +196,10 @@ export class AssessmentsService implements OnModuleInit {
   ): Promise<TechnologyMaster> {
     if (!companyId) throw new BadRequestException('Company ID is required');
     if (!dto.name || !dto.name.trim()) throw new BadRequestException('Technology name is required');
+
+    if (!this.initializedCompanies.includes(companyId)) {
+      this.initializedCompanies.push(companyId);
+    }
 
     const trimmedName = dto.name.trim();
 
@@ -267,7 +244,10 @@ export class AssessmentsService implements OnModuleInit {
     if (dto.name && dto.name.trim()) {
       const trimmedName = dto.name.trim();
       const duplicate = this.technologies.find(
-        (t) => t.companyId === companyId && t.id !== id && t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+        (t) =>
+          t.id !== id &&
+          t.companyId === tech.companyId &&
+          t.name.trim().toLowerCase() === trimmedName.toLowerCase()
       );
       if (duplicate) {
         throw new BadRequestException(`Technology or Skill "${trimmedName}" already exists in this company.`);
@@ -277,7 +257,7 @@ export class AssessmentsService implements OnModuleInit {
 
       // Cascade updated technology name to all questions linked by ID or previous name
       this.questions.forEach((q) => {
-        if (q.companyId === companyId && (q.technologyId === id || q.technology === oldName)) {
+        if (q.companyId === tech.companyId && (q.technologyId === id || q.technology === oldName)) {
           q.technologyId = id;
           q.technology = trimmedName;
         }
@@ -285,7 +265,7 @@ export class AssessmentsService implements OnModuleInit {
 
       // Cascade updated technology name to all assessments and sections
       this.assessments.forEach((a) => {
-        if (a.companyId === companyId) {
+        if (a.companyId === tech.companyId) {
           if (a.technologyId === id || a.technology === oldName) {
             a.technologyId = id;
             a.technology = trimmedName;
@@ -326,8 +306,11 @@ export class AssessmentsService implements OnModuleInit {
   }
 
   async deleteTechnology(id: string, companyId: string): Promise<{ success: boolean }> {
+    this.loadFromDisk();
     const idx = this.technologies.findIndex((t) => t.id === id);
-    if (idx === -1) throw new NotFoundException('Technology not found');
+    if (idx === -1) {
+      return { success: true };
+    }
     if (companyId && this.technologies[idx].companyId !== companyId) {
       throw new BadRequestException('Cannot delete technology outside your company');
     }
@@ -335,6 +318,16 @@ export class AssessmentsService implements OnModuleInit {
     this.technologies.splice(idx, 1);
     this.persistToDisk();
     return { success: true };
+  }
+
+  async clearAllTechnologies(companyId: string): Promise<{ count: number }> {
+    if (!companyId) throw new BadRequestException('Company ID is required');
+    this.loadFromDisk();
+    const initialLen = this.technologies.length;
+    this.technologies = this.technologies.filter((t) => t.companyId !== companyId);
+    const removedCount = initialLen - this.technologies.length;
+    this.persistToDisk();
+    return { count: removedCount };
   }
 
   /**
@@ -673,3 +666,4 @@ export class AssessmentsService implements OnModuleInit {
     };
   }
 }
+ 
