@@ -126,7 +126,7 @@ const employeeSchema = z.object({
 
   // 3. Corporate Organization
   companyId: z.string().min(1, 'Company is required'),
-  businessUnit: z.string().min(1, 'Business Unit is required'),
+  businessUnit: z.string().optional().nullable(),
   branchId: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
   costCenter: z.string().optional(),
@@ -431,7 +431,7 @@ export function EmployeeMasterTab() {
     resolver: zodResolver(employeeSchema) as any,
     defaultValues: {
       companyId: activeCompanyId || userCompanyId || '',
-      businessUnit: 'Technology Services',
+      businessUnit: '',
       branchId: '',
       location: 'Head Office',
       costCenter: '',
@@ -922,7 +922,7 @@ export function EmployeeMasterTab() {
       const defaultCompId = editEmployee.companyId || (companies && companies.length > 0 ? companies[0].id : '');
       form.reset({
         companyId: defaultCompId,
-        businessUnit: editEmployee.businessUnit ?? 'Technology Services',
+        businessUnit: editEmployee.businessUnit ?? '',
         branchId: editEmployee.branchId ?? '',
         location: editEmployee.location ?? 'Head Office',
         costCenter: editEmployee.costCenter ?? '',
@@ -1028,7 +1028,8 @@ export function EmployeeMasterTab() {
         emergencyContactPhone: values.emergencyContactPhone || null,
         reportingManagerId: values.reportingManagerId || null,
         branchId: (values.branchId === 'NONE' || !values.branchId) ? null : values.branchId,
-        location: values.location || 'Head Office',
+        location: values.location?.trim() || 'Head Office',
+        businessUnit: values.businessUnit?.trim() || null,
         departmentId: values.departmentId || null,
         designationId: values.designationId || null,
         dateOfJoining: values.dateOfJoining || undefined,
@@ -1187,7 +1188,7 @@ export function EmployeeMasterTab() {
 
       form.reset({
         companyId: compId,
-        businessUnit: 'HQ Operations',
+        businessUnit: '',
         branchId: branchId || '',
         location: location || 'Head Office',
         costCenter: 'CC-ENG-001',
@@ -1297,7 +1298,7 @@ export function EmployeeMasterTab() {
 
     form.reset({
       companyId: targetCompanyId || activeCompanyId || userCompanyId || (companies && companies.length > 0 ? companies[0].id : ''),
-      businessUnit: 'Technology Services',
+      businessUnit: '',
       branchId: '',
       location: 'Head Office',
       costCenter: '',
@@ -1350,7 +1351,8 @@ export function EmployeeMasterTab() {
         emergencyContactPhone: values.emergencyContactPhone || null,
         reportingManagerId: values.reportingManagerId || null,
         branchId: (values.branchId === 'NONE' || !values.branchId) ? null : values.branchId,
-        location: values.location || 'Head Office',
+        location: values.location?.trim() || 'Head Office',
+        businessUnit: values.businessUnit?.trim() || null,
         departmentId: values.departmentId || null,
         designationId: values.designationId || null,
         dateOfJoining: values.dateOfJoining || undefined,
@@ -1443,7 +1445,7 @@ export function EmployeeMasterTab() {
     } else if (activeStep === 1) {
       isValid = await form.trigger(['companyId', 'employeeCode', 'dateOfJoining', 'departmentId', 'designationId']);
     } else if (activeStep === 2) {
-      isValid = await form.trigger(['companyId', 'businessUnit']);
+      isValid = await form.trigger(['companyId']);
     } else if (activeStep === 3) {
       isValid = await form.trigger(['workEmail']);
     }
@@ -2754,23 +2756,7 @@ export function EmployeeMasterTab() {
                           </Select>
                           {form.formState.errors.companyId && <p className="text-[10px] text-destructive">{form.formState.errors.companyId.message}</p>}
                         </div>
-                        <div className="space-y-1.5">
-                          <Label className="font-semibold">Business Unit *</Label>
-                          <Select value={form.watch('businessUnit')} onValueChange={(v) => form.setValue('businessUnit', v)}>
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select Business Unit" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Technology Services" className="text-xs">Technology Services</SelectItem>
-                              <SelectItem value="Digital Marketing" className="text-xs">Digital Marketing</SelectItem>
-                              <SelectItem value="Sales Operations" className="text-xs">Sales Operations</SelectItem>
-                              <SelectItem value="Human Capital Management" className="text-xs">Human Capital Management</SelectItem>
-                              <SelectItem value="Finance Operations" className="text-xs">Finance Operations</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+
                         <div className="space-y-1.5">
                           <Label className="font-semibold">
                             Branch / Office
@@ -2783,11 +2769,13 @@ export function EmployeeMasterTab() {
                               const nextBranch = v === 'NONE' ? '' : v;
                               form.setValue('branchId', nextBranch, { shouldValidate: true, shouldDirty: true });
                               if (v === 'NONE' || !v) {
-                                form.setValue('location', 'Head Office');
+                                if (!form.getValues('location')) {
+                                  form.setValue('location', 'Head Office', { shouldValidate: true, shouldDirty: true });
+                                }
                               } else {
                                 const br = branchOptions.find((b: any) => b.id === v);
                                 if (br) {
-                                  form.setValue('location', br.name || br.city || 'Head Office');
+                                  form.setValue('location', br.name || br.city || 'Head Office', { shouldValidate: true, shouldDirty: true });
                                 }
                               }
                             }}
@@ -2810,24 +2798,19 @@ export function EmployeeMasterTab() {
                           </Select>
                           {form.formState.errors.branchId && <p className="text-[10px] text-destructive">{form.formState.errors.branchId.message}</p>}
                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Location / Office</Label>
-                          <Select
-                            value={form.watch('location') || (locationOptions?.[0]?.name ?? 'Head Office')}
-                            onValueChange={(v) => form.setValue('location', v)}
-                          >
-                            <SelectTrigger className="h-9 text-xs">
-                              <SelectValue placeholder="Select location" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {locationOptions?.map((l: any, i: number) => (
-                                <SelectItem key={i} value={l.name} className="text-xs">
-                                  {l.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            className="h-9 text-xs"
+                            placeholder="Enter location / office (e.g. Head Office, Pune HQ, Remote)"
+                            value={form.watch('location') ?? ''}
+                            onChange={(e) => form.setValue('location', e.target.value, { shouldValidate: true, shouldDirty: true })}
+                          />
                         </div>
+
                         <div className="space-y-1.5">
                           <Label>Cost Center (Optional)</Label>
                           <Select value={form.watch('costCenter') || ''} onValueChange={(v) => form.setValue('costCenter', v)}>
