@@ -4,6 +4,14 @@ import { toast } from 'sonner';
  * Returns the backend base server URL dynamically resolved from .env or window.location
  */
 export function getBackendServerUrl(): string {
+  // When running in production on a live domain (not localhost/127.0.0.1), use the current origin
+  if (typeof window !== 'undefined' && window.location?.hostname && !/^localhost$|^127\.0\.0\.1$/.test(window.location.hostname)) {
+    if (import.meta.env.VITE_SERVER_URL && !import.meta.env.VITE_SERVER_URL.includes('localhost') && !import.meta.env.VITE_SERVER_URL.includes('127.0.0.1')) {
+      return import.meta.env.VITE_SERVER_URL.replace(/\/+$/, '');
+    }
+    return window.location.origin;
+  }
+
   if (import.meta.env.VITE_SERVER_URL) {
     return import.meta.env.VITE_SERVER_URL.replace(/\/+$/, '');
   }

@@ -20,6 +20,7 @@ async function bootstrap() {
   // Serve static resume & document uploads dynamically configured via .env (UPLOAD_DIR)
   const uploadsDir = getUploadsRootDir();
   app.use('/uploads', express.static(uploadsDir));
+  app.use('/api/uploads', express.static(uploadsDir));
 
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));

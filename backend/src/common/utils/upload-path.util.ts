@@ -37,6 +37,12 @@ export function getUploadsRootDir(): string {
     return relativeToModule;
   }
 
+  // 4. Linux VPS standard deployment directory (/var/www/HR-management-module)
+  const vpsBackendDir = resolve('/var/www/HR-management-module/backend', envUploadDir);
+  if (existsSync(vpsBackendDir)) {
+    return vpsBackendDir;
+  }
+
   // Default target: prefer nested backend folder if in workspace root, otherwise cwd
   const targetDir = existsSync(resolve(process.cwd(), 'backend')) ? nestedBackend : directCwd;
   if (!existsSync(targetDir)) {
@@ -97,6 +103,16 @@ export function resolveUploadedFile(subfolder: string, filename: string): string
   const rootPath = join(getUploadsRootDir(), safeFilename);
   if (existsSync(rootPath)) {
     return rootPath;
+  }
+
+  // 6. Linux VPS deployment paths (/var/www/HR-management-module)
+  const vpsBackendFile = resolve('/var/www/HR-management-module/backend/uploads', safeSubfolder, safeFilename);
+  if (existsSync(vpsBackendFile)) {
+    return vpsBackendFile;
+  }
+  const vpsRootFile = resolve('/var/www/HR-management-module/uploads', safeSubfolder, safeFilename);
+  if (existsSync(vpsRootFile)) {
+    return vpsRootFile;
   }
 
   return primaryPath;
