@@ -1,3 +1,4 @@
+import { apiClient } from '@/lib/api-client';
 import { candidatesApi } from './recruitment';
 
 export interface Question {
@@ -15,6 +16,8 @@ export interface Question {
   codeLanguage?: string;
   testCases?: { input: string; expectedOutput: string }[];
   status: 'Active' | 'Inactive';
+  companyId?: string;
+  branchId?: string;
 }
 
 export interface AssessmentSection {
@@ -47,6 +50,10 @@ export interface Assessment {
   sections?: AssessmentSection[];
   questions: Question[];
   status: 'Draft' | 'Ready' | 'Published' | 'Expired' | 'Archived';
+  companyId?: string;
+  branchId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface QuestionResult {
@@ -96,15 +103,30 @@ export interface CandidateAssessmentAttempt {
   timeTakenSeconds?: number;
   questionResults?: QuestionResult[];
   sections?: AssessmentSection[];
+  companyId?: string;
+  branchId?: string;
 }
 
-const STORAGE_KEYS = {
-  QUESTIONS: 'ehcm_assessment_questions_v5',
-  ASSESSMENTS: 'ehcm_assessments_v5',
-  ATTEMPTS: 'ehcm_candidate_attempts_v5',
+// Purge legacy unscoped localStorage keys immediately so old mock assessments never bleed across companies
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    localStorage.removeItem('ehcm_assessments_v5');
+    localStorage.removeItem('ehcm_candidate_attempts_v5');
+  } catch {
+    // Ignore in non-browser or sandboxed environments
+  }
+}
+
+export const getAssessmentStorageKey = (
+  type: 'assessments' | 'attempts' | 'questions',
+  companyId?: string,
+  branchId?: string
+) => {
+  const c = companyId && companyId.trim() !== '' ? companyId.trim() : 'DEFAULT';
+  const b = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId.trim() : 'ALL';
+  return `ehcm_${type}_${c}_${b}`;
 };
 
-// Seed questions are maintained for Question Bank auto-selection
 const SEED_ASSESSMENTS: Assessment[] = [];
 const SEED_ATTEMPTS: CandidateAssessmentAttempt[] = [];
 
@@ -798,21 +820,24 @@ const SEED_SECTIONS: AssessmentSection[] = [
 ];
 
 class AssessmentStore {
-  getQuestions(): Question[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.QUESTIONS);
+  // Questions Bank
+  getQuestions(companyId?: string, branchId?: string): Question[] {
+    const key = getAssessmentStorageKey('questions', companyId, branchId);
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(SEED_QUESTIONS));
+      // If scoped question bank is empty, provide the comprehensive SEED_QUESTIONS
       return SEED_QUESTIONS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : SEED_QUESTIONS;
     } catch {
       return SEED_QUESTIONS;
     }
   }
 
-  saveQuestion(q: Omit<Question, 'id'> & { id?: string }): Question {
-    const questions = this.getQuestions();
+  saveQuestion(q: Omit<Question, 'id'> & { id?: string }, companyId?: string, branchId?: string): Question {
+    const questions = this.getQuestions(companyId, branchId);
     const isNew = !q.id;
     const newId = q.id || `QST-${Math.floor(100 + Math.random() * 900)}`;
     const fullQuestion: Question = {
@@ -820,6 +845,8 @@ class AssessmentStore {
       id: newId,
       status: q.status || 'Active',
       options: q.options || [],
+      companyId: companyId || q.companyId,
+      branchId: branchId && branchId !== 'ALL' ? branchId : q.branchId,
     } as Question;
 
     let updated: Question[];
@@ -829,12 +856,15 @@ class AssessmentStore {
       updated = questions.map((item) => (item.id === newId ? fullQuestion : item));
     }
 
-    localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(updated));
+    const key = getAssessmentStorageKey('questions', companyId, branchId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
     return fullQuestion;
   }
 
-  bulkAddQuestions(newQs: (Omit<Question, 'id'> & { id?: string })[]): Question[] {
-    const questions = this.getQuestions();
+  bulkAddQuestions(newQs: (Omit<Question, 'id'> & { id?: string })[], companyId?: string, branchId?: string): Question[] {
+    const questions = this.getQuestions(companyId, branchId);
     const createdList: Question[] = newQs.map((q, idx) => ({
       ...q,
       id: q.id || `QST-${Math.floor(200 + Math.random() * 800 + idx)}`,
@@ -842,43 +872,90 @@ class AssessmentStore {
       status: q.status || 'Active',
       marks: q.marks || 1,
       explanation: q.explanation || 'Bulk imported question.',
+      companyId: companyId || q.companyId,
+      branchId: branchId && branchId !== 'ALL' ? branchId : q.branchId,
     } as Question));
 
     const updated = [...createdList, ...questions];
-    localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(updated));
+    const key = getAssessmentStorageKey('questions', companyId, branchId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
     return createdList;
   }
 
-  deleteQuestion(id: string) {
-    const questions = this.getQuestions();
+  deleteQuestion(id: string, companyId?: string, branchId?: string) {
+    const questions = this.getQuestions(companyId, branchId);
     const updated = questions.filter((q) => q.id !== id);
-    localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(updated));
+    const key = getAssessmentStorageKey('questions', companyId, branchId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
   }
 
-  toggleQuestionStatus(id: string) {
-    const questions = this.getQuestions();
+  toggleQuestionStatus(id: string, companyId?: string, branchId?: string) {
+    const questions = this.getQuestions(companyId, branchId);
     const updated = questions.map((q) =>
       q.id === id ? { ...q, status: q.status === 'Active' ? ('Inactive' as const) : ('Active' as const) } : q
     );
-    localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(updated));
-  }
-
-  // Assessments
-  getAssessments(): Assessment[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(SEED_ASSESSMENTS));
-      return SEED_ASSESSMENTS;
-    }
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return SEED_ASSESSMENTS;
+    const key = getAssessmentStorageKey('questions', companyId, branchId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(updated));
     }
   }
 
-  saveAssessment(data: Omit<Assessment, 'id'> & { id?: string }): Assessment {
-    const assessments = this.getAssessments();
+  // Assessments - STRICTLY SCOPED TO COMPANY & BRANCH
+  getAssessments(companyId?: string, branchId?: string): Assessment[] {
+    if (!companyId) {
+      return [];
+    }
+
+    if (typeof window === 'undefined') return [];
+
+    const prefix = `ehcm_assessments_${companyId.trim()}_`;
+    const candidateAssessments: Assessment[] = [];
+    const seenIds = new Set<string>();
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) {
+        try {
+          const list: Assessment[] = JSON.parse(localStorage.getItem(k) || '[]');
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              if (item && item.id && !seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                candidateAssessments.push(item);
+              }
+            }
+          }
+        } catch {
+          // ignore corrupted local key
+        }
+      }
+    }
+
+    // Strict multi-tenant filtering:
+    // 1. Must strictly match companyId
+    // 2. If branchId specified (and not 'ALL'), must strictly match branchId
+    return candidateAssessments.filter((a) => {
+      if (a.companyId && a.companyId !== companyId) return false;
+      if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+        return a.branchId === branchId;
+      }
+      return true;
+    });
+  }
+
+  saveAssessment(
+    data: Omit<Assessment, 'id'> & { id?: string },
+    companyId?: string,
+    branchId?: string
+  ): Assessment {
+    const targetCompanyId = companyId || data.companyId || 'DEFAULT';
+    const targetBranchId = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : data.branchId;
+
+    const assessments = this.getAssessments(targetCompanyId, targetBranchId);
     const newId = data.id || `ASM-${Math.floor(800 + Math.random() * 199)}`;
     const fullAssessment: Assessment = {
       ...data,
@@ -887,6 +964,10 @@ class AssessmentStore {
       questions: data.questions || [],
       totalMarks: data.totalMarks || 50,
       questionCount: data.questionCount || 45,
+      companyId: targetCompanyId,
+      branchId: targetBranchId,
+      updatedAt: new Date().toISOString(),
+      createdAt: (data as any).createdAt || new Date().toISOString(),
     } as Assessment;
 
     const existingIndex = assessments.findIndex((a) => a.id === newId);
@@ -898,71 +979,139 @@ class AssessmentStore {
       updated = [fullAssessment, ...assessments];
     }
 
-    localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(updated));
+    const key = getAssessmentStorageKey('assessments', targetCompanyId, targetBranchId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
+
+    // Async sync with backend
+    if (targetCompanyId && targetCompanyId !== 'DEFAULT') {
+      apiClient
+        .post('/recruitment/assessments', fullAssessment, {
+          params: { companyId: targetCompanyId, branchId: targetBranchId },
+        })
+        .catch((e) => console.warn('Background sync of assessment to backend failed:', e?.message));
+    }
+
     return fullAssessment;
   }
 
-  updateAssessmentStatus(id: string, status: Assessment['status']) {
-    const list = this.getAssessments();
+  updateAssessmentStatus(id: string, status: Assessment['status'], companyId?: string, branchId?: string) {
+    if (!companyId) return;
+    const list = this.getAssessments(companyId, branchId);
     const updated = list.map((a) => (a.id === id ? { ...a, status } : a));
-    localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(updated));
+    const key = getAssessmentStorageKey('assessments', companyId, branchId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
+    apiClient
+      .patch(`/recruitment/assessments/${id}/status`, { status }, {
+        params: { companyId, branchId },
+      })
+      .catch((e) => console.warn('Background status sync failed:', e?.message));
   }
 
-  deleteAssessment(id: string) {
-    const list = this.getAssessments();
+  deleteAssessment(id: string, companyId?: string, branchId?: string) {
+    if (!companyId) return;
+    const list = this.getAssessments(companyId, branchId);
     const updated = list.filter((a) => a.id !== id);
-    localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(updated));
+    const key = getAssessmentStorageKey('assessments', companyId, branchId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
+    apiClient
+      .delete(`/recruitment/assessments/${id}`, {
+        params: { companyId, branchId },
+      })
+      .catch((e) => console.warn('Background delete sync failed:', e?.message));
   }
 
-  // Attempts & Candidate Integration
-  getAttempts(): CandidateAssessmentAttempt[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.ATTEMPTS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.ATTEMPTS, JSON.stringify(SEED_ATTEMPTS));
-      return SEED_ATTEMPTS;
+  // Attempts & Candidate Integration - STRICTLY SCOPED
+  getAttempts(companyId?: string, branchId?: string): CandidateAssessmentAttempt[] {
+    if (!companyId) {
+      return [];
     }
-    try {
-      const parsed: CandidateAssessmentAttempt[] = JSON.parse(raw);
-      const uniqueAttempts: CandidateAssessmentAttempt[] = [];
-      const seenPending = new Set<string>();
 
-      for (const att of parsed) {
-        if (att.status === 'SENT' || att.status === 'IN_PROGRESS') {
-          const key = `${att.candidateEmail?.toLowerCase() || att.candidateId}_${att.assessmentId}`;
-          if (seenPending.has(key)) {
-            continue; // Skip duplicate pending attempt
+    if (typeof window === 'undefined') return [];
+
+    const prefix = `ehcm_attempts_${companyId.trim()}_`;
+    const candidateAttempts: CandidateAssessmentAttempt[] = [];
+    const seenTokens = new Set<string>();
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) {
+        try {
+          const list: CandidateAssessmentAttempt[] = JSON.parse(localStorage.getItem(k) || '[]');
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              if (item && item.token && !seenTokens.has(item.token)) {
+                seenTokens.add(item.token);
+                candidateAttempts.push(item);
+              }
+            }
           }
-          seenPending.add(key);
+        } catch {
+          // ignore corrupted local key
         }
-        uniqueAttempts.push(att);
       }
-      return uniqueAttempts;
-    } catch {
-      return SEED_ATTEMPTS;
     }
+
+    // Strict multi-tenant filtering
+    return candidateAttempts.filter((att) => {
+      if (att.companyId && att.companyId !== companyId) return false;
+      if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+        return att.branchId === branchId;
+      }
+      return true;
+    });
   }
 
   getAttemptByToken(token: string): CandidateAssessmentAttempt | null {
-    const attempts = this.getAttempts();
-    return attempts.find((a) => a.token === token) || null;
+    if (typeof window === 'undefined') return null;
+
+    // Search across attempt keys
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ehcm_attempts_')) {
+        try {
+          const list: CandidateAssessmentAttempt[] = JSON.parse(localStorage.getItem(k) || '[]');
+          if (Array.isArray(list)) {
+            const found = list.find((a) => a.token === token);
+            if (found) return found;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return null;
   }
 
-  createCandidateAttempt(params: {
-    assessmentId: string;
-    candidateId: string;
-    candidateName: string;
-    candidateEmail: string;
-    jobPosition?: string;
-    expiryDate?: string;
-    scheduledDate?: string;
-    scheduledStartTime?: string;
-    durationMinutes?: number;
-    emailSendingMode?: 'IMMEDIATE' | 'SCHEDULED';
-  }): CandidateAssessmentAttempt {
-    const assessments = this.getAssessments();
-    const asm = assessments.find((a) => a.id === params.assessmentId) || assessments[0];
+  createCandidateAttempt(
+    params: {
+      assessmentId: string;
+      candidateId: string;
+      candidateName: string;
+      candidateEmail: string;
+      jobPosition?: string;
+      expiryDate?: string;
+      scheduledDate?: string;
+      scheduledStartTime?: string;
+      durationMinutes?: number;
+      emailSendingMode?: 'IMMEDIATE' | 'SCHEDULED';
+      companyId?: string;
+      branchId?: string;
+    },
+    companyId?: string,
+    branchId?: string
+  ): CandidateAssessmentAttempt {
+    const targetCompanyId = companyId || params.companyId || 'DEFAULT';
+    const targetBranchId = branchId && branchId !== 'ALL' ? branchId : params.branchId;
 
-    const attempts = this.getAttempts();
+    const assessments = this.getAssessments(targetCompanyId, targetBranchId);
+    const asm = assessments.find((a) => a.id === params.assessmentId) || assessments[0];
+    const attempts = this.getAttempts(targetCompanyId, targetBranchId);
 
     // Check if candidate already has an active pending attempt (SENT or IN_PROGRESS)
     const existingIndex = attempts.findIndex(
@@ -971,6 +1120,8 @@ class AssessmentStore {
           (att.candidateEmail && att.candidateEmail.toLowerCase() === params.candidateEmail.toLowerCase())) &&
         (att.status === 'SENT' || att.status === 'IN_PROGRESS')
     );
+
+    const key = getAssessmentStorageKey('attempts', targetCompanyId, targetBranchId);
 
     if (existingIndex !== -1) {
       // Reuse existing attempt token & update scheduling details
@@ -985,11 +1136,15 @@ class AssessmentStore {
         emailSendingMode: params.emailSendingMode || existing.emailSendingMode,
         emailStatus: params.emailSendingMode === 'SCHEDULED' ? 'SCHEDULED' : 'SENT',
         sentAt: new Date().toISOString(),
+        companyId: targetCompanyId,
+        branchId: targetBranchId,
       };
 
       const updatedList = [...attempts];
       updatedList[existingIndex] = updatedAttempt;
-      localStorage.setItem(STORAGE_KEYS.ATTEMPTS, JSON.stringify(updatedList));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(updatedList));
+      }
       return updatedAttempt;
     }
 
@@ -997,13 +1152,13 @@ class AssessmentStore {
 
     const newAttempt: CandidateAssessmentAttempt = {
       token: randomToken,
-      assessmentId: asm ? asm.id : 'ASM-800',
+      assessmentId: asm ? asm.id : params.assessmentId,
       assessmentName: asm ? asm.name : 'Technical Assessment',
       candidateId: params.candidateId,
       candidateName: params.candidateName,
       candidateEmail: params.candidateEmail,
       jobPosition: params.jobPosition || (asm ? asm.jobPosition : 'Software Engineer'),
-      technology: asm ? asm.technology : 'React.js',
+      technology: asm ? asm.technology : 'General',
       durationMins: params.durationMinutes || (asm ? asm.durationMins : 60),
       questionCount: asm ? (asm.questionCount || asm.questions?.length || 45) : 45,
       passingPercentage: asm ? asm.passingPercentage : 70,
@@ -1019,28 +1174,53 @@ class AssessmentStore {
       answers: {},
       markedForReview: [],
       sections: asm ? asm.sections : [],
+      companyId: targetCompanyId,
+      branchId: targetBranchId,
     };
 
     const updated = [newAttempt, ...attempts];
-    localStorage.setItem(STORAGE_KEYS.ATTEMPTS, JSON.stringify(updated));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
+
+    // Asynchronously call backend to persist attempt
+    if (targetCompanyId && targetCompanyId !== 'DEFAULT') {
+      apiClient
+        .post('/recruitment/assessments/assign', newAttempt, {
+          params: { companyId: targetCompanyId, branchId: targetBranchId },
+        })
+        .catch((e) => console.warn('Background sync of attempt to backend failed:', e?.message));
+    }
+
     return newAttempt;
   }
 
   updateAttemptProgress(token: string, answers: Record<string, any>, markedForReview: string[]) {
-    const attempts = this.getAttempts();
-    const index = attempts.findIndex((a) => a.token === token);
-    if (index === -1) return;
+    if (typeof window === 'undefined') return;
 
-    const attempt = attempts[index];
-    if (attempt.status === 'SENT') {
-      attempt.status = 'IN_PROGRESS';
-      attempt.startedAt = new Date().toISOString();
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ehcm_attempts_')) {
+        try {
+          const attempts: CandidateAssessmentAttempt[] = JSON.parse(localStorage.getItem(k) || '[]');
+          const index = attempts.findIndex((a) => a.token === token);
+          if (index !== -1) {
+            const attempt = attempts[index];
+            if (attempt.status === 'SENT') {
+              attempt.status = 'IN_PROGRESS';
+              attempt.startedAt = new Date().toISOString();
+            }
+            attempt.answers = answers;
+            attempt.markedForReview = markedForReview;
+            attempts[index] = attempt;
+            localStorage.setItem(k, JSON.stringify(attempts));
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
     }
-    attempt.answers = answers;
-    attempt.markedForReview = markedForReview;
-
-    attempts[index] = attempt;
-    localStorage.setItem(STORAGE_KEYS.ATTEMPTS, JSON.stringify(attempts));
   }
 
   submitCandidateAssessment(
@@ -1048,17 +1228,14 @@ class AssessmentStore {
     finalAnswers: Record<string, any>,
     timeTakenSeconds: number
   ): CandidateAssessmentAttempt {
-    const attempts = this.getAttempts();
-    const index = attempts.findIndex((a) => a.token === token);
-    const assessments = this.getAssessments();
-
-    let attempt = attempts[index];
+    let attempt: CandidateAssessmentAttempt | null = this.getAttemptByToken(token);
     if (!attempt) {
       throw new Error('Assessment attempt token invalid or expired');
     }
 
-    const asm = assessments.find((a) => a.id === attempt.assessmentId) || assessments[0];
-    const questions = asm.questions.length > 0 ? asm.questions : this.getQuestions();
+    const assessments = this.getAssessments(attempt.companyId, attempt.branchId);
+    const asm = assessments.find((a) => a.id === attempt!.assessmentId) || assessments[0];
+    const questions = asm?.questions && asm.questions.length > 0 ? asm.questions : this.getQuestions(attempt.companyId, attempt.branchId);
 
     let totalMarks = 0;
     let scoreObtained = 0;
@@ -1155,12 +1332,24 @@ class AssessmentStore {
       questionResults,
     };
 
-    if (index >= 0) {
-      attempts[index] = attempt;
-    } else {
-      attempts.unshift(attempt);
+    // Save updated attempt to storage
+    const targetCompanyId = attempt.companyId || 'DEFAULT';
+    const targetBranchId = attempt.branchId || 'ALL';
+    const key = getAssessmentStorageKey('attempts', targetCompanyId, targetBranchId);
+    if (typeof window !== 'undefined') {
+      try {
+        const attempts: CandidateAssessmentAttempt[] = JSON.parse(localStorage.getItem(key) || '[]');
+        const idx = attempts.findIndex((a) => a.token === token);
+        if (idx >= 0) {
+          attempts[idx] = attempt;
+        } else {
+          attempts.unshift(attempt);
+        }
+        localStorage.setItem(key, JSON.stringify(attempts));
+      } catch {
+        // ignore
+      }
     }
-    localStorage.setItem(STORAGE_KEYS.ATTEMPTS, JSON.stringify(attempts));
 
     if (attempt.candidateId) {
       const targetStage = isPassed ? 'ASSESSMENT_PASSED' : 'ASSESSMENT_FAILED';
@@ -1176,3 +1365,115 @@ class AssessmentStore {
 }
 
 export const assessmentStore = new AssessmentStore();
+
+// Backend API Service Client with Multi-Tenant Scoping
+export const assessmentsApi = {
+  getAssessments: async (companyId?: string, branchId?: string): Promise<Assessment[]> => {
+    if (!companyId) return [];
+    try {
+      const { data } = await apiClient.get<Assessment[]>('/recruitment/assessments', {
+        params: {
+          companyId,
+          branchId: branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined,
+        },
+      });
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return assessmentStore.getAssessments(companyId, branchId);
+    }
+  },
+
+  getKpis: async (companyId?: string, branchId?: string) => {
+    if (!companyId) {
+      return {
+        activeTests: 0,
+        questionBankCount: 45,
+        testsSent: 0,
+        testsCompleted: 0,
+        testsPending: 0,
+        avgScorePct: 0,
+      };
+    }
+    try {
+      const { data } = await apiClient.get<any>('/recruitment/assessments/kpis', {
+        params: {
+          companyId,
+          branchId: branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined,
+        },
+      });
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  getQuestions: async (companyId?: string, branchId?: string): Promise<Question[]> => {
+    try {
+      const { data } = await apiClient.get<Question[]>('/recruitment/assessments/questions', {
+        params: {
+          companyId,
+          branchId: branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined,
+        },
+      });
+      return Array.isArray(data) && data.length > 0 ? data : assessmentStore.getQuestions(companyId, branchId);
+    } catch {
+      return assessmentStore.getQuestions(companyId, branchId);
+    }
+  },
+
+  getAttempts: async (companyId?: string, branchId?: string): Promise<CandidateAssessmentAttempt[]> => {
+    if (!companyId) return [];
+    try {
+      const { data } = await apiClient.get<CandidateAssessmentAttempt[]>('/recruitment/assessments/attempts', {
+        params: {
+          companyId,
+          branchId: branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined,
+        },
+      });
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return assessmentStore.getAttempts(companyId, branchId);
+    }
+  },
+
+  createAssessment: async (
+    payload: Omit<Assessment, 'id'> & { id?: string },
+    companyId?: string,
+    branchId?: string
+  ): Promise<Assessment> => {
+    try {
+      const cleanBranch = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
+      const { data } = await apiClient.post<Assessment>('/recruitment/assessments', payload, {
+        params: { companyId, branchId: cleanBranch },
+      });
+      assessmentStore.saveAssessment(data, companyId, cleanBranch);
+      return data;
+    } catch {
+      return assessmentStore.saveAssessment(payload, companyId, branchId);
+    }
+  },
+
+  updateStatus: async (id: string, status: Assessment['status'], companyId?: string, branchId?: string) => {
+    assessmentStore.updateAssessmentStatus(id, status, companyId, branchId);
+  },
+
+  deleteAssessment: async (id: string, companyId?: string, branchId?: string) => {
+    assessmentStore.deleteAssessment(id, companyId, branchId);
+  },
+
+  assignAttempt: async (
+    payload: any,
+    companyId?: string,
+    branchId?: string
+  ): Promise<CandidateAssessmentAttempt> => {
+    try {
+      const cleanBranch = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
+      const { data } = await apiClient.post<CandidateAssessmentAttempt>('/recruitment/assessments/assign', payload, {
+        params: { companyId, branchId: cleanBranch },
+      });
+      return data;
+    } catch {
+      return assessmentStore.createCandidateAttempt(payload, companyId, branchId);
+    }
+  },
+};

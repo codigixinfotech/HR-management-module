@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { assessmentStore, type Assessment, type CandidateAssessmentAttempt } from '@/api/assessment-store';
 import { candidatesApi } from '@/api/recruitment';
 import { apiClient } from '@/lib/api-client';
+import { useCompany } from '@/context/CompanyContext';
 
 interface SendAssessmentModalProps {
   isOpen: boolean;
@@ -37,11 +38,19 @@ interface SendAssessmentModalProps {
     email?: string;
     jobTitle?: string;
     appliedRole?: string;
+    companyId?: string;
+    branchId?: string;
   } | null;
+  companyId?: string;
+  branchId?: string;
   onSuccess?: (attempt: CandidateAssessmentAttempt) => void;
 }
 
-export function SendAssessmentModal({ isOpen, onClose, candidate, onSuccess }: SendAssessmentModalProps) {
+export function SendAssessmentModal({ isOpen, onClose, candidate, companyId, branchId, onSuccess }: SendAssessmentModalProps) {
+  const { activeCompanyId } = useCompany();
+  const effectiveCompanyId = companyId || candidate?.companyId || activeCompanyId;
+  const effectiveBranchId = branchId || candidate?.branchId;
+
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('');
   const [customExpiryDate, setCustomExpiryDate] = useState<string>('');
@@ -64,7 +73,9 @@ export function SendAssessmentModal({ isOpen, onClose, candidate, onSuccess }: S
 
   useEffect(() => {
     if (isOpen) {
-      const list = assessmentStore.getAssessments().filter((a) => a.status === 'Published' || a.status === 'Ready');
+      const list = assessmentStore
+        .getAssessments(effectiveCompanyId, effectiveBranchId)
+        .filter((a) => a.status === 'Published' || a.status === 'Ready');
       setAssessments(list);
 
       const targetPositionLower = (jobPosition || '').toLowerCase();
@@ -78,6 +89,8 @@ export function SendAssessmentModal({ isOpen, onClose, candidate, onSuccess }: S
       if (matched) {
         setSelectedAssessmentId(matched.id);
         setCustomExpiryDate(matched.expiryDate || '2026-10-30');
+      } else {
+        setSelectedAssessmentId('');
       }
 
       setScheduledDate('2026-08-30');
@@ -85,7 +98,7 @@ export function SendAssessmentModal({ isOpen, onClose, candidate, onSuccess }: S
       setEmailSendingMode('IMMEDIATE');
       setCreatedAttempt(null);
     }
-  }, [isOpen, candidate, jobPosition]);
+  }, [isOpen, candidate, jobPosition, effectiveCompanyId, effectiveBranchId]);
 
   const activeAssessment = assessments.find((a) => a.id === selectedAssessmentId);
 
@@ -131,18 +144,24 @@ Recruitment Team – Codigix ERP`;
     setIsSending(true);
 
     try {
-      const attempt = assessmentStore.createCandidateAttempt({
-        assessmentId: activeAssessment.id,
-        candidateId: candidate.id,
-        candidateName,
-        candidateEmail,
-        jobPosition,
-        expiryDate: customExpiryDate || activeAssessment.expiryDate,
-        scheduledDate,
-        scheduledStartTime,
-        durationMinutes: activeAssessment.durationMins,
-        emailSendingMode,
-      });
+      const attempt = assessmentStore.createCandidateAttempt(
+        {
+          assessmentId: activeAssessment.id,
+          candidateId: candidate.id,
+          candidateName,
+          candidateEmail,
+          jobPosition,
+          expiryDate: customExpiryDate || activeAssessment.expiryDate,
+          scheduledDate,
+          scheduledStartTime,
+          durationMinutes: activeAssessment.durationMins,
+          emailSendingMode,
+          companyId: effectiveCompanyId,
+          branchId: effectiveBranchId,
+        },
+        effectiveCompanyId,
+        effectiveBranchId
+      );
 
       const testUrl = `${window.location.origin}/candidate-assessment/${attempt.token}`;
 

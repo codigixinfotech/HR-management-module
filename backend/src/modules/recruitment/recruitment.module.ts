@@ -17,6 +17,8 @@ import { TeamsChatService } from './teams/teams-chat.service';
 import { TeamsChatController } from './teams/teams-chat.controller';
 import { TeamsLinkPoolService } from './teams/teams-link-pool.service';
 import { TeamsLinkPoolController } from './teams/teams-link-pool.controller';
+import { AssessmentsController } from './assessments.controller';
+import { AssessmentsService } from './assessments.service';
 
 @Module({
   imports: [AtsModule],
@@ -29,6 +31,7 @@ import { TeamsLinkPoolController } from './teams/teams-link-pool.controller';
     OffersController,
     TeamsChatController,
     TeamsLinkPoolController,
+    AssessmentsController,
   ],
   providers: [
     JobOpeningsService,
@@ -40,6 +43,7 @@ import { TeamsLinkPoolController } from './teams/teams-link-pool.controller';
     TeamsInterviewService,
     TeamsChatService,
     TeamsLinkPoolService,
+    AssessmentsService,
   ],
   exports: [
     JobOpeningsService,
@@ -51,6 +55,7 @@ import { TeamsLinkPoolController } from './teams/teams-link-pool.controller';
     TeamsInterviewService,
     TeamsChatService,
     TeamsLinkPoolService,
+    AssessmentsService,
     AtsModule,
   ],
 })

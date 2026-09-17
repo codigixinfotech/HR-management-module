@@ -43,6 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import {
   assessmentStore,
+  assessmentsApi,
   type Question,
   type Assessment,
   type AssessmentSection,
@@ -50,6 +51,7 @@ import {
 } from '@/api/assessment-store';
 import { useQuery } from '@tanstack/react-query';
 import { jobOpeningsApi } from '@/api/recruitment';
+import { branchesApi } from '@/api/organization';
 import { SendAssessmentModal } from './SendAssessmentModal';
 import { ViewAssessmentResultModal } from './ViewAssessmentResultModal';
 import { useCompany } from '@/context/CompanyContext';
@@ -177,6 +179,7 @@ function SearchableSelectInput({
 
 export function AssessmentsTab() {
   const { activeCompanyId } = useCompany();
+  const [selectedBranchId, setSelectedBranchId] = useState('ALL');
   const [activeSubTab, setActiveSubTab] = useState<
     'overview' | 'question-bank' | 'create-assessment' | 'assessments' | 'candidates' | 'attempts' | 'reports'
   >('overview');
@@ -186,11 +189,27 @@ export function AssessmentsTab() {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [attempts, setAttempts] = useState<CandidateAssessmentAttempt[]>([]);
 
-  // Fetch real candidates from backend
-  const { data: jobOpenings = [] } = useQuery({
-    queryKey: ['job-openings', activeCompanyId],
-    queryFn: () => jobOpeningsApi.list(activeCompanyId),
+  // Fetch branches for company-wise and branch-wise isolation
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches', activeCompanyId],
+    queryFn: () => (activeCompanyId ? branchesApi.list(activeCompanyId) : branchesApi.list()),
   });
+
+  // Reset selected branch when active company changes
+  useEffect(() => {
+    setSelectedBranchId('ALL');
+  }, [activeCompanyId]);
+
+  // Fetch real job openings strictly for active company
+  const { data: rawJobOpenings = [] } = useQuery({
+    queryKey: ['job-openings', activeCompanyId],
+    queryFn: () => (activeCompanyId ? jobOpeningsApi.list(activeCompanyId) : []),
+  });
+
+  const jobOpenings = useMemo(() => {
+    if (selectedBranchId === 'ALL' || !selectedBranchId) return rawJobOpenings;
+    return rawJobOpenings.filter((job: any) => !job.branchId || job.branchId === selectedBranchId);
+  }, [rawJobOpenings, selectedBranchId]);
 
   const availablePositionsList = useMemo(() => {
     const defaultPositions = [
@@ -229,15 +248,33 @@ export function AssessmentsTab() {
     ];
   }, []);
 
-  const refreshData = () => {
-    setQuestions(assessmentStore.getQuestions());
-    setAssessments(assessmentStore.getAssessments());
-    setAttempts(assessmentStore.getAttempts());
+  const refreshData = async () => {
+    if (!activeCompanyId) {
+      setAssessments([]);
+      setAttempts([]);
+      setQuestions(assessmentStore.getQuestions());
+      return;
+    }
+
+    try {
+      const [asmList, attList, qstList] = await Promise.all([
+        assessmentsApi.getAssessments(activeCompanyId, selectedBranchId),
+        assessmentsApi.getAttempts(activeCompanyId, selectedBranchId),
+        assessmentsApi.getQuestions(activeCompanyId, selectedBranchId),
+      ]);
+      setAssessments(asmList);
+      setAttempts(attList);
+      setQuestions(qstList);
+    } catch {
+      setAssessments(assessmentStore.getAssessments(activeCompanyId, selectedBranchId));
+      setAttempts(assessmentStore.getAttempts(activeCompanyId, selectedBranchId));
+      setQuestions(assessmentStore.getQuestions(activeCompanyId, selectedBranchId));
+    }
   };
 
   useEffect(() => {
     refreshData();
-  }, []);
+  }, [activeCompanyId, selectedBranchId]);
 
   // Filter States - Question Bank
   const [qbTechFilter, setQbTechFilter] = useState('ALL');
@@ -564,13 +601,13 @@ export function AssessmentsTab() {
   const pendingReviewCount = useMemo(() => attempts.filter((a) => a.status === 'IN_PROGRESS' || a.status === 'SENT').length, [attempts]);
 
   const averageScorePercent = useMemo(() => {
-    if (completedAttempts.length === 0) return 78;
+    if (completedAttempts.length === 0) return 0;
     const sum = completedAttempts.reduce((acc, curr) => acc + (curr.percentage || 0), 0);
     return Math.round(sum / completedAttempts.length);
   }, [completedAttempts]);
 
   const passRatePercent = useMemo(() => {
-    if (completedAttempts.length === 0) return 85;
+    if (completedAttempts.length === 0) return 0;
     const passed = completedAttempts.filter((a) => a.isPassed).length;
     return Math.round((passed / completedAttempts.length) * 100);
   }, [completedAttempts]);
@@ -628,7 +665,7 @@ export function AssessmentsTab() {
     setIsAddQuestionOpen(true);
   };
 
-  const handleSaveQuestion = (e: React.FormEvent) => {
+  const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!qFormText) {
       toast.error('Question text is required');
@@ -647,24 +684,30 @@ export function AssessmentsTab() {
       parsedAns = qFormCorrectAns.split(',').map((x) => (isNaN(Number(x.trim())) ? x.trim() : Number(x.trim())));
     }
 
-    assessmentStore.saveQuestion({
-      id: editingQuestion ? editingQuestion.id : undefined,
-      technology: qFormTech,
-      topic: qFormTopic,
-      questionText: qFormText,
-      difficulty: qFormDiff,
-      questionType: qFormType,
-      options: opts,
-      correctAnswer: parsedAns,
-      marks: qFormMarks,
-      explanation: qFormExplanation,
-      codeTemplate: qFormCodeTemplate,
-      status: 'Active',
-    });
+    assessmentStore.saveQuestion(
+      {
+        id: editingQuestion ? editingQuestion.id : undefined,
+        technology: qFormTech,
+        topic: qFormTopic,
+        questionText: qFormText,
+        difficulty: qFormDiff,
+        questionType: qFormType,
+        options: opts,
+        correctAnswer: parsedAns,
+        marks: qFormMarks,
+        explanation: qFormExplanation,
+        codeTemplate: qFormCodeTemplate,
+        status: 'Active',
+        companyId: activeCompanyId,
+        branchId: selectedBranchId !== 'ALL' ? selectedBranchId : undefined,
+      },
+      activeCompanyId,
+      selectedBranchId
+    );
 
     toast.success(editingQuestion ? 'Question updated' : 'Question added to Question Bank');
     setIsAddQuestionOpen(false);
-    refreshData();
+    await refreshData();
   };
 
   const handleBulkUpload = () => {
@@ -678,7 +721,7 @@ export function AssessmentsTab() {
         toast.error('JSON must be an array of questions');
         return;
       }
-      assessmentStore.bulkAddQuestions(parsed);
+      assessmentStore.bulkAddQuestions(parsed, activeCompanyId, selectedBranchId);
       toast.success(`Successfully uploaded ${parsed.length} questions to Question Bank!`);
       setIsBulkUploadOpen(false);
       setBulkJsonText('');
@@ -688,7 +731,7 @@ export function AssessmentsTab() {
     }
   };
 
-  const handleCreateAssessmentSubmit = (statusStr: 'Published' | 'Draft' = 'Published') => {
+  const handleCreateAssessmentSubmit = async (statusStr: 'Published' | 'Draft' = 'Published') => {
     if (!caName) {
       toast.error('Assessment Title is required');
       return;
@@ -714,25 +757,31 @@ export function AssessmentsTab() {
       allQs = questions.slice(0, totalBlueprintQuestions);
     }
 
-    const asm = assessmentStore.saveAssessment({
-      name: caName,
-      technology: caSections[0]?.technology || 'React.js',
-      jobPosition: caJobPosition,
-      difficulty: 'Medium',
-      questionCount: totalBlueprintQuestions,
-      durationMins: caDurationMins,
-      passingPercentage: caPassingPercentage,
-      totalMarks: totalBlueprintMarks,
-      attemptLimit: 1,
-      startDate: caStartDate,
-      expiryDate: caExpiryDate,
-      sections: caSections,
-      questions: allQs,
-      status: statusStr,
-    });
+    const asm = await assessmentsApi.createAssessment(
+      {
+        name: caName,
+        technology: caSections[0]?.technology || 'React.js',
+        jobPosition: caJobPosition,
+        difficulty: 'Medium',
+        questionCount: totalBlueprintQuestions,
+        durationMins: caDurationMins,
+        passingPercentage: caPassingPercentage,
+        totalMarks: totalBlueprintMarks,
+        attemptLimit: 1,
+        startDate: caStartDate,
+        expiryDate: caExpiryDate,
+        sections: caSections,
+        questions: allQs,
+        status: statusStr,
+        companyId: activeCompanyId,
+        branchId: selectedBranchId !== 'ALL' ? selectedBranchId : undefined,
+      },
+      activeCompanyId,
+      selectedBranchId
+    );
 
     toast.success(`Assessment "${asm.name}" (${asm.id}) saved as ${statusStr}!`);
-    refreshData();
+    await refreshData();
     setActiveSubTab('assessments');
   };
 
@@ -749,20 +798,12 @@ export function AssessmentsTab() {
             ...c,
             jobTitle: job.title,
             appliedRole: job.title,
+            companyId: activeCompanyId,
+            branchId: job.branchId || (selectedBranchId !== 'ALL' ? selectedBranchId : undefined),
           });
         });
       }
     });
-
-    if (list.length === 0) {
-      list.push(
-        { id: 'cand-001', name: 'Siddharth Rao', email: 'siddharth.rao@example.com', jobTitle: 'DevOps Engineer', stage: 'ASSESSMENT_PASSED' },
-        { id: 'cand-002', name: 'Sanuu Mote', email: 'sanuumote@gmail.com', jobTitle: 'Senior React Developer', stage: 'SHORTLISTED' },
-        { id: 'cand-003', name: 'Sanika Shelke', email: 'sanikashelke@gmail.com', jobTitle: 'Software Engineer', stage: 'SHORTLISTED' },
-        { id: 'cand-004', name: 'Neha Kale', email: 'neha.kale@example.com', jobTitle: 'DevOps Engineer', stage: 'APPLIED' },
-        { id: 'cand-005', name: 'Sudarshan Kale', email: 'sudarshan.kale@example.com', jobTitle: 'IT Manager', stage: 'SHORTLISTED' }
-      );
-    }
 
     const enrichedList = list.map((cand) => {
       const candidateId = cand.id;
@@ -875,34 +916,54 @@ export function AssessmentsTab() {
         </Card>
       </div>
 
-      {/* ── 2. Navigation Sub-Tabs ── */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2">
-        {[
-          { id: 'overview', label: 'Overview', icon: BarChart3 },
-          { id: 'question-bank', label: `Question Bank (${questions.length})`, icon: BookOpen },
-          { id: 'create-assessment', label: 'Create Assessment', icon: Plus },
-          { id: 'assessments', label: `Assessments (${assessments.length})`, icon: Layers },
-          { id: 'candidates', label: 'Candidates', icon: Users },
-          { id: 'attempts', label: `Attempts (${attempts.length})`, icon: FileCheck },
-          { id: 'reports', label: 'Reports', icon: TrendingUp },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSubTab(tab.id as any)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
-                isActive
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </button>
-          );
-        })}
+      {/* ── 2. Navigation Sub-Tabs & Branch Selector Bar ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[
+            { id: 'overview', label: 'Overview', icon: BarChart3 },
+            { id: 'question-bank', label: `Question Bank (${questions.length})`, icon: BookOpen },
+            { id: 'create-assessment', label: 'Create Assessment', icon: Plus },
+            { id: 'assessments', label: `Assessments (${assessments.length})`, icon: Layers },
+            { id: 'candidates', label: 'Candidates', icon: Users },
+            { id: 'attempts', label: `Attempts (${attempts.length})`, icon: FileCheck },
+            { id: 'reports', label: 'Reports', icon: TrendingUp },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeSubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSubTab(tab.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Branch Context Selector for Strict Multi-Tenant Branch Isolation */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Label className="text-xs text-muted-foreground whitespace-nowrap font-medium">Branch:</Label>
+          <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
+            <SelectTrigger className="w-[180px] h-8 text-xs bg-white dark:bg-slate-900">
+              <SelectValue placeholder="All Branches" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Branches</SelectItem>
+              {branches.map((b: any) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.name || b.branchName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* ── 3. SUBTAB CONTENTS ── */}
@@ -937,7 +998,14 @@ export function AssessmentsTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="text-xs">
-                    {assessments.map((asm) => (
+                    {assessments.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-400">
+                          No assessment templates found for this company and branch. Click "Create Assessment" to build one.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      assessments.map((asm) => (
                       <TableRow key={asm.id}>
                         <TableCell className="font-mono font-bold text-indigo-600">{asm.id}</TableCell>
                         <TableCell className="font-semibold text-slate-900 dark:text-white">{asm.name}</TableCell>
@@ -966,7 +1034,7 @@ export function AssessmentsTab() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )))}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -1127,9 +1195,9 @@ export function AssessmentsTab() {
                           className={`cursor-pointer text-[10px] ${
                             q.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-500/10 text-slate-500'
                           }`}
-                          onClick={() => {
-                            assessmentStore.toggleQuestionStatus(q.id);
-                            refreshData();
+                          onClick={async () => {
+                            assessmentStore.toggleQuestionStatus(q.id, activeCompanyId, selectedBranchId);
+                            await refreshData();
                           }}
                         >
                           {q.status}
@@ -1147,10 +1215,10 @@ export function AssessmentsTab() {
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 text-rose-600"
-                            onClick={() => {
-                              assessmentStore.deleteQuestion(q.id);
+                            onClick={async () => {
+                              assessmentStore.deleteQuestion(q.id, activeCompanyId, selectedBranchId);
                               toast.success('Question removed');
-                              refreshData();
+                              await refreshData();
                             }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1542,52 +1610,60 @@ export function AssessmentsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody className="text-xs">
-                {assessments.map((asm) => (
-                  <TableRow key={asm.id}>
-                    <TableCell className="font-mono font-bold text-indigo-600">{asm.id}</TableCell>
-                    <TableCell className="font-bold text-slate-900 dark:text-white">{asm.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-800 font-mono">
-                        {asm.technology}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{asm.jobPosition}</TableCell>
-                    <TableCell className="font-bold">{asm.questionCount || asm.questions?.length} Qs</TableCell>
-                    <TableCell>{asm.durationMins} Mins</TableCell>
-                    <TableCell className="font-bold text-emerald-600">{asm.passingPercentage}%</TableCell>
-                    <TableCell>
-                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]">
-                        {asm.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
-                          onClick={() => {
-                            setSendCandidateTarget(allCandidatesList[0]);
-                            setIsSendModalOpen(true);
-                          }}
-                        >
-                          <Send className="h-3 w-3" /> Send
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 text-rose-600"
-                          onClick={() => {
-                            assessmentStore.deleteAssessment(asm.id);
-                            toast.success('Assessment deleted');
-                            refreshData();
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                {assessments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="h-32 text-center text-xs text-slate-400">
+                      No technical assessments created for this company and branch. Click "Create New Assessment" to build one.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  assessments.map((asm) => (
+                    <TableRow key={asm.id}>
+                      <TableCell className="font-mono font-bold text-indigo-600">{asm.id}</TableCell>
+                      <TableCell className="font-bold text-slate-900 dark:text-white">{asm.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-800 font-mono">
+                          {asm.technology}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{asm.jobPosition}</TableCell>
+                      <TableCell className="font-bold">{asm.questionCount || asm.questions?.length} Qs</TableCell>
+                      <TableCell>{asm.durationMins} Mins</TableCell>
+                      <TableCell className="font-bold text-emerald-600">{asm.passingPercentage}%</TableCell>
+                      <TableCell>
+                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]">
+                          {asm.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                            onClick={() => {
+                              setSendCandidateTarget(assessmentEligibleCandidates[0] || null);
+                              setIsSendModalOpen(true);
+                            }}
+                          >
+                            <Send className="h-3 w-3" /> Send
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-rose-600"
+                            onClick={async () => {
+                              await assessmentsApi.deleteAssessment(asm.id, activeCompanyId, selectedBranchId);
+                              toast.success('Assessment deleted');
+                              await refreshData();
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -1805,7 +1881,14 @@ export function AssessmentsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody className="text-xs">
-                {attempts.map((att) => {
+                {attempts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-400">
+                      No candidate assessment attempts recorded for this company and branch.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  attempts.map((att) => {
                   const isPassed = att.isPassed;
                   return (
                     <TableRow key={att.token}>
@@ -1855,7 +1938,7 @@ export function AssessmentsTab() {
                       </TableCell>
                     </TableRow>
                   );
-                })}
+                }))}
               </TableBody>
             </Table>
           </CardContent>
@@ -1895,6 +1978,8 @@ export function AssessmentsTab() {
         isOpen={isSendModalOpen}
         onClose={() => setIsSendModalOpen(false)}
         candidate={sendCandidateTarget}
+        companyId={activeCompanyId}
+        branchId={selectedBranchId !== 'ALL' ? selectedBranchId : undefined}
         onSuccess={() => {
           refreshData();
           setActiveSubTab('attempts');
