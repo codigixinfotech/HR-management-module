@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveUploadedFile } from '../../../common/utils/upload-path.util';
 
 export interface ParsedResumeData {
   name: string;
@@ -125,8 +126,12 @@ export class ResumeParserService {
     const fromCwd = path.join(process.cwd(), trimmed.replace(/^\//, ''));
     if (fs.existsSync(fromCwd)) return fromCwd;
 
-    // 3. Look in uploads/resumes/
+    // 3. Look in configured upload directory & fallbacks via resolveUploadedFile
     const filename = path.basename(trimmed);
+    const resolvedPath = resolveUploadedFile('resumes', filename);
+    if (resolvedPath && fs.existsSync(resolvedPath)) return resolvedPath;
+
+    // 4. Look in uploads/resumes/ relative to cwd
     const uploadsPath = path.join(process.cwd(), 'uploads', 'resumes', filename);
     if (fs.existsSync(uploadsPath)) return uploadsPath;
 

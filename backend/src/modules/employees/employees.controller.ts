@@ -28,6 +28,7 @@ import { CreateOnboardingTaskDto } from './dto/onboarding-task.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { employeeDocumentStorage } from './multer.config';
+import { resolveUploadedFile } from '../../common/utils/upload-path.util';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
@@ -154,9 +155,16 @@ export class EmployeesController {
   ) {
     const doc = await this.employeesService.getDocument(documentId);
     const cleanPath = (doc.filePath || '').replace(/\\/g, '/');
-    const absolutePath = isAbsolute(cleanPath)
+    let absolutePath = isAbsolute(cleanPath)
       ? cleanPath
       : join(process.cwd(), cleanPath);
+
+    if (!existsSync(absolutePath)) {
+      const resolved = resolveUploadedFile('employee-documents', cleanPath);
+      if (resolved && existsSync(resolved)) {
+        absolutePath = resolved;
+      }
+    }
 
     if (!existsSync(absolutePath)) {
       throw new NotFoundException('Document file not found on disk');

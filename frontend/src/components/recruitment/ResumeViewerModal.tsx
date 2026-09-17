@@ -54,6 +54,9 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
   const [iframeError, setIframeError] = useState(false);
 
   const getBackendHost = () => {
+    if (import.meta.env.VITE_SERVER_URL) {
+      return import.meta.env.VITE_SERVER_URL.replace(/\/+$/, '');
+    }
     if (import.meta.env.VITE_API_URL) {
       return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
     }

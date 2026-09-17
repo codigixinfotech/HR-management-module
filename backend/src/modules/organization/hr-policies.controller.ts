@@ -24,6 +24,7 @@ import {
   UpdateHrPolicyDto,
 } from './dto/hr-policy.dto';
 import { policyDocumentStorage } from './multer.config';
+import { resolveUploadedFile } from '../../common/utils/upload-path.util';
 
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
@@ -88,8 +89,8 @@ export class HrPoliciesController {
 
   @Get('download/:filename')
   downloadFile(@Param('filename') filename: string, @Res() res: Response) {
-    const filePath = join(process.cwd(), 'uploads', 'hr-policies', filename);
-    if (!existsSync(filePath)) {
+    const filePath = resolveUploadedFile('hr-policies', filename);
+    if (!filePath || !existsSync(filePath)) {
       throw new NotFoundException('Policy document file not found');
     }
     return res.sendFile(filePath);

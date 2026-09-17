@@ -10,6 +10,7 @@ import {
   CreatePolicyVersionDto,
   UpdateHrPolicyDto,
 } from './dto/hr-policy.dto';
+import { getUploadSubdir } from '../../common/utils/upload-path.util';
 
 const CATEGORY_COLORS: Record<string, string> = {
   Conduct: 'bg-primary',
@@ -25,11 +26,8 @@ export class HrPoliciesService implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      const uploadDir = './uploads/hr-policies';
-      const { existsSync, mkdirSync, writeFileSync } = await import('fs');
-      if (!existsSync(uploadDir)) {
-        mkdirSync(uploadDir, { recursive: true });
-      }
+      const uploadDir = getUploadSubdir('hr-policies');
+      const { existsSync, writeFileSync } = await import('fs');
 
       const count = await this.prisma.hrPolicy.count();
       if (count === 0) {
@@ -56,11 +54,8 @@ export class HrPoliciesService implements OnModuleInit {
   }
 
   private async seedDefaultPolicies() {
-    const uploadDir = './uploads/hr-policies';
-    const { existsSync, mkdirSync, writeFileSync } = await import('fs');
-    if (!existsSync(uploadDir)) {
-      mkdirSync(uploadDir, { recursive: true });
-    }
+    const uploadDir = getUploadSubdir('hr-policies');
+    const { existsSync, writeFileSync } = await import('fs');
 
     const defaultPolicies = [
       {

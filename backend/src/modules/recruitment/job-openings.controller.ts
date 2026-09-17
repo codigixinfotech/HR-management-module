@@ -25,6 +25,7 @@ import {
 } from './dto/job-opening.dto';
 import { CreateCandidateDto } from './dto/candidate.dto';
 import { candidateResumeStorage } from './multer.config';
+import { resolveUploadedFile } from '../../common/utils/upload-path.util';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
@@ -132,8 +133,8 @@ export class JobOpeningsController {
     @Query('name') name: string,
     @Res() res: any,
   ) {
-    const filePath = join(process.cwd(), 'uploads', 'resumes', filename);
-    if (!existsSync(filePath)) {
+    const filePath = resolveUploadedFile('resumes', filename);
+    if (!filePath || !existsSync(filePath)) {
       throw new NotFoundException('Resume document file not found');
     }
     const cleanName = (name || '').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
