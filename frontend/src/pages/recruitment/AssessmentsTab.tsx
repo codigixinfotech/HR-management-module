@@ -316,6 +316,10 @@ export function AssessmentsTab() {
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [sendCandidateTarget, setSendCandidateTarget] = useState<any>(null);
 
+  // Multi-Candidate Bulk Selection State
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [selectedCandidatesForBulk, setSelectedCandidatesForBulk] = useState<any[]>([]);
+
   // Result Modal State
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [selectedResultAttempt, setSelectedResultAttempt] = useState<CandidateAssessmentAttempt | null>(null);
@@ -954,6 +958,12 @@ export function AssessmentsTab() {
   // Filter States for Candidates Subtab
   const [candStageFilter, setCandStageFilter] = useState<'ELIGIBLE' | 'SHORTLISTED' | 'PASSED' | 'FAILED' | 'INVITED' | 'ALL'>('ELIGIBLE');
   const [candSearch, setCandSearch] = useState('');
+
+  // Clear selection when candidate filters change (prevent stale selection in bulk send)
+  useEffect(() => {
+    setSelectedCandidateIds([]);
+    setSelectedCandidatesForBulk([]);
+  }, [candSearch, candStageFilter]);
 
   const assessmentEligibleCandidates = useMemo(() => {
     const list: any[] = [];
@@ -1887,11 +1897,67 @@ export function AssessmentsTab() {
             </div>
           </div>
 
+          {/* Bulk Selection Action Bar */}
+          {selectedCandidateIds.length > 0 && (
+            <div className="flex items-center justify-between p-3 px-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-2.5 text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span>{selectedCandidateIds.length} Candidate{selectedCandidateIds.length !== 1 ? 's' : ''} Selected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-xs px-3.5"
+                  onClick={() => {
+                    setSelectedCandidatesForBulk(selectedCandidatesForBulk);
+                    setSendCandidateTarget(null);
+                    setIsSendModalOpen(true);
+                  }}
+                >
+                  <Send className="h-3.5 w-3.5" /> Send Assessment ({selectedCandidateIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-indigo-200 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                  onClick={() => {
+                    setSelectedCandidateIds([]);
+                    setSelectedCandidatesForBulk([]);
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
+
           <Card className="shadow-2xs">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow className="text-[11px] uppercase font-bold">
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all candidates"
+                        checked={
+                          assessmentEligibleCandidates.length > 0 &&
+                          assessmentEligibleCandidates.every((c) => selectedCandidateIds.includes(c.id))
+                        }
+                        onChange={() => {
+                          const allIds = assessmentEligibleCandidates.map((c) => c.id);
+                          const allSelected = allIds.every((id) => selectedCandidateIds.includes(id));
+                          if (allSelected) {
+                            setSelectedCandidateIds((prev) => prev.filter((id) => !allIds.includes(id)));
+                            setSelectedCandidatesForBulk([]);
+                          } else {
+                            setSelectedCandidateIds(Array.from(new Set([...selectedCandidateIds, ...allIds])));
+                            setSelectedCandidatesForBulk(assessmentEligibleCandidates);
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                      />
+                    </TableHead>
                     <TableHead>Candidate</TableHead>
                     <TableHead>Applied Position</TableHead>
                     <TableHead>Email</TableHead>
@@ -1907,7 +1973,25 @@ export function AssessmentsTab() {
                       const attempt = cand.attempt;
 
                       return (
-                        <TableRow key={cand.id}>
+                        <TableRow key={cand.id} className={`hover:bg-muted/40 transition-colors ${selectedCandidateIds.includes(cand.id) ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''}`}>
+                          <TableCell className="w-10">
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${candidateName}`}
+                              checked={selectedCandidateIds.includes(cand.id)}
+                              onChange={() => {
+                                const isSelected = selectedCandidateIds.includes(cand.id);
+                                if (isSelected) {
+                                  setSelectedCandidateIds((prev) => prev.filter((id) => id !== cand.id));
+                                  setSelectedCandidatesForBulk((prev) => prev.filter((c) => c.id !== cand.id));
+                                } else {
+                                  setSelectedCandidateIds((prev) => [...prev, cand.id]);
+                                  setSelectedCandidatesForBulk((prev) => [...prev, cand]);
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                            />
+                          </TableCell>
                           <TableCell className="font-bold text-slate-900 dark:text-white">{candidateName}</TableCell>
                           <TableCell>{cand.jobTitle || 'DevOps Engineer'}</TableCell>
                           <TableCell className="font-mono text-slate-500">{cand.email}</TableCell>
@@ -2018,7 +2102,7 @@ export function AssessmentsTab() {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center text-xs text-slate-400">
+                      <TableCell colSpan={6} className="h-32 text-center text-xs text-slate-400">
                         No eligible candidates found matching current filter ({candStageFilter}).
                       </TableCell>
                     </TableRow>
@@ -2349,11 +2433,18 @@ export function AssessmentsTab() {
       {/* 1. Send Assessment Modal */}
       <SendAssessmentModal
         isOpen={isSendModalOpen}
-        onClose={() => setIsSendModalOpen(false)}
-        candidate={sendCandidateTarget}
+        onClose={() => {
+          setIsSendModalOpen(false);
+          setSendCandidateTarget(null);
+        }}
+        candidate={selectedCandidatesForBulk.length === 0 ? sendCandidateTarget : null}
+        candidates={selectedCandidatesForBulk.length > 0 ? selectedCandidatesForBulk : undefined}
         companyId={activeCompanyId}
         branchId={selectedBranchId !== 'ALL' ? selectedBranchId : undefined}
         onSuccess={() => {
+          setSelectedCandidateIds([]);
+          setSelectedCandidatesForBulk([]);
+          setSendCandidateTarget(null);
           refreshData();
           setActiveSubTab('attempts');
         }}

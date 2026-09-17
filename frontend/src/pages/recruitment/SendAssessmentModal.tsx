@@ -31,6 +31,9 @@ import {
   Mail,
   Briefcase,
   Users,
+  AlertCircle,
+  XCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { assessmentsApi, type Assessment, type CandidateAssessmentAttempt } from '@/api/assessment-store';
 import { candidatesApi } from '@/api/recruitment';
@@ -48,6 +51,13 @@ export interface CandidateTarget {
   appliedRole?: string;
   companyId?: string;
   branchId?: string;
+}
+
+interface BulkResult {
+  successCount: number;
+  failureCount: number;
+  attempts: CandidateAssessmentAttempt[];
+  errors: Array<{ candidateId: string; candidateName: string; reason: string }>;
 }
 
 interface SendAssessmentModalProps {
@@ -93,14 +103,31 @@ export function SendAssessmentModal({
   const [customExpiryDate, setCustomExpiryDate] = useState<string>('');
 
   // Assessment Schedule Fields
-  const [scheduledDate, setScheduledDate] = useState<string>('2026-08-30');
+  const [scheduledDate, setScheduledDate] = useState<string>('');
   const [scheduledStartTime, setScheduledStartTime] = useState<string>('11:00');
   const [emailSendingMode, setEmailSendingMode] = useState<'IMMEDIATE' | 'SCHEDULED'>('IMMEDIATE');
 
   const [emailSubject, setEmailSubject] = useState<string>('');
   const [emailBody, setEmailBody] = useState<string>('');
-  const [createdAttempts, setCreatedAttempts] = useState<CandidateAssessmentAttempt[]>([]);
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
   const [isSending, setIsSending] = useState(false);
+
+  // Set default scheduled date to today
+  useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setScheduledDate(`${yyyy}-${mm}-${dd}`);
+
+    // Default expiry: 30 days from today
+    const expiry = new Date(today);
+    expiry.setDate(expiry.getDate() + 30);
+    const ey = expiry.getFullYear();
+    const em = String(expiry.getMonth() + 1).padStart(2, '0');
+    const ed = String(expiry.getDate()).padStart(2, '0');
+    setCustomExpiryDate(`${ey}-${em}-${ed}`);
+  }, []);
 
   useEffect(() => {
     if (isOpen && effectiveCompanyId) {
@@ -120,16 +147,16 @@ export function SendAssessmentModal({
 
           if (matched) {
             setSelectedAssessmentId(matched.id);
-            setCustomExpiryDate(matched.expiryDate || '2026-10-30');
+            if (matched.expiryDate) {
+              setCustomExpiryDate(matched.expiryDate);
+            }
           } else {
             setSelectedAssessmentId('');
           }
         });
 
-      setScheduledDate('2026-08-30');
-      setScheduledStartTime('11:00');
       setEmailSendingMode('IMMEDIATE');
-      setCreatedAttempts([]);
+      setBulkResult(null);
     }
   }, [isOpen, primaryCandidate, effectiveCompanyId, effectiveBranchId]);
 
@@ -176,11 +203,15 @@ Recruitment Team – Codigix ERP`;
       toast.error('Please select an assessment template to send');
       return;
     }
+    if (!scheduledDate) {
+      toast.error('Please set a scheduled date');
+      return;
+    }
 
     setIsSending(true);
 
     try {
-      const attempts = await assessmentsApi.assignAttempt(
+      const result = await assessmentsApi.assignAttempt(
         {
           assessmentId: activeAssessment.id,
           candidates: targetCandidates.map((c) => ({
@@ -202,17 +233,20 @@ Recruitment Team – Codigix ERP`;
         effectiveBranchId
       );
 
-      // Update candidate ATS stages
-      for (const c of targetCandidates) {
+      setBulkResult(result);
+
+      // Update candidate ATS stages for successfully dispatched candidates
+      for (const att of result.attempts) {
         try {
-          await candidatesApi.updateStage(c.id, 'ASSESSMENT_ASSIGNED' as any);
+          await candidatesApi.updateStage(att.candidateId, 'ASSESSMENT_ASSIGNED' as any);
         } catch {
-          // ignore
+          // stage update failure is non-blocking
         }
       }
 
-      // Try SMTP email dispatch for each candidate
-      for (const att of attempts) {
+      // Try SMTP email dispatch for each successfully created attempt
+      const emailFailures: string[] = [];
+      for (const att of result.attempts) {
         const testUrl = `${window.location.origin}/candidate-assessment/${att.token}`;
         try {
           await apiClient.post('/recruitment/offers/send-email', {
@@ -232,19 +266,31 @@ Recruitment Team – Codigix ERP`;
             bodyText: emailBody.replace('[Candidate Name]', att.candidateName),
           });
         } catch {
-          // SMTP non-blocking
+          emailFailures.push(att.candidateName);
+          // SMTP failures are non-blocking — invitations are already in DB
         }
       }
 
-      setCreatedAttempts(attempts);
-      toast.success(
-        isMulti
-          ? `Successfully created assessment invitations for ${attempts.length} candidates in database!`
-          : `Assessment invitation created in database for ${attempts[0]?.candidateName}!`
-      );
+      // Show appropriate toast
+      const { successCount, failureCount } = result;
+      if (failureCount === 0) {
+        toast.success(
+          isMulti
+            ? `Assessment sent successfully to ${successCount} candidate${successCount !== 1 ? 's' : ''}!`
+            : `Assessment invitation created for ${result.attempts[0]?.candidateName}!`
+        );
+      } else if (successCount === 0) {
+        toast.error(
+          failureCount === 1
+            ? `Failed to send: ${result.errors[0]?.reason}`
+            : `All ${failureCount} invitations failed — see details below.`
+        );
+      } else {
+        toast.warning(`${successCount} sent successfully, ${failureCount} failed — see details below.`);
+      }
 
-      if (onSuccess) {
-        onSuccess(attempts);
+      if (onSuccess && result.attempts.length > 0) {
+        onSuccess(result.attempts);
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Failed to dispatch assessment');
@@ -259,8 +305,17 @@ Recruitment Team – Codigix ERP`;
     toast.success('Assessment link copied to clipboard!');
   };
 
+  const handleClose = () => {
+    setBulkResult(null);
+    onClose();
+  };
+
+  const hasResult = bulkResult !== null;
+  const successCount = bulkResult?.successCount ?? 0;
+  const failureCount = bulkResult?.failureCount ?? 0;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
@@ -271,20 +326,39 @@ Recruitment Team – Codigix ERP`;
               <div>
                 <DialogTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <span>Send Technical Assessment</span>
-                  {isMulti && (
+                  {isMulti && !hasResult && (
                     <Badge className="bg-indigo-600 text-white text-[11px] px-2 py-0.5 font-semibold">
                       {targetCandidates.length} Candidates Selected
                     </Badge>
                   )}
+                  {hasResult && (
+                    <Badge
+                      className={`text-[11px] px-2 py-0.5 font-semibold ${
+                        failureCount === 0
+                          ? 'bg-emerald-600 text-white'
+                          : successCount === 0
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-amber-500 text-white'
+                      }`}
+                    >
+                      {failureCount === 0
+                        ? `${successCount} Sent ✓`
+                        : successCount === 0
+                        ? `${failureCount} Failed`
+                        : `${successCount} Sent · ${failureCount} Failed`}
+                    </Badge>
+                  )}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500">
-                  {isMulti
+                  {hasResult
+                    ? 'Assessment dispatch results — individual DB invitations with unique tokens.'
+                    : isMulti
                     ? `Dispatch individual assessment invitations with unique secure tokens for all ${targetCandidates.length} candidates.`
                     : 'Configure assessment schedule, email dispatch mode, and generate candidate test link.'}
                 </DialogDescription>
               </div>
             </div>
-            {activeAssessment && (
+            {activeAssessment && !hasResult && (
               <Badge variant="outline" className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-mono text-xs">
                 {activeAssessment.technology}
               </Badge>
@@ -292,7 +366,7 @@ Recruitment Team – Codigix ERP`;
           </div>
         </DialogHeader>
 
-        {createdAttempts.length === 0 ? (
+        {!hasResult ? (
           <div className="space-y-4 py-2">
             {/* Candidate Summary Box */}
             {isMulti ? (
@@ -302,7 +376,7 @@ Recruitment Team – Codigix ERP`;
                     <Users className="h-4 w-4 text-indigo-600" /> Selected Candidates ({targetCandidates.length})
                   </span>
                   <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]">
-                    Multi-Dispatch
+                    Bulk Dispatch
                   </Badge>
                 </div>
                 <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
@@ -352,11 +426,17 @@ Recruitment Team – Codigix ERP`;
                     <SelectValue placeholder="Choose assessment..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {assessments.map((a) => (
-                      <SelectItem key={a.id} value={a.id} className="text-xs">
-                        {a.name} ({a.technology || 'General'})
+                    {assessments.length === 0 ? (
+                      <SelectItem value="__none__" disabled className="text-xs text-slate-400">
+                        No Published assessments found
                       </SelectItem>
-                    ))}
+                    ) : (
+                      assessments.map((a) => (
+                        <SelectItem key={a.id} value={a.id} className="text-xs">
+                          {a.name} ({a.technology || 'General'})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -407,7 +487,7 @@ Recruitment Team – Codigix ERP`;
                 </div>
               </div>
 
-              {/* Email Option Checkboxes */}
+              {/* Email Option Radio Buttons */}
               <div className="pt-1.5 space-y-2 border-t border-slate-200/80 dark:border-slate-700/80">
                 <label className="flex items-center gap-2 cursor-pointer text-xs">
                   <input
@@ -496,85 +576,136 @@ Recruitment Team – Codigix ERP`;
             </div>
           </div>
         ) : (
-          /* SUCCESS / INVITATIONS CREATED CONFIRMATION STATE */
-          <div className="py-5 space-y-4">
+          /* ── BULK RESULT / SUCCESS STATE ── */
+          <div className="py-4 space-y-4">
+            {/* Summary Header */}
             <div className="text-center space-y-2">
-              <div className="mx-auto h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                <CheckCircle2 className="h-6 w-6" />
+              <div
+                className={`mx-auto h-12 w-12 rounded-full flex items-center justify-center ${
+                  failureCount === 0
+                    ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600'
+                    : successCount === 0
+                    ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-600'
+                    : 'bg-amber-100 dark:bg-amber-950/80 text-amber-600'
+                }`}
+              >
+                {failureCount === 0 ? (
+                  <CheckCircle2 className="h-6 w-6" />
+                ) : successCount === 0 ? (
+                  <XCircle className="h-6 w-6" />
+                ) : (
+                  <AlertTriangle className="h-6 w-6" />
+                )}
               </div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Assessment Invitations Generated! ({createdAttempts.length})
+                {failureCount === 0
+                  ? `Assessment invitations sent to ${successCount} candidate${successCount !== 1 ? 's' : ''}!`
+                  : successCount === 0
+                  ? 'All invitations failed'
+                  : `${successCount} sent successfully · ${failureCount} failed`}
               </h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Each candidate received a distinct unique secure token stored in MySQL.
+                {successCount > 0 && 'Each sent candidate received a distinct unique token stored in MySQL.'}
+                {failureCount > 0 && successCount > 0 && ' Failed candidates are listed below with reasons.'}
+                {failureCount > 0 && successCount === 0 && 'See error reasons below. No invitations were created.'}
               </p>
             </div>
 
-            {/* List of generated links */}
-            <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-              {createdAttempts.map((att) => {
-                const testUrl = `${window.location.origin}/candidate-assessment/${att.token}`;
-                return (
-                  <div
-                    key={att.token}
-                    className="bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          {att.candidateName}
-                        </span>
-                        <span className="text-[11px] text-slate-400">({att.candidateEmail})</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
-                        {att.token}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={testUrl}
-                        className="flex-1 h-8 px-2.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-mono text-slate-700 dark:text-slate-300"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs gap-1"
-                        onClick={() => copyLink(att.token)}
+            {/* Succeeded invitations */}
+            {bulkResult.attempts.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 mb-2">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Successfully Sent ({successCount})
+                </h4>
+                <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  {bulkResult.attempts.map((att) => {
+                    const testUrl = `${window.location.origin}/candidate-assessment/${att.token}`;
+                    return (
+                      <div
+                        key={att.token}
+                        className="bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5"
                       >
-                        <Copy className="h-3 w-3" /> Copy
-                      </Button>
-                      <a href={testUrl} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" className="h-8 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white">
-                          <ExternalLink className="h-3 w-3" /> Open
-                        </Button>
-                      </a>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">
+                              {att.candidateName}
+                            </span>
+                            <span className="text-[11px] text-slate-400">({att.candidateEmail})</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
+                            {att.token}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={testUrl}
+                            className="flex-1 h-8 px-2.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-mono text-slate-700 dark:text-slate-300"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs gap-1"
+                            onClick={() => copyLink(att.token)}
+                          >
+                            <Copy className="h-3 w-3" /> Copy
+                          </Button>
+                          <a href={testUrl} target="_blank" rel="noopener noreferrer">
+                            <Button size="sm" className="h-8 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white">
+                              <ExternalLink className="h-3 w-3" /> Open
+                            </Button>
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Failed invitations */}
+            {bulkResult.errors.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5 mb-2">
+                  <AlertCircle className="h-3.5 w-3.5" /> Failed ({failureCount})
+                </h4>
+                <div className="space-y-1.5">
+                  {bulkResult.errors.map((err) => (
+                    <div
+                      key={err.candidateId}
+                      className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 rounded-lg p-2.5 flex items-start gap-2"
+                    >
+                      <XCircle className="h-3.5 w-3.5 text-rose-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-rose-800 dark:text-rose-300">{err.candidateName}</p>
+                        <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-0.5">{err.reason}</p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         <DialogFooter className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          {createdAttempts.length === 0 ? (
+          {!hasResult ? (
             <>
-              <Button variant="outline" size="sm" onClick={onClose}>
+              <Button variant="outline" size="sm" onClick={handleClose}>
                 Cancel
               </Button>
               <Button
                 size="sm"
                 className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-5"
                 onClick={handleSendAssessment}
-                disabled={isSending}
+                disabled={isSending || !selectedAssessmentId || selectedAssessmentId === '__none__'}
               >
                 <Send className="h-3.5 w-3.5" />
                 {isSending
-                  ? 'Dispatching...'
+                  ? `Dispatching to ${targetCandidates.length} candidate${targetCandidates.length !== 1 ? 's' : ''}...`
                   : isMulti
                   ? `Send to All ${targetCandidates.length} Candidates`
                   : emailSendingMode === 'SCHEDULED'
@@ -586,9 +717,9 @@ Recruitment Team – Codigix ERP`;
             <Button
               size="sm"
               className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold"
-              onClick={onClose}
+              onClick={handleClose}
             >
-              Done & Return to ERP
+              Done & Return to Candidates
             </Button>
           )}
         </DialogFooter>

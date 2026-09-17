@@ -68,6 +68,7 @@ export function CandidatesTab() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStage, setSelectedStage] = useState<string>('all');
+  const [candidateTypeFilter, setCandidateTypeFilter] = useState<string>('all');
 
   // Multi-Candidate Selection State
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
@@ -79,6 +80,12 @@ export function CandidatesTab() {
       setSelectedStage('all');
     }
   }, [isAssessmentEnabled, selectedStage]);
+
+  // Clear selection whenever filters change to prevent stale candidates being included in bulk sends
+  useEffect(() => {
+    setSelectedCandidateIds([]);
+    setSelectedCandidatesForModal([]);
+  }, [searchQuery, selectedStage, candidateTypeFilter]);
 
   // Pagination State for Candidate Table
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -566,8 +573,6 @@ export function CandidatesTab() {
     openScreeningModal(candidate);
     setScreeningDecision('REJECT');
   };
-
-  const [candidateTypeFilter, setCandidateTypeFilter] = useState<string>('all');
 
   const filteredCandidates = useMemo(() => {
     return allCandidates.filter((c) => {
