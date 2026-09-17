@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Settings2,
   Loader2,
+  GitFork,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,8 @@ import { Badge } from '@/components/ui/badge';
 import { employeesApi } from '@/api/employees';
 import { exitsApi, type EmployeeExit, type ExitClearanceItem } from '@/api/exits';
 import { assetsApi } from '@/api/asset-management';
+import { branchesApi } from '@/api/organization';
+import { useCompany } from '@/context/CompanyContext';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ExitClearanceMasterModal } from './ExitClearanceMasterModal';
 
@@ -215,26 +218,51 @@ export function ExitManagementTab() {
   const [adjustLwdDate, setAdjustLwdDate] = useState('');
   const [adjustLwdReason, setAdjustLwdReason] = useState('');
 
+  // Organization Tenant Context
+  const { activeCompanyId, activeCompany } = useCompany();
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
+
+  // Reset branch selection and details when active company changes
+  useEffect(() => {
+    setSelectedBranchId('ALL');
+    setSelectedExitId(null);
+    setSelectedExitFallback(null);
+  }, [activeCompanyId]);
+
+  // Fetch branches for the active company
+  const { data: rawBranches = [] } = useQuery({
+    queryKey: ['branches', activeCompanyId],
+    queryFn: () => (activeCompanyId ? branchesApi.list(activeCompanyId) : branchesApi.list()),
+    enabled: !!activeCompanyId,
+  });
+
+  const filteredBranches = useMemo(() => {
+    if (!activeCompanyId) return rawBranches;
+    return rawBranches.filter((b: any) => b.companyId === activeCompanyId);
+  }, [rawBranches, activeCompanyId]);
+
+  const effectiveBranchId = selectedBranchId !== 'ALL' ? selectedBranchId : undefined;
+
   // ── Queries ──
   const { data: employeesData } = useQuery({
-    queryKey: ['employees-list-exit'],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+    queryKey: ['employees-list-exit', activeCompanyId, effectiveBranchId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: activeCompanyId, branchId: effectiveBranchId }),
   });
   const employees = employeesData?.items ?? [];
 
   const { data: exits = [], isLoading: isExitsLoading } = useQuery({
-    queryKey: ['exits', searchQuery, selectedStatus],
-    queryFn: () => exitsApi.list({ search: searchQuery, status: selectedStatus }),
+    queryKey: ['exits', activeCompanyId, effectiveBranchId, searchQuery, selectedStatus],
+    queryFn: () => exitsApi.list({ search: searchQuery, status: selectedStatus, companyId: activeCompanyId, branchId: effectiveBranchId }),
   });
 
   const { data: kpis } = useQuery({
-    queryKey: ['exits-kpis'],
-    queryFn: () => exitsApi.getKpis(),
+    queryKey: ['exits-kpis', activeCompanyId, effectiveBranchId],
+    queryFn: () => exitsApi.getKpis(activeCompanyId, effectiveBranchId),
   });
 
   const { data: activeExitDetail } = useQuery({
-    queryKey: ['exit-detail', selectedExitId],
-    queryFn: () => (selectedExitId ? exitsApi.get(selectedExitId) : null),
+    queryKey: ['exit-detail', selectedExitId, activeCompanyId],
+    queryFn: () => (selectedExitId ? exitsApi.get(selectedExitId, activeCompanyId) : null),
     enabled: !!selectedExitId,
   });
 
@@ -489,6 +517,7 @@ export function ExitManagementTab() {
 
     createExitMutation.mutate({
       employeeId: formEmpId,
+      companyId: activeCompanyId,
       resignationDate: formResignDate,
       noticePeriodDays: Number(formNoticeDays) || 90,
       lastWorkingDay: formLwd || calculatedExpectedLwd,
@@ -666,6 +695,42 @@ export function ExitManagementTab() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-8 text-xs rounded-xl"
                 />
+              </div>
+
+              {/* Branch Filter Dropdown */}
+              <div className="w-44 sm:w-52">
+                <Select
+                  value={selectedBranchId}
+                  onValueChange={setSelectedBranchId}
+                >
+                  <SelectTrigger className="h-8 text-xs rounded-xl bg-background border-border/80 font-medium">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <SelectValue placeholder="All Branches & Offices">
+                        {selectedBranchId === 'ALL'
+                          ? 'All Branches & Offices'
+                          : filteredBranches.find((b: any) => b.id === selectedBranchId)?.name || 'Selected Branch'}
+                      </SelectValue>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL" className="text-xs font-semibold">
+                      All Branches &amp; Offices
+                    </SelectItem>
+                    {filteredBranches.map((br: any) => (
+                      <SelectItem key={br.id} value={br.id} className="text-xs">
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <span className="truncate">{br.name}</span>
+                          {br.code && (
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {br.code}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <Button
@@ -2891,7 +2956,7 @@ export function ExitManagementTab() {
       <ExitClearanceMasterModal
         open={isClearanceMasterOpen}
         onOpenChange={setIsClearanceMasterOpen}
-        companyId={currentExit?.companyId || exits[0]?.companyId}
+        companyId={activeCompanyId || currentExit?.companyId || exits[0]?.companyId}
       />
     </div>
   );

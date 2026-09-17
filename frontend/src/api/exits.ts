@@ -156,8 +156,8 @@ export interface ClearanceMasterRule {
 }
 
 export const exitsApi = {
-  getKpis: async (companyId?: string) =>
-    (await apiClient.get<ExitKpis>('/employees/exits/kpis', { params: { companyId } })).data,
+  getKpis: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<ExitKpis>('/employees/exits/kpis', { params: { companyId, branchId } })).data,
 
   getClearanceMaster: async (companyId?: string) =>
     (await apiClient.get<{ sector: string; rules: ClearanceMasterRule[] }>('/employees/exits/clearance-master', { params: { companyId } })).data,
@@ -171,11 +171,11 @@ export const exitsApi = {
   recalculateClearance: async (id: string, performedBy?: string) =>
     (await apiClient.post<EmployeeExit>(`/employees/exits/${id}/recalculate-clearance`, { performedBy })).data,
 
-  list: async (params?: { search?: string; status?: string; companyId?: string }) =>
+  list: async (params?: { search?: string; status?: string; companyId?: string; branchId?: string }) =>
     (await apiClient.get<EmployeeExit[]>('/employees/exits', { params })).data,
 
-  get: async (id: string) =>
-    (await apiClient.get<EmployeeExit>(`/employees/exits/${id}`)).data,
+  get: async (id: string, companyId?: string) =>
+    (await apiClient.get<EmployeeExit>(`/employees/exits/${id}`, { params: { companyId } })).data,
 
   create: async (payload: Partial<EmployeeExit>) =>
     (await apiClient.post<EmployeeExit>('/employees/exits', payload)).data,

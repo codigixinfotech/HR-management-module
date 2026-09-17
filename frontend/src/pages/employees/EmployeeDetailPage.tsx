@@ -165,8 +165,8 @@ export default function EmployeeDetailPage() {
     salaryAssignmentsList[0];
 
   const { data: employeeExits = [] } = useQuery({
-    queryKey: ['employee-exits', targetEmpId],
-    queryFn: () => exitsApi.list({ search: targetEmpId }),
+    queryKey: ['employee-exits', targetEmpId, (employee as any)?.companyId],
+    queryFn: () => exitsApi.list({ search: targetEmpId, companyId: (employee as any)?.companyId }),
     enabled: !!targetEmpId,
   });
   const activeExitRecord = employeeExits[0] || null;

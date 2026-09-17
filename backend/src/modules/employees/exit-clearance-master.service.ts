@@ -625,7 +625,6 @@ export class ExitClearanceMasterService {
     if (companyId) {
       this.companyCustomRules.set(companyId, { sector, rules });
     }
-    this.companyCustomRules.set('DEFAULT', { sector, rules });
     return { sector, rules };
   }
 

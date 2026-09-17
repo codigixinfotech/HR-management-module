@@ -21,7 +21,7 @@ import {
 } from './dto/exit.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
+import { getTenantCompanyId, getTenantBranchId } from '../../common/utils/tenant-context.util';
 
 @Controller('employees/exits')
 export class ExitsController {
@@ -35,9 +35,11 @@ export class ExitsController {
   getKpis(
     @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.service.getKpis(tenantCompanyId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.service.getKpis(tenantCompanyId, tenantBranchId);
   }
 
   @Get('clearance-master')
@@ -84,15 +86,22 @@ export class ExitsController {
     @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.service.findAll(search, status, tenantCompanyId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.service.findAll(search, status, tenantCompanyId, tenantBranchId);
   }
 
   @Get(':id')
   @Permissions('employees.read')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.service.findOne(id, tenantCompanyId);
   }
 
   @Post(':id/recalculate-clearance')
@@ -106,8 +115,12 @@ export class ExitsController {
 
   @Post()
   @Permissions('employees.write')
-  create(@Body() dto: CreateExitDto) {
-    return this.service.create(dto);
+  create(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: CreateExitDto,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, dto.companyId);
+    return this.service.create(dto, tenantCompanyId);
   }
 
   @Patch(':id/status')

@@ -72,9 +72,20 @@ export class ExitsService implements OnModuleInit {
     }
   }
 
-  async getKpis(companyId?: string) {
-    const whereClause: any = {};
-    if (companyId) whereClause.companyId = companyId;
+  async getKpis(companyId?: string, branchId?: string) {
+    const conditions: any[] = [];
+    if (companyId) {
+      conditions.push({
+        OR: [{ companyId }, { employee: { companyId } }],
+      });
+    }
+    if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+      conditions.push({
+        employee: { branchId },
+      });
+    }
+
+    const whereClause = conditions.length > 0 ? { AND: conditions } : {};
 
     const allExits = await this.prisma.employeeExit.findMany({
       where: whereClause,
@@ -120,24 +131,39 @@ export class ExitsService implements OnModuleInit {
     };
   }
 
-  async findAll(search?: string, status?: string, companyId?: string) {
-    const where: any = {};
-    if (companyId) where.companyId = companyId;
+  async findAll(search?: string, status?: string, companyId?: string, branchId?: string) {
+    const conditions: any[] = [];
+
+    if (companyId) {
+      conditions.push({
+        OR: [{ companyId }, { employee: { companyId } }],
+      });
+    }
+
+    if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+      conditions.push({
+        employee: { branchId },
+      });
+    }
 
     if (status && status !== 'all') {
-      where.status = status.toUpperCase();
+      conditions.push({ status: status.toUpperCase() });
     }
 
     if (search && search.trim()) {
       const q = search.trim();
-      where.OR = [
-        { exitCode: { contains: q } },
-        { exitReason: { contains: q } },
-        { employee: { firstName: { contains: q } } },
-        { employee: { lastName: { contains: q } } },
-        { employee: { employeeCode: { contains: q } } },
-      ];
+      conditions.push({
+        OR: [
+          { exitCode: { contains: q } },
+          { exitReason: { contains: q } },
+          { employee: { firstName: { contains: q } } },
+          { employee: { lastName: { contains: q } } },
+          { employee: { employeeCode: { contains: q } } },
+        ],
+      });
     }
+
+    const where = conditions.length > 0 ? { AND: conditions } : {};
 
     return this.prisma.employeeExit.findMany({
       where,
@@ -151,8 +177,11 @@ export class ExitsService implements OnModuleInit {
             workEmail: true,
             phone: true,
             status: true,
+            companyId: true,
+            branchId: true,
             department: { select: { id: true, name: true } },
             designation: { select: { id: true, title: true } },
+            branch: { select: { id: true, name: true } },
             reportingManager: { select: { id: true, firstName: true, lastName: true } },
           },
         },
@@ -165,7 +194,7 @@ export class ExitsService implements OnModuleInit {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, tenantCompanyId?: string) {
     const exit = await this.prisma.employeeExit.findUnique({
       where: { id },
       include: {
@@ -191,15 +220,27 @@ export class ExitsService implements OnModuleInit {
     });
 
     if (!exit) throw new NotFoundException('Exit offboarding record not found');
+
+    if (tenantCompanyId) {
+      const exitCompany = exit.companyId || exit.employee?.companyId;
+      if (exitCompany && exitCompany !== tenantCompanyId) {
+        throw new NotFoundException('Exit offboarding record not found for this organization');
+      }
+    }
+
     return exit;
   }
 
-  async create(dto: CreateExitDto) {
+  async create(dto: CreateExitDto, tenantCompanyId?: string) {
     const employee = await this.prisma.employee.findUnique({
       where: { id: dto.employeeId },
-      include: { department: true },
+      include: { department: true, branch: true },
     });
     if (!employee) throw new NotFoundException('Employee record not found');
+
+    if (tenantCompanyId && employee.companyId !== tenantCompanyId) {
+      throw new BadRequestException('Cannot initiate exit for an employee outside the selected company');
+    }
 
     const count = await this.prisma.employeeExit.count();
     const exitCode = `EXT-${300 + count + 1}`;
@@ -217,7 +258,7 @@ export class ExitsService implements OnModuleInit {
     const evaluatedTasks = await this.clearanceMasterService.evaluateClearanceForEmployee(
       employee,
       exitType,
-      dto.companyId || employee.companyId,
+      employee.companyId || dto.companyId,
     );
 
     // Business Rule: DO NOT deactivate employee master upon resignation initiation!
@@ -226,7 +267,7 @@ export class ExitsService implements OnModuleInit {
       data: {
         exitCode,
         employeeId: dto.employeeId,
-        companyId: dto.companyId || employee.companyId,
+        companyId: employee.companyId || dto.companyId,
         resignationDate,
         noticePeriodDays: noticeDays,
         lastWorkingDay,
