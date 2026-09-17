@@ -74,6 +74,7 @@ export function resolveUploadedFile(subfolder: string, filename: string): string
 
   const safeFilename = basename(filename.trim());
   const safeSubfolder = subfolder.replace(/[^a-zA-Z0-9_\-]/g, '');
+  const envUploadDir = (process.env.UPLOAD_DIR || 'uploads').trim().replace(/^["']|["']$/g, '');
 
   // 1. Check primary configured subfolder
   const primaryPath = join(getUploadSubdir(safeSubfolder), safeFilename);
@@ -81,20 +82,20 @@ export function resolveUploadedFile(subfolder: string, filename: string): string
     return primaryPath;
   }
 
-  // 2. Fallback check: cwd/uploads/<subfolder>/<filename>
-  const fallbackCwd = resolve(process.cwd(), 'uploads', safeSubfolder, safeFilename);
+  // 2. Fallback check: cwd/<envUploadDir>/<subfolder>/<filename>
+  const fallbackCwd = resolve(process.cwd(), envUploadDir, safeSubfolder, safeFilename);
   if (existsSync(fallbackCwd)) {
     return fallbackCwd;
   }
 
-  // 3. Fallback check: cwd/backend/uploads/<subfolder>/<filename>
-  const fallbackBackend = resolve(process.cwd(), 'backend', 'uploads', safeSubfolder, safeFilename);
+  // 3. Fallback check: cwd/backend/<envUploadDir>/<subfolder>/<filename>
+  const fallbackBackend = resolve(process.cwd(), 'backend', envUploadDir, safeSubfolder, safeFilename);
   if (existsSync(fallbackBackend)) {
     return fallbackBackend;
   }
 
-  // 4. Fallback check: bundle root uploads/<subfolder>/<filename>
-  const fallbackBundle = resolve(__dirname, '..', '..', '..', 'uploads', safeSubfolder, safeFilename);
+  // 4. Fallback check: bundle root <envUploadDir>/<subfolder>/<filename>
+  const fallbackBundle = resolve(__dirname, '..', '..', '..', envUploadDir, safeSubfolder, safeFilename);
   if (existsSync(fallbackBundle)) {
     return fallbackBundle;
   }
@@ -106,11 +107,11 @@ export function resolveUploadedFile(subfolder: string, filename: string): string
   }
 
   // 6. Linux VPS deployment paths (/var/www/HR-management-module)
-  const vpsBackendFile = resolve('/var/www/HR-management-module/backend/uploads', safeSubfolder, safeFilename);
+  const vpsBackendFile = resolve('/var/www/HR-management-module/backend', envUploadDir, safeSubfolder, safeFilename);
   if (existsSync(vpsBackendFile)) {
     return vpsBackendFile;
   }
-  const vpsRootFile = resolve('/var/www/HR-management-module/uploads', safeSubfolder, safeFilename);
+  const vpsRootFile = resolve('/var/www/HR-management-module', envUploadDir, safeSubfolder, safeFilename);
   if (existsSync(vpsRootFile)) {
     return vpsRootFile;
   }

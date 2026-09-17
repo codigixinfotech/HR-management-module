@@ -101,21 +101,69 @@ export function getFullResumeUrl(resumePath?: string | null, candidateName?: str
 }
 
 /**
- * Directly opens the candidate resume PDF in a new browser tab,
- * with graceful fallback to the Candidate Profile Details modal if no document exists.
+ * Directly opens the candidate resume PDF in a new browser tab using an in-memory blob URL,
+ * completely preventing any router/proxy fallback redirection to /dashboard.
  */
-export function openResumeInNewTab(
+export async function openResumeInNewTab(
   resumePath?: string | null,
   candidateName?: string,
   onFallback?: () => void,
-): void {
-  const url = getFullResumeUrl(resumePath, candidateName);
+): Promise<void> {
+  const directUrl = getFullResumeUrl(resumePath, candidateName);
 
-  if (url) {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  } else if (onFallback) {
-    onFallback();
-  } else {
-    toast.error('No attached resume document found for this candidate.');
+  if (!directUrl) {
+    if (onFallback) {
+      onFallback();
+    } else {
+      toast.error('No attached resume document found for this candidate.');
+    }
+    return;
+  }
+
+  // If already a local blob or data URL, open directly
+  if (directUrl.startsWith('blob:') || directUrl.startsWith('data:')) {
+    window.open(directUrl, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  // Synchronously open blank window immediately within the user click event handler
+  // to avoid browser popup blockers (Safari, Chrome, Edge, Firefox) from blocking async window.open
+  const newTab = window.open('about:blank', '_blank');
+  if (newTab) {
+    newTab.document.title = `Loading Resume - ${candidateName || 'Candidate'}`;
+    newTab.document.body.innerHTML = `
+      <div style="font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #0f172a; color: #f8fafc;">
+        <div style="width: 44px; height: 44px; border: 4px solid #334155; border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p style="margin-top: 18px; font-size: 15px; font-weight: 600;">Loading candidate resume document...</p>
+        <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Opening original PDF inline</p>
+        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+      </div>
+    `;
+  }
+
+  const toastId = toast.loading('Opening candidate resume document...');
+
+  try {
+    const res = await fetch(directUrl);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(pdfBlob);
+    if (newTab && !newTab.closed) {
+      newTab.location.href = blobUrl;
+    } else {
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    }
+    toast.success('Resume document opened', { id: toastId });
+  } catch (err) {
+    console.warn('Direct fetch to blob failed, falling back to direct window open:', err);
+    toast.dismiss(toastId);
+    if (newTab && !newTab.closed) {
+      newTab.location.href = directUrl;
+    } else {
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
+    }
   }
 }

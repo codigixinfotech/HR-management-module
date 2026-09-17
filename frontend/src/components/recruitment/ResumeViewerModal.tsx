@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { getFullResumeUrl as resolveResumeUrl } from '@/utils/resume-url.util';
+import { getFullResumeUrl as resolveResumeUrl, openResumeInNewTab } from '@/utils/resume-url.util';
 
 interface ResumeViewerModalProps {
   isOpen: boolean;
@@ -87,8 +87,33 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
     }
   }, [finalUrl]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (finalUrl) {
+      try {
+        const toastId = toast.loading(`Preparing resume download...`);
+        const res = await fetch(finalUrl);
+        if (res.ok) {
+          const blob = await res.blob();
+          const mimeType = isWordDoc
+            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : 'application/pdf';
+          const fileBlob = new Blob([blob], { type: mimeType });
+          const blobUrl = URL.createObjectURL(fileBlob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = isWordDoc
+            ? `${candidateName.replace(/\s+/g, '_')}_Resume.docx`
+            : `${candidateName.replace(/\s+/g, '_')}_Resume.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+          toast.success(`Downloaded resume for ${candidateName}`, { id: toastId });
+          return;
+        }
+      } catch (err) {
+        console.warn('Direct blob download fallback:', err);
+      }
       const link = document.createElement('a');
       link.href = finalUrl;
       link.target = '_blank';
@@ -137,14 +162,16 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
 
           <div className="flex items-center gap-2 shrink-0">
             {finalUrl && !iframeError && !isWordDoc && (
-              <a
-                href={finalUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-colors"
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => openResumeInNewTab(resumeUrl || finalUrl, candidateName)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-colors h-8 border-0"
+                title="Open original PDF directly in new tab"
               >
                 <ExternalLink className="h-3.5 w-3.5 text-indigo-400" /> New Tab
-              </a>
+              </Button>
             )}
             <Button
               type="button"
@@ -181,14 +208,15 @@ export const ResumeViewerModal: React.FC<ResumeViewerModalProps> = ({
                 </span>
               </div>
               {finalUrl && (
-                <a
-                  href={finalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors shrink-0 shadow-xs"
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => openResumeInNewTab(resumeUrl || finalUrl, candidateName)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors shrink-0 shadow-xs h-8 border-0"
+                  title="Open original PDF in a clean new tab"
                 >
                   <ExternalLink className="h-3.5 w-3.5" /> Open Full PDF in New Tab ↗
-                </a>
+                </Button>
               )}
             </div>
 
