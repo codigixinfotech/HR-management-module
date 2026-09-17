@@ -6,7 +6,7 @@ import { CreatePayGradeDto, UpdatePayGradeDto } from './dto/pay-grade.dto';
 export class PayGradesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(companyId?: string, branchId?: string) {
+  async list(companyId?: string, branchId?: string, departmentId?: string) {
     const where: any = {};
 
     if (companyId) {
@@ -20,11 +20,15 @@ export class PayGradesService {
       where.branchId = branchId;
     }
 
+    if (departmentId && departmentId !== 'ALL' && departmentId !== 'none' && departmentId !== '') {
+      where.departmentId = departmentId;
+    }
+
     return this.prisma.payGrade.findMany({
       where: Object.keys(where).length > 0 ? where : undefined,
       include: {
         department: { select: { id: true, name: true } },
-        branch: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true, code: true } },
       },
       orderBy: { level: 'asc' },
     });

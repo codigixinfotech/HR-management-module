@@ -103,13 +103,34 @@ export interface Designation {
   id: string;
   companyId: string;
   departmentId?: string | null;
-  department?: { id: string; name: string } | null;
+  department?: {
+    id: string;
+    name: string;
+    branchId?: string | null;
+    branch?: { id: string; name: string; code?: string } | null;
+  } | null;
   code: string;
   title: string;
-  grade?: string | null;
+  grade?: string | null;         // gradeCode (plain text, backward compat)
+  gradeId?: string | null;       // FK → PayGrade
+  level?: string | null;         // e.g. L1, L2 — auto from PayGrade
   jobFamily?: string | null;
   reportingDesignationId?: string | null;
   reportingDesignation?: { id: string; title: string } | null;
+  payGrade?: {
+    id: string;
+    gradeCode: string;
+    gradeName: string;
+    level: string;
+    category: string;
+    branchId?: string | null;
+    departmentId?: string | null;
+    minSalary: number;
+    maxSalary: number;
+    currency: string;
+    branch?: { id: string; name: string; code?: string } | null;
+    department?: { id: string; name: string } | null;
+  } | null;
   employmentType?: string | null;
   minSalary?: number | null;
   maxSalary?: number | null;

@@ -20,8 +20,31 @@ export class DesignationsService {
         ...(departmentId ? { departmentId } : {}),
       },
       include: {
-        department: { select: { id: true, name: true } },
+        department: {
+          select: {
+            id: true,
+            name: true,
+            branchId: true,
+            branch: { select: { id: true, name: true, code: true } },
+          },
+        },
         reportingDesignation: { select: { id: true, title: true } },
+        payGrade: {
+          select: {
+            id: true,
+            gradeCode: true,
+            gradeName: true,
+            level: true,
+            category: true,
+            branchId: true,
+            departmentId: true,
+            minSalary: true,
+            maxSalary: true,
+            currency: true,
+            branch: { select: { id: true, name: true, code: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
       },
       orderBy: { title: 'asc' },
     });
@@ -31,8 +54,31 @@ export class DesignationsService {
     const designation = await this.prisma.designation.findUnique({
       where: { id },
       include: {
-        department: { select: { id: true, name: true } },
+        department: {
+          select: {
+            id: true,
+            name: true,
+            branchId: true,
+            branch: { select: { id: true, name: true, code: true } },
+          },
+        },
         reportingDesignation: { select: { id: true, title: true } },
+        payGrade: {
+          select: {
+            id: true,
+            gradeCode: true,
+            gradeName: true,
+            level: true,
+            category: true,
+            branchId: true,
+            departmentId: true,
+            minSalary: true,
+            maxSalary: true,
+            currency: true,
+            branch: { select: { id: true, name: true, code: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
       },
     });
     if (!designation) throw new NotFoundException('Designation not found');
@@ -48,23 +94,41 @@ export class DesignationsService {
         'A designation with this code already exists for this company',
       );
 
-    const { departmentId, reportingDesignationId, effectiveFrom, ...rest } = dto;
+    const { departmentId, reportingDesignationId, effectiveFrom, gradeId, ...rest } = dto;
     const cleanDepartmentId = departmentId && departmentId !== 'none' ? departmentId : null;
     const cleanReportingId = reportingDesignationId && reportingDesignationId !== 'none' ? reportingDesignationId : null;
+    const cleanGradeId = gradeId && gradeId !== 'none' && gradeId !== '' ? gradeId : null;
 
     return this.prisma.designation.create({
       data: {
         ...rest,
         departmentId: cleanDepartmentId,
         reportingDesignationId: cleanReportingId,
+        gradeId: cleanGradeId,
         effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : undefined,
+      },
+      include: {
+        department: { select: { id: true, name: true } },
+        reportingDesignation: { select: { id: true, title: true } },
+        payGrade: {
+          select: {
+            id: true,
+            gradeCode: true,
+            gradeName: true,
+            level: true,
+            category: true,
+            minSalary: true,
+            maxSalary: true,
+            currency: true,
+          },
+        },
       },
     });
   }
 
   async update(id: string, dto: UpdateDesignationDto) {
     await this.findById(id);
-    const { departmentId, reportingDesignationId, effectiveFrom, ...rest } = dto;
+    const { departmentId, reportingDesignationId, effectiveFrom, gradeId, ...rest } = dto;
     const data: any = { ...rest };
 
     if (departmentId !== undefined) {
@@ -73,11 +137,33 @@ export class DesignationsService {
     if (reportingDesignationId !== undefined) {
       data.reportingDesignationId = reportingDesignationId && reportingDesignationId !== 'none' ? reportingDesignationId : null;
     }
+    if (gradeId !== undefined) {
+      data.gradeId = gradeId && gradeId !== 'none' && gradeId !== '' ? gradeId : null;
+    }
     if (effectiveFrom) {
       data.effectiveFrom = new Date(effectiveFrom);
     }
 
-    return this.prisma.designation.update({ where: { id }, data });
+    return this.prisma.designation.update({
+      where: { id },
+      data,
+      include: {
+        department: { select: { id: true, name: true } },
+        reportingDesignation: { select: { id: true, title: true } },
+        payGrade: {
+          select: {
+            id: true,
+            gradeCode: true,
+            gradeName: true,
+            level: true,
+            category: true,
+            minSalary: true,
+            maxSalary: true,
+            currency: true,
+          },
+        },
+      },
+    });
   }
 
   async remove(id: string) {

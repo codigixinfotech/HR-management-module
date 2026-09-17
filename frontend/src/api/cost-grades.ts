@@ -57,8 +57,8 @@ export const costCentersApi = {
 };
 
 export const payGradesApi = {
-  list: async (companyId?: string, branchId?: string) =>
-    (await apiClient.get<PayGrade[]>('/organization/pay-grades', { params: { companyId, branchId } })).data,
+  list: async (companyId?: string, branchId?: string, departmentId?: string) =>
+    (await apiClient.get<PayGrade[]>('/organization/pay-grades', { params: { companyId, branchId, departmentId } })).data,
 
   getNextCode: async (branchId?: string, companyId?: string) =>
     (await apiClient.get<{ nextCode: string }>('/organization/pay-grades/next-code', { params: { branchId, companyId } })).data,

@@ -25,13 +25,14 @@ export class PayGradesController {
     @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
     @Query('branchId') branchId?: string,
+    @Query('departmentId') departmentId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
     let tenantBranchId = getTenantBranchId(user, branchId);
     if (!tenantBranchId && (branchId === 'HEAD_OFFICE' || branchId === 'NONE')) {
       tenantBranchId = 'HEAD_OFFICE';
     }
-    return this.service.list(tenantCompanyId, tenantBranchId);
+    return this.service.list(tenantCompanyId, tenantBranchId, departmentId);
   }
 
   @Get('next-code')

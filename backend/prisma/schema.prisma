@@ -440,7 +440,9 @@ model Designation {
   departmentId           String?
   code                   String
   title                  String
-  grade                  String?
+  grade                  String?  // gradeCode text (kept for backward compatibility)
+  gradeId                String?  // FK → PayGrade (real relationship)
+  level                  String?  // auto-populated from PayGrade.level
   jobFamily              String?
   reportingDesignationId String?
   employmentType         String?
@@ -454,6 +456,7 @@ model Designation {
 
   company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   department           Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  payGrade             PayGrade?     @relation(fields: [gradeId], references: [id], onDelete: SetNull)
   reportingDesignation Designation?  @relation("DesignationHierarchy", fields: [reportingDesignationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   subDesignations      Designation[] @relation("DesignationHierarchy")
   employees            Employee[]
@@ -463,6 +466,7 @@ model Designation {
 
   @@unique([companyId, code])
   @@index([departmentId])
+  @@index([gradeId])
   @@map("designations")
 }
 
@@ -518,9 +522,10 @@ model PayGrade {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch     Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designations Designation[]  // Designations linked to this grade
 
   @@index([companyId])
   @@index([branchId])

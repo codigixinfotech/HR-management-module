@@ -17,7 +17,15 @@ export class CreateDesignationDto {
 
   @IsOptional()
   @IsString()
-  grade?: string;
+  grade?: string; // gradeCode text (backward compat)
+
+  @IsOptional()
+  @IsString()
+  gradeId?: string; // FK → PayGrade
+
+  @IsOptional()
+  @IsString()
+  level?: string; // auto-populated from PayGrade.level
 
   @IsOptional()
   @IsString()
