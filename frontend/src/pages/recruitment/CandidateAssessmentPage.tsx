@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
-  assessmentStore,
+  assessmentsApi,
   type CandidateAssessmentAttempt,
   type Question,
 } from '@/api/assessment-store';
@@ -49,35 +49,37 @@ export default function CandidateAssessmentPage() {
 
   useEffect(() => {
     if (!token) return;
-    const att = assessmentStore.getAttemptByToken(token);
-    if (!att) {
-      toast.error('Invalid or expired assessment link token');
-      return;
-    }
 
-    setAttempt(att);
+    assessmentsApi
+      .getAttemptByToken(token)
+      .then(({ attempt: att, questions: qsts }) => {
+        if (!att) {
+          toast.error('Invalid or expired assessment link token');
+          return;
+        }
 
-    if (att.status === 'COMPLETED') {
-      setIsSubmitted(true);
-      setSubmittedResult(att);
-      return;
-    }
+        setAttempt(att);
 
-    const allAssessments = assessmentStore.getAssessments();
-    const asm = allAssessments.find((a) => a.id === att.assessmentId) || allAssessments[0];
-    const asmQs = asm?.questions && asm.questions.length > 0 ? asm.questions : assessmentStore.getQuestions();
+        if (att.status === 'COMPLETED') {
+          setIsSubmitted(true);
+          setSubmittedResult(att);
+          return;
+        }
 
-    setQuestions(asmQs);
-    setAnswers(att.answers || {});
-    setMarkedForReview(att.markedForReview || []);
+        setQuestions(qsts || []);
+        setAnswers(att.answers || {});
+        setMarkedForReview(att.markedForReview || []);
 
-    const totalSecs = (att.durationMins || 45) * 60;
-    setTimeLeftSeconds(totalSecs);
+        const totalSecs = (att.durationMinutes || att.durationMins || 45) * 60;
+        setTimeLeftSeconds(totalSecs);
 
-    // Update start time
-    if (att.status === 'SENT') {
-      assessmentStore.updateAttemptProgress(token, att.answers || {}, att.markedForReview || []);
-    }
+        if (att.status === 'SENT') {
+          assessmentsApi.updateAttemptProgress(token, att.answers || {}, att.markedForReview || []);
+        }
+      })
+      .catch(() => {
+        toast.error('Invalid or expired assessment link token');
+      });
   }, [token]);
 
   // Timer Countdown Effect
@@ -109,7 +111,7 @@ export default function CandidateAssessmentPage() {
     const nextAnswers = { ...answers, [questionId]: val };
     setAnswers(nextAnswers);
     if (token) {
-      assessmentStore.updateAttemptProgress(token, nextAnswers, markedForReview);
+      assessmentsApi.updateAttemptProgress(token, nextAnswers, markedForReview);
     }
   };
 
@@ -122,7 +124,7 @@ export default function CandidateAssessmentPage() {
     }
     setMarkedForReview(nextMarked);
     if (token) {
-      assessmentStore.updateAttemptProgress(token, answers, nextMarked);
+      assessmentsApi.updateAttemptProgress(token, answers, nextMarked);
     }
   };
 
@@ -146,13 +148,13 @@ export default function CandidateAssessmentPage() {
     }, 800);
   };
 
-  const executeFinalSubmission = () => {
+  const executeFinalSubmission = async () => {
     if (!token || !attempt) return;
     setIsSubmitting(true);
 
     try {
-      const timeTaken = (attempt.durationMins || 45) * 60 - timeLeftSeconds;
-      const res = assessmentStore.submitCandidateAssessment(token, answers, Math.max(timeTaken, 30));
+      const timeTaken = (attempt.durationMinutes || attempt.durationMins || 45) * 60 - timeLeftSeconds;
+      const res = await assessmentsApi.submitAttempt(token, { answers, timeTakenSeconds: Math.max(timeTaken, 30) });
       setSubmittedResult(res);
       setIsSubmitted(true);
       toast.success('Assessment submitted successfully! Thank you.');

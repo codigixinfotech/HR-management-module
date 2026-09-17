@@ -288,10 +288,10 @@ export function AssessmentsTab() {
       setQuestions(qstList);
       setTechnologies(techList);
     } catch {
-      setAssessments(assessmentStore.getAssessments(activeCompanyId, selectedBranchId));
-      setAttempts(assessmentStore.getAttempts(activeCompanyId, selectedBranchId));
-      setQuestions(assessmentStore.getQuestions(activeCompanyId, selectedBranchId));
-      setTechnologies(assessmentStore.getTechnologies(activeCompanyId, selectedBranchId));
+      setAssessments([]);
+      setAttempts([]);
+      setQuestions([]);
+      setTechnologies([]);
     }
   };
 
@@ -550,8 +550,11 @@ export function AssessmentsTab() {
     if (sec) {
       setEditingSectionId(sec.id);
       setSecFormName(sec.name);
-      setSecFormTechId(sec.technologyId || (activeTechnologies.find((t) => t.name === sec.technology)?.id || ''));
-      setSecFormTech(sec.technology);
+      const matchingTech = activeTechnologies.find(
+        (t) => (sec.technologyId && t.id === sec.technologyId) || t.name.toLowerCase() === (sec.technology || '').toLowerCase()
+      );
+      setSecFormTechId(matchingTech ? matchingTech.id : sec.technologyId || '');
+      setSecFormTech(matchingTech ? matchingTech.name : sec.technology || '');
       setSecFormTopic(sec.topic || '');
       setSecFormType(sec.questionType);
       setSecFormDiff(sec.difficulty);
@@ -562,7 +565,7 @@ export function AssessmentsTab() {
       setEditingSectionId(null);
       setSecFormName('New Section');
       setSecFormTechId(defaultTech ? defaultTech.id : '');
-      setSecFormTech(defaultTech ? defaultTech.name : 'General');
+      setSecFormTech(defaultTech ? defaultTech.name : '');
       setSecFormTopic('');
       setSecFormType('MCQ');
       setSecFormDiff('Medium');
@@ -846,7 +849,7 @@ export function AssessmentsTab() {
       parsedAns = qFormCorrectAns.split(',').map((x) => (isNaN(Number(x.trim())) ? x.trim() : Number(x.trim())));
     }
 
-    assessmentStore.saveQuestion(
+    await assessmentsApi.saveQuestion(
       {
         id: editingQuestion ? editingQuestion.id : undefined,
         technologyId: finalTechId,
@@ -873,7 +876,7 @@ export function AssessmentsTab() {
     await refreshData();
   };
 
-  const handleBulkUpload = () => {
+  const handleBulkUpload = async () => {
     if (!bulkJsonText) {
       toast.error('Please paste valid JSON questions format');
       return;
@@ -884,11 +887,11 @@ export function AssessmentsTab() {
         toast.error('JSON must be an array of questions');
         return;
       }
-      assessmentStore.bulkAddQuestions(parsed, activeCompanyId, selectedBranchId);
+      await assessmentsApi.bulkAddQuestions(parsed, activeCompanyId, selectedBranchId);
       toast.success(`Successfully uploaded ${parsed.length} questions to Question Bank!`);
       setIsBulkUploadOpen(false);
       setBulkJsonText('');
-      refreshData();
+      await refreshData();
     } catch {
       toast.error('Invalid JSON format');
     }
@@ -1368,7 +1371,7 @@ export function AssessmentsTab() {
                             q.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-500/10 text-slate-500'
                           }`}
                           onClick={async () => {
-                            assessmentStore.toggleQuestionStatus(q.id, activeCompanyId, selectedBranchId);
+                            await assessmentsApi.toggleQuestionStatus(q.id, activeCompanyId);
                             await refreshData();
                           }}
                         >
@@ -1388,7 +1391,7 @@ export function AssessmentsTab() {
                             variant="ghost"
                             className="h-7 w-7 text-rose-600"
                             onClick={async () => {
-                              assessmentStore.deleteQuestion(q.id, activeCompanyId, selectedBranchId);
+                              await assessmentsApi.deleteQuestion(q.id, activeCompanyId);
                               toast.success('Question removed');
                               await refreshData();
                             }}
@@ -2191,6 +2194,27 @@ export function AssessmentsTab() {
                 Add Technology
               </Button>
 
+              {technologies.length === 0 && (
+                <Button
+                  onClick={async () => {
+                    if (!activeCompanyId) return;
+                    try {
+                      await technologiesApi.seedStandardSkills(activeCompanyId, selectedBranchId);
+                      toast.success('Loaded 13 standard skills into database');
+                      refreshData();
+                    } catch (e: any) {
+                      toast.error(e.message || 'Failed to load standard skills');
+                    }
+                  }}
+                  variant="outline"
+                  className="h-8 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 dark:border-indigo-900/50 gap-1.5 shadow-xs"
+                  title="Load standard technical and aptitude skills into database"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Load Standard Skills
+                </Button>
+              )}
+
               {technologies.length > 0 && (
                 <Button
                   onClick={handleDeleteAllTech}
@@ -2514,9 +2538,23 @@ export function AssessmentsTab() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Technology / Skill *</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Technology / Skill *</Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddSectionOpen(false);
+                    setActiveSubTab('tech-master');
+                    openAddTechModal();
+                  }}
+                  className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1"
+                >
+                  <Plus className="h-3 w-3" /> Add Master Skill
+                </button>
+              </div>
+
               <Select
-                value={secFormTechId || activeTechnologies.find((t) => t.name === secFormTech)?.id || secFormTech}
+                value={secFormTechId || (activeTechnologies.find((t) => t.name.toLowerCase() === (secFormTech || '').toLowerCase())?.id) || secFormTech || ''}
                 onValueChange={(val) => {
                   const found = activeTechnologies.find((t) => t.id === val || t.name === val);
                   if (found) {
@@ -2532,16 +2570,23 @@ export function AssessmentsTab() {
                   <SelectValue placeholder="Select active skill from master" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeTechnologies.length === 0 ? (
+                  {activeTechnologies.length === 0 && !secFormTech ? (
                     <div className="p-2 text-xs text-muted-foreground text-center">
-                      No active skills in master. Add or activate skills in Skill Master.
+                      No active skills in master. Click "Add Master Skill" above.
                     </div>
                   ) : (
-                    activeTechnologies.map((tm) => (
-                      <SelectItem key={tm.id} value={tm.id}>
-                        <span>{tm.name}</span>
-                      </SelectItem>
-                    ))
+                    <>
+                      {activeTechnologies.map((tm) => (
+                        <SelectItem key={tm.id} value={tm.id}>
+                          <span>{tm.name}</span>
+                        </SelectItem>
+                      ))}
+                      {secFormTech && !activeTechnologies.some((t) => t.id === secFormTechId || t.name.toLowerCase() === secFormTech.toLowerCase()) && (
+                        <SelectItem value={secFormTech}>
+                          <span>{secFormTech} (Custom / Section Skill)</span>
+                        </SelectItem>
+                      )}
+                    </>
                   )}
                 </SelectContent>
               </Select>

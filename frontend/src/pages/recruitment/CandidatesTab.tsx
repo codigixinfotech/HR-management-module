@@ -28,6 +28,7 @@ import {
   Brain,
   Settings,
   ExternalLink,
+  Send,
 } from 'lucide-react';
 import { jobOpeningsApi, candidatesApi, assessmentsApi } from '@/api/recruitment';
 import { AtsAnalysisCard } from '@/components/recruitment/AtsAnalysisCard';
@@ -67,6 +68,10 @@ export function CandidatesTab() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStage, setSelectedStage] = useState<string>('all');
+
+  // Multi-Candidate Selection State
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [selectedCandidatesForModal, setSelectedCandidatesForModal] = useState<any[]>([]);
 
   // If global assessment is turned off, reset stage if it was an assessment filter
   useEffect(() => {
@@ -826,9 +831,61 @@ export function CandidatesTab() {
           </div>
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
+          {/* Multi-Candidate Selection Action Bar */}
+          {selectedCandidateIds.length > 0 && (
+            <div className="mb-4 flex items-center justify-between p-3 px-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-2.5 text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span>{selectedCandidateIds.length} Candidate(s) Selected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-xs px-3.5"
+                  onClick={() => {
+                    const selectedList = allCandidates.filter((c) => selectedCandidateIds.includes(c.id));
+                    setSelectedCandidatesForModal(selectedList);
+                    setSendAssessmentCandidate(null);
+                    setIsSendAssessmentModalOpen(true);
+                  }}
+                >
+                  <Send className="h-3.5 w-3.5" /> Send Assessment ({selectedCandidateIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-indigo-200 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                  onClick={() => setSelectedCandidateIds([])}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
+
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all candidates"
+                    checked={
+                      paginatedCandidates.length > 0 &&
+                      paginatedCandidates.every((c) => selectedCandidateIds.includes(c.id))
+                    }
+                    onChange={() => {
+                      const currentIds = paginatedCandidates.map((c) => c.id);
+                      const allSelected = currentIds.every((id) => selectedCandidateIds.includes(id));
+                      if (allSelected) {
+                        setSelectedCandidateIds((prev) => prev.filter((id) => !currentIds.includes(id)));
+                      } else {
+                        setSelectedCandidateIds((prev) => Array.from(new Set([...prev, ...currentIds])));
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                  />
+                </TableHead>
                 <TableHead className="text-xs">Candidate ID</TableHead>
                 <TableHead className="text-xs">Full Name & Email</TableHead>
                 <TableHead className="text-xs">Applied Position</TableHead>
@@ -842,13 +899,26 @@ export function CandidatesTab() {
             <TableBody>
               {paginatedCandidates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-6 text-xs text-muted-foreground">
                     No candidates found for the selected stage filter.
                   </TableCell>
                 </TableRow>
               ) : (
                 paginatedCandidates.map((c) => (
                   <TableRow key={c.id} className="hover:bg-muted/40 transition-colors">
+                    <TableCell className="w-10">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select candidate ${c.name}`}
+                        checked={selectedCandidateIds.includes(c.id)}
+                        onChange={() => {
+                          setSelectedCandidateIds((prev) =>
+                            prev.includes(c.id) ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                          );
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                      />
+                    </TableCell>
                     <TableCell className="font-mono text-xs font-semibold text-primary">
                       {c.id.substring(0, 8)}
                     </TableCell>
@@ -1797,9 +1867,13 @@ export function CandidatesTab() {
         onClose={() => {
           setIsSendAssessmentModalOpen(false);
           setSendAssessmentCandidate(null);
+          setSelectedCandidatesForModal([]);
         }}
         candidate={sendAssessmentCandidate}
+        candidates={selectedCandidatesForModal}
         onSuccess={() => {
+          setSelectedCandidateIds([]);
+          setSelectedCandidatesForModal([]);
           queryClient.invalidateQueries({ queryKey: ['job-openings'] });
         }}
       />

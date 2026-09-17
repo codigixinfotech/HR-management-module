@@ -2956,4 +2956,183 @@ model CompanySubscription {
   @@map("company_subscriptions")
 }
 
+// ---------------------------------------------------------------------------
+// Module: Recruitment Assessment & Skill Master (Database-driven)
+// ---------------------------------------------------------------------------
+
+model RecruitmentSkillMaster {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  status      String   @default("Active") // Active, Inactive
+  companyId   String
+  branchId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions   RecruitmentAssessmentQuestion[]
+  sections    RecruitmentAssessmentSection[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([branchId])
+  @@map("recruitment_skill_masters")
+}
+
+model RecruitmentAssessmentQuestion {
+  id            String   @id @default(cuid())
+  technologyId  String?
+  technology    String
+  topic         String?
+  questionText  String   @db.Text
+  difficulty    String   @default("Medium") // Easy, Medium, Hard
+  questionType  String   @default("MCQ") // MCQ, Multiple Select, True-False, Coding
+  options       Json?    // String array
+  correctAnswer Json?
+  marks         Float    @default(1)
+  explanation   String?  @db.Text
+  codeTemplate  String?  @db.Text
+  codeLanguage  String?
+  testCases     Json?
+  status        String   @default("Active") // Active, Inactive
+  companyId     String
+  branchId      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  skillMaster   RecruitmentSkillMaster? @relation(fields: [technologyId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([technologyId])
+  @@map("recruitment_assessment_questions")
+}
+
+model RecruitmentAssessment {
+  id                String   @id @default(cuid())
+  name              String
+  technology        String?
+  technologyId      String?
+  jobPosition       String?
+  requisitionId     String?
+  difficulty        String   @default("Medium")
+  durationMinutes   Int      @default(60)
+  totalMarks        Float    @default(50)
+  passingPercentage Float    @default(70)
+  status            String   @default("Draft") // Draft, Ready, Published, Archived
+  startDate         String?
+  expiryDate        String?
+  totalQuestions    Int      @default(0)
+  companyId         String
+  branchId          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  sections          RecruitmentAssessmentSection[]
+  invitations       RecruitmentAssessmentInvitation[]
+  attempts          RecruitmentAssessmentAttempt[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@map("recruitment_assessments")
+}
+
+model RecruitmentAssessmentSection {
+  id               String   @id @default(cuid())
+  assessmentId     String
+  technologyId     String?
+  name             String
+  technology       String
+  topic            String?
+  questionType     String   @default("MCQ")
+  difficulty       String   @default("Medium")
+  questionCount    Int      @default(10)
+  marksPerQuestion Float    @default(1)
+  totalMarks       Float    @default(10)
+  selectedQuestions Json?
+  ordering         Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  assessment       RecruitmentAssessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  skillMaster      RecruitmentSkillMaster? @relation(fields: [technologyId], references: [id], onDelete: SetNull)
+
+  @@index([assessmentId])
+  @@index([technologyId])
+  @@map("recruitment_assessment_sections")
+}
+
+model RecruitmentAssessmentInvitation {
+  id                 String    @id @default(cuid())
+  candidateId        String
+  assessmentId       String
+  companyId          String
+  branchId           String?
+  uniqueToken        String    @unique
+  candidateName      String?
+  candidateEmail     String?
+  candidatePhone     String?
+  candidateRole      String?
+  scheduledDate      String?
+  scheduledStartTime String?
+  emailSendingMode   String    @default("IMMEDIATE") // IMMEDIATE, SCHEDULED
+  emailStatus        String    @default("SENT") // SENT, SCHEDULED, FAILED
+  status             String    @default("SENT") // SENT, PENDING, EXPIRED, CANCELLED
+  expiresAt          DateTime?
+  sentAt             DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  assessment         RecruitmentAssessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  attempts           RecruitmentAssessmentAttempt[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([candidateId])
+  @@index([assessmentId])
+  @@map("recruitment_assessment_invitations")
+}
+
+model RecruitmentAssessmentAttempt {
+  id               String    @id @default(cuid())
+  invitationId     String?
+  candidateId      String
+  assessmentId     String
+  companyId        String
+  branchId         String?
+  token            String    @unique
+  candidateName    String
+  candidateEmail   String
+  candidatePhone   String?
+  candidateRole    String?
+  assessmentName   String
+  technology       String?
+  technologyId     String?
+  durationMinutes  Int       @default(60)
+  status           String    @default("SENT") // SENT, IN_PROGRESS, COMPLETED, EXPIRED, PENDING_REVIEW
+  answers          Json?
+  markedForReview  Json?
+  score            Float?
+  totalMarks       Float?
+  percentage       Float?
+  isPassed         Boolean?
+  timeTakenSeconds Int?
+  questionResults  Json?
+  sections         Json?
+  sentAt           DateTime  @default(now())
+  startedAt        DateTime?
+  submittedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  invitation       RecruitmentAssessmentInvitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+  assessment       RecruitmentAssessment            @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([candidateId])
+  @@index([assessmentId])
+  @@map("recruitment_assessment_attempts")
+}
+
 

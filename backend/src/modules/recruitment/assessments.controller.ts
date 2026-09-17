@@ -18,6 +18,9 @@ import { Public } from '../../common/decorators/public.decorator';
 export class AssessmentsController {
   constructor(private readonly assessmentsService: AssessmentsService) {}
 
+  /**
+   * ── Technology / Skill Master Endpoints ──
+   */
   @Get('technologies')
   @Permissions('recruitment.read')
   getTechnologies(
@@ -42,6 +45,18 @@ export class AssessmentsController {
     const tenantCompanyId = getTenantCompanyId(user, dto.companyId || companyId);
     const tenantBranchId = getTenantBranchId(user, dto.branchId || branchId);
     return this.assessmentsService.createTechnology(dto, tenantCompanyId, tenantBranchId);
+  }
+
+  @Post('technologies/seed-standard')
+  @Permissions('recruitment.write')
+  seedStandardSkills(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.assessmentsService.seedStandardSkills(tenantCompanyId, tenantBranchId);
   }
 
   @Patch('technologies/:id')
@@ -88,6 +103,9 @@ export class AssessmentsController {
     return this.assessmentsService.clearAllTechnologies(tenantCompanyId);
   }
 
+  /**
+   * ── Dashboard & KPIs ──
+   */
   @Get('kpis')
   @Permissions('recruitment.read')
   getKpis(
@@ -100,6 +118,9 @@ export class AssessmentsController {
     return this.assessmentsService.getKpis(tenantCompanyId, tenantBranchId);
   }
 
+  /**
+   * ── Question Bank ──
+   */
   @Get('questions')
   @Permissions('recruitment.read')
   getQuestions(
@@ -160,6 +181,9 @@ export class AssessmentsController {
     return this.assessmentsService.toggleQuestionStatus(id, tenantCompanyId);
   }
 
+  /**
+   * ── Invitations & Attempts ──
+   */
   @Get('attempts')
   @Permissions('recruitment.read')
   getAttempts(
@@ -185,12 +209,36 @@ export class AssessmentsController {
     return this.assessmentsService.createCandidateAttempt(body, tenantCompanyId, tenantBranchId);
   }
 
+  /**
+   * ── Candidate Assessment Portal (Public Endpoints) ──
+   */
   @Public()
   @Get('attempts/:token')
   getAttemptByToken(@Param('token') token: string) {
     return this.assessmentsService.getAttemptByToken(token);
   }
 
+  @Public()
+  @Patch('attempts/:token/progress')
+  updateAttemptProgress(
+    @Param('token') token: string,
+    @Body() body: { answers: Record<string, any>; markedForReview: string[] },
+  ) {
+    return this.assessmentsService.updateAttemptProgress(token, body.answers || {}, body.markedForReview || []);
+  }
+
+  @Public()
+  @Post('attempts/:token/submit')
+  submitAttempt(
+    @Param('token') token: string,
+    @Body() body: { answers: Record<string, any>; timeTakenSeconds?: number },
+  ) {
+    return this.assessmentsService.submitAttempt(token, body);
+  }
+
+  /**
+   * ── Assessment Blueprint Templates ──
+   */
   @Get()
   @Permissions('recruitment.read')
   findAll(
