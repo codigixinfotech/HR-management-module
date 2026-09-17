@@ -1,9 +1,22 @@
 import { apiClient } from '@/lib/api-client';
 import { candidatesApi } from './recruitment';
 
+export interface TechnologyMaster {
+  id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  status: 'Active' | 'Inactive';
+  companyId: string;
+  branchId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Question {
   id: string;
   technology: string;
+  technologyId?: string;
   topic: string;
   questionText: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
@@ -24,6 +37,7 @@ export interface AssessmentSection {
   id: string;
   name: string;
   technology: string;
+  technologyId?: string;
   topic?: string;
   questionType: 'MCQ' | 'Multiple Select' | 'True-False' | 'Coding';
   difficulty: 'Easy' | 'Medium' | 'Hard';
@@ -37,6 +51,7 @@ export interface Assessment {
   id: string;
   name: string;
   technology: string;
+  technologyId?: string;
   jobPosition: string;
   requisitionId?: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
@@ -112,6 +127,9 @@ if (typeof window !== 'undefined' && window.localStorage) {
   try {
     localStorage.removeItem('ehcm_assessments_v5');
     localStorage.removeItem('ehcm_candidate_attempts_v5');
+    localStorage.removeItem('ehcm_assessment_questions_v5');
+    localStorage.removeItem('ehcm_questions_DEFAULT_ALL');
+    localStorage.removeItem('ehcm_questions_GLOBAL_ALL');
   } catch {
     // Ignore in non-browser or sandboxed environments
   }
@@ -820,20 +838,44 @@ const SEED_SECTIONS: AssessmentSection[] = [
 ];
 
 class AssessmentStore {
-  // Questions Bank
+  // Questions Bank - STRICTLY SCOPED TO COMPANY & BRANCH
   getQuestions(companyId?: string, branchId?: string): Question[] {
-    const key = getAssessmentStorageKey('questions', companyId, branchId);
-    const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
-    if (!raw) {
-      // If scoped question bank is empty, provide the comprehensive SEED_QUESTIONS
-      return SEED_QUESTIONS;
+    if (!companyId) {
+      return [];
     }
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : SEED_QUESTIONS;
-    } catch {
-      return SEED_QUESTIONS;
+
+    if (typeof window === 'undefined') return [];
+
+    const prefix = `ehcm_questions_${companyId.trim()}_`;
+    const candidateQuestions: Question[] = [];
+    const seenIds = new Set<string>();
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) {
+        try {
+          const list: Question[] = JSON.parse(localStorage.getItem(k) || '[]');
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              if (item && item.id && !seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                candidateQuestions.push(item);
+              }
+            }
+          }
+        } catch {
+          // ignore corrupted local key
+        }
+      }
     }
+
+    return candidateQuestions.filter((q) => {
+      if (q.companyId && q.companyId !== companyId) return false;
+      if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+        return q.branchId === branchId;
+      }
+      return true;
+    });
   }
 
   saveQuestion(q: Omit<Question, 'id'> & { id?: string }, companyId?: string, branchId?: string): Question {
@@ -1362,6 +1404,153 @@ class AssessmentStore {
 
     return attempt;
   }
+
+  // Technology / Skill Master Local Storage Helpers
+  getTechnologies(companyId?: string, branchId?: string, activeOnly?: boolean): TechnologyMaster[] {
+    if (!companyId) return [];
+    if (typeof window === 'undefined') return [];
+
+    const key = `ehcm_technologies_${companyId.trim()}`;
+    let list: TechnologyMaster[] = [];
+    try {
+      list = JSON.parse(localStorage.getItem(key) || '[]');
+    } catch {
+      list = [];
+    }
+
+    if (!Array.isArray(list) || list.length === 0) {
+      const now = new Date().toISOString();
+      const defaultSeeds: { name: string; category: string; description: string }[] = [
+        { name: 'React.js', category: 'Frontend', description: 'React component lifecycle, hooks, virtual DOM, and modern SPA state management' },
+        { name: 'Node.js', category: 'Backend', description: 'Node.js runtime, Express.js APIs, event loop, and asynchronous stream handling' },
+        { name: 'Python', category: 'Backend', description: 'Python syntax, data structures, OOP, backend frameworks, and automation scripting' },
+        { name: 'Java', category: 'Backend', description: 'Core Java, OOP principles, collections framework, multithreading, and Spring Boot' },
+        { name: 'JavaScript', category: 'Frontend', description: 'ECMAScript standards, closures, prototypes, asynchronous events, and DOM manipulation' },
+        { name: 'TypeScript', category: 'Frontend', description: 'Static typing, interfaces, generics, type utility functions, and TS compiler' },
+        { name: 'SQL', category: 'Database', description: 'Relational database design, querying, complex joins, indexing, and transactions' },
+        { name: 'DevOps', category: 'Cloud/DevOps', description: 'CI/CD pipeline automation, Docker containers, Kubernetes, and cloud infrastructure' },
+        { name: 'AWS', category: 'Cloud/DevOps', description: 'Amazon Web Services core cloud architecture (EC2, S3, IAM, Lambda, RDS, VPC)' },
+        { name: 'Azure', category: 'Cloud/DevOps', description: 'Microsoft Azure cloud platform, App Services, Entra ID, and cloud governance' },
+        { name: 'General Aptitude', category: 'Aptitude', description: 'Quantitative mathematics, percentages, numerical problem solving, and analytical data' },
+        { name: 'Logical Reasoning', category: 'Reasoning', description: 'Deductive reasoning, analytical patterns, syllogisms, and problem solving' },
+        { name: 'Programming', category: 'Coding', description: 'Algorithmic problem solving, data structures, recursion, and time complexity' },
+      ];
+
+      const cleanBranchId = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
+      list = defaultSeeds.map((seed, idx) => ({
+        id: `TECH-${String(idx + 1).padStart(3, '0')}-${companyId.slice(-4)}`,
+        name: seed.name,
+        category: seed.category,
+        description: seed.description,
+        status: 'Active',
+        companyId,
+        branchId: cleanBranchId,
+        createdAt: now,
+        updatedAt: now,
+      }));
+
+      try {
+        localStorage.setItem(key, JSON.stringify(list));
+      } catch {
+        // ignore
+      }
+    }
+
+    return list.filter((t) => {
+      if (activeOnly && t.status !== 'Active') return false;
+      if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+        return !t.branchId || t.branchId === branchId;
+      }
+      return true;
+    });
+  }
+
+  saveTechnologiesLocal(companyId: string, list: TechnologyMaster[]): void {
+    if (typeof window === 'undefined' || !companyId) return;
+    try {
+      localStorage.setItem(`ehcm_technologies_${companyId.trim()}`, JSON.stringify(list));
+    } catch {
+      // ignore
+    }
+  }
+
+  createTechnologyLocal(
+    dto: { name: string; category?: string; description?: string; status?: 'Active' | 'Inactive'; branchId?: string },
+    companyId?: string,
+    branchId?: string,
+  ): TechnologyMaster {
+    if (!companyId) throw new Error('Company ID is required');
+    const trimmed = dto.name.trim();
+    const existingList = this.getTechnologies(companyId);
+    if (existingList.some((t) => t.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+      throw new Error(`Technology or Skill "${trimmed}" already exists in this company.`);
+    }
+
+    const now = new Date().toISOString();
+    const newTech: TechnologyMaster = {
+      id: `TECH-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: trimmed,
+      category: dto.category?.trim() || 'General',
+      description: dto.description?.trim() || '',
+      status: dto.status || 'Active',
+      companyId,
+      branchId: branchId && branchId !== 'ALL' ? branchId : undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const updated = [newTech, ...existingList];
+    this.saveTechnologiesLocal(companyId, updated);
+    return newTech;
+  }
+
+  updateTechnologyLocal(
+    id: string,
+    dto: { name?: string; category?: string; description?: string; status?: 'Active' | 'Inactive'; branchId?: string },
+    companyId?: string,
+  ): TechnologyMaster {
+    if (!companyId) throw new Error('Company ID is required');
+    const existingList = this.getTechnologies(companyId);
+    const tech = existingList.find((t) => t.id === id);
+    if (!tech) throw new Error('Technology not found');
+
+    if (dto.name && dto.name.trim()) {
+      const trimmed = dto.name.trim();
+      if (existingList.some((t) => t.id !== id && t.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+        throw new Error(`Technology or Skill "${trimmed}" already exists in this company.`);
+      }
+      tech.name = trimmed;
+    }
+
+    if (dto.category !== undefined) tech.category = dto.category.trim();
+    if (dto.description !== undefined) tech.description = dto.description.trim();
+    if (dto.status !== undefined) tech.status = dto.status;
+    if (dto.branchId !== undefined) tech.branchId = dto.branchId && dto.branchId !== 'ALL' ? dto.branchId : undefined;
+    tech.updatedAt = new Date().toISOString();
+
+    this.saveTechnologiesLocal(companyId, existingList);
+    return tech;
+  }
+
+  toggleTechnologyStatusLocal(id: string, companyId?: string): TechnologyMaster {
+    if (!companyId) throw new Error('Company ID is required');
+    const existingList = this.getTechnologies(companyId);
+    const tech = existingList.find((t) => t.id === id);
+    if (!tech) throw new Error('Technology not found');
+
+    tech.status = tech.status === 'Active' ? 'Inactive' : 'Active';
+    tech.updatedAt = new Date().toISOString();
+    this.saveTechnologiesLocal(companyId, existingList);
+    return tech;
+  }
+
+  deleteTechnologyLocal(id: string, companyId?: string): { success: boolean } {
+    if (!companyId) throw new Error('Company ID is required');
+    const existingList = this.getTechnologies(companyId);
+    const updated = existingList.filter((t) => t.id !== id);
+    this.saveTechnologiesLocal(companyId, updated);
+    return { success: true };
+  }
 }
 
 export const assessmentStore = new AssessmentStore();
@@ -1408,6 +1597,7 @@ export const assessmentsApi = {
   },
 
   getQuestions: async (companyId?: string, branchId?: string): Promise<Question[]> => {
+    if (!companyId) return [];
     try {
       const { data } = await apiClient.get<Question[]>('/recruitment/assessments/questions', {
         params: {
@@ -1415,7 +1605,7 @@ export const assessmentsApi = {
           branchId: branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined,
         },
       });
-      return Array.isArray(data) && data.length > 0 ? data : assessmentStore.getQuestions(companyId, branchId);
+      return Array.isArray(data) ? data : assessmentStore.getQuestions(companyId, branchId);
     } catch {
       return assessmentStore.getQuestions(companyId, branchId);
     }
@@ -1474,6 +1664,93 @@ export const assessmentsApi = {
       return data;
     } catch {
       return assessmentStore.createCandidateAttempt(payload, companyId, branchId);
+    }
+  },
+};
+
+export const technologiesApi = {
+  getTechnologies: async (companyId?: string, branchId?: string, activeOnly?: boolean): Promise<TechnologyMaster[]> => {
+    if (!companyId) return [];
+    try {
+      const { data } = await apiClient.get<TechnologyMaster[]>('/recruitment/assessments/technologies', {
+        params: {
+          companyId,
+          branchId: branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined,
+          activeOnly: activeOnly ? 'true' : undefined,
+        },
+      });
+      if (Array.isArray(data)) {
+        assessmentStore.saveTechnologiesLocal(companyId, data);
+        return data;
+      }
+      return assessmentStore.getTechnologies(companyId, branchId, activeOnly);
+    } catch {
+      return assessmentStore.getTechnologies(companyId, branchId, activeOnly);
+    }
+  },
+
+  createTechnology: async (
+    dto: { name: string; category?: string; description?: string; status?: 'Active' | 'Inactive'; branchId?: string },
+    companyId?: string,
+    branchId?: string,
+  ): Promise<TechnologyMaster> => {
+    const cleanBranch = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
+    try {
+      const { data } = await apiClient.post<TechnologyMaster>('/recruitment/assessments/technologies', dto, {
+        params: { companyId, branchId: cleanBranch },
+      });
+      return data;
+    } catch (e: any) {
+      if (e?.response?.data?.message) {
+        throw new Error(e.response.data.message);
+      }
+      return assessmentStore.createTechnologyLocal(dto, companyId, cleanBranch);
+    }
+  },
+
+  updateTechnology: async (
+    id: string,
+    dto: { name?: string; category?: string; description?: string; status?: 'Active' | 'Inactive'; branchId?: string },
+    companyId?: string,
+  ): Promise<TechnologyMaster> => {
+    try {
+      const { data } = await apiClient.patch<TechnologyMaster>(`/recruitment/assessments/technologies/${id}`, dto, {
+        params: { companyId },
+      });
+      return data;
+    } catch (e: any) {
+      if (e?.response?.data?.message) {
+        throw new Error(e.response.data.message);
+      }
+      return assessmentStore.updateTechnologyLocal(id, dto, companyId);
+    }
+  },
+
+  toggleStatus: async (id: string, companyId?: string): Promise<TechnologyMaster> => {
+    try {
+      const { data } = await apiClient.patch<TechnologyMaster>(`/recruitment/assessments/technologies/${id}/status`, {}, {
+        params: { companyId },
+      });
+      return data;
+    } catch (e: any) {
+      if (e?.response?.data?.message) {
+        throw new Error(e.response.data.message);
+      }
+      return assessmentStore.toggleTechnologyStatusLocal(id, companyId);
+    }
+  },
+
+  deleteTechnology: async (id: string, companyId?: string): Promise<{ success: boolean }> => {
+    try {
+      const { data } = await apiClient.delete<{ success: boolean }>(`/recruitment/assessments/technologies/${id}`, {
+        params: { companyId },
+      });
+      return data;
+    } catch (e: any) {
+      if (e?.response?.data?.message) {
+        throw new Error(e.response.data.message);
+      }
+      return assessmentStore.deleteTechnologyLocal(id, companyId);
     }
   },
 };

@@ -4,9 +4,22 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { getUploadsRootDir } from '../../common/utils/upload-path.util';
 
+export interface TechnologyMaster {
+  id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  status: 'Active' | 'Inactive';
+  companyId: string;
+  branchId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Question {
   id: string;
   technology: string;
+  technologyId?: string;
   topic: string;
   questionText: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
@@ -27,6 +40,7 @@ export interface AssessmentSection {
   id: string;
   name: string;
   technology: string;
+  technologyId?: string;
   topic?: string;
   questionType: 'MCQ' | 'Multiple Select' | 'True-False' | 'Coding';
   difficulty: 'Easy' | 'Medium' | 'Hard';
@@ -40,6 +54,7 @@ export interface Assessment {
   id: string;
   name: string;
   technology: string;
+  technologyId?: string;
   jobPosition: string;
   requisitionId?: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
@@ -100,6 +115,7 @@ export class AssessmentsService implements OnModuleInit {
   private assessments: Assessment[] = [];
   private questions: Question[] = [];
   private attempts: CandidateAssessmentAttempt[] = [];
+  private technologies: TechnologyMaster[] = [];
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -124,6 +140,7 @@ export class AssessmentsService implements OnModuleInit {
         this.assessments = Array.isArray(data.assessments) ? data.assessments : [];
         this.questions = Array.isArray(data.questions) ? data.questions : [];
         this.attempts = Array.isArray(data.attempts) ? data.attempts : [];
+        this.technologies = Array.isArray(data.technologies) ? data.technologies : [];
       }
     } catch (e) {
       console.warn('Failed to load recruitment assessments store from disk:', e);
@@ -137,11 +154,187 @@ export class AssessmentsService implements OnModuleInit {
         assessments: this.assessments,
         questions: this.questions,
         attempts: this.attempts,
+        technologies: this.technologies,
       };
       writeFileSync(file, JSON.stringify(payload, null, 2), 'utf-8');
     } catch (e) {
       console.warn('Failed to save recruitment assessments store to disk:', e);
     }
+  }
+
+  /**
+   * ── Technology / Skill Master CRUD ──
+   */
+  async getTechnologies(companyId?: string, branchId?: string, activeOnly?: boolean): Promise<TechnologyMaster[]> {
+    if (!companyId) return [];
+
+    let companyTechs = this.technologies.filter((t) => t.companyId === companyId);
+
+    // Auto-seed default standard technologies if company has 0 master records
+    if (companyTechs.length === 0) {
+      const now = new Date().toISOString();
+      const defaultSeeds: { name: string; category: string; description: string }[] = [
+        { name: 'React.js', category: 'Frontend', description: 'React component lifecycle, hooks, virtual DOM, and modern SPA state management' },
+        { name: 'Node.js', category: 'Backend', description: 'Node.js runtime, Express.js APIs, event loop, and asynchronous stream handling' },
+        { name: 'Python', category: 'Backend', description: 'Python syntax, data structures, OOP, backend frameworks, and automation scripting' },
+        { name: 'Java', category: 'Backend', description: 'Core Java, OOP principles, collections framework, multithreading, and Spring Boot' },
+        { name: 'JavaScript', category: 'Frontend', description: 'ECMAScript standards, closures, prototypes, asynchronous events, and DOM manipulation' },
+        { name: 'TypeScript', category: 'Frontend', description: 'Static typing, interfaces, generics, type utility functions, and TS compiler' },
+        { name: 'SQL', category: 'Database', description: 'Relational database design, querying, complex joins, indexing, and transactions' },
+        { name: 'DevOps', category: 'Cloud/DevOps', description: 'CI/CD pipeline automation, Docker containers, Kubernetes, and cloud infrastructure' },
+        { name: 'AWS', category: 'Cloud/DevOps', description: 'Amazon Web Services core cloud architecture (EC2, S3, IAM, Lambda, RDS, VPC)' },
+        { name: 'Azure', category: 'Cloud/DevOps', description: 'Microsoft Azure cloud platform, App Services, Entra ID, and cloud governance' },
+        { name: 'General Aptitude', category: 'Aptitude', description: 'Quantitative mathematics, percentages, numerical problem solving, and analytical data' },
+        { name: 'Logical Reasoning', category: 'Reasoning', description: 'Deductive reasoning, analytical patterns, syllogisms, and problem solving' },
+        { name: 'Programming', category: 'Coding', description: 'Algorithmic problem solving, data structures, recursion, and time complexity' },
+      ];
+
+      const cleanBranchId = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
+      const createdSeeds: TechnologyMaster[] = defaultSeeds.map((seed, idx) => ({
+        id: `TECH-${String(idx + 1).padStart(3, '0')}-${companyId.slice(-4)}`,
+        name: seed.name,
+        category: seed.category,
+        description: seed.description,
+        status: 'Active',
+        companyId,
+        branchId: cleanBranchId,
+        createdAt: now,
+        updatedAt: now,
+      }));
+
+      this.technologies.push(...createdSeeds);
+      this.persistToDisk();
+      companyTechs = createdSeeds;
+    }
+
+    return companyTechs.filter((t) => {
+      if (activeOnly && t.status !== 'Active') return false;
+      if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+        return !t.branchId || t.branchId === branchId;
+      }
+      return true;
+    });
+  }
+
+  async createTechnology(
+    dto: { name: string; category?: string; description?: string; status?: 'Active' | 'Inactive'; branchId?: string },
+    companyId: string,
+    branchId?: string,
+  ): Promise<TechnologyMaster> {
+    if (!companyId) throw new BadRequestException('Company ID is required');
+    if (!dto.name || !dto.name.trim()) throw new BadRequestException('Technology name is required');
+
+    const trimmedName = dto.name.trim();
+
+    // Prevent duplicate name (case-insensitive) within company
+    const duplicate = this.technologies.find(
+      (t) => t.companyId === companyId && t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (duplicate) {
+      throw new BadRequestException(`Technology or Skill "${trimmedName}" already exists in this company.`);
+    }
+
+    const cleanBranchId = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : dto.branchId || undefined;
+    const now = new Date().toISOString();
+    const newTech: TechnologyMaster = {
+      id: `TECH-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: trimmedName,
+      category: dto.category?.trim() || 'General',
+      description: dto.description?.trim() || '',
+      status: dto.status || 'Active',
+      companyId,
+      branchId: cleanBranchId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.technologies.unshift(newTech);
+    this.persistToDisk();
+    return newTech;
+  }
+
+  async updateTechnology(
+    id: string,
+    dto: { name?: string; category?: string; description?: string; status?: 'Active' | 'Inactive'; branchId?: string },
+    companyId: string,
+  ): Promise<TechnologyMaster> {
+    const tech = this.technologies.find((t) => t.id === id);
+    if (!tech) throw new NotFoundException('Technology not found');
+    if (companyId && tech.companyId !== companyId) {
+      throw new BadRequestException('Cannot modify technology outside your company');
+    }
+
+    if (dto.name && dto.name.trim()) {
+      const trimmedName = dto.name.trim();
+      const duplicate = this.technologies.find(
+        (t) => t.companyId === companyId && t.id !== id && t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+      if (duplicate) {
+        throw new BadRequestException(`Technology or Skill "${trimmedName}" already exists in this company.`);
+      }
+      const oldName = tech.name;
+      tech.name = trimmedName;
+
+      // Cascade updated technology name to all questions linked by ID or previous name
+      this.questions.forEach((q) => {
+        if (q.companyId === companyId && (q.technologyId === id || q.technology === oldName)) {
+          q.technologyId = id;
+          q.technology = trimmedName;
+        }
+      });
+
+      // Cascade updated technology name to all assessments and sections
+      this.assessments.forEach((a) => {
+        if (a.companyId === companyId) {
+          if (a.technologyId === id || a.technology === oldName) {
+            a.technologyId = id;
+            a.technology = trimmedName;
+          }
+          if (a.sections) {
+            a.sections.forEach((sec) => {
+              if (sec.technologyId === id || sec.technology === oldName) {
+                sec.technologyId = id;
+                sec.technology = trimmedName;
+              }
+            });
+          }
+        }
+      });
+    }
+
+    if (dto.category !== undefined) tech.category = dto.category.trim();
+    if (dto.description !== undefined) tech.description = dto.description.trim();
+    if (dto.status !== undefined) tech.status = dto.status;
+    if (dto.branchId !== undefined) tech.branchId = dto.branchId && dto.branchId !== 'ALL' ? dto.branchId : undefined;
+    tech.updatedAt = new Date().toISOString();
+
+    this.persistToDisk();
+    return tech;
+  }
+
+  async toggleTechnologyStatus(id: string, companyId: string): Promise<TechnologyMaster> {
+    const tech = this.technologies.find((t) => t.id === id);
+    if (!tech) throw new NotFoundException('Technology not found');
+    if (companyId && tech.companyId !== companyId) {
+      throw new BadRequestException('Cannot modify technology outside your company');
+    }
+
+    tech.status = tech.status === 'Active' ? 'Inactive' : 'Active';
+    tech.updatedAt = new Date().toISOString();
+    this.persistToDisk();
+    return tech;
+  }
+
+  async deleteTechnology(id: string, companyId: string): Promise<{ success: boolean }> {
+    const idx = this.technologies.findIndex((t) => t.id === id);
+    if (idx === -1) throw new NotFoundException('Technology not found');
+    if (companyId && this.technologies[idx].companyId !== companyId) {
+      throw new BadRequestException('Cannot delete technology outside your company');
+    }
+
+    this.technologies.splice(idx, 1);
+    this.persistToDisk();
+    return { success: true };
   }
 
   /**
@@ -230,8 +423,8 @@ export class AssessmentsService implements OnModuleInit {
     if (!companyId) return [];
 
     return this.questions.filter((q) => {
-      if (q.companyId && q.companyId !== companyId) return false;
-      if (branchId && branchId !== 'ALL' && branchId !== 'undefined' && q.branchId) {
+      if (q.companyId !== companyId) return false;
+      if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
         return q.branchId === branchId;
       }
       return true;
@@ -247,9 +440,28 @@ export class AssessmentsService implements OnModuleInit {
     const cleanBranchId = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
     const newId = q.id || `QST-${Math.floor(100 + Math.random() * 900)}`;
 
+    let finalTechId = q.technologyId;
+    let finalTechName = q.technology;
+    if (finalTechId) {
+      const match = this.technologies.find((t) => t.companyId === companyId && t.id === finalTechId);
+      if (match) {
+        finalTechName = match.name;
+      }
+    } else if (finalTechName) {
+      const match = this.technologies.find(
+        (t) => t.companyId === companyId && t.name.toLowerCase() === finalTechName.toLowerCase()
+      );
+      if (match) {
+        finalTechId = match.id;
+        finalTechName = match.name;
+      }
+    }
+
     const fullQuestion: Question = {
       ...q,
       id: newId,
+      technology: finalTechName || 'General',
+      technologyId: finalTechId,
       companyId,
       branchId: cleanBranchId,
       status: q.status || 'Active',
@@ -276,16 +488,35 @@ export class AssessmentsService implements OnModuleInit {
     if (!companyId) throw new BadRequestException('Company ID required');
     const cleanBranchId = branchId && branchId !== 'ALL' && branchId !== 'undefined' ? branchId : undefined;
 
-    const createdList: Question[] = newQs.map((q, idx) => ({
-      ...q,
-      id: q.id || `QST-${Math.floor(200 + Math.random() * 800 + idx)}`,
-      companyId,
-      branchId: cleanBranchId,
-      options: q.options || [],
-      status: q.status || 'Active',
-      marks: q.marks || 1,
-      explanation: q.explanation || 'Bulk imported question.',
-    } as Question));
+    const createdList: Question[] = newQs.map((q, idx) => {
+      let finalTechId = q.technologyId;
+      let finalTechName = q.technology;
+      if (finalTechId) {
+        const match = this.technologies.find((t) => t.companyId === companyId && t.id === finalTechId);
+        if (match) finalTechName = match.name;
+      } else if (finalTechName) {
+        const match = this.technologies.find(
+          (t) => t.companyId === companyId && t.name.toLowerCase() === finalTechName.toLowerCase()
+        );
+        if (match) {
+          finalTechId = match.id;
+          finalTechName = match.name;
+        }
+      }
+
+      return {
+        ...q,
+        id: q.id || `QST-${Math.floor(200 + Math.random() * 800 + idx)}`,
+        technology: finalTechName || 'General',
+        technologyId: finalTechId,
+        companyId,
+        branchId: cleanBranchId,
+        options: q.options || [],
+        status: q.status || 'Active',
+        marks: q.marks || 1,
+        explanation: q.explanation || 'Bulk imported question.',
+      } as Question;
+    });
 
     this.questions.unshift(...createdList);
     this.persistToDisk();

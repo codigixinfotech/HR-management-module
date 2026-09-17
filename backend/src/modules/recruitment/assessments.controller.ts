@@ -18,6 +18,66 @@ import { Public } from '../../common/decorators/public.decorator';
 export class AssessmentsController {
   constructor(private readonly assessmentsService: AssessmentsService) {}
 
+  @Get('technologies')
+  @Permissions('recruitment.read')
+  getTechnologies(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+    @Query('activeOnly') activeOnly?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.assessmentsService.getTechnologies(tenantCompanyId, tenantBranchId, activeOnly === 'true');
+  }
+
+  @Post('technologies')
+  @Permissions('recruitment.write')
+  createTechnology(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: any,
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, dto.companyId || companyId);
+    const tenantBranchId = getTenantBranchId(user, dto.branchId || branchId);
+    return this.assessmentsService.createTechnology(dto, tenantCompanyId, tenantBranchId);
+  }
+
+  @Patch('technologies/:id')
+  @Permissions('recruitment.write')
+  updateTechnology(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: any,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.assessmentsService.updateTechnology(id, dto, tenantCompanyId);
+  }
+
+  @Patch('technologies/:id/status')
+  @Permissions('recruitment.write')
+  toggleTechnologyStatus(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.assessmentsService.toggleTechnologyStatus(id, tenantCompanyId);
+  }
+
+  @Delete('technologies/:id')
+  @Permissions('recruitment.write')
+  deleteTechnology(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.assessmentsService.deleteTechnology(id, tenantCompanyId);
+  }
+
   @Get('kpis')
   @Permissions('recruitment.read')
   getKpis(
