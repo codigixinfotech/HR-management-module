@@ -4,10 +4,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Award, Search, Briefcase, Info, Sparkles } from 'lucide-react';
-import { branchesApi, departmentsApi, designationsApi } from '@/api/organization';
+import { Plus, Pencil, Trash2, Award, Search, Briefcase, Info, Sparkles, GitFork } from 'lucide-react';
 import { employeesApi } from '@/api/employees';
 import { payGradesApi } from '@/api/cost-grades';
+import { branchesApi, departmentsApi, designationsApi } from '@/api/organization';
 import type { Branch, Company, Designation } from '@/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -110,6 +110,18 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   const [editing, setEditing] = useState<Designation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Page-level branch filter (ALL, HEAD_OFFICE, or specific branch ID)
+  const [selectedTabBranchFilter, setSelectedTabBranchFilter] = useState<string>(() => {
+    if (isBranchAdmin && assignedBranchId) return assignedBranchId;
+    return 'ALL';
+  });
+
+  useEffect(() => {
+    if (isBranchAdmin && assignedBranchId) {
+      setSelectedTabBranchFilter(assignedBranchId);
+    }
+  }, [isBranchAdmin, assignedBranchId]);
+
   // Salary display state (Annual CTC split into value + unit)
   const [minAnnualVal, setMinAnnualVal] = useState<string>('');
   const [minAnnualUnit, setMinAnnualUnit] = useState<string>('₹ Lakh');
@@ -142,7 +154,7 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   });
 
   const selectedCompanyId = form.watch('companyId') || companyId || companies[0]?.id || '';
-  const selectedBranchId = form.watch('branchId') || (isBranchAdmin && assignedBranchId ? assignedBranchId : 'HEAD_OFFICE');
+  const modalBranchId = form.watch('branchId') || (isBranchAdmin && assignedBranchId ? assignedBranchId : 'HEAD_OFFICE');
   const selectedDepartmentId = form.watch('departmentId') || '';
   const watchedGrade = form.watch('grade');
   const watchedTitle = form.watch('title');
@@ -170,28 +182,61 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   });
 
   const { data: departmentOptions } = useQuery({
-    queryKey: ['departments', selectedCompanyId, selectedBranchId],
-    queryFn: () => departmentsApi.list(
-      selectedCompanyId,
-      selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : undefined
-    ),
+    queryKey: ['departments', selectedCompanyId],
+    queryFn: () => departmentsApi.list(selectedCompanyId),
     enabled: !!selectedCompanyId,
   });
 
+  // Filter departments available in the modal by the active modal branch
+  const filteredDepartmentOptions = useMemo(() => {
+    if (!departmentOptions || !Array.isArray(departmentOptions)) return [];
+    if (modalBranchId === 'HEAD_OFFICE') {
+      return departmentOptions.filter((d) => !d.branchId);
+    }
+    return departmentOptions.filter((d) => d.branchId === modalBranchId);
+  }, [departmentOptions, modalBranchId]);
+
   const { data: payGradesList } = useQuery({
-    queryKey: ['pay-grades', selectedCompanyId, selectedBranchId, selectedDepartmentId],
-    queryFn: () => payGradesApi.list(
-      selectedCompanyId,
-      selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : undefined,
-      selectedDepartmentId && selectedDepartmentId !== 'none' ? selectedDepartmentId : undefined
-    ),
-    enabled: !!selectedCompanyId && !!selectedDepartmentId && selectedDepartmentId !== 'none',
+    queryKey: ['pay-grades', selectedCompanyId],
+    queryFn: () => payGradesApi.list(selectedCompanyId),
+    enabled: !!selectedCompanyId,
   });
+
+  // Strict Department + Branch-Level Data Isolation:
+  // Same Company AND Same Branch AND Same Department => Eligible Pay Grade
+  const branchPayGrades = useMemo(() => {
+    if (!payGradesList || !Array.isArray(payGradesList)) return [];
+    if (!selectedDepartmentId || selectedDepartmentId === 'none') return [];
+
+    let branchScoped: any[] = [];
+
+    if (modalBranchId === 'HEAD_OFFICE') {
+      branchScoped = payGradesList.filter((g) => {
+        const effBranchId = g.branchId || g.department?.branchId || null;
+        const code = (g.gradeCode || '').toLowerCase();
+        return effBranchId === null && !code.startsWith('gr-br');
+      });
+    } else {
+      const currentBranchObj = branchesList?.find((b) => b.id === modalBranchId);
+      const rawCode = (currentBranchObj?.code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      branchScoped = payGradesList.filter((g) => {
+        const effBranchId = g.branchId || g.department?.branchId || null;
+        const gCode = (g.gradeCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (effBranchId === modalBranchId) return true;
+        if (rawCode && gCode.includes(rawCode)) return true;
+        return false;
+      });
+    }
+
+    // STRICT: Only return pay grades belonging to the selected department
+    return branchScoped.filter((g) => g.departmentId === selectedDepartmentId);
+  }, [payGradesList, modalBranchId, branchesList, selectedDepartmentId]);
 
   // ── Derive selected grade object ─────────────────────────────────────────────
   const selectedGradeObj = useMemo(
-    () => payGradesList?.find((g) => g.gradeCode === watchedGrade) ?? null,
-    [payGradesList, watchedGrade]
+    () => branchPayGrades?.find((g) => g.gradeCode === watchedGrade) ?? null,
+    [branchPayGrades, watchedGrade]
   );
 
   // ── Auto-generate Designation Code from title ────────────────────────────────
@@ -212,13 +257,28 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   // ── Hierarchy Change Handlers ───────────────────────────────────────────────
   const handleCompanyChange = (newCompanyId: string) => {
     form.setValue('companyId', newCompanyId, { shouldValidate: true, shouldDirty: true });
-    form.setValue('branchId', isBranchAdmin && assignedBranchId ? assignedBranchId : 'HEAD_OFFICE', { shouldValidate: true, shouldDirty: true });
+    const defaultBranch = isBranchAdmin && assignedBranchId
+      ? assignedBranchId
+      : (selectedTabBranchFilter !== 'ALL' ? selectedTabBranchFilter : 'HEAD_OFFICE');
+    form.setValue('branchId', defaultBranch, { shouldValidate: true, shouldDirty: true });
     handleDepartmentChange('');
   };
 
   const handleBranchChange = (newBranchId: string) => {
     form.setValue('branchId', newBranchId, { shouldValidate: true, shouldDirty: true });
-    handleDepartmentChange('');
+    form.setValue('departmentId', '', { shouldValidate: true, shouldDirty: true });
+    form.setValue('grade', '', { shouldValidate: true, shouldDirty: true });
+    form.setValue('gradeId', '', { shouldValidate: true, shouldDirty: true });
+    form.setValue('level', '', { shouldValidate: true, shouldDirty: true });
+    form.setValue('title', '', { shouldValidate: true, shouldDirty: true });
+    form.setValue('code', '', { shouldValidate: true, shouldDirty: true });
+    form.setValue('minSalary', null as any, { shouldValidate: true, shouldDirty: true });
+    form.setValue('maxSalary', null as any, { shouldValidate: true, shouldDirty: true });
+    setMinAnnualVal('');
+    setMinAnnualUnit('₹ Lakh');
+    setMaxAnnualVal('');
+    setMaxAnnualUnit('₹ Lakh');
+    setTitleManuallyEdited(false);
   };
 
   const handleDepartmentChange = (newDeptId: string) => {
@@ -241,7 +301,7 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
 
   // ── Grade change handler — auto-populate from Grade Master ──────────────────
   const handleGradeChange = (gradeCode: string) => {
-    const g = payGradesList?.find((pg) => pg.gradeCode === gradeCode);
+    const g = branchPayGrades?.find((pg) => pg.gradeCode === gradeCode);
 
     // Always set gradeCode and gradeId
     form.setValue('grade', gradeCode, { shouldValidate: true, shouldDirty: true });
@@ -307,6 +367,21 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
         ? Number(maxAnnualVal) * getDesigSalaryMultiplier(maxAnnualUnit)
         : null;
 
+      let safeEffectiveFrom: string | undefined = undefined;
+      try {
+        if (values.effectiveFrom) {
+          if (/^\d{2}-\d{2}-\d{4}$/.test(values.effectiveFrom)) {
+            const [d, m, y] = values.effectiveFrom.split('-');
+            safeEffectiveFrom = new Date(`${y}-${m}-${d}`).toISOString();
+          } else {
+            const d = new Date(values.effectiveFrom);
+            safeEffectiveFrom = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+          }
+        }
+      } catch {
+        safeEffectiveFrom = new Date().toISOString();
+      }
+
       const { branchId: _unusedBranchId, ...restValues } = values;
       const payload = {
         ...restValues,
@@ -316,7 +391,7 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
         reportingDesignationId: (values.reportingDesignationId && values.reportingDesignationId !== 'none') ? values.reportingDesignationId : null,
         minSalary: calcMin,
         maxSalary: calcMax,
-        effectiveFrom: new Date(values.effectiveFrom).toISOString(),
+        effectiveFrom: safeEffectiveFrom,
         description: values.description || null,
       };
       return editing ? designationsApi.update(editing.id, payload) : designationsApi.create(payload);
@@ -329,7 +404,19 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
       setTitleManuallyEdited(false);
       form.reset();
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Something went wrong'),
+    onError: (err: any) => {
+      console.error('Designation mutation error:', err, err?.response?.data);
+      const resMsg = err?.response?.data?.message;
+      let msg = 'Something went wrong';
+      if (Array.isArray(resMsg)) {
+        msg = resMsg.join(', ');
+      } else if (typeof resMsg === 'string') {
+        msg = resMsg;
+      } else if (err?.message) {
+        msg = err.message;
+      }
+      toast.error(msg);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -348,9 +435,12 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
     setMinAnnualUnit('₹ Lakh');
     setMaxAnnualVal('');
     setMaxAnnualUnit('₹ Lakh');
+    const initialBranch = isBranchAdmin && assignedBranchId
+      ? assignedBranchId
+      : (selectedTabBranchFilter !== 'ALL' ? selectedTabBranchFilter : 'HEAD_OFFICE');
     form.reset({
       companyId: companyId ?? companies[0]?.id ?? '',
-      branchId: isBranchAdmin && assignedBranchId ? assignedBranchId : 'HEAD_OFFICE',
+      branchId: initialBranch,
       departmentId: '',
       code: '',
       title: '',
@@ -408,15 +498,32 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
 
   const filteredDesignations = useMemo(() => {
     if (!designations) return [];
-    if (!searchQuery.trim()) return designations;
+
+    let list = designations;
+    const effectiveBranchFilter = isBranchAdmin && assignedBranchId ? assignedBranchId : selectedTabBranchFilter;
+    if (effectiveBranchFilter && effectiveBranchFilter !== 'ALL') {
+      if (effectiveBranchFilter === 'HEAD_OFFICE') {
+        list = list.filter((d) => {
+          const bId = d.department?.branchId || d.payGrade?.branchId;
+          return !bId;
+        });
+      } else {
+        list = list.filter((d) => {
+          const bId = d.department?.branchId || d.payGrade?.branchId;
+          return bId === effectiveBranchFilter;
+        });
+      }
+    }
+
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return designations.filter(d =>
+    return list.filter(d =>
       d.title.toLowerCase().includes(q) ||
       d.code.toLowerCase().includes(q) ||
       (d.grade && d.grade.toLowerCase().includes(q)) ||
       (d.payGrade?.gradeName && d.payGrade.gradeName.toLowerCase().includes(q))
     );
-  }, [designations, searchQuery]);
+  }, [designations, searchQuery, isBranchAdmin, assignedBranchId, selectedTabBranchFilter]);
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -432,7 +539,32 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
             </CardDescription>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {/* Branch Filter dropdown */}
+            {!isBranchAdmin && branchesList && branchesList.length > 0 && (
+              <Select value={selectedTabBranchFilter} onValueChange={setSelectedTabBranchFilter}>
+                <SelectTrigger className="h-8 w-44 text-xs bg-background">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL" className="text-xs">All Locations / HQ</SelectItem>
+                  <SelectItem value="HEAD_OFFICE" className="text-xs">Corporate / Head Office</SelectItem>
+                  {branchesList.map((b) => (
+                    <SelectItem key={b.id} value={b.id} className="text-xs">
+                      {b.name} ({b.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {isBranchAdmin && (
+              <Badge variant="outline" className="text-[11px] font-medium bg-muted/50 border-border text-muted-foreground h-8 px-2.5 flex items-center gap-1">
+                <GitFork className="h-3 w-3 text-indigo-500" />
+                <span>Assigned Branch</span>
+              </Badge>
+            )}
+
             <div className="relative w-48 sm:w-60">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -455,12 +587,22 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                   <DialogTitle>{editing ? 'Edit Job Designation' : 'Create New Designation'}</DialogTitle>
                 </DialogHeader>
 
-                <form className="space-y-4 text-xs" onSubmit={form.handleSubmit((values) => upsertMutation.mutate(values))}>
-                  {/* Row 1: Organization + Department */}
-                  <div className="grid grid-cols-2 gap-3">
+                <form
+                  className="space-y-4 text-xs"
+                  onSubmit={form.handleSubmit(
+                    (values) => upsertMutation.mutate(values),
+                    (errors) => {
+                      console.error('Validation errors:', errors);
+                      const firstError = Object.values(errors)[0]?.message;
+                      if (firstError) toast.error(String(firstError));
+                    }
+                  )}
+                >
+                  {/* Row 1: Organization + Branch + Department */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Organization Entity *</Label>
-                      <Select value={form.watch('companyId')} onValueChange={(v) => form.setValue('companyId', v)}>
+                      <Select value={form.watch('companyId')} onValueChange={handleCompanyChange}>
                         <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select organization" /></SelectTrigger>
                         <SelectContent>
                           {companies.map((c) => (
@@ -470,14 +612,45 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                       </Select>
                       {form.formState.errors.companyId && <p className="text-[10px] text-destructive">{form.formState.errors.companyId.message}</p>}
                     </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold flex items-center justify-between">
+                        <span>Branch / Location *</span>
+                        {isBranchAdmin && (
+                          <span className="text-[10px] text-muted-foreground font-normal">Assigned</span>
+                        )}
+                      </Label>
+                      <Select
+                        value={form.watch('branchId') || (isBranchAdmin && assignedBranchId ? assignedBranchId : 'HEAD_OFFICE')}
+                        onValueChange={handleBranchChange}
+                        disabled={isBranchAdmin}
+                      >
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select branch" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="HEAD_OFFICE" className="text-xs">Corporate / Head Office</SelectItem>
+                          {branchesList?.map((b) => (
+                            <SelectItem key={b.id} value={b.id} className="text-xs">
+                              {b.name} ({b.code})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Mapped Department *</Label>
-                      <Select value={form.watch('departmentId')} onValueChange={(v) => form.setValue('departmentId', v)}>
+                      <Select value={form.watch('departmentId')} onValueChange={handleDepartmentChange}>
                         <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select department" /></SelectTrigger>
                         <SelectContent>
-                          {departmentOptions?.map((d) => (
-                            <SelectItem key={d.id} value={d.id} className="text-xs">{d.name}</SelectItem>
-                          ))}
+                          {filteredDepartmentOptions.length === 0 ? (
+                            <SelectItem value="none" disabled className="text-xs text-muted-foreground">
+                              No departments in this branch
+                            </SelectItem>
+                          ) : (
+                            filteredDepartmentOptions.map((d) => (
+                              <SelectItem key={d.id} value={d.id} className="text-xs">{d.name}</SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                       {form.formState.errors.departmentId && <p className="text-[10px] text-destructive">{form.formState.errors.departmentId.message}</p>}
@@ -487,23 +660,43 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                   {/* Row 2: Pay Grade / Level — MAIN TRIGGER */}
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Pay Grade / Level *</Label>
-                    <Select value={form.watch('grade')} onValueChange={handleGradeChange}>
+                    <Select
+                      value={form.watch('grade')}
+                      onValueChange={handleGradeChange}
+                      disabled={!selectedDepartmentId || selectedDepartmentId === 'none'}
+                    >
                       <SelectTrigger className="h-9 text-xs font-mono">
-                        <SelectValue placeholder="Select grade from Grade Master..." />
+                        <SelectValue
+                          placeholder={
+                            !selectedDepartmentId || selectedDepartmentId === 'none'
+                              ? 'Select a department first...'
+                              : 'Select grade from Grade Master...'
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent className="max-h-64">
-                        {payGradesList?.length === 0 && (
+                        {!selectedDepartmentId || selectedDepartmentId === 'none' ? (
                           <SelectItem value="__none__" disabled className="text-xs text-muted-foreground">
-                            No Grade Master records — add via Cost Centers &amp; Grades
+                            Please select a Department first
                           </SelectItem>
+                        ) : branchPayGrades?.length === 0 ? (
+                          <SelectItem value="__none__" disabled className="text-xs text-muted-foreground">
+                            No Pay Grades configured for this Department and Branch
+                          </SelectItem>
+                        ) : (
+                          branchPayGrades?.map((g) => (
+                            <SelectItem key={g.id} value={g.gradeCode} className="text-xs">
+                              <span className="font-mono font-semibold">{g.gradeCode}</span>
+                              <span className="text-muted-foreground ml-1.5">— {g.gradeName}</span>
+                              <span className="text-[10px] text-slate-400 ml-1.5">({g.level} · {g.category})</span>
+                              {g.department?.name && (
+                                <span className="text-[10px] text-indigo-500 font-medium ml-1.5">
+                                  • {g.department.name}
+                                </span>
+                              )}
+                            </SelectItem>
+                          ))
                         )}
-                        {payGradesList?.map((g) => (
-                          <SelectItem key={g.id} value={g.gradeCode} className="text-xs">
-                            <span className="font-mono font-semibold">{g.gradeCode}</span>
-                            <span className="text-muted-foreground ml-1.5">— {g.gradeName}</span>
-                            <span className="text-[10px] text-slate-400 ml-1.5">({g.level} · {g.category})</span>
-                          </SelectItem>
-                        ))}
                       </SelectContent>
                     </Select>
                     {form.formState.errors.grade && <p className="text-[10px] text-destructive">{form.formState.errors.grade.message}</p>}
@@ -784,7 +977,17 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                     </span>
                   </TableCell>
                   <TableCell className="text-xs font-medium text-muted-foreground">
-                    {designation.department?.name ?? 'General Corporate'}
+                    <div>{designation.department?.name ?? 'General Corporate'}</div>
+                    {(() => {
+                      const bId = designation.department?.branchId || designation.payGrade?.branchId;
+                      const branchObj = branchesList?.find((b) => b.id === bId);
+                      return (
+                        <div className="text-[10px] text-muted-foreground/80 font-normal mt-0.5 flex items-center gap-1">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                          {branchObj ? `${branchObj.name} (${branchObj.code})` : 'Corporate / Head Office'}
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-xs">
                     <Badge className="text-[10px] font-mono font-semibold bg-amber-500/10 text-amber-700 border-amber-500/20">

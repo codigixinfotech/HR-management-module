@@ -42,7 +42,7 @@ enum EmployeeStatus {
 
 enum ApprovalStatus {
   PENDING
-  IN_PROGRESS
+  IN_PROGRESS                                              
   APPROVED
   REJECTED
   CANCELLED
