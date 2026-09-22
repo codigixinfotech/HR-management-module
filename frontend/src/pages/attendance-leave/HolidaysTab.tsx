@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2, Calendar, Building2, MapPin, Users, ShieldCheck, Info } from 'lucide-react';
 import { holidaysApi } from '@/api/attendance-leave';
 import { branchesApi } from '@/api/organization';
+import { useCompany } from '@/context/CompanyContext';
 import type { Company } from '@/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,22 +32,24 @@ type HolidayFormValues = z.infer<typeof holidaySchema>;
 
 export function HolidaysTab({ companyId, companies }: { companyId?: string; companies: Company[] }) {
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
+  const effectiveCompanyId = companyId || activeCompanyId;
   const [open, setOpen] = useState(false);
 
   const { data: holidays, isLoading } = useQuery({
-    queryKey: ['holidays', companyId],
-    queryFn: () => holidaysApi.list(companyId),
+    queryKey: ['holidays', effectiveCompanyId],
+    queryFn: () => holidaysApi.list(effectiveCompanyId),
   });
 
   const { data: allBranches = [] } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchesApi.list(),
+    queryKey: ['branches', effectiveCompanyId],
+    queryFn: () => branchesApi.list(effectiveCompanyId),
   });
 
   const form = useForm<HolidayFormValues>({
     resolver: zodResolver(holidaySchema),
     defaultValues: {
-      companyId: companyId ?? companies[0]?.id ?? 'cmto136wt01ibipkgbon2sw9s',
+      companyId: effectiveCompanyId ?? companies[0]?.id ?? '',
       name: '',
       date: '',
       type: 'Mandatory',
@@ -56,45 +59,22 @@ export function HolidaysTab({ companyId, companies }: { companyId?: string; comp
     },
   });
 
-  const selectedCompanyId = form.watch('companyId');
+  useEffect(() => {
+    if (effectiveCompanyId) {
+      form.setValue('companyId', effectiveCompanyId);
+    }
+  }, [effectiveCompanyId, form]);
+
+  const selectedCompanyId = form.watch('companyId') || effectiveCompanyId;
 
   // Dynamic branch list cascading from selected company
   const availableBranches = useMemo(() => {
+    const list = [{ id: 'all-branches', name: 'All Branches' }];
     if (allBranches && allBranches.length > 0) {
-      const filtered = allBranches.filter((b: any) => b.companyId === selectedCompanyId);
-      if (filtered.length > 0) {
-        return [{ id: 'all-branches', name: 'All Branches' }, ...filtered];
-      }
+      const filtered = allBranches.filter((b: any) => !selectedCompanyId || b.companyId === selectedCompanyId);
+      list.push(...filtered);
     }
-    if (selectedCompanyId === 'cmto136wt01ibipkgbon2sw9s') {
-      return [
-        { id: 'all-branches', name: 'All Branches' },
-        { id: 'cmto7b80c0071ipd82cji7qgd', name: 'Pune Plant Unit 1' },
-        { id: 'cmto8iavl0075ipw8dg5si4av', name: 'Pune Corporate Office' },
-        { id: 'br-montanari-mumbai', name: 'Mumbai Office' },
-        { id: 'br-montanari-nashik', name: 'Nashik Plant' },
-      ];
-    }
-    if (selectedCompanyId === 'cmsofshgq0014ip4cjrdes1it') {
-      return [
-        { id: 'all-branches', name: 'All Branches' },
-        { id: 'cmsyha6360015ipb41brgwewi', name: 'Manufacturing Head Office' },
-        { id: 'br-abc-mfg-plant1', name: 'Plant 1 - Chakan Industrial Area' },
-      ];
-    }
-    if (selectedCompanyId === 'cmsogicm90001iphsv07hvbhc') {
-      return [
-        { id: 'all-branches', name: 'All Branches' },
-        { id: 'cmsogkyxl0005iphs4mqhbxsx', name: 'Pune Head Office' },
-        { id: 'cmsohoprz0009iphsnqdxuqjf', name: 'Mumbai Tech Hub' },
-        { id: 'cmsohpvlv000biphs7bshi6r1', name: 'Bengaluru Tech Center' },
-      ];
-    }
-    return [
-      { id: 'all-branches', name: 'All Branches' },
-      { id: `br-${selectedCompanyId}-main`, name: 'Main Corporate Branch' },
-      { id: `br-${selectedCompanyId}-plant`, name: 'Plant & Production Unit' },
-    ];
+    return list;
   }, [allBranches, selectedCompanyId]);
 
   const createMutation = useMutation({
@@ -104,7 +84,7 @@ export function HolidaysTab({ companyId, companies }: { companyId?: string; comp
       toast.success('Holiday declared with branch & employee category mappings!');
       setOpen(false);
       form.reset({
-        companyId: companyId ?? companies[0]?.id ?? 'cmto136wt01ibipkgbon2sw9s',
+        companyId: effectiveCompanyId ?? companies[0]?.id ?? '',
         name: '',
         date: '',
         type: 'Mandatory',

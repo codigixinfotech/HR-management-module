@@ -29,7 +29,7 @@ export class ShiftAssignmentsService {
   list(employeeId?: string, shiftTypeId?: string, companyId?: string) {
     return this.prisma.shiftAssignment.findMany({
       where: {
-        ...(companyId ? { companyId } : {}),
+        ...(companyId ? { companyId, employee: { companyId } } : {}),
         ...(employeeId ? { employeeId } : {}),
         ...(shiftTypeId ? { shiftTypeId } : {}),
       },

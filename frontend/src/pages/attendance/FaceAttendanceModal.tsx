@@ -56,6 +56,7 @@ interface FaceAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
   employees?: any[];
+  companyId?: string;
   onPunchSuccess?: (punchRecord: any) => void;
   isFullPage?: boolean;
 }
@@ -73,6 +74,7 @@ export function FaceAttendanceModal({
   isOpen,
   onClose,
   employees = [],
+  companyId,
   onPunchSuccess,
   isFullPage = false,
 }: FaceAttendanceModalProps) {
@@ -151,15 +153,17 @@ export function FaceAttendanceModal({
       setAllCompanyEmployees(employees);
     } else if (isOpen) {
       employeesApi
-        .list({ page: 1, pageSize: 1000 })
+        .list({ page: 1, pageSize: 1000, companyId })
         .then((res) => {
           if (res?.items && Array.isArray(res.items)) {
             setAllCompanyEmployees(res.items);
           }
         })
         .catch((err) => console.warn('Could not preload employee biometrics list:', err));
+    } else {
+      setAllCompanyEmployees([]);
     }
-  }, [employees, isOpen]);
+  }, [employees, isOpen, companyId]);
 
   const validate128dVector = (vec: any): number[] | null => {
     if (!vec) return null;

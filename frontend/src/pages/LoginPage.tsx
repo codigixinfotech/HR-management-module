@@ -161,8 +161,33 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${res.me.email.split('@')[0]}! Redirecting...`);
       setTimeout(() => {
         const fromPath = (location.state as any)?.from?.pathname;
-        const defaultPath = window.innerWidth < 768 ? '/attendance-leave/live' : '/dashboard';
-        navigate(fromPath || defaultPath);
+
+        // Detect device / context: Desktop/Laptop vs Mobile/PWA Attendance
+        const isMobileUserAgent =
+          /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isSmallScreen = window.innerWidth <= 768;
+        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const isMobileAttendanceContext = isMobileUserAgent || (isSmallScreen && isTouch);
+
+        if (isMobileAttendanceContext) {
+          // Mobile / PWA: default to Mobile Attendance / Face ID punch
+          const isInvalidTarget =
+            !fromPath || fromPath === '/' || fromPath === '/login' || fromPath === '/landing';
+          const target = isInvalidTarget ? '/attendance-leave/live' : fromPath;
+          navigate(target);
+        } else {
+          // Desktop / Laptop: NEVER automatically redirect to /attendance-leave/live
+          const isLiveRoute =
+            fromPath && (fromPath.includes('/live') || fromPath.endsWith('/live'));
+          const isInvalidTarget =
+            !fromPath ||
+            fromPath === '/' ||
+            fromPath === '/login' ||
+            fromPath === '/landing' ||
+            isLiveRoute;
+          const target = isInvalidTarget ? '/dashboard' : fromPath;
+          navigate(target);
+        }
       }, 600);
     },
     onError: (err: any) => {

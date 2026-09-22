@@ -134,6 +134,8 @@ export default function App() {
               {/* Attendance & Leave Routes */}
               <Route path="/attendance-leave" element={<AttendanceLeavePage />} />
               <Route path="/attendance-leave/:tab" element={<AttendanceLeavePage />} />
+              <Route path="/attendance_leave" element={<Navigate to="/attendance-leave" replace />} />
+              <Route path="/attendance_leave/:tab" element={<AttendanceLeavePage />} />
 
               {/* Payroll Routes */}
               <Route path="/payroll" element={<PayrollPage />} />

@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { MarkAttendanceDto, UpdateAttendanceDto } from './dto/attendance.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { OvertimeService } from './overtime.service';
+import { isUserSuperAdmin } from '../../common/utils/tenant-context.util';
 
 @Injectable()
 export class AttendanceService {
@@ -133,7 +134,7 @@ export class AttendanceService {
               ],
             }
           : {}),
-        ...(companyId ? { companyId } : {}),
+        ...(companyId ? { companyId, employee: { companyId } } : {}),
         ...branchFilter,
         ...(from || to
           ? {
@@ -324,6 +325,9 @@ export class AttendanceService {
     if (!record) throw new NotFoundException('Attendance record not found');
 
     const isHrOrAdmin = this.isUserHrOrAdmin(user);
+    if (user && !isUserSuperAdmin(user) && user.companyId && record.companyId !== user.companyId) {
+      throw new ForbiddenException('Access denied. Attendance record belongs to another company.');
+    }
     if (!isHrOrAdmin) {
       if (user?.employee?.id && user.employee.id !== record.employeeId) {
         throw new ForbiddenException(
@@ -348,7 +352,7 @@ export class AttendanceService {
     return record;
   }
 
-  async mark(dto: MarkAttendanceDto) {
+  async mark(dto: MarkAttendanceDto, user?: CurrentUserPayload) {
     console.log('[ATTENDANCE MARK RECEIVED]', {
       employeeId: dto.employeeId,
       employeeCode: dto.employeeCode,
@@ -381,6 +385,14 @@ export class AttendanceService {
       throw new BadRequestException(
         `Employee not found in database for ID: "${dto.employeeId || 'N/A'}" or Code: "${dto.employeeCode || 'N/A'}".`
       );
+    }
+
+    // Company isolation check on punch
+    if (user && !isUserSuperAdmin(user) && user.companyId && emp.companyId !== user.companyId) {
+      throw new ForbiddenException('Access denied. Cannot record attendance for an employee of another organization.');
+    }
+    if (dto.companyId && dto.companyId !== emp.companyId) {
+      throw new BadRequestException('Employee does not belong to the specified company.');
     }
 
     // SECURITY RULE: Independent Backend Biometric Verification & Vector Re-Validation

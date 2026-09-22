@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { ShiftLifecycleService } from './shift-lifecycle.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('workforce')
 export class ShiftLifecycleController {
@@ -21,39 +23,49 @@ export class ShiftLifecycleController {
     @Query('companyId') companyId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @CurrentUser() user?: CurrentUserPayload,
   ) {
-    return this.lifecycleService.getRoster(companyId, startDate, endDate);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.lifecycleService.getRoster(tenantCompanyId, startDate, endDate);
   }
 
   @Post('roster/slot')
   @Permissions('workforce.write')
-  saveRosterSlot(@Body() dto: any) {
-    return this.lifecycleService.saveRosterSlot(dto);
+  saveRosterSlot(@Body() dto: any, @CurrentUser() user?: CurrentUserPayload) {
+    const tenantCompanyId = getTenantCompanyId(user, dto.companyId);
+    return this.lifecycleService.saveRosterSlot({ ...dto, companyId: tenantCompanyId || dto.companyId });
   }
 
   @Post('roster/bulk-assign')
   @Permissions('workforce.write')
-  bulkAutoAssign(@Body() dto: any) {
-    return this.lifecycleService.bulkAutoAssign(dto);
+  bulkAutoAssign(@Body() dto: any, @CurrentUser() user?: CurrentUserPayload) {
+    const tenantCompanyId = getTenantCompanyId(user, dto.companyId);
+    return this.lifecycleService.bulkAutoAssign({ ...dto, companyId: tenantCompanyId || dto.companyId });
   }
 
   @Post('roster/publish')
   @Permissions('workforce.write')
-  publishRosterBatch(@Body() dto: any) {
-    return this.lifecycleService.publishRosterBatch(dto);
+  publishRosterBatch(@Body() dto: any, @CurrentUser() user?: CurrentUserPayload) {
+    const tenantCompanyId = getTenantCompanyId(user, dto.companyId);
+    return this.lifecycleService.publishRosterBatch({ ...dto, companyId: tenantCompanyId || dto.companyId });
   }
 
   // 2. Rotations
   @Get('rotations')
   @Permissions('workforce.read')
-  getRotations(@Query('companyId') companyId?: string) {
-    return this.lifecycleService.getRotations(companyId);
+  getRotations(
+    @Query('companyId') companyId?: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.lifecycleService.getRotations(tenantCompanyId);
   }
 
   @Post('rotations')
   @Permissions('workforce.write')
-  createRotation(@Body() dto: any) {
-    return this.lifecycleService.createRotation(dto);
+  createRotation(@Body() dto: any, @CurrentUser() user?: CurrentUserPayload) {
+    const tenantCompanyId = getTenantCompanyId(user, dto.companyId);
+    return this.lifecycleService.createRotation({ ...dto, companyId: tenantCompanyId || dto.companyId });
   }
 
   @Post('rotations/:id/start')
@@ -77,14 +89,19 @@ export class ShiftLifecycleController {
   // 3. Shift Changes
   @Get('shift-changes')
   @Permissions('workforce.read')
-  getShiftChanges(@Query('companyId') companyId?: string) {
-    return this.lifecycleService.getShiftChanges(companyId);
+  getShiftChanges(
+    @Query('companyId') companyId?: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.lifecycleService.getShiftChanges(tenantCompanyId);
   }
 
   @Post('shift-changes')
   @Permissions('workforce.write')
-  createShiftChange(@Body() dto: any) {
-    return this.lifecycleService.createShiftChange(dto);
+  createShiftChange(@Body() dto: any, @CurrentUser() user?: CurrentUserPayload) {
+    const tenantCompanyId = getTenantCompanyId(user, dto.companyId);
+    return this.lifecycleService.createShiftChange({ ...dto, companyId: tenantCompanyId || dto.companyId });
   }
 
   @Patch('shift-changes/:id/resolve')
@@ -99,14 +116,19 @@ export class ShiftLifecycleController {
   // 4. Shift Swaps
   @Get('shift-swaps')
   @Permissions('workforce.read')
-  getShiftSwaps(@Query('companyId') companyId?: string) {
-    return this.lifecycleService.getShiftSwaps(companyId);
+  getShiftSwaps(
+    @Query('companyId') companyId?: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.lifecycleService.getShiftSwaps(tenantCompanyId);
   }
 
   @Post('shift-swaps')
   @Permissions('workforce.write')
-  createShiftSwap(@Body() dto: any) {
-    return this.lifecycleService.createShiftSwap(dto);
+  createShiftSwap(@Body() dto: any, @CurrentUser() user?: CurrentUserPayload) {
+    const tenantCompanyId = getTenantCompanyId(user, dto.companyId);
+    return this.lifecycleService.createShiftSwap({ ...dto, companyId: tenantCompanyId || dto.companyId });
   }
 
   @Patch('shift-swaps/:id/resolve')
@@ -130,8 +152,12 @@ export class ShiftLifecycleController {
   // 5. Batches
   @Get('batches')
   @Permissions('workforce.read')
-  getBatches(@Query('companyId') companyId?: string) {
-    return this.lifecycleService.getBatches(companyId);
+  getBatches(
+    @Query('companyId') companyId?: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.lifecycleService.getBatches(tenantCompanyId);
   }
 
   @Patch('batches/:id/status')
@@ -143,3 +169,4 @@ export class ShiftLifecycleController {
     return this.lifecycleService.resolveBatchStatus(id, body.status);
   }
 }
+

@@ -14,6 +14,8 @@ import {
   UpdateShiftAssignmentDto,
 } from './dto/shift-assignment.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('workforce/shift-assignments')
 export class ShiftAssignmentsController {
@@ -27,8 +29,10 @@ export class ShiftAssignmentsController {
     @Query('employeeId') employeeId?: string,
     @Query('shiftTypeId') shiftTypeId?: string,
     @Query('companyId') companyId?: string,
+    @CurrentUser() user?: CurrentUserPayload,
   ) {
-    return this.shiftAssignmentsService.list(employeeId, shiftTypeId, companyId);
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.shiftAssignmentsService.list(employeeId, shiftTypeId, tenantCompanyId);
   }
 
   @Get(':id')

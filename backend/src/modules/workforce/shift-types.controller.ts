@@ -11,6 +11,8 @@ import {
 import { ShiftTypesService } from './shift-types.service';
 import { CreateShiftTypeDto, UpdateShiftTypeDto } from './dto/shift-type.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('workforce/shift-types')
 export class ShiftTypesController {
@@ -18,8 +20,12 @@ export class ShiftTypesController {
 
   @Get()
   @Permissions('workforce.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.shiftTypesService.list(companyId);
+  list(
+    @Query('companyId') companyId?: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    return this.shiftTypesService.list(tenantCompanyId);
   }
 
   @Get(':id')

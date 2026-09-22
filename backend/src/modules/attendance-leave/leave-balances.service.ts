@@ -1,15 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AllocateLeaveBalanceDto } from './dto/leave-balance.dto';
+import { isUserSuperAdmin } from '../../common/utils/tenant-context.util';
 
 @Injectable()
 export class LeaveBalancesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(employeeId?: string, year?: number) {
+  async list(employeeId?: string, year?: number, companyId?: string) {
     const currentYear = year || new Date().getFullYear();
     const balances = await this.prisma.leaveBalance.findMany({
       where: {
+        ...(companyId ? { employee: { companyId } } : {}),
         ...(employeeId ? { employeeId } : {}),
         year: currentYear,
       },
@@ -23,6 +25,7 @@ export class LeaveBalancesService {
             firstName: true,
             lastName: true,
             employeeCode: true,
+            companyId: true,
             department: { select: { id: true, name: true } },
           },
         },
@@ -34,6 +37,7 @@ export class LeaveBalancesService {
     const pendingRequests = await this.prisma.leaveRequest.findMany({
       where: {
         status: 'PENDING',
+        ...(companyId ? { companyId } : {}),
         ...(employeeId ? { employeeId } : {}),
         startDate: {
           gte: new Date(`${currentYear}-01-01T00:00:00.000Z`),
@@ -77,10 +81,20 @@ export class LeaveBalancesService {
     }
     if (!empId) return [];
 
-    return this.list(empId, year);
+    return this.list(empId, year, user?.companyId);
   }
 
-  allocate(dto: AllocateLeaveBalanceDto) {
+  async allocate(dto: AllocateLeaveBalanceDto, user?: any) {
+    if (user && !isUserSuperAdmin(user) && user.companyId) {
+      const emp = await this.prisma.employee.findUnique({
+        where: { id: dto.employeeId },
+        select: { companyId: true },
+      });
+      if (emp && emp.companyId !== user.companyId) {
+        throw new ForbiddenException('Cannot allocate leave balance to employee from another organization');
+      }
+    }
+
     return this.prisma.leaveBalance.upsert({
       where: {
         employeeId_leaveTypeId_year: {

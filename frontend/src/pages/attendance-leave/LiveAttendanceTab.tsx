@@ -56,8 +56,17 @@ interface LivePunch {
   checkOut?: string;
 }
 
-export function LiveAttendanceTab() {
+import { useCompany } from '@/context/CompanyContext';
+
+interface LiveAttendanceTabProps {
+  companyId?: string;
+}
+
+export function LiveAttendanceTab({ companyId }: LiveAttendanceTabProps = {}) {
+  const { activeCompanyId } = useCompany();
   const user = useAuthStore((s) => s.user);
+  const effectiveCompanyId = companyId || activeCompanyId || user?.companyId;
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isDetailsMe = searchParams.get('details') === 'me';
@@ -84,6 +93,9 @@ export function LiveAttendanceTab() {
 
   const handleCloseFacePunch = () => {
     setIsFaceAttendanceOpen(false);
+    if (isLiveRoute) {
+      navigate('/attendance-leave');
+    }
   };
 
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -102,20 +114,20 @@ export function LiveAttendanceTab() {
     return Boolean(isRoleAdmin || isPrimaryAdmin);
   }, [user]);
 
-  // Fetch employees list for dropdown & 1:N face matching
+  // Fetch employees list for dropdown & 1:N face matching scoped to company
   const { data: rawEmployees } = useQuery({
-    queryKey: ['employees-list'],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+    queryKey: ['employees-list', effectiveCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: effectiveCompanyId }),
   });
 
   const employeeItems = useMemo(() => {
     return rawEmployees?.items || [];
   }, [rawEmployees]);
 
-  // Real-Time Biometric Punch Feed — Fetch all database attendance records directly
+  // Real-Time Biometric Punch Feed — Fetch database attendance records strictly for this company
   const { data: dbAttendanceRecords = [] } = useQuery({
-    queryKey: ['attendance-live-records'],
-    queryFn: () => attendanceApi.list({}),
+    queryKey: ['attendance-live-records', effectiveCompanyId],
+    queryFn: () => attendanceApi.list({ companyId: effectiveCompanyId }),
     refetchInterval: 3000,
   });
 
@@ -220,9 +232,10 @@ export function LiveAttendanceTab() {
           isOpen={true}
           onClose={() => navigate('/attendance-leave')}
           employees={employeeItems}
+          companyId={effectiveCompanyId}
           isFullPage={true}
           onPunchSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['attendance-live-records'] });
+            queryClient.invalidateQueries({ queryKey: ['attendance-live-records', effectiveCompanyId] });
           }}
         />
       </div>
@@ -462,6 +475,10 @@ export function LiveAttendanceTab() {
         isOpen={isFaceAttendanceOpen}
         onClose={handleCloseFacePunch}
         employees={employeeItems}
+        companyId={effectiveCompanyId}
+        onPunchSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['attendance-live-records', effectiveCompanyId] });
+        }}
       />
 
       <VerificationDetailsModal

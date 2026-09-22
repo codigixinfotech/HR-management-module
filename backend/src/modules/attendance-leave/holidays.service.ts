@@ -227,7 +227,7 @@ export class HolidaysService {
     let params: any[] = [];
 
     if (companyId) {
-      whereClauses.push('(companyId = ? OR companyId = "" OR companyId IS NULL)');
+      whereClauses.push('companyId = ?');
       params.push(companyId);
     }
 

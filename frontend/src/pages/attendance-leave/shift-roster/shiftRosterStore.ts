@@ -316,11 +316,19 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
   },
 
   fetchData: async (targetCompanyId?: string) => {
-    set({ isLoading: true });
     const effectiveCompanyId = targetCompanyId !== undefined ? targetCompanyId : get().activeCompanyId;
-    if (targetCompanyId !== undefined && targetCompanyId !== get().activeCompanyId) {
-      set({ activeCompanyId: targetCompanyId });
-    }
+    // Clear previous company data immediately to prevent residual display
+    set({
+      isLoading: true,
+      shifts: [],
+      assignments: [],
+      rosterEmployees: [],
+      rotations: [],
+      shiftChanges: [],
+      shiftSwaps: [],
+      batches: [],
+      ...(targetCompanyId !== undefined ? { activeCompanyId: targetCompanyId } : {}),
+    });
 
     try {
       const [
@@ -334,7 +342,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
         leavesRes,
       ] = await Promise.allSettled([
         shiftTypesApi.list(effectiveCompanyId),
-        shiftAssignmentsApi.list(),
+        shiftAssignmentsApi.list(undefined, effectiveCompanyId),
         shiftRosterApi.getRoster({
           companyId: effectiveCompanyId,
           startDate: '2026-09-01',
@@ -347,15 +355,14 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
         leaveRequestsApi.list({ page: 1, pageSize: 100, companyId: effectiveCompanyId }),
       ]);
 
-      // 1. Process Shifts strictly from DB with robust company fallback
+      // 1. Process Shifts strictly from DB for this company
       let mappedShifts: ShiftMasterItem[] = [];
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value) && shiftsRes.value.length > 0) {
         const filtered = effectiveCompanyId
           ? shiftsRes.value.filter((s: any) => s.companyId === effectiveCompanyId)
           : shiftsRes.value;
-        const rawShifts = filtered.length > 0 ? filtered : shiftsRes.value;
 
-        mappedShifts = rawShifts.map((s: any) => ({
+        mappedShifts = filtered.map((s: any) => ({
           id: s.id,
           companyId: s.companyId,
           name: s.name,
@@ -380,7 +387,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
         }));
       }
 
-      if (mappedShifts.length === 0) {
+      if (mappedShifts.length === 0 && !effectiveCompanyId) {
         mappedShifts = [
           {
             id: 'cmtv2tdb6007aipfglpb47z6k',
@@ -504,7 +511,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
           createdBy: 'Super Admin',
           createdAt: a.createdAt ? a.createdAt.split('T')[0] : '2026-09-01',
         }));
-      } else {
+      } else if (!effectiveCompanyId) {
         // Live baseline assignments strictly reflecting real active employees & capacities
         mappedAssignments = [
           {

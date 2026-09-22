@@ -291,7 +291,7 @@ export function LandingPage() {
                       <Button
                         size="lg"
                         variant="ghost"
-                        onClick={() => navigate('/attendance-leave/live')}
+                        onClick={() => navigate('/dashboard')}
                         className="text-slate-800 hover:text-slate-950 font-bold text-xs px-3 py-5 rounded-xl gap-1"
                       >
                         Open App Dashboard <ArrowRight className="h-3.5 w-3.5" />
@@ -346,7 +346,7 @@ export function LandingPage() {
                           <span className="text-[9.5px] font-extrabold text-purple-600 uppercase tracking-wider block">LIVE DEMO</span>
                           <button
                             type="button"
-                            onClick={() => navigate('/attendance-leave/live')}
+                            onClick={() => navigate('/dashboard')}
                             className="text-xs font-black text-purple-700 hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             Open Link <ExternalLink className="h-3 w-3" />

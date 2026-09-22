@@ -28,10 +28,16 @@ import { LeaveCalendarView } from './leave/LeaveCalendarView';
 import { ApplyLeaveModal } from './leave/ApplyLeaveModal';
 import { LeaveTypeConfigModal } from './leave/LeaveTypeConfigModal';
 import { EmployeeLeaveView } from './leave/employee/EmployeeLeaveView';
+import { useCompany } from '@/context/CompanyContext';
 
-export function LeaveManagementTab() {
+interface LeaveManagementTabProps {
+  companyId?: string;
+}
+
+export function LeaveManagementTab({ companyId }: LeaveManagementTabProps = {}) {
+  const { activeCompanyId } = useCompany();
   const user = useAuthStore((s) => s.user);
-  const effectiveCompanyId = user?.companyId || undefined;
+  const selectedCompanyId = companyId || activeCompanyId || user?.companyId;
 
   const { activeSubTab, setActiveSubTab } = useLeaveStore();
 
@@ -43,8 +49,6 @@ export function LeaveManagementTab() {
     queryKey: ['companies'],
     queryFn: companiesApi.list,
   });
-
-  const selectedCompanyId = effectiveCompanyId || companies[0]?.id;
 
   const { data: leaveTypes = [], isLoading: isTypesLoading } = useQuery({
     queryKey: ['leave-types', selectedCompanyId],
@@ -66,7 +70,8 @@ export function LeaveManagementTab() {
 
   const { data: leaveBalances = [], isLoading: isBalancesLoading } = useQuery({
     queryKey: ['leave-balances', selectedCompanyId],
-    queryFn: () => leaveBalancesApi.list(),
+    queryFn: () => leaveBalancesApi.list(undefined, undefined, selectedCompanyId),
+    enabled: !!selectedCompanyId,
   });
 
   const { data: dbHolidays = [] } = useQuery({

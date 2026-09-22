@@ -73,7 +73,7 @@ export class ShiftLifecycleService implements OnModuleInit {
     // 4. Fetch all active shift assignments from DB (Priority 1: Employee, Priority 2: Dept, Priority 3: Company)
     const assignments = await this.prisma.shiftAssignment.findMany({
       where: {
-        ...(companyId ? { companyId } : {}),
+        ...(companyId ? { companyId, employee: { companyId } } : {}),
         isActive: true,
       },
       include: {

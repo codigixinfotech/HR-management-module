@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { companiesApi, branchesApi } from '@/api/organization';
+import { useCompany } from '@/context/CompanyContext';
 import { HolidaysTab } from './HolidaysTab';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,53 +20,65 @@ interface BranchGpsConfig {
   type: string;
 }
 
-const BRANCH_GPS_PROFILES: BranchGpsConfig[] = [
-  {
-    id: 'cmto7b80c0071ipd82cji7qgd',
-    name: 'Pune Plant Unit 1',
-    companyName: 'Montanari Lifts Components Pvt. Ltd.',
-    lat: '18.6268° N',
-    lng: '73.8044° E',
-    radius: 200,
-    type: 'Manufacturing Plant',
-  },
-  {
-    id: 'cmto8iavl0075ipw8dg5si4av',
-    name: 'Pune Corporate Office',
-    companyName: 'Montanari Lifts Components Pvt. Ltd.',
-    lat: '18.5204° N',
-    lng: '73.8567° E',
-    radius: 100,
-    type: 'Corporate HQ',
-  },
-  {
-    id: 'cmsohoprz0009iphsnqdxuqjf',
-    name: 'Mumbai Tech Hub',
-    companyName: 'ABC Technologies Pvt. Ltd.',
-    lat: '19.0760° N',
-    lng: '72.8777° E',
-    radius: 100,
-    type: 'Tech Office',
-  },
-  {
-    id: 'br-montanari-nashik',
-    name: 'Nashik Plant',
-    companyName: 'Montanari Lifts Components Pvt. Ltd.',
-    lat: '19.9975° N',
-    lng: '73.7898° E',
-    radius: 250,
-    type: 'Heavy Engineering Plant',
-  },
-];
+export function AttendancePoliciesTab({ companyId }: { companyId?: string }) {
+  const { activeCompanyId } = useCompany();
+  const effectiveCompanyId = companyId || activeCompanyId;
 
-export function AttendancePoliciesTab() {
   const { data: companies = [] } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const { data: branches = [] } = useQuery({ queryKey: ['branches'], queryFn: branchesApi.list });
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches', effectiveCompanyId],
+    queryFn: () => branchesApi.list(effectiveCompanyId),
+  });
 
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(BRANCH_GPS_PROFILES[0].id);
+  const selectedCompany = useMemo(() => {
+    return companies.find((c: any) => c.id === effectiveCompanyId);
+  }, [companies, effectiveCompanyId]);
+
+  const gpsProfiles: BranchGpsConfig[] = useMemo(() => {
+    if (branches && branches.length > 0) {
+      return branches.map((b: any, idx: number) => ({
+        id: b.id,
+        name: b.name,
+        companyName: selectedCompany?.name || 'Selected Company',
+        lat: b.latitude ? `${b.latitude}° N` : `${(18.5204 + idx * 0.05).toFixed(4)}° N`,
+        lng: b.longitude ? `${b.longitude}° E` : `${(73.8567 + idx * 0.05).toFixed(4)}° E`,
+        radius: b.geofenceRadius || 100,
+        type: b.type || 'Headquarters / Branch',
+      }));
+    }
+    return [
+      {
+        id: 'default-hq',
+        name: `${selectedCompany?.name || 'Company'} Main Facility`,
+        companyName: selectedCompany?.name || 'Selected Company',
+        lat: '18.5204° N',
+        lng: '73.8567° E',
+        radius: 150,
+        type: 'Primary Location',
+      },
+    ];
+  }, [branches, selectedCompany]);
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+
+  useEffect(() => {
+    if (gpsProfiles.length > 0) {
+      if (!selectedBranchId || !gpsProfiles.some((p) => p.id === selectedBranchId)) {
+        setSelectedBranchId(gpsProfiles[0].id);
+      }
+    }
+  }, [gpsProfiles, selectedBranchId]);
 
   const currentBranchGps =
-    BRANCH_GPS_PROFILES.find((b) => b.id === selectedBranchId) || BRANCH_GPS_PROFILES[0];
+    gpsProfiles.find((b) => b.id === selectedBranchId) || gpsProfiles[0] || {
+      id: 'none',
+      name: 'No Branch Configured',
+      companyName: selectedCompany?.name || '',
+      lat: '0.0000° N',
+      lng: '0.0000° E',
+      radius: 0,
+      type: 'N/A',
+    };
 
   const handleUpdatePolicy = (msg?: string) => {
     toast.success(msg || 'Attendance parameters updated in real-time edge devices');
@@ -165,7 +178,7 @@ export function AttendancePoliciesTab() {
                   <SelectValue placeholder="Select branch" />
                 </SelectTrigger>
                 <SelectContent>
-                  {BRANCH_GPS_PROFILES.map((b) => (
+                  {gpsProfiles.map((b) => (
                     <SelectItem key={b.id} value={b.id} className="text-xs">
                       {b.name} ({b.type})
                     </SelectItem>
@@ -264,7 +277,7 @@ export function AttendancePoliciesTab() {
       </div>
 
       {/* ── 2. Holidays Sub-tab ── */}
-      <HolidaysTab companyId={undefined} companies={companies ?? []} />
+      <HolidaysTab companyId={effectiveCompanyId} companies={companies ?? []} />
     </div>
   );
 }

@@ -1,16 +1,12 @@
-import { useState } from 'react';
 import { useSearchParams, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { companiesApi } from '@/api/organization';
 import { useAuthStore } from '@/stores/auth-store';
+import { useCompany } from '@/context/CompanyContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button } from '@/components/ui/button';
-import { Clock, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
-// Import new subpages
+// Import subpages
 import { LiveAttendanceTab } from './LiveAttendanceTab';
 import { AttendanceRegisterTab } from './AttendanceRegisterTab';
 import { LeaveManagementTab } from './LeaveManagementTab';
@@ -25,10 +21,8 @@ export default function AttendanceLeavePage() {
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'live';
   const activeLeaveSubTab = useLeaveStore((s) => s.activeSubTab);
-  
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const [companyId, setCompanyId] = useState<string | undefined>(undefined);
 
+  const { activeCompanyId, setActiveCompanyId, companies } = useCompany();
   const user = useAuthStore((s) => s.user);
   const isMobile = useMediaQuery('(max-width: 768px)');
 
@@ -38,11 +32,12 @@ export default function AttendanceLeavePage() {
       user?.primaryRole?.toUpperCase().includes('ADMIN') ||
       user?.primaryRole?.toUpperCase().includes('HR')
   );
-  const effectiveCompanyId = companyId || user?.companyId || undefined;
+
+  const effectiveCompanyId = activeCompanyId || user?.companyId || undefined;
 
   return (
     <div className="space-y-6">
-      {/* Desktop PageHeader - Hidden on mobile per user request */}
+      {/* Desktop PageHeader */}
       <div className="hidden md:block">
         <PageHeader
           icon={Clock}
@@ -53,15 +48,22 @@ export default function AttendanceLeavePage() {
           actions={
             companies &&
             companies.length > 0 && (
-              <div className="w-56">
-                <Select value={companyId} onValueChange={setCompanyId}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="All companies" />
+              <div className="w-64">
+                <Select
+                  value={effectiveCompanyId || ''}
+                  onValueChange={(val) => {
+                    if (val && val !== 'ALL') {
+                      setActiveCompanyId(val);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs font-semibold bg-background border-border/80 shadow-2xs">
+                    <SelectValue placeholder="Select Organization" />
                   </SelectTrigger>
                   <SelectContent>
                     {companies.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.name}
+                      <SelectItem key={c.id} value={c.id} className="text-xs font-medium">
+                        {c.name} {c.code ? `(${c.code})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -72,22 +74,22 @@ export default function AttendanceLeavePage() {
         />
       </div>
 
-      {/* Top metrics cards hidden across all tabs per user request */}
+      {/* Render Dedicated Subpage based on activeTab, keyed by effectiveCompanyId to guarantee clean reload without residual state */}
+      <div key={effectiveCompanyId || 'no-company'} className="w-full">
+        {activeTab === 'register' && <AttendanceRegisterTab companyId={effectiveCompanyId} />}
 
-      {/* Render Dedicated Subpage based on activeTab */}
-      {activeTab === 'register' && <AttendanceRegisterTab />}
-      
-      {activeTab === 'live' && <LiveAttendanceTab />}
-      
-      {activeTab === 'leave' && <LeaveManagementTab />}
-      
-      {activeTab === 'roster' && <ShiftRosterTab companyId={effectiveCompanyId} />}
-      
-      {activeTab === 'overtime' && <OvertimeManagementTab />}
-      
-      {activeTab === 'policies' && <AttendancePoliciesTab />}
-      
-      {activeTab === 'reports' && <AttendanceReportsTab />}
+        {activeTab === 'live' && <LiveAttendanceTab companyId={effectiveCompanyId} />}
+
+        {activeTab === 'leave' && <LeaveManagementTab companyId={effectiveCompanyId} />}
+
+        {activeTab === 'roster' && <ShiftRosterTab companyId={effectiveCompanyId} />}
+
+        {activeTab === 'overtime' && <OvertimeManagementTab companyId={effectiveCompanyId} />}
+
+        {activeTab === 'policies' && <AttendancePoliciesTab companyId={effectiveCompanyId} />}
+
+        {activeTab === 'reports' && <AttendanceReportsTab companyId={effectiveCompanyId} />}
+      </div>
     </div>
   );
 }

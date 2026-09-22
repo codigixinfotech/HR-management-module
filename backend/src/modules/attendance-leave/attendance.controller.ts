@@ -54,8 +54,8 @@ export class AttendanceController {
 
   @Post()
   @Permissions('attendance_leave.write')
-  mark(@Body() dto: MarkAttendanceDto) {
-    return this.attendanceService.mark(dto);
+  mark(@Body() dto: MarkAttendanceDto, @CurrentUser() user?: CurrentUserPayload) {
+    return this.attendanceService.mark(dto, user);
   }
 
   @Patch(':id')

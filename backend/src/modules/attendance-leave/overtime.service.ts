@@ -661,7 +661,7 @@ export class OvertimeService {
       let query = `SELECT * FROM overtime_policies WHERE 1=1`;
       const params: any[] = [];
       if (companyId) {
-        query += ` AND (companyId = ? OR companyId IS NULL)`;
+        query += ` AND companyId = ?`;
         params.push(companyId);
       }
       query += ` ORDER BY createdAt ASC`;
@@ -703,7 +703,7 @@ export class OvertimeService {
     } catch {
       // Ignore database query error and return fallback
     }
-    return CONFIGURED_OT_POLICIES;
+    return companyId ? CONFIGURED_OT_POLICIES.map((p) => ({ ...p, companyId })) : CONFIGURED_OT_POLICIES;
   }
 
   /**

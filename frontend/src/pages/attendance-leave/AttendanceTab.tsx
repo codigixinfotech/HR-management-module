@@ -271,10 +271,16 @@ export function AttendanceTab({ companyId, companies }: { companyId?: string; co
     },
   });
 
+  useEffect(() => {
+    if (companyId) {
+      form.setValue('companyId', companyId);
+    }
+  }, [companyId, form]);
+
   const markMutation = useMutation({
     mutationFn: (values: AttendanceFormValues) => attendanceApi.mark(values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance', companyId] });
       toast.success('Attendance marked');
       setOpen(false);
     },

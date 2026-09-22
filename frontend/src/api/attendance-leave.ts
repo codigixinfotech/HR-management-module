@@ -29,8 +29,8 @@ export const holidaysApi = {
 };
 
 export const leaveBalancesApi = {
-  list: async (employeeId?: string, year?: number) =>
-    (await apiClient.get<LeaveBalance[]>('/attendance-leave/leave-balances', { params: { employeeId, year } })).data,
+  list: async (employeeId?: string, year?: number, companyId?: string) =>
+    (await apiClient.get<LeaveBalance[]>('/attendance-leave/leave-balances', { params: { employeeId, year, companyId } })).data,
   listMy: async (year?: number) =>
     (await apiClient.get<LeaveBalance[]>('/attendance-leave/leave-balances/my', { params: { year } })).data,
   allocate: async (payload: { employeeId: string; leaveTypeId: string; year: number; allocated: number }) =>
@@ -78,8 +78,8 @@ export const attendanceApi = {
 export const overtimeApi = {
   list: async (params?: { companyId?: string; status?: string; from?: string; to?: string; search?: string }) =>
     (await apiClient.get<any[]>('/attendance-leave/overtime', { params })).data,
-  getPolicies: async () =>
-    (await apiClient.get<any[]>('/attendance-leave/overtime/policies')).data,
+  getPolicies: async (companyId?: string) =>
+    (await apiClient.get<any[]>('/attendance-leave/overtime/policies', { params: { companyId } })).data,
   createPolicy: async (payload: any) =>
     (await apiClient.post<any>('/attendance-leave/overtime/policies', payload)).data,
   updatePolicyStatus: async (id: string, status: 'Active' | 'Inactive') =>

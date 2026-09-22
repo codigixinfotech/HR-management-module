@@ -37,7 +37,7 @@ function normalizePath(p: string) {
   if (base === '/organization') return '/organization/structure';
   if (base === '/recruitment') return '/recruitment/requisitions';
   if (base === '/employees') return '/employees/directory';
-  if (base === '/attendance-leave') return '/attendance-leave/live';
+  if (base === '/attendance-leave') return '/attendance-leave';
   if (base === '/dashboard') return '/dashboard/overview';
   return base;
 }

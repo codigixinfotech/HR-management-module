@@ -544,13 +544,18 @@ function formatOtRef(id: string | undefined | null): string {
   return `OT-${clean.slice(-4).toUpperCase()}`;
 }
 
+import { useCompany } from '@/context/CompanyContext';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
   const user = useAuthStore((s) => s.user);
+  const effectiveCompanyId = companyId || activeCompanyId || user?.companyId;
+
   const isAdmin = useMemo(() => {
     if (!user) return false;
     const primary = (user.primaryRole || '').toUpperCase();
@@ -572,19 +577,19 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
   const [selectedAuditLog, setSelectedAuditLog] = useState<any | null>(null);
   const [selectedPolicyDetails, setSelectedPolicyDetails] = useState<any | null>(null);
 
-  // Fetch live Overtime policies from backend
-  const { data: policies = INITIAL_POLICIES } = useQuery({
-    queryKey: ['overtime-policies'],
-    queryFn: () => overtimeApi.getPolicies(),
+  // Fetch live Overtime policies from backend scoped to effectiveCompanyId
+  const { data: policies = [] } = useQuery({
+    queryKey: ['overtime-policies', effectiveCompanyId],
+    queryFn: () => overtimeApi.getPolicies(effectiveCompanyId),
     staleTime: 60000,
   });
 
   // Fetch live Overtime records from backend DB (zero dummy data!)
   const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['overtime-records', companyId, statusFilter, searchQuery],
+    queryKey: ['overtime-records', effectiveCompanyId, statusFilter, searchQuery],
     queryFn: () =>
       overtimeApi.list({
-        companyId,
+        companyId: effectiveCompanyId,
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
         search: searchQuery.trim() || undefined,
       }),
@@ -593,18 +598,15 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
 
   // Fetch employees list for manual entry picker
   const { data: employeesPage } = useQuery({
-    queryKey: ['employees', 'ot-picker', companyId],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 100, companyId }),
+    queryKey: ['employees', 'ot-picker', effectiveCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 100, companyId: effectiveCompanyId }),
   });
 
   const employeesList = useMemo(() => {
     if (employeesPage?.items && employeesPage.items.length > 0) {
       return employeesPage.items;
     }
-    return [
-      { id: 'cmto137hf01ihipkgkw9xjot0', employeeCode: 'EMP-002', firstName: 'Ajinkay', lastName: 'Mote', department: { name: 'Engineering & Maintenance' } },
-      { id: 'cmtr2qzm7006zip185kbklj96', employeeCode: 'EMP-001', firstName: 'Sudarshan', lastName: 'Kale', department: { name: 'Production & Plant Operations' } },
-    ];
+    return [];
   }, [employeesPage]);
 
   // Mutations for Overtime lifecycle
@@ -667,28 +669,21 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
   });
 
   const { data: allBranches = [] } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchesApi.list(),
+    queryKey: ['branches', effectiveCompanyId],
+    queryFn: () => branchesApi.list(effectiveCompanyId),
   });
 
-  // Fallback companies list covering all industry examples
   const availableCompanies = useMemo(() => {
     if (companies && companies.length > 0) return companies;
-    return [
-      { id: 'cmto136wt01ibipkgbon2sw9s', name: 'Montanari Lifts Components Pvt. Ltd.' },
-      { id: 'cmsofshgq0014ip4cjrdes1it', name: 'ABC Manufacturing Pvt. Ltd.' },
-      { id: 'cmt9nqjg50014ip4sl57j8n42', name: 'ABC Healthcare Pvt. Ltd.' },
-      { id: 'cmsogicm90001iphsv07hvbhc', name: 'ABC Technologies Pvt. Ltd.' },
-      { id: 'cmt6wxic30003woiw9aidz51y', name: 'ABC Retail Pvt. Ltd.' },
-    ];
+    return [];
   }, [companies]);
 
   // Add Overtime Policy Modal State
   const [isAddPolicyModalOpen, setIsAddPolicyModalOpen] = useState(false);
   const [newPolicyName, setNewPolicyName] = useState('');
   const [newPolicyDesc, setNewPolicyDesc] = useState('');
-  const [newPolicyCompanyId, setNewPolicyCompanyId] = useState('cmto136wt01ibipkgbon2sw9s');
-  const [newPolicyBranchId, setNewPolicyBranchId] = useState('cmto7b80c0071ipd82cji7qgd');
+  const [newPolicyCompanyId, setNewPolicyCompanyId] = useState(effectiveCompanyId || '');
+  const [newPolicyBranchId, setNewPolicyBranchId] = useState('');
   const [newPolicyIndustry, setNewPolicyIndustry] = useState<string>('Manufacturing / Factory');
   const [newPolicyCategory, setNewPolicyCategory] = useState<string>('Factory Workers & Plant Technicians');
   const [newPolicyEstablishment, setNewPolicyEstablishment] = useState<string>('The Factories Act, 1948 (Section 59 - 9h/day, 48h/wk)');
@@ -724,41 +719,9 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
   // Strictly filter branches belonging to the selected company
   const availableBranches = useMemo(() => {
     if (allBranches && allBranches.length > 0) {
-      const filtered = allBranches.filter((b: any) => b.companyId === newPolicyCompanyId);
-      if (filtered.length > 0) return filtered;
+      return allBranches.filter((b: any) => !newPolicyCompanyId || b.companyId === newPolicyCompanyId);
     }
-    // Company-specific branch mappings
-    if (newPolicyCompanyId === 'cmto136wt01ibipkgbon2sw9s') {
-      return [
-        { id: 'cmto7b80c0071ipd82cji7qgd', name: 'Pune Plant Unit 1', companyId: 'cmto136wt01ibipkgbon2sw9s' },
-        { id: 'cmto8iavl0075ipw8dg5si4av', name: 'Pune Corporate Office', companyId: 'cmto136wt01ibipkgbon2sw9s' },
-        { id: 'br-montanari-mumbai', name: 'Mumbai Office', companyId: 'cmto136wt01ibipkgbon2sw9s' },
-        { id: 'br-montanari-nashik', name: 'Nashik Plant', companyId: 'cmto136wt01ibipkgbon2sw9s' },
-      ];
-    }
-    if (newPolicyCompanyId === 'cmsofshgq0014ip4cjrdes1it') {
-      return [
-        { id: 'cmsyha6360015ipb41brgwewi', name: 'Manufacturing Head Office', companyId: 'cmsofshgq0014ip4cjrdes1it' },
-        { id: 'br-abc-mfg-plant1', name: 'Plant 1 - Chakan Industrial Area', companyId: 'cmsofshgq0014ip4cjrdes1it' },
-      ];
-    }
-    if (newPolicyCompanyId === 'cmsogicm90001iphsv07hvbhc') {
-      return [
-        { id: 'cmsogkyxl0005iphs4mqhbxsx', name: 'Pune Head Office', companyId: 'cmsogicm90001iphsv07hvbhc' },
-        { id: 'cmsohoprz0009iphsnqdxuqjf', name: 'Mumbai Tech Hub', companyId: 'cmsogicm90001iphsv07hvbhc' },
-        { id: 'cmsohpvlv000biphs7bshi6r1', name: 'Bengaluru Tech Center', companyId: 'cmsogicm90001iphsv07hvbhc' },
-      ];
-    }
-    if (newPolicyCompanyId === 'cmt9nqjg50014ip4sl57j8n42') {
-      return [
-        { id: 'cmt9nqjwu0016ip4sfm9fzc8e', name: 'Mumbai Hospital & Medical Center', companyId: 'cmt9nqjg50014ip4sl57j8n42' },
-        { id: 'br-pune-clinic', name: 'Pune Regional Clinic', companyId: 'cmt9nqjg50014ip4sl57j8n42' },
-      ];
-    }
-    return [
-      { id: `br-${newPolicyCompanyId}-main`, name: 'Main Branch / Head Office', companyId: newPolicyCompanyId },
-      { id: `br-${newPolicyCompanyId}-unit1`, name: 'Unit 1 Operations Facility', companyId: newPolicyCompanyId },
-    ];
+    return [];
   }, [allBranches, newPolicyCompanyId]);
 
   // Handler: When company changes, reset branch to first valid branch of this company only
@@ -767,19 +730,7 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
     const forCompany = (allBranches && allBranches.length > 0)
       ? allBranches.filter((b: any) => b.companyId === companyIdVal)
       : [];
-    if (forCompany.length > 0) {
-      setNewPolicyBranchId(forCompany[0].id);
-    } else if (companyIdVal === 'cmto136wt01ibipkgbon2sw9s') {
-      setNewPolicyBranchId('cmto7b80c0071ipd82cji7qgd');
-    } else if (companyIdVal === 'cmsofshgq0014ip4cjrdes1it') {
-      setNewPolicyBranchId('cmsyha6360015ipb41brgwewi');
-    } else if (companyIdVal === 'cmsogicm90001iphsv07hvbhc') {
-      setNewPolicyBranchId('cmsogkyxl0005iphs4mqhbxsx');
-    } else if (companyIdVal === 'cmt9nqjg50014ip4sl57j8n42') {
-      setNewPolicyBranchId('cmt9nqjwu0016ip4sfm9fzc8e');
-    } else {
-      setNewPolicyBranchId(`br-${companyIdVal}-main`);
-    }
+    setNewPolicyBranchId(forCompany[0]?.id || '');
   };
 
   // Handler: When industry changes, dynamically update Employee Category & Statutory Legal Framework
@@ -835,8 +786,8 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
   const handleOpenAddPolicyModal = () => {
     setNewPolicyName('');
     setNewPolicyDesc('');
-    setNewPolicyCompanyId(companyId || availableCompanies[0]?.id || 'cmto136wt01ibipkgbon2sw9s');
-    setNewPolicyBranchId('cmto7b80c0071ipd82cji7qgd');
+    setNewPolicyCompanyId(effectiveCompanyId || availableCompanies[0]?.id || '');
+    setNewPolicyBranchId('');
     setNewPolicyIndustry('Manufacturing / Factory');
     setNewPolicyCategory('Factory Workers & Plant Technicians');
     setNewPolicyEstablishment('The Factories Act, 1948 (Section 59 - 9h/day, 48h/wk)');
@@ -933,7 +884,13 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
   };
 
   // Manual Overtime Exception Form State
-  const [manualEmp, setManualEmp] = useState('cmto137hf01ihipkgkw9xjot0');
+  const [manualEmp, setManualEmp] = useState('');
+
+  useEffect(() => {
+    if ((!manualEmp || !employeesList.some((e: any) => e.id === manualEmp)) && employeesList.length > 0) {
+      setManualEmp(employeesList[0].id);
+    }
+  }, [employeesList, manualEmp]);
   const [manualDate, setManualDate] = useState('2026-09-10');
   const [manualDayType, setManualDayType] = useState<'NORMAL WORKDAY' | 'WEEKLY OFF' | 'HOLIDAY'>('NORMAL WORKDAY');
   const [manualIn, setManualIn] = useState('10:06 AM');
@@ -943,7 +900,8 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
   const [manualHourlyRate, setManualHourlyRate] = useState(150);
 
   const selectedPolicy = useMemo(() => {
-    return policies.find((p) => p.id === manualPolicyId) || policies[0];
+    const list = Array.isArray(policies) && policies.length > 0 ? policies : INITIAL_POLICIES;
+    return list.find((p: any) => p.id === manualPolicyId) || list[0] || INITIAL_POLICIES[0];
   }, [policies, manualPolicyId]);
 
   const selectedEmpObj = useMemo(() => {
@@ -1011,31 +969,36 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
     const outM = parseTimeToMinutes(manualOut);
     const elapsed = outM >= inM ? outM - inM : outM + 1440 - inM;
     const durationHours = parseFloat((elapsed / 60).toFixed(2));
-    const breakMins = selectedPolicy.breakDurationMins || 30;
+    const breakMins = selectedPolicy?.breakDurationMins ?? 30;
 
     // Company Policy: Break is included in the 9-hour working-day limit.
     // Do not deduct the 30-minute break again when determining OT (prevents double-counting).
-    const isBreakIncluded = selectedPolicy.breakTreatment === 'INCLUDED_IN_9H';
+    const isBreakIncluded = (selectedPolicy?.breakTreatment ?? 'INCLUDED_IN_9H') === 'INCLUDED_IN_9H';
     const effectiveWorkedHours = isBreakIncluded
       ? durationHours
       : Math.max(0, parseFloat(((elapsed - breakMins) / 60).toFixed(2)));
 
+    const threshold = selectedPolicy?.dailyThresholdHours ?? 9.0;
+    const normalMultiplier = selectedPolicy?.normalWorkdayMultiplier ?? 2.0;
+    const holidayMultiplier = selectedPolicy?.holidayMultiplier ?? 2.0;
+    const weeklyOffMultiplier = selectedPolicy?.weeklyOffMultiplier ?? 2.0;
+
     let otHours = 0;
     let otType: OvertimeLogItem['otType'] = 'Daily Threshold';
-    let multiplier = selectedPolicy.normalWorkdayMultiplier;
+    let multiplier = normalMultiplier;
 
     if (manualDayType === 'HOLIDAY') {
       otHours = durationHours;
       otType = 'Holiday Work';
-      multiplier = selectedPolicy.holidayMultiplier;
+      multiplier = holidayMultiplier;
     } else if (manualDayType === 'WEEKLY OFF') {
       otHours = durationHours;
       otType = 'Weekly Off';
-      multiplier = selectedPolicy.weeklyOffMultiplier;
+      multiplier = weeklyOffMultiplier;
     } else {
-      otHours = Math.max(0, effectiveWorkedHours - selectedPolicy.dailyThresholdHours);
+      otHours = Math.max(0, effectiveWorkedHours - threshold);
       otType = 'Daily Threshold';
-      multiplier = selectedPolicy.normalWorkdayMultiplier;
+      multiplier = normalMultiplier;
     }
 
     // Apply 15-min rounding
@@ -1050,7 +1013,7 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
       isBreakIncluded,
       effectiveWorkedHours,
       workedHours: durationHours,
-      threshold: selectedPolicy.dailyThresholdHours,
+      threshold,
       otHours,
       otType,
       multiplier,
@@ -1078,7 +1041,7 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
     }
 
     manualMutation.mutate({
-      companyId: companyId || 'cmto136wt01ibipkgbon2sw9s',
+      companyId: effectiveCompanyId || '',
       employeeId: manualEmp,
       workedDate: manualDate,
       dayType: manualDayType,
@@ -1945,7 +1908,7 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
                   <Input
                     type="text"
                     disabled
-                    value={`${selectedPolicy.breakDurationMins} Mins (Included in 9h)`}
+                    value={`${selectedPolicy?.breakDurationMins ?? 30} Mins (Included in 9h)`}
                     className="h-8 text-xs font-mono bg-muted text-muted-foreground cursor-not-allowed"
                   />
                 </div>
@@ -2001,7 +1964,7 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
               </div>
 
               <p className="text-[10px] text-muted-foreground leading-tight pt-1">
-                Policy Rule: 9h daily threshold includes {selectedPolicy.breakDurationMins}m break. Total duration ({formatDecimalHoursToHmA(liveCalc.durationHours)}) − {liveCalc.threshold}h normal limit = <strong>{formatDecimalHoursToHmA(liveCalc.otHours)} OT</strong>. Multiplier: {liveCalc.multiplier}× × ₹{manualHourlyRate}/hr = <strong>₹{liveCalc.otAmount.toLocaleString()}</strong> (Break included in 9h limit — No double deduction).
+                Policy Rule: 9h daily threshold includes {selectedPolicy?.breakDurationMins ?? 30}m break. Total duration ({formatDecimalHoursToHmA(liveCalc.durationHours)}) − {liveCalc.threshold}h normal limit = <strong>{formatDecimalHoursToHmA(liveCalc.otHours)} OT</strong>. Multiplier: {liveCalc.multiplier}× × ₹{manualHourlyRate}/hr = <strong>₹{liveCalc.otAmount.toLocaleString()}</strong> (Break included in 9h limit — No double deduction).
               </p>
             </div>
 
@@ -2227,16 +2190,16 @@ export function OvertimeManagementTab({ companyId }: { companyId?: string }) {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                   <div>
                     <span className="text-muted-foreground block text-[10px] uppercase font-bold">Category</span>
-                    <span className="font-semibold text-foreground">{selectedPolicyDetails.applicableCategory}</span>
+                    <span className="font-semibold text-foreground">{selectedPolicyDetails?.applicableCategory || '-'}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground block text-[10px] uppercase font-bold">Industry</span>
-                    <span className="font-semibold text-foreground">{selectedPolicyDetails.applicableIndustry || 'Standard Commercial'}</span>
+                    <span className="font-semibold text-foreground">{selectedPolicyDetails?.applicableIndustry || 'Standard Commercial'}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground block text-[10px] uppercase font-bold">Break Treatment</span>
                     <Badge variant="outline" className="text-[9.5px] bg-purple-50 text-purple-700 border-purple-200 font-bold">
-                      {selectedPolicyDetails.breakDurationMins}m ({selectedPolicyDetails.breakTreatment === 'EXCLUDED_FROM_THRESHOLD' ? 'Excluded' : 'Included in 9h limit'})
+                      {selectedPolicyDetails?.breakDurationMins ?? 30}m ({selectedPolicyDetails?.breakTreatment === 'EXCLUDED_FROM_THRESHOLD' ? 'Excluded' : 'Included in 9h limit'})
                     </Badge>
                   </div>
                 </div>

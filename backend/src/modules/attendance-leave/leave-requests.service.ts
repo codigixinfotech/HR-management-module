@@ -45,7 +45,7 @@ export class LeaveRequestsService {
     const where = {
       ...(employeeId ? { employeeId } : {}),
       ...(status ? { status } : {}),
-      ...(companyId ? { companyId } : {}),
+      ...(companyId ? { companyId, employee: { companyId } } : {}),
       ...(branchId ? { employee: { branchId } } : {}),
     };
 
