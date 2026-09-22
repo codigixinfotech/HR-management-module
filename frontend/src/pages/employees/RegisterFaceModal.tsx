@@ -161,25 +161,12 @@ export function RegisterFaceModal({
       const norm = Math.sqrt(sumSq) || 1.0;
       const canonicalDescriptor = averagedVector.map((v) => parseFloat((v / norm).toFixed(6)));
 
-      // Rich persistent metadata schema
-      const templateMetadata = {
-        model: 'face-api-faceRecognitionNet',
-        version: '1.0',
-        dimension: canonicalDescriptor.length,
-        samplesCount: samples.length,
-        registeredAt: new Date().toISOString(),
-        registeredBy: 'HR Administrator (System)',
-        status: 'ACTIVE',
-        embedding: canonicalDescriptor,
-      };
-
-      const templateString = JSON.stringify(templateMetadata);
+      // Canonical 128-D vector string expected by backend attendance validation
+      const templateString = JSON.stringify(canonicalDescriptor);
       const facePhotoDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
       console.log(`[Face Registration] Canonical Deep Biometric Template Generated:`, {
-        model: templateMetadata.model,
-        version: templateMetadata.version,
-        dimension: templateMetadata.dimension,
+        dimension: canonicalDescriptor.length,
         samples: samples.length,
         first5: canonicalDescriptor.slice(0, 5),
       });
@@ -187,8 +174,8 @@ export function RegisterFaceModal({
       const payload = {
         faceTemplate: templateString,
         facePhoto: facePhotoDataUrl,
-        faceRegisteredAt: templateMetadata.registeredAt,
-        faceRegisteredBy: templateMetadata.registeredBy,
+        faceRegisteredAt: new Date().toISOString(),
+        faceRegisteredBy: 'HR Administrator (System)',
       };
 
       const res = await employeesApi.update(employeeId, payload as any);

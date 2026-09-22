@@ -734,9 +734,9 @@ export function FaceAttendanceModal({
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     // Use the verified matched employee's actual DB employeeId
-    const targetEmp = matchedEmployee;
+    const targetEmp = matchedEmployee || selectedEmployee;
     const resolvedEmployeeId = targetEmp.id;
-    const resolvedCompanyId = targetEmp.companyId || authUser?.companyId || 'company-1';
+    const resolvedCompanyId = targetEmp.companyId || companyId || authUser?.companyId;
     const resolvedEmpCode = targetEmp.employeeCode || 'EMP-ID';
     const resolvedEmpName = `${targetEmp.firstName} ${targetEmp.lastName}`;
     const resolvedDepartment = targetEmp.department?.name || targetEmp.departmentName || 'Operations';
