@@ -159,11 +159,52 @@ export class BranchesService {
           existingEmp = await this.prisma.employee.findFirst({ where: { employeeCode: empCode } });
         }
 
+        // Auto-provision or link Administration department for this branch
+        let adminDept = await this.prisma.department.findFirst({
+          where: {
+            companyId: branch.companyId,
+            name: { in: ['Administration', 'Administration Head', 'Admin', 'Branch Administration'] },
+          },
+        });
+        if (!adminDept) {
+          const deptCode = `ADM-${branch.code.replace(/[^a-zA-Z0-9]/g, '')}`;
+          adminDept = await this.prisma.department.create({
+            data: {
+              companyId: branch.companyId,
+              branchId: branch.id,
+              code: deptCode,
+              name: 'Administration',
+              type: 'Functional',
+            },
+          });
+        }
+
+        // Auto-provision or link Branch Administrator designation
+        let branchAdminDesig = await this.prisma.designation.findFirst({
+          where: {
+            companyId: branch.companyId,
+            title: { in: ['Branch Administrator', 'Branch Admin'] },
+          },
+        });
+        if (!branchAdminDesig) {
+          const desigCode = `BA-${branch.code.replace(/[^a-zA-Z0-9]/g, '')}`;
+          branchAdminDesig = await this.prisma.designation.create({
+            data: {
+              companyId: branch.companyId,
+              departmentId: adminDept.id,
+              code: desigCode,
+              title: 'Branch Administrator',
+            },
+          });
+        }
+
         await this.prisma.employee.create({
           data: {
             employeeCode: empCode,
             companyId: branch.companyId,
             branchId: branch.id,
+            departmentId: adminDept.id,
+            designationId: branchAdminDesig.id,
             userId: user.id,
             firstName,
             lastName,

@@ -799,10 +799,50 @@ export class SubscriptionsService {
       const firstName = nameParts[0] || 'Admin';
       const lastName = nameParts.slice(1).join(' ') || 'User';
 
+      // Auto-provision or link Management department for this company
+      let mgmtDept = await tx.department.findFirst({
+        where: {
+          companyId: company.id,
+          name: { in: ['Management', 'Executive Management', 'Corporate Management', 'Administration'] },
+        },
+      });
+      if (!mgmtDept) {
+        const cleanCompCode = company.code.replace(/[^a-zA-Z0-9]/g, '');
+        mgmtDept = await tx.department.create({
+          data: {
+            companyId: company.id,
+            code: `MGMT-${cleanCompCode}`,
+            name: 'Management',
+            type: 'Functional',
+          },
+        });
+      }
+
+      // Auto-provision or link Company Administrator designation
+      let compAdminDesig = await tx.designation.findFirst({
+        where: {
+          companyId: company.id,
+          title: { in: ['Company Administrator', 'Company Admin', 'Executive Director'] },
+        },
+      });
+      if (!compAdminDesig) {
+        const cleanCompCode = company.code.replace(/[^a-zA-Z0-9]/g, '');
+        compAdminDesig = await tx.designation.create({
+          data: {
+            companyId: company.id,
+            departmentId: mgmtDept.id,
+            code: `CA-${cleanCompCode}`,
+            title: 'Company Administrator',
+          },
+        });
+      }
+
       await tx.employee.create({
         data: {
           employeeCode: `${company.code}-001`,
           companyId: company.id,
+          departmentId: mgmtDept.id,
+          designationId: compAdminDesig.id,
           userId: user.id,
           firstName,
           lastName,

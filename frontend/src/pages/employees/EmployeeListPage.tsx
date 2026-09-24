@@ -10,7 +10,6 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { EmployeeDirectoryTab } from './EmployeeDirectoryTab';
 import { EmployeeMasterTab } from './EmployeeMasterTab';
 import { DocumentVaultTab } from './DocumentVaultTab';
-import { SkillsCertificationsTab } from './SkillsCertificationsTab';
 import { TransfersPromotionsTab } from './TransfersPromotionsTab';
 import { ExitManagementTab } from './ExitManagementTab';
 import { EmployeeReportsTab } from './EmployeeReportsTab';
@@ -35,65 +34,70 @@ export default function EmployeeListPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={Users}
-        title="Employee Directory & Lifecycle Master"
-        description="Complete employee master profile, digital document vault, transfers, skill records & exit offboarding"
-        badge={`${data?.total ?? 0} Total Active Personnel`}
-        badgeVariant="success"
-        actions={
-          isAddingMaster ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5 text-xs border-border/80"
-              onClick={() => navigate('/employees/master')}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Discard & Back
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="gap-1.5 text-xs"
-              onClick={() => navigate('/employees/master?action=new')}
-            >
-              <Plus className="h-3.5 w-3.5" /> Add Employee Master
-            </Button>
-          )
-        }
-      />
+      {/* PageHeader and Top StatCards — Hidden on 'reports' tab to avoid double cards and irrelevant master action */}
+      {activeTab !== 'reports' && (
+        <>
+          <PageHeader
+            icon={Users}
+            title="Employee Directory & Lifecycle Master"
+            description="Complete employee master profile, digital document vault, transfers, skill records & exit offboarding"
+            badge={`${data?.total ?? 0} Total Active Personnel`}
+            badgeVariant="success"
+            actions={
+              isAddingMaster ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs border-border/80"
+                  onClick={() => navigate('/employees/master')}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> Discard & Back
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  onClick={() => navigate('/employees/master?action=new')}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Employee Master
+                </Button>
+              )
+            }
+          />
 
-      {/* Metrics */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          icon={Users}
-          label="Total Active Employees"
-          value={`${data?.total ?? 0}`}
-          hint="100% Payroll Enrolled"
-          accent="success"
-        />
-        <StatCard
-          icon={ShieldCheck}
-          label="Verified Documents"
-          value="96.8%"
-          hint="Aadhaar & PAN Synced"
-          accent="info"
-        />
-        <StatCard
-          icon={ArrowRightLeft}
-          label="Promotions & Transfers YTD"
-          value="12"
-          hint="Internal Career Progression"
-          accent="primary"
-        />
-        <StatCard
-          icon={UserX}
-          label="Annual Attrition Rate"
-          value="3.8%"
-          hint="Low Attrition Score"
-          accent="warning"
-        />
-      </div>
+          {/* Metrics */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <StatCard
+              icon={Users}
+              label="Total Active Employees"
+              value={`${data?.total ?? 0}`}
+              hint="100% Payroll Enrolled"
+              accent="success"
+            />
+            <StatCard
+              icon={ShieldCheck}
+              label="Verified Documents"
+              value="96.8%"
+              hint="Aadhaar & PAN Synced"
+              accent="info"
+            />
+            <StatCard
+              icon={ArrowRightLeft}
+              label="Promotions & Transfers YTD"
+              value="12"
+              hint="Internal Career Progression"
+              accent="primary"
+            />
+            <StatCard
+              icon={UserX}
+              label="Annual Attrition Rate"
+              value="3.8%"
+              hint="Low Attrition Score"
+              accent="warning"
+            />
+          </div>
+        </>
+      )}
 
       {/* Render Dedicated Subpage based on activeTab */}
       {activeTab === 'directory' && (

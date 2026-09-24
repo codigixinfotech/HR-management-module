@@ -250,6 +250,16 @@ export interface Employee {
   department?: { id: string; name: string } | null;
   designation?: { id: string; title: string } | null;
   reportingManager?: { id: string; firstName: string; lastName: string } | null;
+  user?: {
+    id: string;
+    roles?: Array<{
+      role: {
+        id: string;
+        name: string;
+        dataScope?: string;
+      };
+    }>;
+  } | null;
   documents?: EmployeeDocument[];
   onboardingTasks?: OnboardingTask[];
   courseEnrollments?: any[];
