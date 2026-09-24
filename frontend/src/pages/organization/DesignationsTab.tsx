@@ -99,6 +99,29 @@ const LEVEL_BADGE: Record<string, string> = {
   'L5': 'bg-rose-500/10 text-rose-600 border-rose-500/20',
 };
 
+export function getDesignationBranchTag(branchId?: string, branchesList?: Branch[]): string {
+  if (!branchId || branchId === 'HEAD_OFFICE' || branchId === 'NONE') return 'HQ';
+  const branch = branchesList?.find((b) => b.id === branchId);
+  if (!branch) return 'BR';
+  if (branch.code && String(branch.code).trim()) {
+    const clean = String(branch.code).trim().replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (clean) return clean;
+  }
+  const cleanName = (branch.name || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 4);
+  return cleanName || 'BR';
+}
+
+export function getDesignationCompanyTag(companyId?: string, companies?: Company[]): string {
+  const company = companies?.find((c) => c.id === companyId);
+  if (!company) return '';
+  if (company.code && String(company.code).trim()) {
+    const clean = String(company.code).trim().replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (clean) return clean;
+  }
+  const cleanName = (company.name || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 4);
+  return cleanName || '';
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 export function DesignationsTab({ companyId, companies }: { companyId?: string; companies: Company[] }) {
   const queryClient = useQueryClient();
@@ -239,10 +262,10 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
     [branchPayGrades, watchedGrade]
   );
 
-  // ── Auto-generate Designation Code from title ────────────────────────────────
+  // ── Auto-generate Scoped Designation Code from title, company, and branch ──────
   useEffect(() => {
     if (editing) return;
-    if (!watchedTitle) {
+    if (!watchedTitle || !watchedTitle.trim()) {
       form.setValue('code', '');
       return;
     }
@@ -251,8 +274,64 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
       .replace(/[^A-Z0-9\s]/g, '')
       .trim()
       .replace(/\s+/g, '-');
-    form.setValue('code', cleanTitle ? `DESG-${cleanTitle}` : '');
-  }, [watchedTitle, form, editing]);
+    if (!cleanTitle) {
+      form.setValue('code', '');
+      return;
+    }
+
+    const compTag = getDesignationCompanyTag(selectedCompanyId, companies);
+    const brTag = getDesignationBranchTag(modalBranchId, branchesList);
+    const cleanBranchId = modalBranchId === 'HEAD_OFFICE' || modalBranchId === 'NONE' ? null : modalBranchId;
+
+    let prefix = 'DESG';
+    if (compTag) prefix += `-${compTag}`;
+    if (brTag) prefix += `-${brTag}`;
+    const baseCode = `${prefix}-${cleanTitle}`;
+
+    const isCodeTaken = (candidate: string) => {
+      return (designations || []).some((d) => {
+        if (d.companyId !== selectedCompanyId) return false;
+        const dBranch = d.branchId ?? d.department?.branchId ?? null;
+        return dBranch === cleanBranchId && d.code.toUpperCase() === candidate.toUpperCase();
+      });
+    };
+
+    let generatedCode = baseCode;
+    if (isCodeTaken(generatedCode)) {
+      let counter = 2;
+      while (isCodeTaken(`${baseCode}-${counter}`)) {
+        counter++;
+      }
+      generatedCode = `${baseCode}-${counter}`;
+    }
+    form.setValue('code', generatedCode, { shouldValidate: true, shouldDirty: true });
+  }, [watchedTitle, modalBranchId, selectedCompanyId, companies, branchesList, designations, editing, form]);
+
+  // ── Scoped Duplicate Checks ──────────────────────────────────────────────────
+  const cleanModalBranchId = modalBranchId === 'HEAD_OFFICE' || modalBranchId === 'NONE' ? null : modalBranchId;
+
+  const isDuplicateTitleInBranch = useMemo(() => {
+    if (!watchedTitle || !watchedTitle.trim()) return false;
+    const cleanTitle = watchedTitle.trim().toLowerCase();
+    return (designations || []).some((d) => {
+      if (editing && d.id === editing.id) return false;
+      if (d.companyId !== selectedCompanyId) return false;
+      const dBranch = d.branchId ?? d.department?.branchId ?? null;
+      return dBranch === cleanModalBranchId && d.title.trim().toLowerCase() === cleanTitle;
+    });
+  }, [watchedTitle, selectedCompanyId, cleanModalBranchId, designations, editing]);
+
+  const isDuplicateCodeInBranch = useMemo(() => {
+    const code = form.watch('code');
+    if (!code || !code.trim()) return false;
+    const cleanCode = code.trim().toUpperCase();
+    return (designations || []).some((d) => {
+      if (editing && d.id === editing.id) return false;
+      if (d.companyId !== selectedCompanyId) return false;
+      const dBranch = d.branchId ?? d.department?.branchId ?? null;
+      return dBranch === cleanModalBranchId && d.code.trim().toUpperCase() === cleanCode;
+    });
+  }, [form.watch('code'), selectedCompanyId, cleanModalBranchId, designations, editing]);
 
   // ── Hierarchy Change Handlers ───────────────────────────────────────────────
   const handleCompanyChange = (newCompanyId: string) => {
@@ -308,17 +387,10 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
     form.setValue('gradeId', g?.id ?? '', { shouldValidate: true, shouldDirty: true });
     form.setValue('level', g?.level ?? '', { shouldValidate: true, shouldDirty: true });
 
-    // Auto-populate Job Designation Title and Code from grade
+    // Auto-populate Job Designation Title from grade (Code will be generated automatically via useEffect)
     if (g?.gradeName) {
       form.setValue('title', g.gradeName, { shouldValidate: true, shouldDirty: true });
       setTitleManuallyEdited(false);
-
-      const cleanTitle = g.gradeName
-        .toUpperCase()
-        .replace(/[^A-Z0-9\s]/g, '')
-        .trim()
-        .replace(/\s+/g, '-');
-      form.setValue('code', cleanTitle ? `DESG-${cleanTitle}` : '', { shouldValidate: true, shouldDirty: true });
     }
 
     // Auto-populate salary from Grade Master (source of truth)
@@ -359,6 +431,13 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
   // ── Mutations ────────────────────────────────────────────────────────────────
   const upsertMutation = useMutation({
     mutationFn: async (values: DesignationFormValues) => {
+      if (isDuplicateTitleInBranch) {
+        throw new Error(`${watchedTitle} already exists in this ${cleanModalBranchId ? 'branch' : 'Head Office'}`);
+      }
+      if (isDuplicateCodeInBranch) {
+        throw new Error(`A designation with code "${values.code}" already exists in this ${cleanModalBranchId ? 'branch' : 'Head Office'}`);
+      }
+
       // Use manual salary override if user changed the CTC fields
       const calcMin = minAnnualVal !== '' && !isNaN(Number(minAnnualVal))
         ? Number(minAnnualVal) * getDesigSalaryMultiplier(minAnnualUnit)
@@ -382,9 +461,10 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
         safeEffectiveFrom = new Date().toISOString();
       }
 
-      const { branchId: _unusedBranchId, ...restValues } = values;
+      const cleanBranchPayload = modalBranchId === 'HEAD_OFFICE' || modalBranchId === 'NONE' ? null : modalBranchId;
       const payload = {
-        ...restValues,
+        ...values,
+        branchId: cleanBranchPayload,
         gradeId: values.gradeId && values.gradeId !== '' ? values.gradeId : null,
         level: values.level || null,
         departmentId: (values.departmentId && values.departmentId !== 'none') ? values.departmentId : null,
@@ -471,8 +551,8 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
     setMaxAnnualVal(maxP.value);
     setMaxAnnualUnit(maxP.unit);
 
-    // Resolve branch from department or payGrade (null = Head Office)
-    const rawBranchId = designation.department?.branchId || designation.payGrade?.branchId;
+    // Resolve branch from designation, department or payGrade (null = Head Office)
+    const rawBranchId = designation.branchId || designation.department?.branchId || designation.payGrade?.branchId;
     const resolvedBranchId = rawBranchId ? rawBranchId : 'HEAD_OFFICE';
 
     form.reset({
@@ -504,12 +584,12 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
     if (effectiveBranchFilter && effectiveBranchFilter !== 'ALL') {
       if (effectiveBranchFilter === 'HEAD_OFFICE') {
         list = list.filter((d) => {
-          const bId = d.department?.branchId || d.payGrade?.branchId;
+          const bId = d.branchId || d.department?.branchId || d.payGrade?.branchId;
           return !bId;
         });
       } else {
         list = list.filter((d) => {
-          const bId = d.department?.branchId || d.payGrade?.branchId;
+          const bId = d.branchId || d.department?.branchId || d.payGrade?.branchId;
           return bId === effectiveBranchFilter;
         });
       }
@@ -744,9 +824,14 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                         placeholder="e.g. DESG-101"
                         value={form.watch('code') || ''}
                         onChange={(e) => form.setValue('code', e.target.value, { shouldValidate: true, shouldDirty: true })}
-                        className="h-9 text-xs font-mono"
+                        className={`h-9 text-xs font-mono ${isDuplicateCodeInBranch ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                       />
                       {form.formState.errors.code && <p className="text-[10px] text-destructive">{form.formState.errors.code.message}</p>}
+                      {isDuplicateCodeInBranch && (
+                        <p className="text-[10px] text-destructive font-medium mt-1">
+                          A designation with this code already exists in this {cleanModalBranchId ? 'branch' : 'Head Office'}.
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold flex items-center gap-1.5">
@@ -766,9 +851,14 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                             setTitleManuallyEdited(true);
                           }
                         }}
-                        className="h-9 text-xs font-medium"
+                        className={`h-9 text-xs font-medium ${isDuplicateTitleInBranch ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                       />
                       {form.formState.errors.title && <p className="text-[10px] text-destructive">{form.formState.errors.title.message}</p>}
+                      {isDuplicateTitleInBranch && (
+                        <p className="text-[10px] text-destructive font-medium mt-1">
+                          {watchedTitle} already exists in this {cleanModalBranchId ? 'branch' : 'Head Office'}.
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -979,8 +1069,8 @@ export function DesignationsTab({ companyId, companies }: { companyId?: string; 
                   <TableCell className="text-xs font-medium text-muted-foreground">
                     <div>{designation.department?.name ?? 'General Corporate'}</div>
                     {(() => {
-                      const bId = designation.department?.branchId || designation.payGrade?.branchId;
-                      const branchObj = branchesList?.find((b) => b.id === bId);
+                      const bId = designation.branchId || designation.department?.branchId || designation.payGrade?.branchId;
+                      const branchObj = designation.branch || branchesList?.find((b) => b.id === bId);
                       return (
                         <div className="text-[10px] text-muted-foreground/80 font-normal mt-0.5 flex items-center gap-1">
                           <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400"></span>

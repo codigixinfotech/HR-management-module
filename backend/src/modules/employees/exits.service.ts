@@ -79,7 +79,16 @@ export class ExitsService implements OnModuleInit {
         OR: [{ companyId }, { employee: { companyId } }],
       });
     }
-    if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+    if (branchId === 'NO_BRANCH_ASSIGNED') {
+      return {
+        totalExits: 0,
+        activeOffboardings: 0,
+        pendingApprovals: 0,
+        avgExitDays: 0,
+      };
+    } else if (branchId === 'HEAD_OFFICE' || branchId === 'NONE') {
+      conditions.push({ employee: { branchId: null } });
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
       conditions.push({
         employee: { branchId },
       });
@@ -140,7 +149,11 @@ export class ExitsService implements OnModuleInit {
       });
     }
 
-    if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+    if (branchId === 'NO_BRANCH_ASSIGNED') {
+      return [];
+    } else if (branchId === 'HEAD_OFFICE' || branchId === 'NONE') {
+      conditions.push({ employee: { branchId: null } });
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
       conditions.push({
         employee: { branchId },
       });

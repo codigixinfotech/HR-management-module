@@ -27,9 +27,10 @@ export class DesignationsController {
     @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
     @Query('departmentId') departmentId?: string,
+    @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.designationsService.list(tenantCompanyId, departmentId);
+    return this.designationsService.list(tenantCompanyId, departmentId, branchId);
   }
 
   @Get(':id')

@@ -66,8 +66,8 @@ export const departmentsApi = {
 };
 
 export const designationsApi = {
-  list: async (companyId?: string, departmentId?: string) =>
-    (await apiClient.get<Designation[]>('/organization/designations', { params: { companyId, departmentId } })).data,
+  list: async (companyId?: string, departmentId?: string, branchId?: string) =>
+    (await apiClient.get<Designation[]>('/organization/designations', { params: { companyId, departmentId, branchId } })).data,
   create: async (payload: Partial<Designation>) =>
     (await apiClient.post<Designation>('/organization/designations', payload)).data,
   update: async (id: string, payload: Partial<Designation>) =>

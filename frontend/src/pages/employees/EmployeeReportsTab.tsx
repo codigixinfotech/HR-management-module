@@ -29,6 +29,7 @@ import { Pagination } from '@/components/common/Pagination';
 import { employeesApi } from '@/api/employees';
 import { departmentsApi } from '@/api/organization';
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Employee } from '@/api/types';
 
 // Vibrant Curated Color Palette for Charts
@@ -65,6 +66,23 @@ function calculateAgeYears(dobStr?: string | null): number | null {
 
 export function EmployeeReportsTab() {
   const { activeCompanyId } = useCompany();
+  const user = useAuthStore((s) => s.user);
+
+  const isBranchAdmin = useMemo(() => {
+    if (!user) return false;
+    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
+    const primary = user.primaryRole?.toUpperCase();
+    return (
+      roles.includes('BRANCH_ADMIN') ||
+      roles.includes('BRANCH ADMIN') ||
+      primary === 'BRANCH_ADMIN' ||
+      primary === 'BRANCH ADMIN' ||
+      Boolean(user.branchId)
+    );
+  }, [user]);
+
+  const assignedBranchId = user?.branchId || user?.employee?.branchId;
+  const effectiveBranchId = isBranchAdmin && assignedBranchId ? assignedBranchId : undefined;
 
   // Filter States
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('all');
@@ -79,10 +97,10 @@ export function EmployeeReportsTab() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(15);
 
-  // Fetch all employees for active company
+  // Fetch all employees for active company & branch
   const { data: employeeData, isLoading } = useQuery({
-    queryKey: ['employees', 'reports', activeCompanyId],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: activeCompanyId }),
+    queryKey: ['employees', 'reports', activeCompanyId, effectiveBranchId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: activeCompanyId, branchId: effectiveBranchId }),
   });
 
   const employees: Employee[] = useMemo(() => employeeData?.items || [], [employeeData]);

@@ -1,19 +1,33 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Injectable()
 export class TransfersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(companyId?: string) {
-    const transfers: any[] = companyId
-      ? await this.prisma.$queryRawUnsafe(
-          'SELECT t.* FROM employee_transfers t JOIN employees e ON t.employeeId = e.id WHERE e.companyId = ? ORDER BY t.createdAt DESC',
-          companyId,
-        )
-      : await this.prisma.$queryRawUnsafe(
-          'SELECT * FROM employee_transfers ORDER BY createdAt DESC',
-        );
+  async list(companyId?: string, branchId?: string) {
+    if (branchId === 'NO_BRANCH_ASSIGNED') {
+      return [];
+    }
+
+    let sql = 'SELECT t.* FROM employee_transfers t JOIN employees e ON t.employeeId = e.id WHERE 1=1';
+    const params: any[] = [];
+
+    if (companyId) {
+      sql += ' AND e.companyId = ?';
+      params.push(companyId);
+    }
+
+    if (branchId === 'HEAD_OFFICE' || branchId === 'NONE') {
+      sql += ' AND (e.branchId IS NULL AND (t.prevBranchId IS NULL OR t.prevBranchId = "NONE") AND (t.newBranchId IS NULL OR t.newBranchId = "NONE"))';
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+      sql += ' AND (e.branchId = ? OR t.prevBranchId = ? OR t.newBranchId = ?)';
+      params.push(branchId, branchId, branchId);
+    }
+
+    sql += ' ORDER BY t.createdAt DESC';
+
+    const transfers: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
     
     const enriched: any[] = [];
     for (const t of transfers) {
@@ -128,22 +142,41 @@ export class TransfersService {
     };
   }
 
-  async create(dto: {
-    employeeId: string;
-    movementType: string;
-    newDepartmentId?: string;
-    newDesignationId?: string;
-    newGradeId?: string;
-    newBranchId?: string;
-    newReportingManagerId?: string;
-    effectiveDate: string;
-    reason: string;
-    remarks?: string;
-  }) {
+  async create(
+    dto: {
+      employeeId: string;
+      movementType: string;
+      newDepartmentId?: string;
+      newDesignationId?: string;
+      newGradeId?: string;
+      newBranchId?: string;
+      newReportingManagerId?: string;
+      effectiveDate: string;
+      reason: string;
+      remarks?: string;
+    },
+    tenantCompanyId?: string,
+    tenantBranchId?: string,
+  ) {
     const emp = await this.prisma.employee.findUnique({
       where: { id: dto.employeeId },
     });
     if (!emp) throw new NotFoundException('Employee not found');
+
+    if (tenantCompanyId && emp.companyId !== tenantCompanyId) {
+      throw new ForbiddenException('Cannot transfer employee belonging to another company');
+    }
+
+    if (
+      tenantBranchId &&
+      tenantBranchId !== 'ALL' &&
+      tenantBranchId !== 'HEAD_OFFICE' &&
+      tenantBranchId !== 'NO_BRANCH_ASSIGNED'
+    ) {
+      if (emp.branchId !== tenantBranchId) {
+        throw new ForbiddenException('You can only initiate movements for employees in your assigned branch');
+      }
+    }
 
     const id = 'trf_' + Math.random().toString(36).substring(2, 11);
     const effDate = new Date(dto.effectiveDate);

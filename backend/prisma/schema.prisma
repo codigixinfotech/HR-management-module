@@ -357,6 +357,7 @@ model Branch {
   locations   Location[]
   costCenters CostCenter[]
   payGrades   PayGrade[]
+  designations Designation[]
   travelBookings TravelBooking[]
   assets Asset[]
   manpowerPlans ManpowerPlan[]
@@ -437,6 +438,7 @@ model Department {
 model Designation {
   id                     String   @id @default(cuid())
   companyId              String
+  branchId               String?
   departmentId           String?
   code                   String
   title                  String
@@ -455,6 +457,7 @@ model Designation {
   updatedAt              DateTime @updatedAt
 
   company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch               Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
   department           Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   payGrade             PayGrade?     @relation(fields: [gradeId], references: [id], onDelete: SetNull)
   reportingDesignation Designation?  @relation("DesignationHierarchy", fields: [reportingDesignationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -464,7 +467,9 @@ model Designation {
   manpowerPlans        ManpowerPlan[]
   travelBookings       TravelBooking[]
 
-  @@unique([companyId, code])
+  @@unique([companyId, branchId, code])
+  @@index([companyId])
+  @@index([branchId])
   @@index([departmentId])
   @@index([gradeId])
   @@map("designations")

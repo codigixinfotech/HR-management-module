@@ -17,8 +17,7 @@ export function isUserSuperAdmin(
     roles.includes('BRANCH_ADMIN') ||
     roles.includes('BRANCH ADMIN') ||
     primaryRole === 'BRANCH_ADMIN' ||
-    primaryRole === 'BRANCH ADMIN' ||
-    Boolean(user.branchId);
+    primaryRole === 'BRANCH ADMIN';
 
   if (isBranchAdmin) return false;
 
@@ -91,7 +90,6 @@ export function getTenantBranchId(
     queryBranchId &&
     queryBranchId.trim() &&
     queryBranchId.trim() !== 'ALL' &&
-    queryBranchId.trim() !== 'HEAD_OFFICE' &&
     queryBranchId.trim() !== 'undefined' &&
     queryBranchId.trim() !== 'null'
       ? queryBranchId.trim()
@@ -114,12 +112,23 @@ export function getTenantBranchId(
     roles.includes('BRANCH_ADMIN') ||
     roles.includes('BRANCH ADMIN') ||
     primaryRole === 'BRANCH_ADMIN' ||
-    primaryRole === 'BRANCH ADMIN' ||
-    Boolean(user.branchId);
+    primaryRole === 'BRANCH ADMIN';
 
   if (isBranchAdmin) {
     const assignedBranchId = user.branchId || user.employee?.branchId;
     return assignedBranchId || 'NO_BRANCH_ASSIGNED';
+  }
+
+  // Head Office Admin is restricted to Head Office only
+  const isHeadOfficeAdmin =
+    roles.includes('HEAD_OFFICE_ADMIN') ||
+    roles.includes('HEAD_OFFICE') ||
+    roles.includes('HO_ADMIN') ||
+    primaryRole === 'HEAD_OFFICE_ADMIN' ||
+    primaryRole === 'HO_ADMIN';
+
+  if (isHeadOfficeAdmin) {
+    return 'HEAD_OFFICE';
   }
 
   // For Company Admin, return cleanQueryBranch for service-level or validateTenantBranchId validation
@@ -136,7 +145,7 @@ export async function validateTenantBranchId(
   queryBranchId?: string,
 ): Promise<string | undefined> {
   const branchId = getTenantBranchId(user, queryBranchId);
-  if (!branchId || branchId === 'NO_BRANCH_ASSIGNED' || !user || isUserSuperAdmin(user)) {
+  if (!branchId || branchId === 'NO_BRANCH_ASSIGNED' || branchId === 'HEAD_OFFICE' || !user || isUserSuperAdmin(user)) {
     return branchId;
   }
 

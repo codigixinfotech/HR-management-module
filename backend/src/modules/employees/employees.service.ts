@@ -286,9 +286,19 @@ export class EmployeesService implements OnModuleInit {
 
   async list(query: PaginationQueryDto, companyId?: string, branchId?: string) {
     const { skip, take, page, pageSize } = buildPagination(query);
+
+    let branchWhere: any = {};
+    if (branchId === 'NO_BRANCH_ASSIGNED') {
+      branchWhere = { branchId: 'NO_BRANCH_ASSIGNED' };
+    } else if (branchId === 'HEAD_OFFICE' || branchId === 'NONE') {
+      branchWhere = { branchId: null };
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+      branchWhere = { branchId };
+    }
+
     const where = {
       ...(companyId ? { companyId } : {}),
-      ...(branchId ? { branchId } : {}),
+      ...branchWhere,
       ...(query.search
         ? {
           OR: [

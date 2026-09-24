@@ -7,6 +7,10 @@ export class CreateDesignationDto {
 
   @IsOptional()
   @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
   departmentId?: string;
 
   @IsString()

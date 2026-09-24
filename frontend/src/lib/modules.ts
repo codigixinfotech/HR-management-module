@@ -506,20 +506,33 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
 
 export function isBranchAdminUser(user?: any): boolean {
   if (!user) return false;
-  if (user.role === 'BRANCH_ADMIN' || user.role === 'Branch Admin') return true;
-  const roleStr = `${user.role || ''} ${user.primaryRole || ''} ${(user.roles || []).join(' ')}`.toUpperCase();
-  if (roleStr.includes('BRANCH_ADMIN') || roleStr.includes('BRANCH ADMIN')) return true;
-  if (Boolean(user.branchId)) return true;
-  return false;
+  const roles = (user.roles ?? [])
+    .filter((r: any): r is string => typeof r === 'string')
+    .map((r: string) => r.trim().toUpperCase());
+  const primaryRole = (user.primaryRole || user.role || '').trim().toUpperCase();
+
+  return (
+    roles.includes('BRANCH_ADMIN') ||
+    roles.includes('BRANCH ADMIN') ||
+    primaryRole === 'BRANCH_ADMIN' ||
+    primaryRole === 'BRANCH ADMIN'
+  );
 }
 
 export function isCompanyAdminUser(user?: any): boolean {
   if (!user) return false;
   if (isBranchAdminUser(user)) return false;
-  if (user.role === 'COMPANY_ADMIN' || user.role === 'Company Admin') return true;
-  const roleStr = `${user.role || ''} ${user.primaryRole || ''} ${(user.roles || []).join(' ')}`.toUpperCase();
-  if (roleStr.includes('COMPANY_ADMIN') || roleStr.includes('COMPANY ADMIN')) return true;
-  return false;
+  const roles = (user.roles ?? [])
+    .filter((r: any): r is string => typeof r === 'string')
+    .map((r: string) => r.trim().toUpperCase());
+  const primaryRole = (user.primaryRole || user.role || '').trim().toUpperCase();
+
+  return (
+    roles.includes('COMPANY_ADMIN') ||
+    roles.includes('COMPANY ADMIN') ||
+    primaryRole === 'COMPANY_ADMIN' ||
+    primaryRole === 'COMPANY ADMIN'
+  );
 }
 
 export function isSuperAdminUser(user?: any): boolean {
@@ -529,27 +542,10 @@ export function isSuperAdminUser(user?: any): boolean {
     .filter((r: any): r is string => typeof r === 'string')
     .map((r: string) => r.trim().toUpperCase());
 
-  const primaryRole = user.primaryRole?.trim().toUpperCase();
+  const primaryRole = (user.primaryRole || user.role || '').trim().toUpperCase();
 
-  // Explicit lower-level admin roles ALWAYS win.
-  const isBranchAdmin =
-    roles.includes('BRANCH_ADMIN') ||
-    roles.includes('BRANCH ADMIN') ||
-    primaryRole === 'BRANCH_ADMIN' ||
-    primaryRole === 'BRANCH ADMIN' ||
-    Boolean(user.branchId);
+  if (isBranchAdminUser(user) || isCompanyAdminUser(user)) return false;
 
-  if (isBranchAdmin) return false;
-
-  const isCompanyAdmin =
-    roles.includes('COMPANY_ADMIN') ||
-    roles.includes('COMPANY ADMIN') ||
-    primaryRole === 'COMPANY_ADMIN' ||
-    primaryRole === 'COMPANY ADMIN';
-
-  if (isCompanyAdmin) return false;
-
-  // Super Admin should be determined by an explicit role
   return (
     roles.includes('SUPER_ADMIN') ||
     roles.includes('SUPERADMIN') ||

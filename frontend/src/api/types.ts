@@ -102,6 +102,8 @@ export interface Department {
 export interface Designation {
   id: string;
   companyId: string;
+  branchId?: string | null;
+  branch?: { id: string; name: string; code?: string } | null;
   departmentId?: string | null;
   department?: {
     id: string;
