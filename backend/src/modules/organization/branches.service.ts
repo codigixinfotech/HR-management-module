@@ -145,33 +145,6 @@ export class BranchesService {
           },
           include: { roles: { include: { role: true } } },
         });
-
-        const nameParts = (branch.manager || 'Branch Admin').trim().split(' ');
-        const firstName = nameParts[0] || 'Branch';
-        const lastName = nameParts.slice(1).join(' ') || 'Admin';
-
-        let empCode = `${branch.code}-001`;
-        let existingEmp = await this.prisma.employee.findFirst({ where: { employeeCode: empCode } });
-        let counter = 1;
-        while (existingEmp) {
-          counter++;
-          empCode = `${branch.code}-${String(counter).padStart(3, '0')}`;
-          existingEmp = await this.prisma.employee.findFirst({ where: { employeeCode: empCode } });
-        }
-
-        await this.prisma.employee.create({
-          data: {
-            employeeCode: empCode,
-            companyId: branch.companyId,
-            branchId: branch.id,
-            userId: user.id,
-            firstName,
-            lastName,
-            workEmail: user.email,
-            status: 'ACTIVE',
-            employmentType: 'PERMANENT',
-          },
-        });
       }
     }
 

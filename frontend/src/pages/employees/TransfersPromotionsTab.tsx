@@ -25,9 +25,30 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { employeesApi } from '@/api/employees';
 import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/api/organization';
 import { payGradesApi } from '@/api/cost-grades';
+import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
 
 export function TransfersPromotionsTab() {
   const queryClient = useQueryClient();
+  const { activeCompanyId } = useCompany();
+  const user = useAuthStore((s) => s.user);
+
+  const isBranchAdmin = useMemo(() => {
+    if (!user) return false;
+    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
+    const primary = user.primaryRole?.toUpperCase();
+    return (
+      roles.includes('BRANCH_ADMIN') ||
+      roles.includes('BRANCH ADMIN') ||
+      primary === 'BRANCH_ADMIN' ||
+      primary === 'BRANCH ADMIN' ||
+      Boolean(user.branchId)
+    );
+  }, [user]);
+
+  const assignedBranchId = user?.branchId || user?.employee?.branchId;
+  const effectiveBranchId = isBranchAdmin && assignedBranchId ? assignedBranchId : undefined;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
 
@@ -61,14 +82,14 @@ export function TransfersPromotionsTab() {
 
   // Queries
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', 1, ''],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000 }),
+    queryKey: ['employees', 1, '', activeCompanyId, effectiveBranchId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: activeCompanyId, branchId: effectiveBranchId }),
   });
   const employees = employeesData?.items ?? [];
 
   const { data: transfers = [], isLoading: isTransfersLoading } = useQuery({
-    queryKey: ['transfers'],
-    queryFn: employeesApi.listTransfers,
+    queryKey: ['transfers', activeCompanyId, effectiveBranchId],
+    queryFn: () => employeesApi.listTransfers({ companyId: activeCompanyId, branchId: effectiveBranchId }),
   });
 
   const { data: companies = [] } = useQuery({
@@ -81,7 +102,7 @@ export function TransfersPromotionsTab() {
     return employees.find(e => e.id === selectedEmpId);
   }, [selectedEmpId, employees]);
 
-  const effectiveCompanyId = selectedEmployee?.companyId || companies[0]?.id;
+  const effectiveCompanyId = selectedEmployee?.companyId || activeCompanyId || companies[0]?.id;
 
   const { data: departments = [] } = useQuery({
     queryKey: ['departments', effectiveCompanyId],
@@ -276,7 +297,11 @@ export function TransfersPromotionsTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Internal Mobility</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">12.4% Yield</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">
+                {employees.length > 0
+                  ? `${((transfers.length / employees.length) * 100).toFixed(1)}% Yield`
+                  : '0.0% Yield'}
+              </p>
               <p className="text-[10px] text-violet-600 font-semibold mt-1">High retention contributor</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">

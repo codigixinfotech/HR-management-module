@@ -13,6 +13,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,23 @@ export function DocumentVaultTab() {
   const { activeCompanyId, companies } = useCompany();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>(activeCompanyId);
 
+  const user = useAuthStore((s) => s.user);
+  const isBranchAdmin = useMemo(() => {
+    if (!user) return false;
+    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
+    const primary = user.primaryRole?.toUpperCase();
+    return (
+      roles.includes('BRANCH_ADMIN') ||
+      roles.includes('BRANCH ADMIN') ||
+      primary === 'BRANCH_ADMIN' ||
+      primary === 'BRANCH ADMIN' ||
+      Boolean(user.branchId)
+    );
+  }, [user]);
+
+  const assignedBranchId = user?.branchId || user?.employee?.branchId;
+  const effectiveBranchId = isBranchAdmin && assignedBranchId ? assignedBranchId : undefined;
+
   // Modal State
   const [isOpen, setIsOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
@@ -50,15 +68,15 @@ export function DocumentVaultTab() {
   const [formNumber, setFormNumber] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // Load database employees filtered by selected company
+  // Load database employees filtered by selected company and branch
   const { data: employeesData, isLoading } = useQuery({
-    queryKey: ['employees', 1, '', selectedCompanyId],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId }),
+    queryKey: ['employees', 1, '', selectedCompanyId, effectiveBranchId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: selectedCompanyId, branchId: effectiveBranchId }),
   });
 
   const employees = employeesData?.items ?? [];
 
-  // Flatten database employees and their documents into single records
+  // Flatten database employees and their documents into single records (Only documents with actual uploaded files)
   const flatDocs = useMemo<FlatDocRecord[]>(() => {
     const list: FlatDocRecord[] = [];
     employees.forEach(emp => {
@@ -66,62 +84,27 @@ export function DocumentVaultTab() {
       const code = emp.employeeCode;
       const kycStatus = emp.kycStatus === 'VERIFIED' ? 'VERIFIED' : 'PENDING_VERIFICATION';
 
-      // 1. Aadhaar Card
-      if (emp.aadhaarNumber) {
-        list.push({
-          employeeId: emp.id,
-          code,
-          name,
-          docType: 'Aadhaar Card',
-          docNumber: emp.aadhaarNumber,
-          status: kycStatus,
-        });
-      }
-
-      // 2. PAN Card
-      if (emp.panNumber) {
-        list.push({
-          employeeId: emp.id,
-          code,
-          name,
-          docType: 'PAN Card',
-          docNumber: emp.panNumber,
-          status: kycStatus,
-        });
-      }
-
-      // 3. Passport
-      if (emp.passportNumber) {
-        list.push({
-          employeeId: emp.id,
-          code,
-          name,
-          docType: 'Passport',
-          docNumber: emp.passportNumber,
-          status: kycStatus,
-        });
-      }
-
-      // 4. File uploads from vault relation
+      // Only iterate over actual uploaded documents in emp.documents
       if (emp.documents && Array.isArray(emp.documents)) {
         emp.documents.forEach((doc: any) => {
           let friendlyType = doc.docType;
-          if (doc.docType === 'ID_PROOF') friendlyType = 'Aadhaar Card';
-          else if (doc.docType === 'ADDRESS_PROOF') friendlyType = 'PAN Card';
-          else if (doc.docType === 'PASSPORT' || doc.docType === 'Passport') friendlyType = 'Passport';
-          else if (doc.docType === 'EDUCATION') friendlyType = 'Degree Certificate';
-          else if (doc.docType === 'OFFER_LETTER') friendlyType = 'Offer Letter';
-          else if (doc.docType === 'JOINING_LETTER') friendlyType = 'Joining Letter';
+          let docNum = doc.fileName;
 
-          // Avoid duplicating if we already render the structural placeholder
-          if (['Aadhaar Card', 'PAN Card', 'Passport'].includes(friendlyType)) {
-            // Find placeholder and associate file path
-            const existingPlaceholder = list.find(l => l.employeeId === emp.id && l.docType === friendlyType);
-            if (existingPlaceholder) {
-              existingPlaceholder.filePath = doc.filePath;
-              existingPlaceholder.fileId = doc.id;
-              return;
-            }
+          if (doc.docType === 'ID_PROOF') {
+            friendlyType = 'Aadhaar Card';
+            docNum = emp.aadhaarNumber || doc.fileName;
+          } else if (doc.docType === 'ADDRESS_PROOF') {
+            friendlyType = 'PAN Card';
+            docNum = emp.panNumber || doc.fileName;
+          } else if (doc.docType === 'PASSPORT' || doc.docType === 'Passport') {
+            friendlyType = 'Passport';
+            docNum = emp.passportNumber || doc.fileName;
+          } else if (doc.docType === 'EDUCATION') {
+            friendlyType = 'Degree Certificate';
+          } else if (doc.docType === 'OFFER_LETTER') {
+            friendlyType = 'Offer Letter';
+          } else if (doc.docType === 'JOINING_LETTER') {
+            friendlyType = 'Joining Letter';
           }
 
           list.push({
@@ -129,7 +112,7 @@ export function DocumentVaultTab() {
             code,
             name,
             docType: friendlyType,
-            docNumber: doc.fileName,
+            docNumber: docNum,
             status: kycStatus,
             fileId: doc.id,
             filePath: doc.filePath,
@@ -156,13 +139,15 @@ export function DocumentVaultTab() {
   const uploadMutation = useMutation({
     mutationFn: async () => {
       if (!selectedEmployeeId || !selectedFile) return;
-      
+
       // 1. Upload file if selected
       let docTypeMapping = 'OTHER';
       if (formType === 'Aadhaar Card') docTypeMapping = 'ID_PROOF';
       else if (formType === 'PAN Card') docTypeMapping = 'ADDRESS_PROOF';
+      else if (formType === 'Passport') docTypeMapping = 'PASSPORT';
       else if (formType === 'Resume') docTypeMapping = 'EDUCATION';
       else if (formType === 'Offer Letter') docTypeMapping = 'OFFER_LETTER';
+      else if (formType === 'Joining Letter') docTypeMapping = 'JOINING_LETTER';
 
       await employeesApi.uploadDocument(selectedEmployeeId, selectedFile, docTypeMapping);
 

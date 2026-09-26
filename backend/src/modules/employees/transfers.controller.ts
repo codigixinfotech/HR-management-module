@@ -6,12 +6,12 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { TransfersService } from './transfers.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
-import { Query } from '@nestjs/common';
+import { getTenantCompanyId, getTenantBranchId } from '../../common/utils/tenant-context.util';
 
 @Controller('employees/transfers')
 export class TransfersController {
@@ -22,9 +22,11 @@ export class TransfersController {
   list(
     @CurrentUser() user: CurrentUserPayload,
     @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
   ) {
     const tenantCompanyId = getTenantCompanyId(user, companyId);
-    return this.transfersService.list(tenantCompanyId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.transfersService.list(tenantCompanyId, tenantBranchId);
   }
 
   @Get(':id')
@@ -35,8 +37,13 @@ export class TransfersController {
 
   @Post()
   @Permissions('employees.write')
-  create(@Body() dto: any) {
-    return this.transfersService.create(dto);
+  create(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: any,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user);
+    const tenantBranchId = getTenantBranchId(user);
+    return this.transfersService.create(dto, tenantCompanyId, tenantBranchId);
   }
 
   @Put(':id')

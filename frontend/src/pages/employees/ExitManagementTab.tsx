@@ -45,6 +45,7 @@ import { exitsApi, type EmployeeExit, type ExitClearanceItem } from '@/api/exits
 import { assetsApi } from '@/api/asset-management';
 import { branchesApi } from '@/api/organization';
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ExitClearanceMasterModal } from './ExitClearanceMasterModal';
 
@@ -220,14 +221,38 @@ export function ExitManagementTab() {
 
   // Organization Tenant Context
   const { activeCompanyId, activeCompany } = useCompany();
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
+  const user = useAuthStore((s) => s.user);
+
+  const isBranchAdmin = useMemo(() => {
+    if (!user) return false;
+    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
+    const primary = user.primaryRole?.toUpperCase();
+    return (
+      roles.includes('BRANCH_ADMIN') ||
+      roles.includes('BRANCH ADMIN') ||
+      primary === 'BRANCH_ADMIN' ||
+      primary === 'BRANCH ADMIN' ||
+      Boolean(user.branchId)
+    );
+  }, [user]);
+
+  const assignedBranchId = user?.branchId || user?.employee?.branchId;
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
+    if (isBranchAdmin && assignedBranchId) return assignedBranchId;
+    return 'ALL';
+  });
 
   // Reset branch selection and details when active company changes
   useEffect(() => {
-    setSelectedBranchId('ALL');
+    if (isBranchAdmin && assignedBranchId) {
+      setSelectedBranchId(assignedBranchId);
+    } else {
+      setSelectedBranchId('ALL');
+    }
     setSelectedExitId(null);
     setSelectedExitFallback(null);
-  }, [activeCompanyId]);
+  }, [activeCompanyId, isBranchAdmin, assignedBranchId]);
 
   // Fetch branches for the active company
   const { data: rawBranches = [] } = useQuery({
@@ -241,7 +266,9 @@ export function ExitManagementTab() {
     return rawBranches.filter((b: any) => b.companyId === activeCompanyId);
   }, [rawBranches, activeCompanyId]);
 
-  const effectiveBranchId = selectedBranchId !== 'ALL' ? selectedBranchId : undefined;
+  const effectiveBranchId = isBranchAdmin && assignedBranchId
+    ? assignedBranchId
+    : (selectedBranchId !== 'ALL' ? selectedBranchId : undefined);
 
   // ── Queries ──
   const { data: employeesData } = useQuery({

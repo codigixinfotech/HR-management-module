@@ -43,6 +43,148 @@ export class EmployeesService implements OnModuleInit {
     } catch (e) {
       console.error('Failed auto-repair of Grade IDs in DB:', e);
     }
+
+    try {
+      await this.autoRepairAdminEmployees();
+    } catch (e) {
+      console.error('Failed auto-repair of Admin Employees in DB:', e);
+    }
+  }
+
+  private async autoRepairAdminEmployees() {
+    // 1. Repair Branch Admins (employeeCode starting with BR- or user with BRANCH_ADMIN role)
+    const branchEmployees = await this.prisma.employee.findMany({
+      where: {
+        OR: [
+          { employeeCode: { startsWith: 'BR-' } },
+          { user: { roles: { some: { role: { name: 'BRANCH_ADMIN' } } } } },
+        ],
+        AND: [
+          {
+            OR: [
+              { departmentId: null },
+              { designationId: null },
+            ],
+          },
+        ],
+      },
+      include: { branch: true },
+    });
+
+    for (const emp of branchEmployees) {
+      if (!emp.companyId) continue;
+      let adminDept = await this.prisma.department.findFirst({
+        where: {
+          companyId: emp.companyId,
+          name: { in: ['Administration', 'Administration Head', 'Admin', 'Branch Administration'] },
+        },
+      });
+      if (!adminDept) {
+        const codeSuffix = emp.branch?.code ? `-${emp.branch.code.replace(/[^a-zA-Z0-9]/g, '')}` : `-${emp.id.slice(-4)}`;
+        adminDept = await this.prisma.department.create({
+          data: {
+            companyId: emp.companyId,
+            branchId: emp.branchId,
+            code: `ADM${codeSuffix}`,
+            name: 'Administration',
+            type: 'Functional',
+          },
+        });
+      }
+
+      let branchAdminDesig = await this.prisma.designation.findFirst({
+        where: {
+          companyId: emp.companyId,
+          title: { in: ['Branch Administrator', 'Branch Admin'] },
+        },
+      });
+      if (!branchAdminDesig) {
+        const codeSuffix = emp.branch?.code ? `-${emp.branch.code.replace(/[^a-zA-Z0-9]/g, '')}` : `-${emp.id.slice(-4)}`;
+        branchAdminDesig = await this.prisma.designation.create({
+          data: {
+            companyId: emp.companyId,
+            departmentId: adminDept.id,
+            code: `BA${codeSuffix}`,
+            title: 'Branch Administrator',
+          },
+        });
+      }
+
+      await this.prisma.employee.update({
+        where: { id: emp.id },
+        data: {
+          departmentId: emp.departmentId || adminDept.id,
+          designationId: emp.designationId || branchAdminDesig.id,
+        },
+      });
+    }
+
+    // 2. Repair Company Admins (employeeCode starting with C- or user with SUPER_ADMIN role)
+    const companyAdmins = await this.prisma.employee.findMany({
+      where: {
+        OR: [
+          { employeeCode: { startsWith: 'C-' } },
+          { employeeCode: { startsWith: 'COMP-' } },
+          { user: { roles: { some: { role: { name: 'SUPER_ADMIN' } } } } },
+        ],
+        AND: [
+          {
+            OR: [
+              { departmentId: null },
+              { designationId: null },
+            ],
+          },
+        ],
+      },
+      include: { company: true },
+    });
+
+    for (const emp of companyAdmins) {
+      if (!emp.companyId) continue;
+      let mgmtDept = await this.prisma.department.findFirst({
+        where: {
+          companyId: emp.companyId,
+          name: { in: ['Management', 'Executive Management', 'Corporate Management', 'Administration'] },
+        },
+      });
+      if (!mgmtDept) {
+        const codeSuffix = emp.company?.code ? `-${emp.company.code.replace(/[^a-zA-Z0-9]/g, '')}` : `-${emp.id.slice(-4)}`;
+        mgmtDept = await this.prisma.department.create({
+          data: {
+            companyId: emp.companyId,
+            code: `MGMT${codeSuffix}`,
+            name: 'Management',
+            type: 'Functional',
+          },
+        });
+      }
+
+      let compAdminDesig = await this.prisma.designation.findFirst({
+        where: {
+          companyId: emp.companyId,
+          title: { in: ['Company Administrator', 'Company Admin', 'Executive Director'] },
+        },
+      });
+      if (!compAdminDesig) {
+        const codeSuffix = emp.company?.code ? `-${emp.company.code.replace(/[^a-zA-Z0-9]/g, '')}` : `-${emp.id.slice(-4)}`;
+        compAdminDesig = await this.prisma.designation.create({
+          data: {
+            companyId: emp.companyId,
+            departmentId: mgmtDept.id,
+            code: `CA${codeSuffix}`,
+            title: 'Company Administrator',
+          },
+        });
+      }
+
+      await this.prisma.employee.update({
+        where: { id: emp.id },
+        data: {
+          departmentId: emp.departmentId || mgmtDept.id,
+          designationId: emp.designationId || compAdminDesig.id,
+        },
+      });
+    }
   }
 
   private readonly listInclude = {
@@ -51,6 +193,18 @@ export class EmployeesService implements OnModuleInit {
     department: { select: { id: true, name: true } },
     designation: { select: { id: true, title: true } },
     reportingManager: { select: { id: true, firstName: true, lastName: true } },
+    user: {
+      select: {
+        id: true,
+        roles: {
+          include: {
+            role: {
+              select: { id: true, name: true, dataScope: true },
+            },
+          },
+        },
+      },
+    },
     documents: true,
   };
 
@@ -132,9 +286,19 @@ export class EmployeesService implements OnModuleInit {
 
   async list(query: PaginationQueryDto, companyId?: string, branchId?: string) {
     const { skip, take, page, pageSize } = buildPagination(query);
+
+    let branchWhere: any = {};
+    if (branchId === 'NO_BRANCH_ASSIGNED') {
+      branchWhere = { branchId: 'NO_BRANCH_ASSIGNED' };
+    } else if (branchId === 'HEAD_OFFICE' || branchId === 'NONE') {
+      branchWhere = { branchId: null };
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'undefined') {
+      branchWhere = { branchId };
+    }
+
     const where = {
       ...(companyId ? { companyId } : {}),
-      ...(branchId ? { branchId } : {}),
+      ...branchWhere,
       ...(query.search
         ? {
           OR: [

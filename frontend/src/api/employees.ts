@@ -57,7 +57,8 @@ export const employeesApi = {
 
   getPositionHistory: async (id: string) => (await apiClient.get<any[]>(`/employees/${id}/position-history`)).data,
 
-  listTransfers: async () => (await apiClient.get<any[]>('/employees/transfers')).data,
+  listTransfers: async (params?: { companyId?: string; branchId?: string }) =>
+    (await apiClient.get<any[]>('/employees/transfers', { params })).data,
   getTransfer: async (id: string) => (await apiClient.get<any>(`/employees/transfers/${id}`)).data,
   createTransfer: async (payload: any) => (await apiClient.post<any>('/employees/transfers', payload)).data,
   updateTransfer: async (id: string, payload: any) => (await apiClient.put<any>(`/employees/transfers/${id}`, payload)).data,
