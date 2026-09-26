@@ -147,12 +147,12 @@ export const HCM_MODULES: HcmModule[] = [
     subItems: [
       { key: 'structure', label: 'Salary Structure', path: '/payroll/structure' },
       { key: 'processing', label: 'Payroll Processing', path: '/payroll/processing' },
-      { key: 'revision', label: 'Salary Revision', path: '/payroll/revision' },
-      { key: 'loans', label: 'Loans & Advances', path: '/payroll/loans' },
-      { key: 'reimbursements', label: 'Reimbursements', path: '/payroll/reimbursements' },
       { key: 'payslips', label: 'Payslips', path: '/payroll/payslips' },
       { key: 'bank-transfer', label: 'Bank Transfer', path: '/payroll/bank-transfer' },
       { key: 'reports', label: 'Payroll Reports', path: '/payroll/reports' },
+      { key: 'revision', label: 'Salary Revision', path: '/payroll/revision' },
+      { key: 'loans', label: 'Loans & Advances', path: '/payroll/loans' },
+      { key: 'reimbursements', label: 'Reimbursements', path: '/payroll/reimbursements' },
     ],
   },
   {
