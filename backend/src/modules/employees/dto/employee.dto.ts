@@ -1,6 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { EmployeeStatus, EmploymentType, Gender } from '@prisma/client';
 import { IsDateString, IsEnum, IsOptional, IsString, IsNumber, IsBoolean } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 export class ListEmployeesQueryDto extends PaginationQueryDto {
@@ -452,3 +453,94 @@ export class CreateEmployeeDto {
 }
 
 export class UpdateEmployeeDto extends PartialType(CreateEmployeeDto) { }
+
+export class UpdateMyProfileDto {
+  // Personal Profile
+  @IsOptional() @IsString() firstName?: string;
+  @IsOptional() @IsString() middleName?: string;
+  @IsOptional() @IsString() lastName?: string;
+  @IsOptional()
+  @Transform(({ value }) => (!value || value === '' ? undefined : value))
+  @IsDateString()
+  dateOfBirth?: string;
+  @IsOptional()
+  @Transform(({ value }) => (!value || value === '' ? undefined : value))
+  @IsEnum(Gender)
+  gender?: Gender;
+  @IsOptional() @IsString() maritalStatus?: string;
+  @IsOptional() @IsString() bloodGroup?: string;
+  @IsOptional() @IsString() religion?: string;
+  @IsOptional() @IsString() nationality?: string;
+  @IsOptional() @IsString() personalEmail?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() facePhoto?: string;
+
+  // Contact & Address
+  @IsOptional() @IsString() currentAddress?: string;
+  @IsOptional() @IsString() permanentAddress?: string;
+  @IsOptional() @IsString() addressLine1?: string;
+  @IsOptional() @IsString() addressLine2?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() country?: string;
+  @IsOptional() @IsString() pincode?: string;
+
+  // Emergency Contact
+  @IsOptional() @IsString() emergencyContactName?: string;
+  @IsOptional() @IsString() emergencyContactRelationship?: string;
+  @IsOptional() @IsString() emergencyContactPhone?: string;
+
+  // Family & Nominee
+  @IsOptional() @IsString() familyMemberName?: string;
+  @IsOptional() @IsString() familyRelationship?: string;
+  @IsOptional()
+  @Transform(({ value }) => (!value || value === '' ? undefined : value))
+  @IsDateString()
+  familyDob?: string;
+  @IsOptional() @IsString() familyContact?: string;
+  @IsOptional() @IsString() nomineeName?: string;
+  @IsOptional() @IsString() nomineeRelationship?: string;
+  @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
+  @IsNumber()
+  nomineeShare?: number;
+
+  // Education Details
+  @IsOptional() @IsString() educationQualification?: string;
+  @IsOptional() @IsString() educationSpecialization?: string;
+  @IsOptional() @IsString() educationInstitution?: string;
+  @IsOptional() @IsString() educationUniversity?: string;
+  @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : parseInt(String(value), 10)))
+  @IsNumber()
+  educationPassingYear?: number;
+  @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : parseFloat(String(value))))
+  @IsNumber()
+  educationPercentage?: number;
+
+  // Previous Experience
+  @IsOptional() @IsString() prevCompany?: string;
+  @IsOptional() @IsString() prevJobTitle?: string;
+  @IsOptional()
+  @Transform(({ value }) => (!value || value === '' ? undefined : value))
+  @IsDateString()
+  prevStartDate?: string;
+  @IsOptional()
+  @Transform(({ value }) => (!value || value === '' ? undefined : value))
+  @IsDateString()
+  prevEndDate?: string;
+  @IsOptional() @IsString() prevTotalExp?: string;
+  @IsOptional() @IsString() prevReasonForLeaving?: string;
+
+  // Banking Details (Change Request)
+  @IsOptional() @IsString() bankName?: string;
+  @IsOptional() @IsString() bankAccountNumber?: string;
+  @IsOptional() @IsString() bankIfscCode?: string;
+  @IsOptional() @IsString() bankBranchName?: string;
+  @IsOptional() @IsString() bankAccountHolderName?: string;
+
+  // Employment Details (Allowed employee-editable preferences)
+  @IsOptional() @IsString() workMode?: string;
+  @IsOptional() @IsString() shift?: string;
+}

@@ -2,7 +2,46 @@ import { useRef, useState, useMemo } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, Trash2, Plus, Check, Laptop, ShieldAlert, Award, FileText, CheckCircle2, Camera, AlertCircle, ShieldCheck, ArrowRight, IndianRupee, Briefcase, Calendar, Clock, Sparkles, Building, UserCheck, RefreshCw, UserX } from 'lucide-react';
+import {
+  ArrowLeft,
+  Upload,
+  Trash2,
+  Plus,
+  Check,
+  Laptop,
+  ShieldAlert,
+  Award,
+  FileText,
+  CheckCircle2,
+  Camera,
+  AlertCircle,
+  ShieldCheck,
+  ArrowRight,
+  IndianRupee,
+  Briefcase,
+  Calendar,
+  Clock,
+  Sparkles,
+  Building,
+  UserCheck,
+  RefreshCw,
+  UserX,
+  User,
+  Users,
+  MapPin,
+  GraduationCap,
+  CreditCard,
+  Printer,
+  TrendingUp,
+  Edit3,
+  Lock,
+  Send,
+  Save,
+  X,
+  Info,
+  FileUp,
+} from 'lucide-react';
+import { isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 import { employeesApi } from '@/api/employees';
 import { assetsApi } from '@/api/asset-management';
 import { payGradesApi } from '@/api/cost-grades';
@@ -12,6 +51,8 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,6 +60,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth-store';
+import { notificationStore } from '@/utils/notificationStore';
 import type { ApprovalStatus, EmployeeStatus } from '@/api/types';
 import { RegisterFaceModal } from './RegisterFaceModal';
 
@@ -152,6 +194,334 @@ export default function EmployeeDetailPage() {
   });
 
   const targetEmpId = employee?.id || id;
+  const isMyProfile = rawId === 'me' || !rawId || (!!authUser?.employee?.id && employee?.id === authUser.employee.id);
+  const isAdmin = isSuperAdminUser(authUser) || isCompanyAdminUser(authUser) || isBranchAdminUser(authUser);
+  const isSelfEmployee = isMyProfile && !isAdmin;
+
+  const [activeEditSection, setActiveEditSection] = useState<string | null>(null);
+
+  const [draftPersonal, setDraftPersonal] = useState({
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    dateOfBirth: '',
+    gender: '',
+    maritalStatus: '',
+    bloodGroup: '',
+    religion: '',
+    nationality: '',
+    personalEmail: '',
+    phone: '',
+    facePhoto: '',
+  });
+
+  const [draftContact, setDraftContact] = useState({
+    phone: '',
+    personalEmail: '',
+    currentAddress: '',
+    permanentAddress: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    country: 'India',
+    pincode: '',
+    emergencyContactName: '',
+    emergencyContactRelationship: '',
+    emergencyContactPhone: '',
+  });
+  const [sameAsCurrentAddress, setSameAsCurrentAddress] = useState(false);
+
+  const [draftFamily, setDraftFamily] = useState({
+    familyMemberName: '',
+    familyRelationship: '',
+    familyDob: '',
+    familyContact: '',
+    nomineeName: '',
+    nomineeRelationship: '',
+    nomineeShare: '',
+  });
+
+  const [draftEducation, setDraftEducation] = useState({
+    educationQualification: '',
+    educationSpecialization: '',
+    educationInstitution: '',
+    educationUniversity: '',
+    educationPassingYear: '',
+    educationPercentage: '',
+  });
+
+  const [draftExperience, setDraftExperience] = useState({
+    prevCompany: '',
+    prevJobTitle: '',
+    prevStartDate: '',
+    prevEndDate: '',
+    prevTotalExp: '',
+    prevReasonForLeaving: '',
+  });
+
+  const [draftBanking, setDraftBanking] = useState({
+    bankName: '',
+    bankAccountNumber: '',
+    bankIfscCode: '',
+    bankBranchName: '',
+    bankAccountHolderName: '',
+  });
+
+  const [draftEmployment, setDraftEmployment] = useState({
+    workMode: 'Onsite',
+    shift: 'General Day Shift (G)',
+  });
+
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [kycDocType, setKycDocType] = useState('PAN');
+  const [kycDocNumber, setKycDocNumber] = useState('');
+  const [kycRemarks, setKycRemarks] = useState('');
+  const [kycFile, setKycFile] = useState<File | null>(null);
+  const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
+
+  const handleStartEdit = async (section: string) => {
+    let emp = employee;
+    try {
+      const fetched = await queryClient.fetchQuery({
+        queryKey: ['employee', id],
+        queryFn: () => employeesApi.get(id!),
+        staleTime: 0,
+      });
+      if (fetched) {
+        emp = fetched;
+      }
+    } catch (err) {
+      console.warn('Could not refetch employee before editing, falling back to cache:', err);
+    }
+
+    if (!emp) return;
+    setActiveEditSection(section);
+
+    if (section === 'personal') {
+      setDraftPersonal({
+        firstName: emp.firstName || '',
+        middleName: emp.middleName || '',
+        lastName: emp.lastName || '',
+        dateOfBirth: emp.dateOfBirth ? String(emp.dateOfBirth).split('T')[0] : '',
+        gender: emp.gender || '',
+        maritalStatus: emp.maritalStatus || '',
+        bloodGroup: emp.bloodGroup || '',
+        religion: emp.religion || '',
+        nationality: emp.nationality || 'Indian',
+        personalEmail: emp.personalEmail || '',
+        phone: emp.phone || '',
+        facePhoto: emp.facePhoto || '',
+      });
+    } else if (section === 'employment') {
+      setDraftEmployment({
+        workMode: emp.workMode || 'Onsite',
+        shift: emp.shift || 'General Day Shift (G)',
+      });
+    } else if (section === 'contact') {
+      setDraftContact({
+        phone: emp.phone || '',
+        personalEmail: emp.personalEmail || '',
+        currentAddress: emp.currentAddress || emp.addressLine1 || '',
+        permanentAddress: emp.permanentAddress || '',
+        addressLine1: emp.addressLine1 || emp.currentAddress || '',
+        addressLine2: emp.addressLine2 || '',
+        city: emp.city || '',
+        state: emp.state || '',
+        country: emp.country || 'India',
+        pincode: emp.pincode || '',
+        emergencyContactName: emp.emergencyContactName || '',
+        emergencyContactRelationship: emp.emergencyContactRelationship || '',
+        emergencyContactPhone: emp.emergencyContactPhone || '',
+      });
+      setSameAsCurrentAddress(Boolean(emp.currentAddress && emp.permanentAddress && emp.currentAddress === emp.permanentAddress));
+    } else if (section === 'family') {
+      setDraftFamily({
+        familyMemberName: emp.familyMemberName || '',
+        familyRelationship: emp.familyRelationship || '',
+        familyDob: emp.familyDob ? String(emp.familyDob).split('T')[0] : '',
+        familyContact: emp.familyContact || '',
+        nomineeName: emp.nomineeName || '',
+        nomineeRelationship: emp.nomineeRelationship || '',
+        nomineeShare: emp.nomineeShare != null ? String(emp.nomineeShare) : '',
+      });
+    } else if (section === 'education') {
+      setDraftEducation({
+        educationQualification: emp.educationQualification || '',
+        educationSpecialization: emp.educationSpecialization || '',
+        educationInstitution: emp.educationInstitution || '',
+        educationUniversity: emp.educationUniversity || '',
+        educationPassingYear: emp.educationPassingYear != null ? String(emp.educationPassingYear) : '',
+        educationPercentage: emp.educationPercentage != null ? String(emp.educationPercentage) : '',
+      });
+    } else if (section === 'experience') {
+      setDraftExperience({
+        prevCompany: emp.prevCompany || '',
+        prevJobTitle: emp.prevJobTitle || '',
+        prevStartDate: emp.prevStartDate ? String(emp.prevStartDate).split('T')[0] : '',
+        prevEndDate: emp.prevEndDate ? String(emp.prevEndDate).split('T')[0] : '',
+        prevTotalExp: emp.prevTotalExp || '',
+        prevReasonForLeaving: emp.prevReasonForLeaving || '',
+      });
+    } else if (section === 'banking') {
+      setDraftBanking({
+        bankName: emp.bankName || '',
+        bankAccountNumber: emp.bankAccountNumber || '',
+        bankIfscCode: emp.bankIfscCode || '',
+        bankBranchName: emp.bankBranchName || '',
+        bankAccountHolderName: emp.bankAccountHolderName || '',
+      });
+    }
+  };
+
+  const profileSaveMutation = useMutation({
+    mutationFn: async ({ section, data }: { section: string; data: any }) => {
+      const payload: Record<string, any> = {};
+
+      for (const [k, v] of Object.entries(data)) {
+        if (v === '' && employee && (employee as any)[k] !== undefined && (employee as any)[k] !== null && (employee as any)[k] !== '') {
+          payload[k] = (employee as any)[k];
+        } else {
+          payload[k] = v;
+        }
+      }
+
+      if (section === 'education') {
+        payload.educationPassingYear =
+          payload.educationPassingYear !== '' && payload.educationPassingYear != null
+            ? parseInt(String(payload.educationPassingYear), 10)
+            : undefined;
+        payload.educationPercentage =
+          payload.educationPercentage !== '' && payload.educationPercentage != null
+            ? parseFloat(String(payload.educationPercentage))
+            : undefined;
+      } else if (section === 'family') {
+        payload.nomineeShare =
+          payload.nomineeShare !== '' && payload.nomineeShare != null
+            ? parseFloat(String(payload.nomineeShare))
+            : undefined;
+        payload.familyDob = payload.familyDob || undefined;
+      } else if (section === 'personal') {
+        payload.dateOfBirth = payload.dateOfBirth || undefined;
+      } else if (section === 'experience') {
+        payload.prevStartDate = payload.prevStartDate || undefined;
+        payload.prevEndDate = payload.prevEndDate || undefined;
+      }
+
+      if (isMyProfile) {
+        return await employeesApi.updateMyProfile(payload);
+      } else {
+        return await employeesApi.update(targetEmpId, payload);
+      }
+    },
+    onSuccess: (updatedEmployee: any, variables) => {
+      if (updatedEmployee) {
+        queryClient.setQueryData(['employee', id], updatedEmployee);
+        if (targetEmpId && targetEmpId !== id) {
+          queryClient.setQueryData(['employee', targetEmpId], updatedEmployee);
+        }
+        if (rawId === 'me' && authUser) {
+          setUser({
+            ...authUser,
+            employee: {
+              id: updatedEmployee.id,
+              employeeCode: updatedEmployee.employeeCode,
+              firstName: updatedEmployee.firstName,
+              lastName: updatedEmployee.lastName,
+              fullName: `${updatedEmployee.firstName} ${updatedEmployee.lastName}`,
+              departmentId: updatedEmployee.departmentId,
+              departmentName: updatedEmployee.department?.name || null,
+              designationId: updatedEmployee.designationId,
+              designationTitle: updatedEmployee.designation?.title || null,
+            },
+          });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      setActiveEditSection(null);
+
+      const sectionNames: Record<string, string> = {
+        personal: 'Personal Profile',
+        employment: 'Employment Details',
+        contact: 'Contact & Address',
+        family: 'Family & Nominee',
+        education: 'Education Details',
+        experience: 'Previous Experience',
+        banking: 'Banking Information',
+      };
+      const sName = sectionNames[variables.section] || variables.section;
+
+      try {
+        const empName = updatedEmployee
+          ? `${updatedEmployee.firstName} ${updatedEmployee.lastName}`
+          : employee
+          ? `${employee.firstName} ${employee.lastName}`
+          : (authUser?.name || 'Employee');
+        const empCode = updatedEmployee?.employeeCode || employee?.employeeCode || 'EMP';
+        const branchName = updatedEmployee?.branch?.name || employee?.branch?.name || authUser?.branch?.name || 'Branch';
+
+        notificationStore.addNotifications([
+          {
+            type: 'SYSTEM',
+            employeeId: '',
+            employeeName: empName,
+            title: `Profile Update: ${sName}`,
+            message: `${empName} (${empCode}) updated details in ${sName} at ${branchName}. Sent to Branch Admin for verification.`,
+            actionUrl: `/employees/detail/${employee?.id || 'me'}?tab=${variables.section}`,
+            sender: employee?.workEmail || authUser?.email || 'Self-Service Portal',
+          },
+        ]);
+      } catch (err) {
+        console.error('Failed to dispatch notification', err);
+      }
+
+      toast.success(`${sName} updated successfully and notification sent to Branch Admin!`);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err.message || 'Failed to save changes');
+    },
+  });
+
+  const handleKycSubmit = async () => {
+    if (!kycDocNumber && !kycFile) {
+      toast.error('Please provide a document number or upload a document file.');
+      return;
+    }
+    setIsSubmittingKyc(true);
+    try {
+      if (kycFile && targetEmpId) {
+        await employeesApi.uploadDocument(targetEmpId, kycFile, kycDocType);
+      }
+
+      const empName = employee ? `${employee.firstName} ${employee.lastName}` : (authUser?.name || 'Employee');
+      const empCode = employee?.employeeCode || 'EMP';
+      const branchName = employee?.branch?.name || authUser?.branch?.name || 'Branch';
+
+      notificationStore.addNotifications([
+        {
+          type: 'SYSTEM',
+          employeeId: '',
+          employeeName: empName,
+          title: `KYC Update Request: ${kycDocType}`,
+          message: `${empName} (${empCode}) submitted a statutory KYC update request for ${kycDocType} (${kycDocNumber || 'Document Attached'}). Remarks: ${kycRemarks || 'Verification requested.'} at ${branchName}.`,
+          actionUrl: `/employees/detail/${employee?.id || 'me'}?tab=kyc`,
+          sender: employee?.workEmail || authUser?.email || 'Self-Service Portal',
+        },
+      ]);
+
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
+      setIsKycModalOpen(false);
+      setKycDocNumber('');
+      setKycRemarks('');
+      setKycFile(null);
+      toast.success('KYC Update Request submitted and sent to Branch Admin for verification!');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err.message || 'Failed to submit KYC request');
+    } finally {
+      setIsSubmittingKyc(false);
+    }
+  };
 
   const { data: salaryAssignmentsList = [] } = useQuery({
     queryKey: ['employee-salary-assignments', targetEmpId],
@@ -536,8 +906,30 @@ export default function EmployeeDetailPage() {
     mutationFn: (file: File) => employeesApi.uploadDocument(targetEmpId, file, docType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
-      toast.success('Document uploaded to vault');
+      toast.success('Document uploaded to vault and queued for HR verification');
       if (fileInputRef.current) fileInputRef.current.value = '';
+
+      if (isMyProfile) {
+        try {
+          const empName = employee ? `${employee.firstName} ${employee.lastName}` : (authUser?.name || 'Employee');
+          const empCode = employee?.employeeCode || 'EMP';
+          const branchName = employee?.branch?.name || authUser?.branch?.name || 'Branch';
+
+          notificationStore.addNotifications([
+            {
+              type: 'SYSTEM',
+              employeeId: '',
+              employeeName: empName,
+              title: `New Document Uploaded: ${docType}`,
+              message: `${empName} (${empCode}) uploaded a document (${docType}) in Document Vault for HR verification at ${branchName}.`,
+              actionUrl: `/employees/detail/${employee?.id || 'me'}?tab=documents`,
+              sender: employee?.workEmail || authUser?.email || 'Self-Service Portal',
+            },
+          ]);
+        } catch (err) {
+          console.error('Failed to notify branch admin', err);
+        }
+      }
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Upload failed'),
   });
@@ -650,6 +1042,13 @@ export default function EmployeeDetailPage() {
     );
   }
 
+  const isMe =
+    rawId === 'me' ||
+    id === 'me' ||
+    employee?.id === authUser?.employee?.id ||
+    employee?.userId === authUser?.id ||
+    employee?.workEmail === authUser?.email;
+
   if (isError || !employee) {
     return (
       <div className="p-8 max-w-md mx-auto text-center space-y-4 border border-border/80 rounded-2xl bg-card my-12 shadow-sm">
@@ -661,8 +1060,8 @@ export default function EmployeeDetailPage() {
           The requested employee record (<code className="font-mono bg-muted px-1.5 py-0.5 rounded">{id}</code>) could not be found or has been removed.
         </p>
         <Button asChild size="sm" className="font-semibold text-xs gap-1.5">
-          <Link to="/employees">
-            <ArrowLeft className="h-4 w-4" /> Return to Employee Directory
+          <Link to={isMe ? "/dashboard" : "/employees"}>
+            <ArrowLeft className="h-4 w-4" /> {isMe ? "Return to Dashboard" : "Return to Employee Directory"}
           </Link>
         </Button>
       </div>
@@ -671,78 +1070,343 @@ export default function EmployeeDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/employees">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            {employee.firstName} {employee.lastName}
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            {employee.employeeCode} &middot; {employee.designation?.title ?? 'No designation'}
-          </p>
+      {/* ── Top Bar Breadcrumb & Navigation Actions ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg shrink-0" asChild>
+            <Link to={isMe ? "/dashboard" : "/employees"}>
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold tracking-wider uppercase text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                {isMe ? 'My Profile • Employee Self-Service Dossier' : 'Employee Master Record'}
+              </span>
+              {isMe && (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Active User Profile
+                </span>
+              )}
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight mt-0.5 flex items-center gap-2">
+              {employee.firstName} {employee.middleName ? `${employee.middleName} ` : ''}{employee.lastName}
+            </h1>
+          </div>
         </div>
-        <div className="ml-auto w-40">
-          <Select value={employee.status} onValueChange={(v) => statusMutation.mutate(v as EmployeeStatus)}>
-            <SelectTrigger className="h-9 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_OPTIONS.map((s) => (
-                <SelectItem key={s} value={s} className="text-xs">
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+        {/* Top Right Actions */}
+        <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+          {employee.facePhoto ? (
+            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-xs py-1 px-2.5 gap-1.5 font-semibold">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Face Registered
+            </Badge>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsRegisterFaceOpen(true)}
+              className="text-xs h-8 gap-1.5 border-dashed border-primary/50 text-primary hover:bg-primary/5"
+            >
+              <Camera className="h-3.5 w-3.5" /> Register Face
+            </Button>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="text-xs h-8 gap-1.5"
+          >
+            <Printer className="h-3.5 w-3.5" /> Print Profile
+          </Button>
+
+          {/* Admin status control */}
+          {!isMe && (isSuperAdminUser(authUser) || isCompanyAdminUser(authUser) || isBranchAdminUser(authUser)) && (
+            <div className="w-36">
+              <Select value={employee.status} onValueChange={(v) => statusMutation.mutate(v as EmployeeStatus)}>
+                <SelectTrigger className="h-8 text-xs font-semibold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s} className="text-xs">
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <InfoCard label="Company" value={employee.company?.name ?? '-'} />
-        <InfoCard label="Business Unit" value={employee.businessUnit ?? 'Technology Services'} />
-        <InfoCard label="Department" value={employee.department?.name ?? '-'} />
-        <InfoCard label="Designation" value={employee.designation?.title ?? '-'} />
-        <InfoCard label="Branch Facility" value={employee.branch?.name ?? 'Head Office'} />
-        <InfoCard label="Work Location" value={employee.location ?? 'New York HQ'} />
-        <InfoCard label="Shift Assignment" value={employee.shift ?? 'General Day Shift (G)'} />
-        <InfoCard label="Job Grade / Level" value={getGradeLevelDisplay(employee.grade, employee.level)} />
-        <InfoCard label="Work Email" value={employee.workEmail ?? '-'} />
-        <InfoCard label="Phone" value={employee.phone ?? '-'} />
-      </div>
+      {/* ── Executive Hero Card ── */}
+      <Card className="border border-border/80 shadow-xs overflow-hidden bg-gradient-to-br from-card via-card to-muted/20">
+        <div className="h-2 w-full bg-gradient-to-r from-primary via-indigo-500 to-cyan-500" />
+        <CardContent className="p-5 sm:p-6">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            
+            {/* Left: Avatar + Identity + Metadata */}
+            <div className="flex items-start sm:items-center gap-4 sm:gap-5 min-w-0">
+              {/* Avatar Photo */}
+              <div className="relative shrink-0">
+                {employee.facePhoto ? (
+                  <img
+                    src={employee.facePhoto}
+                    alt={`${employee.firstName} ${employee.lastName}`}
+                    className="h-20 w-20 rounded-2xl object-cover border-2 border-primary/30 shadow-md ring-4 ring-primary/5"
+                  />
+                ) : (
+                  <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary to-indigo-600 text-primary-foreground font-black text-2xl flex items-center justify-center shadow-md ring-4 ring-primary/5 uppercase tracking-wider">
+                    {employee.firstName?.[0] || 'E'}{employee.lastName?.[0] || 'M'}
+                  </div>
+                )}
+                <span className={`absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-background flex items-center justify-center shadow-xs ${
+                  employee.status === 'ACTIVE' ? 'bg-emerald-500' : employee.status === 'PROBATION' ? 'bg-amber-500' : 'bg-muted-foreground'
+                }`}>
+                  <span className="h-2 w-2 rounded-full bg-white" />
+                </span>
+              </div>
+
+              {/* Title & Core Details */}
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-black text-foreground tracking-tight">
+                    {employee.firstName} {employee.middleName ? `${employee.middleName} ` : ''}{employee.lastName}
+                  </h2>
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-muted border border-border/80 text-foreground">
+                    {employee.employeeCode}
+                  </span>
+                  <StatusBadge status={employee.status} />
+                  <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-primary/5 text-primary border-primary/25">
+                    {employee.employmentType || 'PERMANENT'}
+                  </Badge>
+                </div>
+
+                <p className="text-xs font-medium text-muted-foreground flex flex-wrap items-center gap-1.5">
+                  <span className="font-semibold text-foreground">{employee.designation?.title || 'Team Member'}</span>
+                  <span>•</span>
+                  <span>{employee.department?.name || 'General Operations'}</span>
+                  <span>•</span>
+                  <span>{employee.branch?.name || 'Head Office'}</span>
+                  <span>•</span>
+                  <span className="text-muted-foreground/80">{employee.company?.name || 'Enterprise'}</span>
+                </p>
+
+                {/* Key Telemetry Badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted/60 text-muted-foreground font-medium flex items-center gap-1 border border-border/50">
+                    <Briefcase className="h-3 w-3 text-primary" />
+                    <span>{employee.workMode || 'Onsite'}</span>
+                  </span>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted/60 text-muted-foreground font-medium flex items-center gap-1 border border-border/50">
+                    <Clock className="h-3 w-3 text-indigo-500" />
+                    <span>{employee.shift || 'General Day Shift (G)'}</span>
+                  </span>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted/60 text-muted-foreground font-medium flex items-center gap-1 border border-border/50">
+                    <Calendar className="h-3 w-3 text-emerald-600" />
+                    <span>Joined: {formatDateDisplay(employee.dateOfJoining)}</span>
+                  </span>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted/60 text-muted-foreground font-medium flex items-center gap-1 border border-border/50 font-mono">
+                    <Award className="h-3 w-3 text-amber-500" />
+                    <span>Grade: {getGradeLevelDisplay(employee.grade, employee.level)}</span>
+                  </span>
+                  {employee.reportingManager && (
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted/60 text-muted-foreground font-medium flex items-center gap-1 border border-border/50">
+                      <UserCheck className="h-3 w-3 text-cyan-600" />
+                      <span>Manager: {employee.reportingManager.firstName} {employee.reportingManager.lastName}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Quick Overview Matrix Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full lg:w-auto shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-border/60">
+              <div className="p-2.5 rounded-xl bg-muted/30 border border-border/60 text-center min-w-[95px]">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Documents</span>
+                <span className="text-base font-black text-foreground mt-0.5 block">{employee.documents?.length || 0}</span>
+                <span className="text-[9.5px] text-emerald-600 dark:text-emerald-400 font-medium">Verified Vault</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-muted/30 border border-border/60 text-center min-w-[95px]">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Assets</span>
+                <span className="text-base font-black text-foreground mt-0.5 block">{employee.currentAssets?.length || 0}</span>
+                <span className="text-[9.5px] text-indigo-600 dark:text-indigo-400 font-medium">Allocated</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-muted/30 border border-border/60 text-center min-w-[95px]">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">LMS / Skills</span>
+                <span className="text-base font-black text-foreground mt-0.5 block">{employee.courseEnrollments?.length || 0}</span>
+                <span className="text-[9.5px] text-amber-600 dark:text-amber-400 font-medium">Upskilling</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-muted/30 border border-border/60 text-center min-w-[95px]">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">KYC Status</span>
+                <span className="text-base font-black text-foreground mt-0.5 block font-mono">
+                  {employee.kycStatus === 'VERIFIED' ? '✓ OK' : 'PENDING'}
+                </span>
+                <span className="text-[9.5px] text-cyan-600 dark:text-cyan-400 font-medium">Statutory</span>
+              </div>
+            </div>
+
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue={searchParams.get('tab') || 'employment'} className="w-full">
         <div className="flex flex-col md:flex-row gap-6">
           {/* Sidebar Tabs List */}
-          <div className="md:w-60 shrink-0">
-            <Card className="border border-border/80 shadow-2xs">
+          <div className="md:w-64 shrink-0">
+            <Card className="border border-border/80 shadow-2xs sticky top-20">
               <CardContent className="p-2">
                 <TabsList className="flex flex-col h-auto bg-transparent w-full space-y-1 items-stretch">
-                  <TabsTrigger value="personal" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Personal Profile</TabsTrigger>
-                  <TabsTrigger value="employment" className="justify-start text-xs px-3 py-2 w-full text-left font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center justify-between">
-                    <span>Employment Details</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary uppercase font-bold">{employee.employmentType || 'PERM'}</span>
+                  <TabsTrigger value="personal" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <User className="h-3.5 w-3.5 shrink-0" />
+                    <span>Personal Profile</span>
                   </TabsTrigger>
-                  <TabsTrigger value="biometric" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold text-primary">Attendance & Biometric</TabsTrigger>
-                  <TabsTrigger value="contact" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Contact & Address</TabsTrigger>
-                  <TabsTrigger value="family" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Family & Nominee</TabsTrigger>
-                  <TabsTrigger value="education" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Education Details</TabsTrigger>
-                  <TabsTrigger value="experience" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Previous Experience</TabsTrigger>
-                  <TabsTrigger value="banking" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Banking Information</TabsTrigger>
-                  <TabsTrigger value="kyc" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Aadhaar / PAN / KYC</TabsTrigger>
-                  <TabsTrigger value="pf_esic" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">PF & ESIC Registry</TabsTrigger>
-                  <TabsTrigger value="salary" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Salary Structure</TabsTrigger>
-                  <TabsTrigger value="documents" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Document Vault</TabsTrigger>
-                  <TabsTrigger value="assets" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Assigned Assets</TabsTrigger>
-                  <TabsTrigger value="training" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Upskilling & LMS</TabsTrigger>
-                  <TabsTrigger value="performance" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">KPIs & Performance</TabsTrigger>
-                  <TabsTrigger value="notes" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Internal HR Notes</TabsTrigger>
-                  <TabsTrigger value="timeline" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Career & Position History</TabsTrigger>
-                  <TabsTrigger value="onboarding" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Onboarding Tasks</TabsTrigger>
-                  <TabsTrigger value="exit" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Exit & Offboarding</TabsTrigger>
+
+                  <TabsTrigger value="employment" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                      <span>Employment Details</span>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-primary/10 text-primary uppercase font-bold tracking-wider data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                      {employee.employmentType || 'PERM'}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="biometric" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <Camera className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" />
+                      <span>Attendance & Biometric</span>
+                    </div>
+                    {employee.facePhoto && (
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" title="Face Registered" />
+                    )}
+                  </TabsTrigger>
+
+                  <TabsTrigger value="contact" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" />
+                    <span>Contact & Address</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="family" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <Users className="h-3.5 w-3.5 shrink-0" />
+                    <span>Family & Nominee</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="education" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+                    <span>Education Details</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="experience" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 shrink-0" />
+                    <span>Previous Experience</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="banking" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                    <span>Banking Information</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="kyc" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                      <span>Aadhaar / PAN / KYC</span>
+                    </div>
+                    <span className={`text-[9px] px-1 py-0.2 rounded font-bold uppercase ${
+                      employee.kycStatus === 'VERIFIED' ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600'
+                    }`}>
+                      {employee.kycStatus || 'PENDING'}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="pf_esic" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+                    <span>PF & ESIC Registry</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="salary" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <IndianRupee className="h-3.5 w-3.5 shrink-0" />
+                    <span>Salary Structure</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="documents" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                      <span>Document Vault</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                      {employee.documents?.length || 0}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="assets" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <Laptop className="h-3.5 w-3.5 shrink-0" />
+                      <span>Assigned Assets</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                      {employee.currentAssets?.length || 0}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="training" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-3.5 w-3.5 shrink-0" />
+                      <span>Upskilling & LMS</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                      {employee.courseEnrollments?.length || 0}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="performance" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+                      <span>KPIs & Performance</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                      {employee.kpis?.length || 0}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="notes" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                      <span>Internal HR Notes</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                      {employee.hrNotes?.length || 0}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="timeline" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                      <span>Career & History</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                      {employee.positionHistory?.length || 0}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="onboarding" className="justify-between text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span>Onboarding Tasks</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                      {employee.onboardingTasks?.length || 0}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="exit" className="justify-start text-xs px-3 py-2 w-full text-left font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2">
+                    <UserX className="h-3.5 w-3.5 shrink-0" />
+                    <span>Exit & Offboarding</span>
+                  </TabsTrigger>
                 </TabsList>
               </CardContent>
             </Card>
@@ -753,36 +1417,284 @@ export default function EmployeeDetailPage() {
             {/* 1. PERSONAL */}
             <TabsContent value="personal" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Personal Profile Details</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Date of Birth</p>
-                      <p className="font-semibold">{employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString() : 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Gender</p>
-                      <p className="font-semibold uppercase">{employee.gender ?? 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Marital Status</p>
-                      <p className="font-semibold">{employee.maritalStatus || 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Nationality</p>
-                      <p className="font-semibold">{employee.nationality || 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Blood Group</p>
-                      <p className="font-semibold">{employee.bloodGroup || 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Religion</p>
-                      <p className="font-semibold">{employee.religion || 'No information available'}</p>
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Personal Profile Details</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Basic personal identity, demographic data, and contact info.
+                      </p>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    {activeEditSection === 'personal' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => setActiveEditSection(null)}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          <X className="h-3.5 w-3.5" /> Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold shadow-xs"
+                          onClick={() => profileSaveMutation.mutate({ section: 'personal', data: draftPersonal })}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          {profileSaveMutation.isPending ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save Changes
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                        onClick={() => handleStartEdit('personal')}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-4 space-y-4 text-xs">
+                  {activeEditSection === 'personal' ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-800 dark:text-blue-300 text-xs flex items-center gap-2">
+                        <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                        <span>
+                          You are editing your personal profile. Saved changes will notify your Branch Admin for audit and verification.
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-4 p-3 border rounded-lg bg-muted/20">
+                        <div className="h-16 w-16 rounded-full bg-primary/10 border flex items-center justify-center overflow-hidden shrink-0">
+                          {draftPersonal.facePhoto ? (
+                            <img src={draftPersonal.facePhoto} alt="Profile" className="h-full w-full object-cover" />
+                          ) : (
+                            <User className="h-8 w-8 text-primary/60" />
+                          )}
+                        </div>
+                        <div>
+                          <Label className="text-xs font-semibold block mb-1">Profile Photo</Label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            id="profile-photo-input"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                if (file.size > 2 * 1024 * 1024) {
+                                  toast.error('Image size must be less than 2MB');
+                                  return;
+                                }
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setDraftPersonal((prev) => ({ ...prev, facePhoto: reader.result as string }));
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => document.getElementById('profile-photo-input')?.click()}
+                          >
+                            <Camera className="h-3 w-3" /> Change Photo
+                          </Button>
+                          <p className="text-[10px] text-muted-foreground mt-1">JPG, PNG or WEBP (Max 2MB)</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">First Name *</Label>
+                          <Input
+                            value={draftPersonal.firstName}
+                            onChange={(e) => setDraftPersonal((p) => ({ ...p, firstName: e.target.value }))}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Middle Name</Label>
+                          <Input
+                            value={draftPersonal.middleName}
+                            onChange={(e) => setDraftPersonal((p) => ({ ...p, middleName: e.target.value }))}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Last Name *</Label>
+                          <Input
+                            value={draftPersonal.lastName}
+                            onChange={(e) => setDraftPersonal((p) => ({ ...p, lastName: e.target.value }))}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Date of Birth</Label>
+                          <Input
+                            type="date"
+                            value={draftPersonal.dateOfBirth}
+                            onChange={(e) => setDraftPersonal((p) => ({ ...p, dateOfBirth: e.target.value }))}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Gender</Label>
+                          <Select
+                            value={draftPersonal.gender || 'OTHER'}
+                            onValueChange={(val) => setDraftPersonal((p) => ({ ...p, gender: val }))}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Select Gender" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="MALE">Male</SelectItem>
+                              <SelectItem value="FEMALE">Female</SelectItem>
+                              <SelectItem value="OTHER">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Marital Status</Label>
+                          <Select
+                            value={draftPersonal.maritalStatus || 'Single'}
+                            onValueChange={(val) => setDraftPersonal((p) => ({ ...p, maritalStatus: val }))}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Select Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Single">Single</SelectItem>
+                              <SelectItem value="Married">Married</SelectItem>
+                              <SelectItem value="Divorced">Divorced</SelectItem>
+                              <SelectItem value="Widowed">Widowed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Blood Group</Label>
+                          <Select
+                            value={draftPersonal.bloodGroup || 'O+'}
+                            onValueChange={(val) => setDraftPersonal((p) => ({ ...p, bloodGroup: val }))}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Blood Group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="A+">A+</SelectItem>
+                              <SelectItem value="A-">A-</SelectItem>
+                              <SelectItem value="B+">B+</SelectItem>
+                              <SelectItem value="B-">B-</SelectItem>
+                              <SelectItem value="AB+">AB+</SelectItem>
+                              <SelectItem value="AB-">AB-</SelectItem>
+                              <SelectItem value="O+">O+</SelectItem>
+                              <SelectItem value="O-">O-</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Religion</Label>
+                          <Input
+                            value={draftPersonal.religion}
+                            onChange={(e) => setDraftPersonal((p) => ({ ...p, religion: e.target.value }))}
+                            placeholder="e.g. Hindu, Christian, Muslim"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Nationality</Label>
+                          <Input
+                            value={draftPersonal.nationality}
+                            onChange={(e) => setDraftPersonal((p) => ({ ...p, nationality: e.target.value }))}
+                            placeholder="e.g. Indian"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Personal Email</Label>
+                          <Input
+                            type="email"
+                            value={draftPersonal.personalEmail}
+                            onChange={(e) => setDraftPersonal((p) => ({ ...p, personalEmail: e.target.value }))}
+                            placeholder="personal@email.com"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Personal Phone</Label>
+                          <Input
+                            type="tel"
+                            value={draftPersonal.phone}
+                            onChange={(e) => setDraftPersonal((p) => ({ ...p, phone: e.target.value }))}
+                            placeholder="+91 9876543210"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Full Name</p>
+                          <p className="font-semibold text-foreground">{[employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Date of Birth</p>
+                          <p className="font-semibold">{employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString() : 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Gender</p>
+                          <p className="font-semibold uppercase">{employee.gender ?? 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Marital Status</p>
+                          <p className="font-semibold">{employee.maritalStatus || 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Nationality</p>
+                          <p className="font-semibold">{employee.nationality || 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Blood Group</p>
+                          <p className="font-semibold">{employee.bloodGroup || 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Religion</p>
+                          <p className="font-semibold">{employee.religion || 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Personal Phone</p>
+                          <p className="font-semibold">{employee.phone || 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1 col-span-2">
+                          <p className="text-muted-foreground font-medium">Personal Email</p>
+                          <p className="font-semibold">{employee.personalEmail || 'Not specified'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -802,6 +1714,41 @@ export default function EmployeeDetailPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {activeEditSection === 'employment' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => setActiveEditSection(null)}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          <X className="h-3.5 w-3.5" /> Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold shadow-xs"
+                          onClick={() => profileSaveMutation.mutate({ section: 'employment', data: draftEmployment })}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          {profileSaveMutation.isPending ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save Changes
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                        onClick={() => handleStartEdit('employment')}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                      </Button>
+                    )}
                     <Badge variant="outline" className="text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary border-primary/30 uppercase">
                       {employee.employmentType || 'PERMANENT'}
                     </Badge>
@@ -817,73 +1764,227 @@ export default function EmployeeDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4 text-xs">
+                  {activeEditSection === 'employment' && (
+                    <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-800 dark:text-blue-300 text-xs flex items-center gap-2">
+                      <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                      <span>
+                        You can update your preferred Shift and Work Mode. Organizational and payroll details are marked with 🔒 HR Controlled and remain read-only.
+                      </span>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {/* Employment Type - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Employment Type</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Employment Type</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.employmentType || 'Permanent'}</p>
                     </div>
+
+                    {/* Employment Status - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Employment Status</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Employment Status</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.status || 'Active'}</p>
                     </div>
+
+                    {/* Date of Joining - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Date of Joining</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Date of Joining</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">
                         {employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString('en-GB') : 'Not specified'}
                       </p>
                     </div>
+
+                    {/* Employee Code - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Employee Code</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Employee Code</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-mono font-bold text-primary text-xs">{employee.employeeCode}</p>
                     </div>
+
+                    {/* Department - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Department</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Department</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.department?.name || 'Production'}</p>
                     </div>
+
+                    {/* Designation - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Designation</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Designation</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.designation?.title || 'Production Operator'}</p>
                     </div>
+
+                    {/* Reporting Manager - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Reporting Manager</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Reporting Manager</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">
                         {employee.reportingManager ? `${employee.reportingManager.firstName} ${employee.reportingManager.lastName}` : 'None / MD Direct'}
                       </p>
                     </div>
+
+                    {/* Employee Category - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Employee Category</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Employee Category</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.employeeCategory || 'Executive'}</p>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Shift Assignment</p>
-                      <p className="font-semibold text-foreground text-xs">{employee.shift || 'General Day Shift (G)'}</p>
+
+                    {/* Shift Assignment - EDITABLE */}
+                    <div className={`space-y-1 p-1.5 rounded-lg ${activeEditSection === 'employment' ? 'bg-primary/5 border border-primary/30' : ''}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Shift Assignment</p>
+                        {activeEditSection === 'employment' ? (
+                          <span className="text-[8.5px] text-primary bg-primary/10 px-1 py-0.2 rounded font-bold">Editable</span>
+                        ) : null}
+                      </div>
+                      {activeEditSection === 'employment' ? (
+                        <Select
+                          value={draftEmployment.shift}
+                          onValueChange={(val) => setDraftEmployment((p) => ({ ...p, shift: val }))}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue placeholder="Select Shift" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="General Day Shift (G)">General Day Shift (G)</SelectItem>
+                            <SelectItem value="Morning Shift (M)">Morning Shift (M)</SelectItem>
+                            <SelectItem value="Evening Shift (E)">Evening Shift (E)</SelectItem>
+                            <SelectItem value="Night Shift (N)">Night Shift (N)</SelectItem>
+                            <SelectItem value="Rotational Shift (R)">Rotational Shift (R)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="font-semibold text-foreground text-xs">{employee.shift || 'General Day Shift (G)'}</p>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Work Mode</p>
-                      <p className="font-semibold text-foreground text-xs">{employee.workMode || 'Onsite'}</p>
+
+                    {/* Work Mode - EDITABLE */}
+                    <div className={`space-y-1 p-1.5 rounded-lg ${activeEditSection === 'employment' ? 'bg-primary/5 border border-primary/30' : ''}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Work Mode</p>
+                        {activeEditSection === 'employment' ? (
+                          <span className="text-[8.5px] text-primary bg-primary/10 px-1 py-0.2 rounded font-bold">Editable</span>
+                        ) : null}
+                      </div>
+                      {activeEditSection === 'employment' ? (
+                        <Select
+                          value={draftEmployment.workMode}
+                          onValueChange={(val) => setDraftEmployment((p) => ({ ...p, workMode: val }))}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue placeholder="Select Work Mode" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Onsite">Onsite</SelectItem>
+                            <SelectItem value="Remote">Remote</SelectItem>
+                            <SelectItem value="Hybrid">Hybrid</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="font-semibold text-foreground text-xs">{employee.workMode || 'Onsite'}</p>
+                      )}
                     </div>
+
+                    {/* Job Grade / Level - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Job Grade / Level</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Job Grade / Level</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-mono font-semibold text-foreground text-xs">{getGradeLevelDisplay(employee.grade, employee.level)}</p>
                     </div>
+
+                    {/* Cost Center - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Cost Center</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Cost Center</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.costCenter || 'CC-OPS-001'}</p>
                     </div>
+
+                    {/* Organization Entity - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Organization Entity</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Organization Entity</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.company?.name || '-'}</p>
                     </div>
+
+                    {/* Branch Facility - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Branch Facility</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Branch Facility</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.branch?.name || 'Head Office'}</p>
                     </div>
+
+                    {/* Work Location - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Work Location</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Work Location</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.location || '-'}</p>
                     </div>
+
+                    {/* Business Unit - HR Controlled */}
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Business Unit</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-muted-foreground font-medium text-[11px]">Business Unit</p>
+                        <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                          <Lock className="h-2.5 w-2.5" /> HR Controlled
+                        </span>
+                      </div>
                       <p className="font-semibold text-foreground text-xs">{employee.businessUnit || 'Operations'}</p>
                     </div>
                   </div>
@@ -942,7 +2043,7 @@ export default function EmployeeDetailPage() {
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
                         <div className="p-3 rounded-xl bg-muted/40 border border-border/50 text-center">
-                          <span className="text-[10px] text-muted-foreground font-semibold block">1. Joined Company</span>
+                          <span className="text-[10px] text-muted-foreground font-semibold block">1. Joined Organization</span>
                           <p className="font-mono font-bold text-foreground text-xs mt-1">
                             {probationDetailCheckpoints?.joined || '07-Sep-2026'}
                           </p>
@@ -1602,25 +2703,25 @@ export default function EmployeeDetailPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {employee.faceTemplate && (
+                    {employee.faceTemplate ? (
+                      <Badge className="bg-emerald-600 text-white font-semibold text-xs gap-1.5 py-1 px-2.5">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Biometrics Enrolled
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-300 font-semibold text-xs gap-1.5 py-1 px-2.5">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600" /> Pending HR Registration
+                      </Badge>
+                    )}
+                    {isAdmin && (
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="text-xs font-semibold gap-1.5"
-                        onClick={() => setIsViewTemplateOpen(true)}
+                        className="text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
+                        onClick={() => setIsRegisterFaceOpen(true)}
                       >
-                        <ShieldCheck className="h-3.5 w-3.5 text-purple-600" />
-                        View Registered Face
+                        <Camera className="h-3.5 w-3.5" />
+                        {employee.faceTemplate ? 'Re-Register Face' : 'Register Face'}
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      className="text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
-                      onClick={() => setIsRegisterFaceOpen(true)}
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                      {employee.faceTemplate ? 'Re-Register Face' : 'Register Face'}
-                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4 text-xs">
@@ -1669,56 +2770,307 @@ export default function EmployeeDetailPage() {
             {/* 2. CONTACT */}
             <TabsContent value="contact" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Contact & Address Details</CardTitle>
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Contact & Address Details</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Residential addresses, city/state, and emergency contacts.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeEditSection === 'contact' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => setActiveEditSection(null)}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          <X className="h-3.5 w-3.5" /> Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold shadow-xs"
+                          onClick={() => profileSaveMutation.mutate({ section: 'contact', data: draftContact })}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          {profileSaveMutation.isPending ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save Changes
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                        onClick={() => handleStartEdit('contact')}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
+
                 <CardContent className="p-4 space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Personal Phone</p>
-                      <p className="font-semibold">{employee.phone ?? 'No information available'}</p>
+                  {activeEditSection === 'contact' ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-800 dark:text-blue-300 text-xs flex items-center gap-2">
+                        <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                        <span>
+                          Updating your contact and address details will alert your Branch Admin to review and audit records.
+                        </span>
+                      </div>
+
+                      {/* Phone & Email */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Personal Phone</Label>
+                          <Input
+                            value={draftContact.phone || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraftContact((p) => ({ ...p, phone: val }));
+                              setDraftPersonal((p) => ({ ...p, phone: val }));
+                            }}
+                            placeholder="+91 9876543210"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Personal Email</Label>
+                          <Input
+                            type="email"
+                            value={draftContact.personalEmail || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraftContact((p) => ({ ...p, personalEmail: val }));
+                              setDraftPersonal((p) => ({ ...p, personalEmail: val }));
+                            }}
+                            placeholder="personal@domain.com"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Address Lines */}
+                      <div className="border-t pt-3 space-y-3">
+                        <h4 className="font-semibold text-foreground text-xs">Current Residential Address</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Address Line 1</Label>
+                            <Input
+                              value={draftContact.addressLine1}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, addressLine1: e.target.value }))}
+                              placeholder="Flat/House No, Building, Street"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Address Line 2</Label>
+                            <Input
+                              value={draftContact.addressLine2}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, addressLine2: e.target.value }))}
+                              placeholder="Landmark, Area, Colony"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">City</Label>
+                            <Input
+                              value={draftContact.city}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, city: e.target.value }))}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">State</Label>
+                            <Input
+                              value={draftContact.state}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, state: e.target.value }))}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Country</Label>
+                            <Input
+                              value={draftContact.country}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, country: e.target.value }))}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Pincode</Label>
+                            <Input
+                              value={draftContact.pincode}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, pincode: e.target.value }))}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">Full Current Address</Label>
+                          <Textarea
+                            rows={2}
+                            value={draftContact.currentAddress}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraftContact((p) => ({
+                                ...p,
+                                currentAddress: val,
+                                permanentAddress: sameAsCurrentAddress ? val : p.permanentAddress,
+                              }));
+                            }}
+                            placeholder="Complete address with landmark"
+                            className="text-xs min-h-[50px]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Permanent Address with Checkbox */}
+                      <div className="border-t pt-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-foreground text-xs">Permanent Address</h4>
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-primary font-medium select-none">
+                            <Checkbox
+                              checked={sameAsCurrentAddress}
+                              onCheckedChange={(checked) => {
+                                const isChecked = !!checked;
+                                setSameAsCurrentAddress(isChecked);
+                                if (isChecked) {
+                                  setDraftContact((p) => ({ ...p, permanentAddress: p.currentAddress }));
+                                }
+                              }}
+                            />
+                            <span>Permanent address same as current address</span>
+                          </label>
+                        </div>
+                        <div className="space-y-1">
+                          <Textarea
+                            rows={2}
+                            disabled={sameAsCurrentAddress}
+                            value={draftContact.permanentAddress}
+                            onChange={(e) => setDraftContact((p) => ({ ...p, permanentAddress: e.target.value }))}
+                            placeholder="Complete permanent address"
+                            className="text-xs min-h-[50px] disabled:opacity-60 disabled:bg-muted"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Emergency Contact */}
+                      <div className="border-t pt-3 space-y-3">
+                        <h4 className="font-semibold text-foreground text-xs">Emergency Contact Details</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Contact Person Name</Label>
+                            <Input
+                              value={draftContact.emergencyContactName}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, emergencyContactName: e.target.value }))}
+                              placeholder="e.g. Ramesh Sharma"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Relationship</Label>
+                            <Input
+                              value={draftContact.emergencyContactRelationship}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, emergencyContactRelationship: e.target.value }))}
+                              placeholder="e.g. Spouse, Father, Mother"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Emergency Phone</Label>
+                            <Input
+                              type="tel"
+                              value={draftContact.emergencyContactPhone}
+                              onChange={(e) => setDraftContact((p) => ({ ...p, emergencyContactPhone: e.target.value }))}
+                              placeholder="+91 9876543210"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Work Phone</p>
-                      <p className="font-semibold">{employee.workPhone ?? 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Work Email</p>
-                      <p className="font-semibold">{employee.workEmail ?? 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Personal Email</p>
-                      <p className="font-semibold">{employee.personalEmail ?? 'No information available'}</p>
-                    </div>
-                  </div>
-                  <div className="border-t pt-3 grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground font-semibold">Current Address</p>
-                      <p className="text-foreground leading-normal">{employee.currentAddress || 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground font-semibold">Permanent Address</p>
-                      <p className="text-foreground leading-normal">{employee.permanentAddress || 'No information available'}</p>
-                    </div>
-                  </div>
-                  <div className="border-t pt-3 grid grid-cols-4 gap-2">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">City</p>
-                      <p className="font-semibold">{employee.city || 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">State</p>
-                      <p className="font-semibold">{employee.state || 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Country</p>
-                      <p className="font-semibold">{employee.country || 'No information available'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Pincode</p>
-                      <p className="font-semibold">{employee.pincode || 'No information available'}</p>
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Personal Phone</p>
+                          <p className="font-semibold">{employee.phone ?? 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-muted-foreground font-medium text-[11px]">Work Phone</p>
+                            <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                              <Lock className="h-2.5 w-2.5" /> HR Controlled
+                            </span>
+                          </div>
+                          <p className="font-semibold">{employee.workPhone ?? 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-muted-foreground font-medium text-[11px]">Work Email</p>
+                            <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-medium">
+                              <Lock className="h-2.5 w-2.5" /> HR Controlled
+                            </span>
+                          </div>
+                          <p className="font-semibold">{employee.workEmail ?? 'Not specified'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-medium">Personal Email</p>
+                          <p className="font-semibold">{employee.personalEmail ?? 'Not specified'}</p>
+                        </div>
+                      </div>
+                      <div className="border-t pt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-semibold">Current Address</p>
+                          <p className="text-foreground leading-normal">{employee.currentAddress || 'Not specified'}</p>
+                          {(employee.city || employee.state || employee.pincode) && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {[employee.city, employee.state, employee.country, employee.pincode].filter(Boolean).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground font-semibold">Permanent Address</p>
+                          <p className="text-foreground leading-normal">{employee.permanentAddress || 'Not specified'}</p>
+                        </div>
+                      </div>
+                      <div className="border-t pt-3">
+                        <p className="text-muted-foreground font-semibold mb-2">Emergency Contact</p>
+                        {employee.emergencyContactName ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2.5 rounded-lg bg-muted/20 border">
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block">Name</span>
+                              <span className="font-semibold text-xs">{employee.emergencyContactName}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block">Relationship</span>
+                              <span className="font-semibold text-xs">{employee.emergencyContactRelationship || 'Relative'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block">Phone</span>
+                              <span className="font-semibold text-xs">{employee.emergencyContactPhone || 'Not specified'}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No emergency contact registered.</p>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1726,40 +3078,205 @@ export default function EmployeeDetailPage() {
             {/* 3. FAMILY */}
             <TabsContent value="family" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Family Details & Nominees</CardTitle>
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Family Details & Nominees</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Statutory nominee registration and primary dependents.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeEditSection === 'family' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => setActiveEditSection(null)}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          <X className="h-3.5 w-3.5" /> Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold shadow-xs"
+                          onClick={() => profileSaveMutation.mutate({ section: 'family', data: draftFamily })}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          {profileSaveMutation.isPending ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save Changes
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                        onClick={() => handleStartEdit('family')}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
-                <CardContent className="p-4 text-xs space-y-3">
-                  {employee.familyMemberName || employee.nomineeName ? (
-                    <>
-                      {employee.familyMemberName && (
-                        <div className="flex items-center justify-between border-b pb-2">
-                          <div>
-                            <p className="font-semibold">{employee.familyMemberName}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {employee.familyRelationship || 'Family Member'}
-                              {employee.familyDob ? ` &bull; DOB: ${new Date(employee.familyDob).toLocaleDateString()}` : ''}
-                              {employee.familyContact ? ` &bull; Phone: ${employee.familyContact}` : ''}
-                            </p>
+                <CardContent className="p-4 text-xs space-y-4">
+                  {activeEditSection === 'family' ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-800 dark:text-blue-300 text-xs flex items-center gap-2">
+                        <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                        <span>
+                          Updating family or nominee records will dispatch a notification to the Branch Admin for review.
+                        </span>
+                      </div>
+
+                      {/* Family Member Section */}
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5 text-primary" /> Primary Family Member / Dependent
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Member Name</Label>
+                            <Input
+                              value={draftFamily.familyMemberName}
+                              onChange={(e) => setDraftFamily((p) => ({ ...p, familyMemberName: e.target.value }))}
+                              placeholder="Full Name"
+                              className="h-8 text-xs"
+                            />
                           </div>
-                          <Badge variant="outline">Family</Badge>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Relationship</Label>
+                            <Select
+                              value={draftFamily.familyRelationship || 'Spouse'}
+                              onValueChange={(val) => setDraftFamily((p) => ({ ...p, familyRelationship: val }))}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Relationship" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Spouse">Spouse</SelectItem>
+                                <SelectItem value="Father">Father</SelectItem>
+                                <SelectItem value="Mother">Mother</SelectItem>
+                                <SelectItem value="Son">Son</SelectItem>
+                                <SelectItem value="Daughter">Daughter</SelectItem>
+                                <SelectItem value="Sibling">Sibling</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Date of Birth</Label>
+                            <Input
+                              type="date"
+                              value={draftFamily.familyDob}
+                              onChange={(e) => setDraftFamily((p) => ({ ...p, familyDob: e.target.value }))}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Contact Number</Label>
+                            <Input
+                              type="tel"
+                              value={draftFamily.familyContact}
+                              onChange={(e) => setDraftFamily((p) => ({ ...p, familyContact: e.target.value }))}
+                              placeholder="+91 9876543210"
+                              className="h-8 text-xs"
+                            />
+                          </div>
                         </div>
-                      )}
-                      {employee.nomineeName && (
-                        <div className="flex items-center justify-between border-b pb-2">
-                          <div>
-                            <p className="font-semibold">{employee.nomineeName}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {employee.nomineeRelationship || 'Nominee'}
-                              {employee.nomineeShare ? ` &bull; Share: ${employee.nomineeShare}%` : ''}
-                            </p>
+                      </div>
+
+                      {/* Nominee Section */}
+                      <div className="border-t pt-3 space-y-3">
+                        <h4 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> Statutory Nominee (Gratuity / PF / Insurance)
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Nominee Full Name</Label>
+                            <Input
+                              value={draftFamily.nomineeName}
+                              onChange={(e) => setDraftFamily((p) => ({ ...p, nomineeName: e.target.value }))}
+                              placeholder="Nominee Name"
+                              className="h-8 text-xs"
+                            />
                           </div>
-                          <Badge variant="outline">Nominee</Badge>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Nominee Relationship</Label>
+                            <Input
+                              value={draftFamily.nomineeRelationship}
+                              onChange={(e) => setDraftFamily((p) => ({ ...p, nomineeRelationship: e.target.value }))}
+                              placeholder="e.g. Spouse / Mother / Father"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Share Percentage (%)</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="100"
+                              value={draftFamily.nomineeShare}
+                              onChange={(e) => setDraftFamily((p) => ({ ...p, nomineeShare: e.target.value }))}
+                              placeholder="100"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {employee.familyMemberName || employee.nomineeName ? (
+                        <>
+                          {employee.familyMemberName && (
+                            <div className="flex items-center justify-between border-b pb-3">
+                              <div>
+                                <p className="font-semibold text-foreground text-xs">{employee.familyMemberName}</p>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                  {employee.familyRelationship || 'Family Member'}
+                                  {employee.familyDob ? ` • DOB: ${new Date(employee.familyDob).toLocaleDateString()}` : ''}
+                                  {employee.familyContact ? ` • Phone: ${employee.familyContact}` : ''}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="text-xs">Family Member</Badge>
+                            </div>
+                          )}
+                          {employee.nomineeName && (
+                            <div className="flex items-center justify-between border-b pb-3">
+                              <div>
+                                <p className="font-semibold text-foreground text-xs">{employee.nomineeName}</p>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                  {employee.nomineeRelationship || 'Nominee'}
+                                  {employee.nomineeShare ? ` • Share: ${employee.nomineeShare}%` : ''}
+                                </p>
+                              </div>
+                              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs">
+                                Nominee ({employee.nomineeShare || 100}%)
+                              </Badge>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          <p>No family or nominee records added yet.</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 text-xs gap-1"
+                            onClick={() => handleStartEdit('family')}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add Family & Nominee Details
+                          </Button>
                         </div>
                       )}
                     </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
                   )}
                 </CardContent>
               </Card>
@@ -1768,23 +3285,157 @@ export default function EmployeeDetailPage() {
             {/* 4. EDUCATION */}
             <TabsContent value="education" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Academic Education History</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 text-xs space-y-3">
-                  {employee.educationQualification ? (
-                    <div className="border-l-2 border-primary pl-3 py-1">
-                      <p className="font-semibold">{employee.educationQualification}</p>
-                      <p className="text-muted-foreground">
-                        {employee.educationInstitution || 'No Institution'} &bull; {employee.educationUniversity || 'No Board/University'}
-                        {employee.educationPassingYear ? ` &bull; Class of ${employee.educationPassingYear}` : ''}
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="h-4 w-4 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Academic Education History</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Degree qualifications, university records, and passing credentials.
                       </p>
-                      {employee.educationPercentage && (
-                        <p className="text-[10px] text-primary font-medium mt-1">Percentage / Grade: {employee.educationPercentage}%</p>
-                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeEditSection === 'education' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => setActiveEditSection(null)}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          <X className="h-3.5 w-3.5" /> Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold shadow-xs"
+                          onClick={() => profileSaveMutation.mutate({ section: 'education', data: draftEducation })}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          {profileSaveMutation.isPending ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save Changes
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                        onClick={() => handleStartEdit('education')}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> {employee.educationQualification ? 'Edit' : 'Add Education'}
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 text-xs space-y-4">
+                  {activeEditSection === 'education' ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-800 dark:text-blue-300 text-xs flex items-center gap-2">
+                        <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                        <span>
+                          Submit your degree and college information. Notification will be dispatched to the Branch Admin.
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Degree / Qualification *</Label>
+                          <Input
+                            value={draftEducation.educationQualification}
+                            onChange={(e) => setDraftEducation((p) => ({ ...p, educationQualification: e.target.value }))}
+                            placeholder="e.g. B.Tech / MBA / B.Sc / Diploma"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Specialization / Discipline</Label>
+                          <Input
+                            value={draftEducation.educationSpecialization}
+                            onChange={(e) => setDraftEducation((p) => ({ ...p, educationSpecialization: e.target.value }))}
+                            placeholder="e.g. Computer Science / Mechanical / Marketing"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">School / College / Institution</Label>
+                          <Input
+                            value={draftEducation.educationInstitution}
+                            onChange={(e) => setDraftEducation((p) => ({ ...p, educationInstitution: e.target.value }))}
+                            placeholder="e.g. National Institute of Technology"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">University / Board</Label>
+                          <Input
+                            value={draftEducation.educationUniversity}
+                            onChange={(e) => setDraftEducation((p) => ({ ...p, educationUniversity: e.target.value }))}
+                            placeholder="e.g. Mumbai University / CBSE"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Year of Passing</Label>
+                          <Input
+                            type="number"
+                            value={draftEducation.educationPassingYear}
+                            onChange={(e) => setDraftEducation((p) => ({ ...p, educationPassingYear: e.target.value }))}
+                            placeholder="e.g. 2023"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Percentage / CGPA</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={draftEducation.educationPercentage}
+                            onChange={(e) => setDraftEducation((p) => ({ ...p, educationPercentage: e.target.value }))}
+                            placeholder="e.g. 84.5"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
+                    <>
+                      {employee.educationQualification ? (
+                        <div className="border-l-2 border-primary pl-3 py-1">
+                          <p className="font-semibold text-sm text-foreground">{employee.educationQualification}</p>
+                          {employee.educationSpecialization && (
+                            <p className="text-xs text-primary font-medium">{employee.educationSpecialization}</p>
+                          )}
+                          <p className="text-muted-foreground mt-1">
+                            {employee.educationInstitution || 'No Institution'} • {employee.educationUniversity || 'No Board/University'}
+                            {employee.educationPassingYear ? ` • Class of ${employee.educationPassingYear}` : ''}
+                          </p>
+                          {employee.educationPercentage && (
+                            <p className="text-[11px] text-emerald-600 font-semibold mt-1">Grade / Score: {employee.educationPercentage}%</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          <p>No academic education records found.</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 text-xs gap-1"
+                            onClick={() => handleStartEdit('education')}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add Education Details
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -1793,27 +3444,152 @@ export default function EmployeeDetailPage() {
             {/* 5. EXPERIENCE */}
             <TabsContent value="experience" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Previous Work Experience</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 text-xs space-y-3">
-                  {employee.prevCompany ? (
-                    <div className="border-l-2 border-emerald-500 pl-3 py-1">
-                      <p className="font-semibold">{employee.prevJobTitle || 'Previous Employee'}</p>
-                      <p className="text-muted-foreground">
-                        {employee.prevCompany}
-                        {employee.prevStartDate ? ` &bull; ${new Date(employee.prevStartDate).toLocaleDateString()}` : ''}
-                        {employee.prevEndDate ? ` - ${new Date(employee.prevEndDate).toLocaleDateString()}` : ''}
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Previous Work Experience</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Past employers, designations, tenure, and prior experience history.
                       </p>
-                      {employee.prevTotalExp && (
-                        <p className="text-[10px] text-muted-foreground font-medium mt-1">Total Experience: {employee.prevTotalExp}</p>
-                      )}
-                      {employee.prevReasonForLeaving && (
-                        <p className="text-[10px] text-muted-foreground leading-normal mt-1">Reason for Leaving: {employee.prevReasonForLeaving}</p>
-                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeEditSection === 'experience' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => setActiveEditSection(null)}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          <X className="h-3.5 w-3.5" /> Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold shadow-xs"
+                          onClick={() => profileSaveMutation.mutate({ section: 'experience', data: draftExperience })}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          {profileSaveMutation.isPending ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save Changes
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                        onClick={() => handleStartEdit('experience')}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> {employee.prevCompany ? 'Edit' : 'Add Experience'}
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 text-xs space-y-4">
+                  {activeEditSection === 'experience' ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-800 dark:text-blue-300 text-xs flex items-center gap-2">
+                        <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                        <span>
+                          Provide prior employment history. Your update will notify the Branch Admin.
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Organization Name *</Label>
+                          <Input
+                            value={draftExperience.prevCompany}
+                            onChange={(e) => setDraftExperience((p) => ({ ...p, prevCompany: e.target.value }))}
+                            placeholder="e.g. Tata Consultancy Services"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Job Title / Designation *</Label>
+                          <Input
+                            value={draftExperience.prevJobTitle}
+                            onChange={(e) => setDraftExperience((p) => ({ ...p, prevJobTitle: e.target.value }))}
+                            placeholder="e.g. Software Engineer / Operations Executive"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Start Date</Label>
+                          <Input
+                            type="date"
+                            value={draftExperience.prevStartDate}
+                            onChange={(e) => setDraftExperience((p) => ({ ...p, prevStartDate: e.target.value }))}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">End Date</Label>
+                          <Input
+                            type="date"
+                            value={draftExperience.prevEndDate}
+                            onChange={(e) => setDraftExperience((p) => ({ ...p, prevEndDate: e.target.value }))}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Total Duration / Exp</Label>
+                          <Input
+                            value={draftExperience.prevTotalExp}
+                            onChange={(e) => setDraftExperience((p) => ({ ...p, prevTotalExp: e.target.value }))}
+                            placeholder="e.g. 2 Years 6 Months"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Reason for Leaving</Label>
+                        <Textarea
+                          rows={2}
+                          value={draftExperience.prevReasonForLeaving}
+                          onChange={(e) => setDraftExperience((p) => ({ ...p, prevReasonForLeaving: e.target.value }))}
+                          placeholder="e.g. Career growth / relocation"
+                          className="text-xs min-h-[50px]"
+                        />
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
+                    <>
+                      {employee.prevCompany ? (
+                        <div className="border-l-2 border-emerald-500 pl-3 py-1 space-y-1">
+                          <p className="font-semibold text-sm text-foreground">{employee.prevJobTitle || 'Previous Employee'}</p>
+                          <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{employee.prevCompany}</p>
+                          <p className="text-muted-foreground text-[11px]">
+                            {employee.prevStartDate ? new Date(employee.prevStartDate).toLocaleDateString() : ''}
+                            {employee.prevEndDate ? ` - ${new Date(employee.prevEndDate).toLocaleDateString()}` : ''}
+                            {employee.prevTotalExp ? ` • Total Experience: ${employee.prevTotalExp}` : ''}
+                          </p>
+                          {employee.prevReasonForLeaving && (
+                            <p className="text-[11px] text-muted-foreground mt-1">Reason for Leaving: {employee.prevReasonForLeaving}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          <p>No previous work experience listed.</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 text-xs gap-1"
+                            onClick={() => handleStartEdit('experience')}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add Previous Experience
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -1822,35 +3598,152 @@ export default function EmployeeDetailPage() {
             {/* 6. BANKING */}
             <TabsContent value="banking" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Banking Details (Salary Account)</CardTitle>
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Banking Details (Salary Account)</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Statutory salary disbursement account & IFSC registry.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeEditSection === 'banking' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => setActiveEditSection(null)}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          <X className="h-3.5 w-3.5" /> Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold shadow-xs"
+                          onClick={() => profileSaveMutation.mutate({ section: 'banking', data: draftBanking })}
+                          disabled={profileSaveMutation.isPending}
+                        >
+                          {profileSaveMutation.isPending ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save Changes
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                        onClick={() => handleStartEdit('banking')}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4 text-xs">
-                  {employee.bankName || employee.bankAccountNumber ? (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <p className="text-muted-foreground">Bank Name</p>
-                        <p className="font-semibold">{employee.bankName || 'No information available'}</p>
+                  {activeEditSection === 'banking' ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <span>
+                          Notice: Updates to banking credentials require review by the Branch Admin & Payroll team before next salary cycle.
+                        </span>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-muted-foreground">Account Number</p>
-                        <p className="font-semibold font-mono">{employee.bankAccountNumber || 'No information available'}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Bank Name *</Label>
+                          <Input
+                            value={draftBanking.bankName}
+                            onChange={(e) => setDraftBanking((p) => ({ ...p, bankName: e.target.value }))}
+                            placeholder="e.g. HDFC Bank / State Bank of India"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Account Number *</Label>
+                          <Input
+                            value={draftBanking.bankAccountNumber}
+                            onChange={(e) => setDraftBanking((p) => ({ ...p, bankAccountNumber: e.target.value }))}
+                            placeholder="Bank Account Number"
+                            className="h-8 text-xs font-mono"
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-muted-foreground">IFSC Code</p>
-                        <p className="font-semibold font-mono uppercase">{employee.bankIfscCode || 'No information available'}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-muted-foreground">Branch Location</p>
-                        <p className="font-semibold">{employee.bankBranchName || 'No information available'}</p>
-                      </div>
-                      <div className="space-y-1 col-span-2">
-                        <p className="text-muted-foreground">Account Holder Name</p>
-                        <p className="font-semibold">{employee.bankAccountHolderName || 'No information available'}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">IFSC Code *</Label>
+                          <Input
+                            value={draftBanking.bankIfscCode}
+                            onChange={(e) => setDraftBanking((p) => ({ ...p, bankIfscCode: e.target.value.toUpperCase() }))}
+                            placeholder="e.g. HDFC0001234"
+                            className="h-8 text-xs font-mono uppercase"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Branch Name</Label>
+                          <Input
+                            value={draftBanking.bankBranchName}
+                            onChange={(e) => setDraftBanking((p) => ({ ...p, bankBranchName: e.target.value }))}
+                            placeholder="Branch Location"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Account Holder Name *</Label>
+                          <Input
+                            value={draftBanking.bankAccountHolderName}
+                            onChange={(e) => setDraftBanking((p) => ({ ...p, bankAccountHolderName: e.target.value }))}
+                            placeholder="Name as in Bank Passbook"
+                            className="h-8 text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground text-center py-6">No information available</p>
+                    <>
+                      {employee.bankName || employee.bankAccountNumber ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground">Bank Name</p>
+                            <p className="font-semibold text-foreground text-sm">{employee.bankName || 'Not specified'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground">Account Number</p>
+                            <p className="font-semibold font-mono text-foreground text-sm">{employee.bankAccountNumber || 'Not specified'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground">IFSC Code</p>
+                            <p className="font-semibold font-mono uppercase text-foreground">{employee.bankIfscCode || 'Not specified'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground">Branch Location</p>
+                            <p className="font-semibold">{employee.bankBranchName || 'Not specified'}</p>
+                          </div>
+                          <div className="space-y-1 col-span-2">
+                            <p className="text-muted-foreground">Account Holder Name</p>
+                            <p className="font-semibold">{employee.bankAccountHolderName || 'Not specified'}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          <p>No salary bank account details recorded.</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 text-xs gap-1"
+                            onClick={() => handleStartEdit('banking')}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add Bank Account Details
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -1859,39 +3752,78 @@ export default function EmployeeDetailPage() {
             {/* 7. KYC */}
             <TabsContent value="kyc" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">KYC Credentials (Aadhaar & PAN)</CardTitle>
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm font-semibold">KYC Credentials (Aadhaar & PAN)</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Statutory UIDAI Aadhaar, PAN card, and passport registry.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                    onClick={() => setIsKycModalOpen(true)}
+                  >
+                    <FileUp className="h-3.5 w-3.5" /> Request KYC Update
+                  </Button>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4 text-xs">
                   {employee.aadhaarNumber || employee.panNumber ? (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <p className="text-muted-foreground">Aadhaar Number (UIDAI)</p>
-                        <p className="font-semibold font-mono">{employee.aadhaarNumber || 'No information available'}</p>
+                        <p className="text-muted-foreground font-medium">Aadhaar Number (UIDAI)</p>
+                        <p className="font-semibold font-mono text-foreground">{employee.aadhaarNumber || 'Not specified'}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-muted-foreground">Income Tax PAN Number</p>
-                        <p className="font-semibold font-mono uppercase">{employee.panNumber || 'No information available'}</p>
+                        <p className="text-muted-foreground font-medium">Income Tax PAN Number</p>
+                        <p className="font-semibold font-mono uppercase text-foreground">{employee.panNumber || 'Not specified'}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-muted-foreground">Passport Number</p>
-                        <p className="font-semibold font-mono uppercase">{employee.passportNumber || 'No information available'}</p>
+                        <p className="text-muted-foreground font-medium">Passport Number</p>
+                        <p className="font-semibold font-mono uppercase text-foreground">{employee.passportNumber || 'Not specified'}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-muted-foreground">Verification Status</p>
+                        <p className="text-muted-foreground font-medium">Verification Status</p>
                         <div>
-                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] uppercase">
+                          <Badge className={
+                            employee.kycStatus === 'VERIFIED'
+                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] uppercase font-bold'
+                              : 'bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] uppercase font-bold'
+                          }>
                             {employee.kycStatus || 'PENDING'}
                           </Badge>
                           {employee.kycVerificationDate && (
-                            <span className="text-[10px] text-muted-foreground ml-2">Verified: {new Date(employee.kycVerificationDate).toLocaleDateString()}</span>
+                            <span className="text-[10px] text-muted-foreground ml-2">Verified on {new Date(employee.kycVerificationDate).toLocaleDateString()}</span>
                           )}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground text-center py-6">No information available</p>
+                    <div className="text-center py-6 text-muted-foreground">
+                      <p>No KYC credentials recorded on file.</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5 hover:text-primary font-medium"
+                          onClick={() => setIsKycModalOpen(true)}
+                        >
+                          <FileUp className="h-3.5 w-3.5" /> Request Update
+                        </Button>
+                    </div>
                   )}
+
+                  <div className="bg-muted/30 border border-border/80 rounded-xl p-3.5 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-muted-foreground">
+                        Aadhaar and PAN details require document proof verification. Use &quot;Request KYC Update&quot; to send updated credentials directly to the Branch Admin.
+                      </span>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1899,8 +3831,19 @@ export default function EmployeeDetailPage() {
             {/* 8. PF & ESIC */}
             <TabsContent value="pf_esic" className="m-0 space-y-4">
               <Card className="shadow-2xs">
-                <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-semibold">Provident Fund & ESIC Registration</CardTitle>
+                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Provident Fund & ESIC Registration</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Statutory social security, PF member IDs, and ESIC registrations.
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-xs font-semibold text-amber-700 bg-amber-500/10 border-amber-300 dark:text-amber-400 gap-1.5 py-1">
+                    <Lock className="h-3 w-3" /> HR Controlled
+                  </Badge>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4 text-xs">
                   {employee.uanNumber || employee.pfMemberId || employee.esicNumber ? (
@@ -1980,11 +3923,17 @@ export default function EmployeeDetailPage() {
                         </div>
                       </div>
 
-                      <Button asChild variant="outline" size="sm" className="h-8 text-xs font-bold gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950/50">
-                        <Link to="/payroll/structure">
-                          Manage in Payroll <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                      </Button>
+                      {isAdmin ? (
+                        <Button asChild variant="outline" size="sm" className="h-8 text-xs font-bold gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950/50">
+                          <Link to="/payroll/structure">
+                            Manage in Payroll <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Badge variant="outline" className="text-xs font-semibold text-amber-700 bg-amber-500/10 border-amber-300 dark:text-amber-400 gap-1.5 py-1">
+                          <Lock className="h-3 w-3" /> HR Controlled
+                        </Badge>
+                      )}
                     </CardHeader>
                     <CardContent className="p-5 text-xs space-y-5">
                       {hasSalaryConfig ? (
@@ -2162,7 +4111,12 @@ export default function EmployeeDetailPage() {
             <TabsContent value="documents" className="m-0">
               <Card className="shadow-2xs">
                 <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
-                  <CardTitle className="text-base font-semibold">Documents Vault</CardTitle>
+                  <div>
+                    <CardTitle className="text-base font-semibold">Documents Vault</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Upload personal, identity, and educational proof files for HR verification.
+                    </p>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Select value={docType} onValueChange={setDocType}>
                       <SelectTrigger className="w-40 h-8 text-xs">
@@ -2185,22 +4139,34 @@ export default function EmployeeDetailPage() {
                         if (file) uploadMutation.mutate(file);
                       }}
                     />
-                    <Button size="sm" className="text-xs h-8" onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
-                      <Upload className="mr-1.5 h-4 w-4" /> Upload Document
+                    <Button size="sm" className="text-xs h-8 gap-1.5" onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
+                      <Upload className="h-3.5 w-3.5" /> Upload Document
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-2 pt-4">
+                <CardContent className="space-y-3 pt-4">
+                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-900 dark:text-blue-200 text-xs flex items-center gap-2">
+                    <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                    <span>
+                      Employees can upload and view documents. Verification is controlled strictly by HR Administration.
+                    </span>
+                  </div>
+
                   {employee.documents && employee.documents.length > 0 ? (
                     employee.documents.map((doc) => (
                       <div key={doc.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-xs hover:bg-muted/30 transition-colors">
                         <div>
-                          <p className="font-medium">{doc.fileName}</p>
+                          <p className="font-medium text-foreground">{doc.fileName}</p>
                           <p className="text-[10px] text-muted-foreground">{doc.docType}</p>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeDocMutation.mutate(doc.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700 font-medium">
+                            Pending HR Verification
+                          </span>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeDocMutation.mutate(doc.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -3662,6 +5628,107 @@ export default function EmployeeDetailPage() {
                 : contractActionTab === 'CONVERT_PERMANENT'
                 ? 'Confirm Permanent Conversion'
                 : 'Approve Non-Renewal & Link Exit'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* KYC Update Request Dialog */}
+      <Dialog open={isKycModalOpen} onOpenChange={setIsKycModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary" /> Request Statutory KYC Update
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3.5 text-xs py-2">
+            <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-900 dark:text-blue-200">
+              <p className="font-semibold text-xs">Branch Admin Verification Required</p>
+              <p className="text-[11px] mt-0.5 text-muted-foreground">
+                Statutory credentials (PAN, Aadhaar, Passport) require document proof verification. Submitting this request sends an alert to your Branch Admin.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold">Document Type *</Label>
+              <Select value={kycDocType} onValueChange={setKycDocType}>
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAN">PAN Card</SelectItem>
+                  <SelectItem value="AADHAAR">Aadhaar Card (UIDAI)</SelectItem>
+                  <SelectItem value="PASSPORT">Passport</SelectItem>
+                  <SelectItem value="VOTER_ID">Voter ID</SelectItem>
+                  <SelectItem value="DRIVING_LICENSE">Driving License</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold">Document / ID Number *</Label>
+              <Input
+                value={kycDocNumber}
+                onChange={(e) => setKycDocNumber(e.target.value)}
+                placeholder={kycDocType === 'PAN' ? 'ABCDE1234F' : kycDocType === 'AADHAAR' ? '12-digit Aadhaar' : 'Document Number'}
+                className="h-8 text-xs uppercase font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold">Upload Proof Document (PDF, JPG, PNG)</Label>
+              <Input
+                type="file"
+                accept=".pdf,image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setKycFile(file);
+                }}
+                className="h-8 text-xs"
+              />
+              {kycFile && (
+                <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                  ✓ Selected: {kycFile.name} ({(kycFile.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold">Remarks / Reason for Update</Label>
+              <Textarea
+                value={kycRemarks}
+                onChange={(e) => setKycRemarks(e.target.value)}
+                placeholder="e.g., Updated address on Aadhaar card, renewed passport..."
+                className="text-xs resize-none h-18"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex items-center justify-end gap-2 pt-3 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setIsKycModalOpen(false)}
+              disabled={isSubmittingKyc}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground"
+              disabled={isSubmittingKyc}
+              onClick={handleKycSubmit}
+            >
+              {isSubmittingKyc ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="h-3.5 w-3.5" /> Submit Request
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

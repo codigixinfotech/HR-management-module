@@ -114,6 +114,8 @@ export default function App() {
               <Route path="/employees" element={<EmployeeListPage />} />
               <Route path="/employees/:tab" element={<EmployeeListPage />} />
               <Route path="/employees/detail/:id" element={<EmployeeDetailPage />} />
+              <Route path="/profile" element={<Navigate to="/employees/detail/me" replace />} />
+              <Route path="/my-profile" element={<Navigate to="/employees/detail/me" replace />} />
 
               {/* Task Management Routes */}
               <Route path="/tasks" element={<TasksPage />} />

@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto';
+import { CreateEmployeeDto, UpdateEmployeeDto, UpdateMyProfileDto } from './dto/employee.dto';
 import {
   PaginationQueryDto,
   buildPagination,
@@ -284,29 +284,185 @@ export class EmployeesService implements OnModuleInit {
       });
     }
 
+    if (!employee && currentUser.userId) {
+      const userRec = await this.prisma.user.findUnique({
+        where: { id: currentUser.userId },
+        include: { company: true, branch: true },
+      });
+      if (userRec) {
+        const emailParts = userRec.email.split('@')[0].split('.');
+        const firstName = emailParts[0] ? emailParts[0].charAt(0).toUpperCase() + emailParts[0].slice(1) : 'Admin';
+        const lastName = emailParts[1] ? emailParts[1].charAt(0).toUpperCase() + emailParts[1].slice(1) : 'User';
+        const companyId = userRec.companyId || (await this.prisma.company.findFirst())?.id;
+        if (companyId) {
+          employee = await this.prisma.employee.create({
+            data: {
+              userId: userRec.id,
+              companyId,
+              branchId: userRec.branchId,
+              employeeCode: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+              firstName,
+              lastName,
+              workEmail: userRec.email,
+              status: 'ACTIVE',
+              employmentType: 'PERMANENT',
+              workMode: 'Onsite',
+            },
+            include: this.fullInclude,
+          });
+        }
+      }
+    }
+
     if (!employee) {
       throw new NotFoundException('No employee record found for current user');
     }
 
-    let resolvedGrade = employee.grade;
-    let resolvedLevel = employee.level;
-    if (employee.grade) {
-      const pg = await this.prisma.payGrade.findFirst({
-        where: { OR: [{ id: employee.grade }, { gradeCode: employee.grade }] },
-      });
-      if (pg) {
-        resolvedGrade = pg.gradeCode;
-        resolvedLevel = pg.level;
+    return this.enrichEmployee(employee);
+  }
+
+  async updateMyProfile(currentUser: any, dto: UpdateMyProfileDto) {
+    const existing = await this.findMe(currentUser);
+    if (!existing) {
+      throw new NotFoundException('Logged in employee profile not found');
+    }
+
+    // Explicit whitelist of fields employees are allowed to modify themselves
+    const ALLOWED_FIELDS = [
+      'firstName',
+      'middleName',
+      'lastName',
+      'dateOfBirth',
+      'gender',
+      'maritalStatus',
+      'bloodGroup',
+      'religion',
+      'nationality',
+      'personalEmail',
+      'phone',
+      'facePhoto',
+      'currentAddress',
+      'permanentAddress',
+      'addressLine1',
+      'addressLine2',
+      'city',
+      'state',
+      'country',
+      'pincode',
+      'emergencyContactName',
+      'emergencyContactRelationship',
+      'emergencyContactPhone',
+      'familyMemberName',
+      'familyRelationship',
+      'familyDob',
+      'familyContact',
+      'nomineeName',
+      'nomineeRelationship',
+      'nomineeShare',
+      'educationQualification',
+      'educationSpecialization',
+      'educationInstitution',
+      'educationUniversity',
+      'educationPassingYear',
+      'educationPercentage',
+      'prevCompany',
+      'prevJobTitle',
+      'prevStartDate',
+      'prevEndDate',
+      'prevTotalExp',
+      'prevReasonForLeaving',
+      'bankName',
+      'bankAccountNumber',
+      'bankIfscCode',
+      'bankBranchName',
+      'bankAccountHolderName',
+      'workMode',
+      'shift',
+    ];
+
+    const cleanData: Record<string, any> = {};
+    for (const key of ALLOWED_FIELDS) {
+      if ((dto as any)[key] !== undefined) {
+        const val = (dto as any)[key];
+        // Do NOT replace existing values with empty strings
+        if (val === '' && (existing as any)[key] !== null && (existing as any)[key] !== undefined && (existing as any)[key] !== '') {
+          continue;
+        }
+        cleanData[key] = val;
       }
     }
 
-    const positionHistory = await this.getPositionHistory(employee.id);
-    return {
-      ...employee,
-      grade: resolvedGrade,
-      level: resolvedLevel,
-      positionHistory,
-    };
+    // Parse date fields
+    const dateFields = ['dateOfBirth', 'familyDob', 'prevStartDate', 'prevEndDate'];
+    for (const df of dateFields) {
+      if (cleanData[df] !== undefined) {
+        if (!cleanData[df] || cleanData[df] === '') {
+          cleanData[df] = null;
+        } else {
+          const parsed = new Date(cleanData[df]);
+          cleanData[df] = isNaN(parsed.getTime()) ? null : parsed;
+        }
+      }
+    }
+
+    // Number conversions
+    if (cleanData.nomineeShare !== undefined) {
+      cleanData.nomineeShare = cleanData.nomineeShare === '' || cleanData.nomineeShare === null ? null : Number(cleanData.nomineeShare);
+    }
+    if (cleanData.educationPassingYear !== undefined) {
+      cleanData.educationPassingYear = cleanData.educationPassingYear === '' || cleanData.educationPassingYear === null ? null : parseInt(String(cleanData.educationPassingYear), 10);
+    }
+    if (cleanData.educationPercentage !== undefined) {
+      cleanData.educationPercentage = cleanData.educationPercentage === '' || cleanData.educationPercentage === null ? null : parseFloat(String(cleanData.educationPercentage));
+    }
+
+    if (cleanData.gender === '') {
+      cleanData.gender = null;
+    }
+
+    const updated = await this.prisma.employee.update({
+      where: { id: existing.id },
+      data: cleanData,
+      include: this.fullInclude,
+    });
+
+    const changedKeys = Object.keys(cleanData);
+    if (changedKeys.length > 0) {
+      // 1. Audit Log
+      try {
+        await this.prisma.auditLog.create({
+          data: {
+            userId: currentUser?.userId || undefined,
+            companyId: existing.companyId || undefined,
+            action: 'EMPLOYEE_SELF_PROFILE_UPDATE',
+            entityType: 'Employee',
+            entityId: existing.id,
+            beforeData: {
+              summary: 'Employee self-service update',
+            },
+            afterData: cleanData,
+          },
+        });
+      } catch {
+        // Non-blocking audit log
+      }
+
+      // 2. Employee HR Note for Branch Admin & HR
+      try {
+        await this.prisma.employeeHrNote.create({
+          data: {
+            employeeId: existing.id,
+            note: `Self-Service Profile Update: Employee updated [${changedKeys.join(', ')}]. Routed to Branch Admin for review.`,
+            noteType: 'PROFILE_SELF_UPDATE',
+            createdBy: existing.workEmail || `${existing.firstName} ${existing.lastName}` || 'Employee Self-Service',
+          },
+        });
+      } catch {
+        // Non-blocking HR note
+      }
+    }
+
+    return this.enrichEmployee(updated);
   }
 
   async list(query: PaginationQueryDto, companyId?: string, branchId?: string) {
@@ -453,6 +609,12 @@ export class EmployeesService implements OnModuleInit {
     if (!employee) {
       throw new NotFoundException(`Employee record not found for query '${id}'`);
     }
+
+    return this.enrichEmployee(employee);
+  }
+
+  private async enrichEmployee(employee: any) {
+    if (!employee) return null;
 
     let resolvedGrade = employee.grade;
     let resolvedLevel = employee.level;

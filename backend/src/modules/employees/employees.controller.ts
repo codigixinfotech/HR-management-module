@@ -23,6 +23,7 @@ import {
   CreateEmployeeDto,
   ListEmployeesQueryDto,
   UpdateEmployeeDto,
+  UpdateMyProfileDto,
 } from './dto/employee.dto';
 import { CreateOnboardingTaskDto } from './dto/onboarding-task.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -73,6 +74,14 @@ export class EmployeesController {
   @Get('me')
   findMe(@CurrentUser() user: CurrentUserPayload) {
     return this.employeesService.findMe(user);
+  }
+
+  @Patch('me/profile')
+  updateMyProfile(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: UpdateMyProfileDto,
+  ) {
+    return this.employeesService.updateMyProfile(user, dto);
   }
 
   @Post(':id/create-login')

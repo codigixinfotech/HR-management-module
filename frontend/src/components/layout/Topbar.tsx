@@ -376,7 +376,7 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => navigate('/employees/directory')}
+              onClick={() => navigate('/employees/detail/me')}
               className="cursor-pointer text-xs"
             >
               <User className="mr-2 h-3.5 w-3.5" />

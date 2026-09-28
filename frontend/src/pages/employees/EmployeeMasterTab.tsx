@@ -855,24 +855,50 @@ export function EmployeeMasterTab() {
     if (!allDepartments || !selectedCompanyId) return [];
     if (!selectedBranchId) return [];
 
-    return allDepartments.filter((d: any) => {
+    const filtered = allDepartments.filter((d: any) => {
       if (d.companyId !== selectedCompanyId) return false;
       if (selectedBranchId === 'NONE' || selectedBranchId === 'HEAD_OFFICE') {
         return !d.branchId || d.branchId === 'NONE' || d.branchId === 'HEAD_OFFICE';
       }
       return d.branchId === selectedBranchId;
     });
-  }, [allDepartments, selectedCompanyId, selectedBranchId]);
+
+    if (watchedDeptId) {
+      const currentDept = allDepartments.find((d: any) => d.id === watchedDeptId);
+      if (currentDept && !filtered.some((d: any) => d.id === currentDept.id)) {
+        filtered.push(currentDept);
+      }
+    } else if (isEditing && editEmployee?.department) {
+      if (!filtered.some((d: any) => d.id === editEmployee.department.id)) {
+        filtered.push(editEmployee.department);
+      }
+    }
+
+    return filtered;
+  }, [allDepartments, selectedCompanyId, selectedBranchId, watchedDeptId, isEditing, editEmployee]);
 
   const designationOptions = useMemo(() => {
     if (!allDesignations || !selectedCompanyId || !watchedDeptId) return [];
 
-    return allDesignations.filter(
+    const filtered = allDesignations.filter(
       (d: any) =>
         d.companyId === selectedCompanyId &&
         (d.departmentId === watchedDeptId || d.department?.id === watchedDeptId)
     );
-  }, [allDesignations, selectedCompanyId, watchedDeptId]);
+
+    if (watchedDesigId) {
+      const currentDesig = allDesignations.find((d: any) => d.id === watchedDesigId);
+      if (currentDesig && !filtered.some((d: any) => d.id === currentDesig.id)) {
+        filtered.push(currentDesig);
+      }
+    } else if (isEditing && editEmployee?.designation) {
+      if (!filtered.some((d: any) => d.id === editEmployee.designation.id)) {
+        filtered.push(editEmployee.designation);
+      }
+    }
+
+    return filtered;
+  }, [allDesignations, selectedCompanyId, watchedDeptId, watchedDesigId, isEditing, editEmployee]);
 
   const reportingManagerOptions = useMemo(() => {
     const list = employeesData?.items ?? [];
@@ -895,9 +921,12 @@ export function EmployeeMasterTab() {
     return allShiftTypes.filter((s: any) => s.companyId === selectedCompanyId);
   }, [allShiftTypes, selectedCompanyId]);
 
+  const isInitialResetDoneRef = useRef(false);
+
   // Reset child organization state when Company changes
   const prevCompanyIdRef = useRef<string | null>(null);
   useEffect(() => {
+    if (isEditing && !isInitialResetDoneRef.current) return;
     if (prevCompanyIdRef.current && prevCompanyIdRef.current !== selectedCompanyId) {
       form.setValue('departmentId', '');
       form.setValue('designationId', '');
@@ -910,11 +939,12 @@ export function EmployeeMasterTab() {
       form.setValue('costCenter', '');
     }
     prevCompanyIdRef.current = selectedCompanyId ?? null;
-  }, [selectedCompanyId, form]);
+  }, [selectedCompanyId, form, isEditing]);
 
   // Reset child department & designation state when Branch changes
   const prevBranchIdRef = useRef<string | null>(null);
   useEffect(() => {
+    if (isEditing && !isInitialResetDoneRef.current) return;
     if (prevBranchIdRef.current !== null && prevBranchIdRef.current !== selectedBranchId) {
       form.setValue('departmentId', '', { shouldValidate: true, shouldDirty: true });
       form.setValue('designationId', '', { shouldValidate: true, shouldDirty: true });
@@ -922,21 +952,23 @@ export function EmployeeMasterTab() {
       form.setValue('level', '');
     }
     prevBranchIdRef.current = selectedBranchId ?? null;
-  }, [selectedBranchId, form]);
+  }, [selectedBranchId, form, isEditing]);
 
   // Reset designation & derived grade/level when Department changes
   const prevDeptIdRef = useRef<string | null>(null);
   useEffect(() => {
+    if (isEditing && !isInitialResetDoneRef.current) return;
     if (prevDeptIdRef.current !== null && prevDeptIdRef.current !== watchedDeptId) {
       form.setValue('designationId', '', { shouldValidate: true, shouldDirty: true });
       form.setValue('grade', '');
       form.setValue('level', '');
     }
     prevDeptIdRef.current = watchedDeptId ?? null;
-  }, [watchedDeptId, form]);
+  }, [watchedDeptId, form, isEditing]);
 
   // Edge case 3: If the currently selected department does not belong to the selected branch, clear it
   useEffect(() => {
+    if (isEditing && !isInitialResetDoneRef.current) return;
     if (watchedDeptId && departmentOptions.length > 0) {
       const isValidDept = departmentOptions.some((d: any) => d.id === watchedDeptId);
       if (!isValidDept) {
@@ -946,22 +978,28 @@ export function EmployeeMasterTab() {
         form.setValue('level', '');
       }
     }
-  }, [watchedDeptId, departmentOptions, form]);
+  }, [watchedDeptId, departmentOptions, form, isEditing]);
 
   // Automatically trigger Grade/Level/Policies auto-fill when designation is selected
   useEffect(() => {
     if (!watchedDesigId) {
-      form.setValue('grade', '');
-      form.setValue('level', '');
-      setAutoPolicies(null);
+      if (!isEditing) {
+        form.setValue('grade', '');
+        form.setValue('level', '');
+        setAutoPolicies(null);
+      }
       return;
     }
     const desig = allDesignations?.find((d: any) => d.id === watchedDesigId);
     if (desig) {
       const gradeVal = desig.gradeBand || desig.grade || '';
-      form.setValue('grade', gradeVal);
+      if (!form.getValues('grade')) {
+        form.setValue('grade', gradeVal);
+      }
       const levelVal = desig.level || (gradeVal.includes('(') ? gradeVal.split('(')[1]?.replace(')', '') : gradeVal);
-      form.setValue('level', levelVal);
+      if (!form.getValues('level')) {
+        form.setValue('level', levelVal);
+      }
 
       setAutoPolicies({
         payrollGroup: `${desig.title} Standard Payroll`,
@@ -970,13 +1008,20 @@ export function EmployeeMasterTab() {
         workingCalendar: 'Standard Work Calendar',
       });
     }
-  }, [watchedDesigId, allDesignations, form]);
+  }, [watchedDesigId, allDesignations, form, isEditing]);
 
   // Prefill form when in edit mode
   useEffect(() => {
     if (isEditing && editEmployee) {
       const defaultCompId = editEmployee.companyId || (companies && companies.length > 0 ? companies[0].id : '');
-      const empBranchId = editEmployee.branchId || 'NONE';
+      const empBranchId = editEmployee.branchId || editEmployee.department?.branchId || editEmployee.designation?.branchId || 'NONE';
+      const empDeptId = editEmployee.departmentId ?? '';
+      const empDesigId = editEmployee.designationId ?? '';
+
+      prevCompanyIdRef.current = defaultCompId;
+      prevBranchIdRef.current = empBranchId;
+      prevDeptIdRef.current = empDeptId;
+
       form.reset({
         companyId: defaultCompId,
         businessUnit: editEmployee.businessUnit ?? '',
@@ -999,8 +1044,8 @@ export function EmployeeMasterTab() {
         employeeCategory: editEmployee.employeeCategory ?? 'Executive',
         employmentType: editEmployee.employmentType ? String(editEmployee.employmentType).toUpperCase() : 'PERMANENT',
         status: editEmployee.status ? String(editEmployee.status).toUpperCase() : 'ACTIVE',
-        departmentId: editEmployee.departmentId ?? '',
-        designationId: editEmployee.designationId ?? '',
+        departmentId: empDeptId,
+        designationId: empDesigId,
         reportingManagerId: editEmployee.reportingManagerId ?? '',
         grade: editEmployee.grade ?? '',
         level: editEmployee.level ?? '',
@@ -1066,8 +1111,10 @@ export function EmployeeMasterTab() {
         annualCtc: editEmployee.annualCtc ?? null,
         salaryEffectiveFrom: editEmployee.salaryEffectiveFrom ? new Date(editEmployee.salaryEffectiveFrom).toISOString().split('T')[0] : '',
       });
-      prevBranchIdRef.current = empBranchId;
-      prevDeptIdRef.current = editEmployee.departmentId ?? null;
+
+      setTimeout(() => {
+        isInitialResetDoneRef.current = true;
+      }, 300);
     }
   }, [isEditing, editEmployee, form]);
 
