@@ -42,9 +42,7 @@ export class PrismaService
 
   async onModuleInit() {
     await this.$connect();
-    console.log('\x1b[1m\x1b[32m%s\x1b[0m', '=========================================================');
-    console.log('\x1b[1m\x1b[32m%s\x1b[0m', '  ✅ DATABASE CONNECTED SUCCESSFULLY TO MYSQL (hrm_db)  ');
-    console.log('\x1b[1m\x1b[32m%s\x1b[0m', '=========================================================');
+    this.logger.log('Database connected successfully to MySQL');
   }
 
   async onModuleDestroy() {

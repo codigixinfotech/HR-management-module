@@ -97,7 +97,7 @@ export class AuthService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     try {
@@ -363,12 +363,12 @@ export class AuthService implements OnModuleInit {
       // 2. Query user
       let user = userId
         ? await this.prisma.user.findUnique({
-            where: { id: userId },
-            include: {
-              company: true,
-              roles: { include: { role: true } },
-            },
-          })
+          where: { id: userId },
+          include: {
+            company: true,
+            roles: { include: { role: true } },
+          },
+        })
         : null;
 
       // If not found by userId, check if userId was actually a companyId

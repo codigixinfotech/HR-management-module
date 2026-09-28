@@ -12,7 +12,7 @@ import { ERP_25_MODULE_CATALOG } from '../organization/module-catalog.constants'
 
 @Injectable()
 export class RolesService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private readonly include = {
     permissions: { include: { permission: true } },
@@ -87,101 +87,101 @@ export class RolesService implements OnModuleInit {
       loginAccess: { web: boolean; mobile: boolean; ess: boolean; admin: boolean; reports: boolean };
       getModuleKeys: () => { keys: string[]; actions?: string[] };
     }[] = [
-      {
-        name: 'SUPER_ADMIN',
-        description: 'Super Administrator with unrestricted global access to all tenants and system settings',
-        dataScope: 'COMPANY',
-        loginAccess: { web: true, mobile: true, ess: true, admin: true, reports: true },
-        getModuleKeys: () => ({ keys: ERP_25_MODULE_CATALOG.map((m) => m.key) }),
-      },
-      {
-        name: 'COMPANY_ADMIN',
-        description: 'Full administrative access to company settings, organizational structure, and HR operations',
-        dataScope: 'COMPANY',
-        loginAccess: { web: true, mobile: true, ess: true, admin: true, reports: true },
-        getModuleKeys: () => ({ keys: ERP_25_MODULE_CATALOG.map((m) => m.key) }),
-      },
-      {
-        name: 'HR_ADMIN',
-        description: 'Full management of personnel records, recruitment, attendance, leave, and compliance',
-        dataScope: 'COMPANY',
-        loginAccess: { web: true, mobile: true, ess: true, admin: true, reports: true },
-        getModuleKeys: () => ({
-          keys: [
-            'organization',
-            'recruitment',
-            'employees',
-            'workforce',
-            'attendance-leave',
-            'performance',
-            'learning',
-            'compensation-benefits',
-            'employee-experience',
-            'asset-management',
-            'ehs',
-            'reports-analytics',
-            'administration',
-          ],
-        }),
-      },
-      {
-        name: 'HR_MANAGER',
-        description: 'Managerial control over employee management, leave approvals, recruitment, and performance reviews',
-        dataScope: 'COMPANY',
-        loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: true },
-        getModuleKeys: () => ({
-          keys: ['employees', 'attendance-leave', 'recruitment', 'performance', 'workforce', 'reports-analytics'],
-        }),
-      },
-      {
-        name: 'HR_EXECUTIVE',
-        description: 'Operational HR role handling day-to-day attendance tracking, leave requests, and employee profiles',
-        dataScope: 'DEPARTMENT',
-        loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: true },
-        getModuleKeys: () => ({
-          keys: ['employees', 'attendance-leave', 'recruitment'],
-          actions: ['view', 'create', 'edit', 'approve', 'reject'],
-        }),
-      },
-      {
-        name: 'FINANCE_MANAGER',
-        description: 'Financial management role overseeing payroll processing, salary structures, and expense reimbursements',
-        dataScope: 'COMPANY',
-        loginAccess: { web: true, mobile: true, ess: false, admin: false, reports: true },
-        getModuleKeys: () => ({
-          keys: ['payroll', 'compensation-benefits', 'travel-expense', 'reports-analytics'],
-        }),
-      },
-      {
-        name: 'IT_ADMIN',
-        description: 'IT administration role managing company hardware assets, smart devices, and user access settings',
-        dataScope: 'COMPANY',
-        loginAccess: { web: true, mobile: true, ess: false, admin: true, reports: true },
-        getModuleKeys: () => ({
-          keys: ['asset-management', 'iot-devices', 'administration'],
-        }),
-      },
-      {
-        name: 'DEPARTMENT_MANAGER',
-        description: 'Departmental supervisor overseeing team attendance, shift scheduling, performance, and approvals',
-        dataScope: 'DEPARTMENT',
-        loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: true },
-        getModuleKeys: () => ({
-          keys: ['employees', 'workforce', 'attendance-leave', 'performance'],
-          actions: ['view', 'create', 'edit', 'approve', 'reject', 'assign'],
-        }),
-      },
-      {
-        name: 'EMPLOYEE',
-        description: 'Standard self-service employee account for viewing payslips, marking attendance, and applying for leaves',
-        dataScope: 'OWN',
-        loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: false },
-        getModuleKeys: () => ({
-          keys: ['attendance-leave', 'performance', 'learning', 'employee-experience'],
-          actions: ['view', 'create'],
-        }),
-      },
-    ];
+        {
+          name: 'SUPER_ADMIN',
+          description: 'Super Administrator with unrestricted global access to all tenants and system settings',
+          dataScope: 'COMPANY',
+          loginAccess: { web: true, mobile: true, ess: true, admin: true, reports: true },
+          getModuleKeys: () => ({ keys: ERP_25_MODULE_CATALOG.map((m) => m.key) }),
+        },
+        {
+          name: 'COMPANY_ADMIN',
+          description: 'Full administrative access to company settings, organizational structure, and HR operations',
+          dataScope: 'COMPANY',
+          loginAccess: { web: true, mobile: true, ess: true, admin: true, reports: true },
+          getModuleKeys: () => ({ keys: ERP_25_MODULE_CATALOG.map((m) => m.key) }),
+        },
+        {
+          name: 'HR_ADMIN',
+          description: 'Full management of personnel records, recruitment, attendance, leave, and compliance',
+          dataScope: 'COMPANY',
+          loginAccess: { web: true, mobile: true, ess: true, admin: true, reports: true },
+          getModuleKeys: () => ({
+            keys: [
+              'organization',
+              'recruitment',
+              'employees',
+              'workforce',
+              'attendance-leave',
+              'performance',
+              'learning',
+              'compensation-benefits',
+              'employee-experience',
+              'asset-management',
+              'ehs',
+              'reports-analytics',
+              'administration',
+            ],
+          }),
+        },
+        {
+          name: 'HR_MANAGER',
+          description: 'Managerial control over employee management, leave approvals, recruitment, and performance reviews',
+          dataScope: 'COMPANY',
+          loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: true },
+          getModuleKeys: () => ({
+            keys: ['employees', 'attendance-leave', 'recruitment', 'performance', 'workforce', 'reports-analytics'],
+          }),
+        },
+        {
+          name: 'HR_EXECUTIVE',
+          description: 'Operational HR role handling day-to-day attendance tracking, leave requests, and employee profiles',
+          dataScope: 'DEPARTMENT',
+          loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: true },
+          getModuleKeys: () => ({
+            keys: ['employees', 'attendance-leave', 'recruitment'],
+            actions: ['view', 'create', 'edit', 'approve', 'reject'],
+          }),
+        },
+        {
+          name: 'FINANCE_MANAGER',
+          description: 'Financial management role overseeing payroll processing, salary structures, and expense reimbursements',
+          dataScope: 'COMPANY',
+          loginAccess: { web: true, mobile: true, ess: false, admin: false, reports: true },
+          getModuleKeys: () => ({
+            keys: ['payroll', 'compensation-benefits', 'travel-expense', 'reports-analytics'],
+          }),
+        },
+        {
+          name: 'IT_ADMIN',
+          description: 'IT administration role managing company hardware assets, smart devices, and user access settings',
+          dataScope: 'COMPANY',
+          loginAccess: { web: true, mobile: true, ess: false, admin: true, reports: true },
+          getModuleKeys: () => ({
+            keys: ['asset-management', 'iot-devices', 'administration'],
+          }),
+        },
+        {
+          name: 'DEPARTMENT_MANAGER',
+          description: 'Departmental supervisor overseeing team attendance, shift scheduling, performance, and approvals',
+          dataScope: 'DEPARTMENT',
+          loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: true },
+          getModuleKeys: () => ({
+            keys: ['employees', 'workforce', 'attendance-leave', 'performance'],
+            actions: ['view', 'create', 'edit', 'approve', 'reject', 'assign'],
+          }),
+        },
+        {
+          name: 'EMPLOYEE',
+          description: 'Standard self-service employee account for viewing payslips, marking attendance, and applying for leaves',
+          dataScope: 'OWN',
+          loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: false },
+          getModuleKeys: () => ({
+            keys: ['attendance-leave', 'performance', 'learning', 'employee-experience'],
+            actions: ['view', 'create'],
+          }),
+        },
+      ];
 
     for (const sysRole of systemRoleConfigs) {
       const existing = await this.prisma.role.findFirst({
@@ -299,14 +299,14 @@ export class RolesService implements OnModuleInit {
     // 3) Custom Roles belonging ONLY to this company (companyId == companyId)
     const whereCondition = companyId
       ? {
-          OR: [
-            { isSystem: true },
-            { type: 'SYSTEM_ROLE' },
-            { type: 'INDUSTRY_TEMPLATE' },
-            { companyId },
-            { companyId: null },
-          ],
-        }
+        OR: [
+          { isSystem: true },
+          { type: 'SYSTEM_ROLE' },
+          { type: 'INDUSTRY_TEMPLATE' },
+          { companyId },
+          { companyId: null },
+        ],
+      }
       : {};
 
     return this.prisma.role.findMany({
@@ -351,10 +351,10 @@ export class RolesService implements OnModuleInit {
         },
         permissions: dto.permissionIds
           ? {
-              create: dto.permissionIds.map((permissionId) => ({
-                permissionId,
-              })),
-            }
+            create: dto.permissionIds.map((permissionId) => ({
+              permissionId,
+            })),
+          }
           : undefined,
       },
       include: this.include,
@@ -434,10 +434,10 @@ export class RolesService implements OnModuleInit {
         loginAccess: (dto.loginAccess as any) ?? (role.loginAccess as any),
         permissions: dto.permissionIds
           ? {
-              create: dto.permissionIds.map((permissionId) => ({
-                permissionId,
-              })),
-            }
+            create: dto.permissionIds.map((permissionId) => ({
+              permissionId,
+            })),
+          }
           : undefined,
       },
       include: this.include,
