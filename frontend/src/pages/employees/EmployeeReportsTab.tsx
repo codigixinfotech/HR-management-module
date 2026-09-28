@@ -98,6 +98,10 @@ export function EmployeeReportsTab() {
   // Interactive Hover in Donut Chart
   const [hoveredDeptIndex, setHoveredDeptIndex] = useState<number | null>(null);
 
+  // Interactive Onboarding Trend Chart Points
+  const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null);
+  const [selectedTrendIndex, setSelectedTrendIndex] = useState<number | null>(null);
+
   // Pagination for Drill-Down Roster
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(15);
@@ -351,6 +355,12 @@ export function EmployeeReportsTab() {
 
     return { line: lineD, area: areaD, coordinates: coords };
   }, [onboardingTrend]);
+
+  const activeTrendIndex = selectedTrendIndex ?? hoveredTrendIndex;
+  const activeTrendPoint =
+    activeTrendIndex !== null && trendSvgPath.coordinates[activeTrendIndex]
+      ? trendSvgPath.coordinates[activeTrendIndex]
+      : null;
 
   // ─────────────────────────────────────────────────────────────
   // 5. Employment Type & Status Lifecycle
@@ -816,14 +826,35 @@ export function EmployeeReportsTab() {
                   Monthly hiring cadence and new talent arrival rate
                 </CardDescription>
               </div>
-              <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 border border-cyan-500/20">
-                12 Months Tracking
-              </span>
+              <div className="flex items-center gap-2">
+                {selectedTrendIndex !== null && activeTrendPoint ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTrendIndex(null)}
+                    className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1 hover:bg-cyan-500/25 transition-colors cursor-pointer"
+                    title="Click to reset selection"
+                  >
+                    <span>{activeTrendPoint.label}: {activeTrendPoint.count} Hires</span>
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : hoveredTrendIndex !== null && activeTrendPoint ? (
+                  <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 border border-cyan-500/20">
+                    {activeTrendPoint.label}: {activeTrendPoint.count} Hires
+                  </span>
+                ) : (
+                  <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 border border-cyan-500/20">
+                    12 Months Tracking
+                  </span>
+                )}
+              </div>
             </div>
           </CardHeader>
 
           <CardContent className="p-5">
-            <div className="w-full">
+            <div
+              className="w-full relative"
+              onMouseLeave={() => setHoveredTrendIndex(null)}
+            >
               <svg className="w-full h-32 overflow-visible" viewBox="0 0 480 120" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -848,26 +879,100 @@ export function EmployeeReportsTab() {
                   />
                 )}
 
+                {/* Vertical Guideline for Active Data Point */}
+                {activeTrendPoint && (
+                  <line
+                    x1={activeTrendPoint.x}
+                    y1={activeTrendPoint.y}
+                    x2={activeTrendPoint.x}
+                    y2={120}
+                    stroke="#06b6d4"
+                    strokeWidth="1.5"
+                    strokeDasharray="3 3"
+                    strokeOpacity="0.5"
+                  />
+                )}
+
                 {/* Data Points */}
-                {trendSvgPath.coordinates.map((pt, idx) => (
-                  <g key={idx}>
-                    <circle
-                      cx={pt.x}
-                      cy={pt.y}
-                      r="3.5"
-                      className="fill-background stroke-cyan-500 stroke-2 transition-transform hover:scale-150"
-                    />
-                  </g>
-                ))}
+                {trendSvgPath.coordinates.map((pt, idx) => {
+                  const isSelected = selectedTrendIndex === idx;
+                  const isHovered = hoveredTrendIndex === idx;
+                  const isActive = isSelected || isHovered;
+
+                  return (
+                    <g
+                      key={idx}
+                      className="cursor-pointer"
+                      onMouseEnter={() => setHoveredTrendIndex(idx)}
+                      onClick={() => setSelectedTrendIndex(prev => (prev === idx ? null : idx))}
+                    >
+                      {/* Generous hit target to eliminate any flicker/jitter on hover or click */}
+                      <circle cx={pt.x} cy={pt.y} r="14" fill="transparent" />
+
+                      {/* Halo ring when point is active/hovered */}
+                      {isActive && (
+                        <circle
+                          cx={pt.x}
+                          cy={pt.y}
+                          r="8"
+                          fill="#06b6d4"
+                          fillOpacity="0.25"
+                        />
+                      )}
+
+                      {/* Crisp stable center circle without CSS scale transform */}
+                      <circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={isActive ? 5 : 3.5}
+                        fill={isActive ? '#06b6d4' : 'var(--background)'}
+                        stroke="#06b6d4"
+                        strokeWidth={isActive ? '2.5' : '2'}
+                        className="transition-all duration-150"
+                      />
+                    </g>
+                  );
+                })}
               </svg>
 
+              {/* Floating Tooltip Card positioned above the active point */}
+              {activeTrendPoint && (
+                <div
+                  className="absolute pointer-events-none -translate-x-1/2 -translate-y-full transition-all duration-150 z-10 select-none"
+                  style={{
+                    left: `${(activeTrendPoint.x / 480) * 100}%`,
+                    top: `${(activeTrendPoint.y / 120) * 100}%`,
+                    marginTop: '-8px',
+                  }}
+                >
+                  <div className="bg-popover text-popover-foreground border border-border/80 shadow-md px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap flex items-center gap-1.5 backdrop-blur-xs">
+                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
+                    <span>{activeTrendPoint.label}:</span>
+                    <span className="font-bold text-cyan-600 dark:text-cyan-400">
+                      {activeTrendPoint.count} {activeTrendPoint.count === 1 ? 'hire' : 'hires'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Month Labels Axis */}
-              <div className="flex justify-between text-[10px] font-mono text-muted-foreground mt-2 px-1">
-                {onboardingTrend.points.map((p, idx) => (
-                  <span key={idx} className="truncate">
-                    {p.label}
-                  </span>
-                ))}
+              <div className="flex justify-between text-[10px] font-mono mt-2 px-1">
+                {onboardingTrend.points.map((p, idx) => {
+                  const isActive = activeTrendIndex === idx;
+                  return (
+                    <span
+                      key={idx}
+                      onClick={() => setSelectedTrendIndex(prev => (prev === idx ? null : idx))}
+                      className={`truncate cursor-pointer transition-colors ${
+                        isActive
+                          ? 'font-bold text-cyan-600 dark:text-cyan-400'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {p.label}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </CardContent>
@@ -948,14 +1053,14 @@ export function EmployeeReportsTab() {
 
       {/* ── 4. Drill-Down Filter Toolbar & Roster Table ── */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader className="py-3 px-4 sm:px-6 border-b border-border/60 space-y-2">
+          <div className="flex items-center justify-between gap-2">
             <div>
               <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
+                <Users className="h-4 w-4 text-primary shrink-0" />
                 Workforce Demographics Master Roster
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs text-muted-foreground mt-0.5">
                 Filter and inspect individual employee demographic records
               </CardDescription>
             </div>
@@ -965,22 +1070,22 @@ export function EmployeeReportsTab() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 border-border/80"
+                className="h-7 text-[11px] text-muted-foreground hover:text-foreground gap-1 border-border/80 shrink-0"
                 onClick={handleClearFilters}
               >
-                <X className="h-3 w-3" /> Clear All Filters
+                <X className="h-3 w-3" /> Clear Filters
               </Button>
             )}
           </div>
 
-          {/* Filter Bar Controls */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-3">
+          {/* Filter Bar Controls (All in One Line, No Scroller) */}
+          <div className="flex items-center gap-1.5 pt-1 overflow-hidden flex-nowrap">
             {/* Search Input */}
-            <div className="relative w-56 sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <div className="relative w-36 sm:w-44 shrink-0">
+              <Search className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
               <Input
-                className="h-8.5 pl-8 pr-7 text-xs bg-background"
-                placeholder="Search by code, name, email..."
+                className="h-7.5 pl-6.5 pr-6 text-[11px] bg-background"
+                placeholder="Search code, name..."
                 value={searchQuery}
                 onChange={e => {
                   setSearchQuery(e.target.value);
@@ -994,9 +1099,9 @@ export function EmployeeReportsTab() {
                     setSearchQuery('');
                     setCurrentPage(1);
                   }}
-                  className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded"
+                  className="absolute right-1.5 top-2 text-muted-foreground hover:text-foreground p-0.5 rounded"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-3 w-3" />
                 </button>
               )}
             </div>
@@ -1011,9 +1116,9 @@ export function EmployeeReportsTab() {
                     setCurrentPage(1);
                   }}
                 >
-                  <SelectTrigger className="h-8.5 px-2.5 text-xs rounded-lg bg-background border-border font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
-                    <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span className="text-muted-foreground text-[11px]">Branch:</span>
+                  <SelectTrigger className="h-7.5 px-2 text-[11px] rounded-lg bg-background border-border font-medium shadow-2xs hover:bg-muted/40 gap-1 w-auto shrink-0">
+                    <GitFork className="h-3 w-3 text-primary shrink-0" />
+                    <span className="text-muted-foreground text-[10px]">Branch:</span>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1042,9 +1147,9 @@ export function EmployeeReportsTab() {
                 setSelectedDeptFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-8.5 px-3 rounded-lg border border-border bg-background text-xs text-foreground font-medium focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+              className="h-7.5 px-2 rounded-lg border border-border bg-background text-[11px] text-foreground font-medium focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs shrink-0"
             >
-              <option value="all">All Departments ({departmentStats.length})</option>
+              <option value="all">All Depts ({departmentStats.length})</option>
               {departmentStats.map(d => (
                 <option key={d.name} value={d.name.toLowerCase()}>
                   {d.name} ({d.count})
@@ -1059,12 +1164,12 @@ export function EmployeeReportsTab() {
                 setSelectedStatusFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-8.5 px-3 rounded-lg border border-border bg-background text-xs text-foreground font-medium focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+              className="h-7.5 px-2 rounded-lg border border-border bg-background text-[11px] text-foreground font-medium focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs shrink-0"
             >
               <option value="all">All Statuses</option>
               <option value="ACTIVE">Active ({activeEmployees.length})</option>
               <option value="PROBATION">Probation ({probationEmployees.length})</option>
-              <option value="NOTICE_PERIOD">Notice Period ({noticeEmployees.length})</option>
+              <option value="NOTICE_PERIOD">Notice ({noticeEmployees.length})</option>
               <option value="INACTIVE">Inactive ({inactiveEmployees.length})</option>
             </select>
 
@@ -1075,9 +1180,9 @@ export function EmployeeReportsTab() {
                 setSelectedTenureFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-8.5 px-3 rounded-lg border border-border bg-background text-xs text-foreground font-medium focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+              className="h-7.5 px-2 rounded-lg border border-border bg-background text-[11px] text-foreground font-medium focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs shrink-0"
             >
-              <option value="all">All Tenure Brackets</option>
+              <option value="all">All Tenure</option>
               {tenureStats.map(t => (
                 <option key={t.key} value={t.key}>
                   {t.label} ({t.count})
