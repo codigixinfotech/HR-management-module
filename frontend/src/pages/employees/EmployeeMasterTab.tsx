@@ -1742,7 +1742,7 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-muted/40 rounded-xl border border-border/50">
                         <div className="space-y-1.5">
                           <Label className="font-semibold text-primary flex items-center gap-1.5 text-xs">
-                            <Building2 className="h-3.5 w-3.5" /> Company Entity *
+                            <Building2 className="h-3.5 w-3.5" /> Organization Entity *
                           </Label>
                           <Select
                             key={`step2-company-${form.watch('companyId') || targetCompanyId || activeCompanyId || 'none'}`}
@@ -2765,7 +2765,7 @@ export function EmployeeMasterTab() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="font-semibold">Company Entity *</Label>
+                          <Label className="font-semibold">Organization Entity *</Label>
                           <Select
                             key={`step3-company-${form.watch('companyId') || targetCompanyId || activeCompanyId || 'none'}`}
                             value={form.watch('companyId') || targetCompanyId || activeCompanyId || ''}
@@ -3012,7 +3012,7 @@ export function EmployeeMasterTab() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label>Previous Company</Label>
+                          <Label>Previous Organization</Label>
                           <Input className="h-9 text-xs" placeholder="e.g. Infosys Technologies" {...form.register('prevCompany')} />
                         </div>
                         <div className="space-y-1.5">

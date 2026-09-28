@@ -871,7 +871,7 @@ export default function EmployeeDetailPage() {
                       <p className="font-semibold text-foreground text-xs">{employee.costCenter || 'CC-OPS-001'}</p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-muted-foreground font-medium">Company Entity</p>
+                      <p className="text-muted-foreground font-medium">Organization Entity</p>
                       <p className="font-semibold text-foreground text-xs">{employee.company?.name || '-'}</p>
                     </div>
                     <div className="space-y-1">
