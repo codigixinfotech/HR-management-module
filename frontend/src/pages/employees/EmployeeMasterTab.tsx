@@ -853,28 +853,26 @@ export function EmployeeMasterTab() {
 
   const departmentOptions = useMemo(() => {
     if (!allDepartments || !selectedCompanyId) return [];
+    if (!selectedBranchId) return [];
+
     return allDepartments.filter((d: any) => {
       if (d.companyId !== selectedCompanyId) return false;
-      if (selectedBranchId && selectedBranchId !== 'NONE') {
-        return d.branchId === selectedBranchId || !d.branchId;
+      if (selectedBranchId === 'NONE' || selectedBranchId === 'HEAD_OFFICE') {
+        return !d.branchId || d.branchId === 'NONE' || d.branchId === 'HEAD_OFFICE';
       }
-      return true;
+      return d.branchId === selectedBranchId;
     });
   }, [allDepartments, selectedCompanyId, selectedBranchId]);
 
   const designationOptions = useMemo(() => {
     if (!allDesignations || !selectedCompanyId || !watchedDeptId) return [];
-    const targetDept = departmentOptions?.find((dept: any) => dept.id === watchedDeptId);
-    const targetDeptName = targetDept?.name;
 
     return allDesignations.filter(
       (d: any) =>
         d.companyId === selectedCompanyId &&
-        (d.departmentId === watchedDeptId ||
-          d.department?.id === watchedDeptId ||
-          (targetDeptName && (d.department?.name === targetDeptName || d.departmentName === targetDeptName)))
+        (d.departmentId === watchedDeptId || d.department?.id === watchedDeptId)
     );
-  }, [allDesignations, selectedCompanyId, watchedDeptId, departmentOptions]);
+  }, [allDesignations, selectedCompanyId, watchedDeptId]);
 
   const reportingManagerOptions = useMemo(() => {
     const list = employeesData?.items ?? [];
@@ -914,16 +912,41 @@ export function EmployeeMasterTab() {
     prevCompanyIdRef.current = selectedCompanyId ?? null;
   }, [selectedCompanyId, form]);
 
+  // Reset child department & designation state when Branch changes
+  const prevBranchIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevBranchIdRef.current !== null && prevBranchIdRef.current !== selectedBranchId) {
+      form.setValue('departmentId', '', { shouldValidate: true, shouldDirty: true });
+      form.setValue('designationId', '', { shouldValidate: true, shouldDirty: true });
+      form.setValue('grade', '');
+      form.setValue('level', '');
+    }
+    prevBranchIdRef.current = selectedBranchId ?? null;
+  }, [selectedBranchId, form]);
+
   // Reset designation & derived grade/level when Department changes
   const prevDeptIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (prevDeptIdRef.current && prevDeptIdRef.current !== watchedDeptId) {
-      form.setValue('designationId', '');
+    if (prevDeptIdRef.current !== null && prevDeptIdRef.current !== watchedDeptId) {
+      form.setValue('designationId', '', { shouldValidate: true, shouldDirty: true });
       form.setValue('grade', '');
       form.setValue('level', '');
     }
     prevDeptIdRef.current = watchedDeptId ?? null;
   }, [watchedDeptId, form]);
+
+  // Edge case 3: If the currently selected department does not belong to the selected branch, clear it
+  useEffect(() => {
+    if (watchedDeptId && departmentOptions.length > 0) {
+      const isValidDept = departmentOptions.some((d: any) => d.id === watchedDeptId);
+      if (!isValidDept) {
+        form.setValue('departmentId', '', { shouldValidate: true, shouldDirty: true });
+        form.setValue('designationId', '', { shouldValidate: true, shouldDirty: true });
+        form.setValue('grade', '');
+        form.setValue('level', '');
+      }
+    }
+  }, [watchedDeptId, departmentOptions, form]);
 
   // Automatically trigger Grade/Level/Policies auto-fill when designation is selected
   useEffect(() => {
@@ -953,10 +976,11 @@ export function EmployeeMasterTab() {
   useEffect(() => {
     if (isEditing && editEmployee) {
       const defaultCompId = editEmployee.companyId || (companies && companies.length > 0 ? companies[0].id : '');
+      const empBranchId = editEmployee.branchId || 'NONE';
       form.reset({
         companyId: defaultCompId,
         businessUnit: editEmployee.businessUnit ?? '',
-        branchId: editEmployee.branchId ?? '',
+        branchId: empBranchId,
         location: editEmployee.location ?? 'Head Office',
         costCenter: editEmployee.costCenter ?? '',
         firstName: editEmployee.firstName ?? '',
@@ -1042,6 +1066,8 @@ export function EmployeeMasterTab() {
         annualCtc: editEmployee.annualCtc ?? null,
         salaryEffectiveFrom: editEmployee.salaryEffectiveFrom ? new Date(editEmployee.salaryEffectiveFrom).toISOString().split('T')[0] : '',
       });
+      prevBranchIdRef.current = empBranchId;
+      prevDeptIdRef.current = editEmployee.departmentId ?? null;
     }
   }, [isEditing, editEmployee, form]);
 
@@ -1709,26 +1735,26 @@ export function EmployeeMasterTab() {
                         </div>
                         <div className="space-y-1.5">
                           <Label>Nationality</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Indian" {...form.register('nationality')} />
+                          <Input className="h-9 text-xs" {...form.register('nationality')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Blood Group</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. O+" {...form.register('bloodGroup')} />
+                          <Input className="h-9 text-xs" {...form.register('bloodGroup')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Religion</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Hindu" {...form.register('religion')} />
+                          <Input className="h-9 text-xs" {...form.register('religion')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Personal Mobile *</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. +91 9876543210" {...form.register('phone')} />
+                          <Input className="h-9 text-xs" {...form.register('phone')} />
                           {form.formState.errors.phone && <p className="text-[10px] text-destructive">{form.formState.errors.phone.message}</p>}
                         </div>
                         <div className="space-y-1.5">
                           <Label>Personal Email</Label>
-                          <Input type="email" className="h-9 text-xs" placeholder="e.g. personal@email.com" {...form.register('personalEmail')} />
+                          <Input type="email" className="h-9 text-xs" {...form.register('personalEmail')} />
                           {form.formState.errors.personalEmail && <p className="text-[10px] text-destructive">{form.formState.errors.personalEmail.message}</p>}
                         </div>
                       </div>
@@ -1776,11 +1802,14 @@ export function EmployeeMasterTab() {
                             <span className="text-muted-foreground font-normal ml-0.5">(Optional)</span>
                           </Label>
                           <Select
-                            key={`step2-branch-${form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : 'NONE')}`}
-                            value={form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : 'NONE')}
+                            key={`step2-branch-${form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : '')}`}
+                            value={form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : '')}
                             onValueChange={(v) => {
-                              const nextBranch = v === 'NONE' ? '' : v;
-                              form.setValue('branchId', nextBranch, { shouldValidate: true, shouldDirty: true });
+                              form.setValue('branchId', v, { shouldValidate: true, shouldDirty: true });
+                              form.setValue('departmentId', '', { shouldValidate: true, shouldDirty: true });
+                              form.setValue('designationId', '', { shouldValidate: true, shouldDirty: true });
+                              form.setValue('grade', '');
+                              form.setValue('level', '');
                               if (v === 'NONE' || !v) {
                                 form.setValue('location', 'Head Office');
                               } else {
@@ -1932,10 +1961,11 @@ export function EmployeeMasterTab() {
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Department *</Label>
                           <Select
+                            disabled={!selectedBranchId || departmentOptions.length === 0}
                             value={form.watch('departmentId') || ''}
                             onValueChange={(v) => {
-                              form.setValue('departmentId', v, { shouldValidate: true });
-                              form.setValue('designationId', '');
+                              form.setValue('departmentId', v, { shouldValidate: true, shouldDirty: true });
+                              form.setValue('designationId', '', { shouldValidate: true, shouldDirty: true });
                               form.setValue('grade', '');
                               form.setValue('level', '');
                             }}
@@ -1943,16 +1973,22 @@ export function EmployeeMasterTab() {
                             <SelectTrigger className="h-9 text-xs">
                               <SelectValue
                                 placeholder={
-                                  departmentOptions.length === 0
-                                    ? 'No departments configured for this company'
-                                    : 'Select department'
+                                  !selectedBranchId
+                                    ? 'Please select a branch / office first'
+                                    : departmentOptions.length === 0
+                                      ? 'No departments available for this branch'
+                                      : 'Select department'
                                 }
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              {departmentOptions.length === 0 ? (
+                              {!selectedBranchId ? (
+                                <SelectItem value="__select_branch_first__" disabled className="text-xs text-muted-foreground italic">
+                                  Please select a branch / office first
+                                </SelectItem>
+                              ) : departmentOptions.length === 0 ? (
                                 <SelectItem value="__empty_dept__" disabled className="text-xs text-muted-foreground italic">
-                                  No departments configured for this company
+                                  No departments available for this branch
                                 </SelectItem>
                               ) : (
                                 departmentOptions.map((d: any) => (
@@ -1968,23 +2004,29 @@ export function EmployeeMasterTab() {
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Designation *</Label>
                           <Select
-                            disabled={!watchedDeptId || departmentOptions.length === 0}
+                            disabled={!selectedBranchId || !watchedDeptId || designationOptions.length === 0}
                             value={form.watch('designationId') || ''}
-                            onValueChange={(v) => form.setValue('designationId', v, { shouldValidate: true })}
+                            onValueChange={(v) => form.setValue('designationId', v, { shouldValidate: true, shouldDirty: true })}
                           >
                             <SelectTrigger className="h-9 text-xs">
                               <SelectValue
                                 placeholder={
-                                  !watchedDeptId
-                                    ? 'Please select a department first'
-                                    : designationOptions.length === 0
-                                      ? 'No designations configured for this department'
-                                      : 'Select designation'
+                                  !selectedBranchId
+                                    ? 'Please select a branch / office first'
+                                    : !watchedDeptId
+                                      ? 'Please select a department first'
+                                      : designationOptions.length === 0
+                                        ? 'No designations configured for this department'
+                                        : 'Select designation'
                                 }
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              {!watchedDeptId ? (
+                              {!selectedBranchId ? (
+                                <SelectItem value="__select_branch_first__" disabled className="text-xs text-muted-foreground italic">
+                                  Please select a branch / office first
+                                </SelectItem>
+                              ) : !watchedDeptId ? (
                                 <SelectItem value="__select_dept_first__" disabled className="text-xs text-muted-foreground italic">
                                   Please select a department first
                                 </SelectItem>
@@ -1995,7 +2037,7 @@ export function EmployeeMasterTab() {
                               ) : (
                                 designationOptions.map((d: any) => (
                                   <SelectItem key={d.id} value={d.id} className="text-xs">
-                                    {d.title}
+                                    {d.title} {d.code ? `(${d.code})` : ''}
                                   </SelectItem>
                                 ))
                               )}
@@ -2257,7 +2299,6 @@ export function EmployeeMasterTab() {
                                     <Label className="font-semibold text-foreground">Confirmation Review / Approval Authority</Label>
                                     <Input
                                       className="h-9 text-xs font-medium bg-background"
-                                      placeholder="e.g. HR & Management Committee"
                                       {...form.register('confirmationReviewBy')}
                                     />
                                   </div>
@@ -2344,7 +2385,6 @@ export function EmployeeMasterTab() {
                                     <Label className="font-semibold">Contract Number *</Label>
                                     <Input
                                       className="h-9 text-xs font-mono font-semibold bg-background"
-                                      placeholder="e.g. CNT-2026-00127"
                                       {...form.register('contractNumber')}
                                     />
                                   </div>
@@ -2467,7 +2507,6 @@ export function EmployeeMasterTab() {
                                   <Label className="font-semibold">Contract Remarks</Label>
                                   <Input
                                     className="h-9 text-xs bg-background"
-                                    placeholder="e.g. Fixed-term production operator contract"
                                     {...form.register('contractRemarks')}
                                   />
                                 </div>
@@ -2643,7 +2682,6 @@ export function EmployeeMasterTab() {
                                 <Label className="font-semibold">Consulting Agreement Ref No</Label>
                                 <Input
                                   className="h-9 text-xs font-mono font-semibold bg-background"
-                                  placeholder="e.g. CNS-2026-0045"
                                   {...form.register('contractNumber')}
                                 />
                               </div>
@@ -2720,7 +2758,6 @@ export function EmployeeMasterTab() {
                                 <Label className="font-semibold">Intern / Trainee ID</Label>
                                 <Input
                                   className="h-9 text-xs font-mono font-semibold bg-background"
-                                  placeholder="e.g. TRN-2026-003"
                                   {...form.register('contractNumber')}
                                 />
                               </div>
@@ -2796,11 +2833,14 @@ export function EmployeeMasterTab() {
                             <span className="text-muted-foreground font-normal ml-1 text-xs">(Optional)</span>
                           </Label>
                           <Select
-                            key={`step3-branch-${form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : 'NONE')}`}
-                            value={form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : 'NONE')}
+                            key={`step3-branch-${form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : '')}`}
+                            value={form.watch('branchId') || (isBranchAdmin && userBranchId ? userBranchId : '')}
                             onValueChange={(v) => {
-                              const nextBranch = v === 'NONE' ? '' : v;
-                              form.setValue('branchId', nextBranch, { shouldValidate: true, shouldDirty: true });
+                              form.setValue('branchId', v, { shouldValidate: true, shouldDirty: true });
+                              form.setValue('departmentId', '', { shouldValidate: true, shouldDirty: true });
+                              form.setValue('designationId', '', { shouldValidate: true, shouldDirty: true });
+                              form.setValue('grade', '');
+                              form.setValue('level', '');
                               if (v === 'NONE' || !v) {
                                 if (!form.getValues('location')) {
                                   form.setValue('location', 'Head Office', { shouldValidate: true, shouldDirty: true });
@@ -2838,7 +2878,7 @@ export function EmployeeMasterTab() {
                           <Label className="font-semibold">Location / Office</Label>
                           <Input
                             className="h-9 text-xs"
-                            placeholder="Enter location / office (e.g. Head Office, Pune HQ, Remote)"
+                            placeholder="Enter location / office"
                             value={form.watch('location') ?? ''}
                             onChange={(e) => form.setValue('location', e.target.value, { shouldValidate: true, shouldDirty: true })}
                           />
@@ -2870,48 +2910,48 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Street Address / Address Line 1</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Flat 402, Sunshine Heights" {...form.register('addressLine1')} />
+                          <Input className="h-9 text-xs" {...form.register('addressLine1')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Current Address (Full)</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Flat 402, Sunshine Heights, Kalyani Nagar, Pune - 411006" {...form.register('currentAddress')} />
+                          <Input className="h-9 text-xs" {...form.register('currentAddress')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Permanent Address (Full)</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Flat 402, Sunshine Heights, Kalyani Nagar, Pune - 411006" {...form.register('permanentAddress')} />
+                          <Input className="h-9 text-xs" {...form.register('permanentAddress')} />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1.5">
                             <Label>City</Label>
-                            <Input className="h-9 text-xs" placeholder="Pune" {...form.register('city')} />
+                            <Input className="h-9 text-xs" {...form.register('city')} />
                           </div>
                           <div className="space-y-1.5">
                             <Label>Pincode</Label>
-                            <Input className="h-9 text-xs font-mono" placeholder="411006" {...form.register('pincode')} />
+                            <Input className="h-9 text-xs font-mono" {...form.register('pincode')} />
                           </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>State / Region</Label>
-                          <Input className="h-9 text-xs" placeholder="Maharashtra" {...form.register('state')} />
+                          <Input className="h-9 text-xs" {...form.register('state')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Country</Label>
-                          <Input className="h-9 text-xs" placeholder="India" {...form.register('country')} />
+                          <Input className="h-9 text-xs" {...form.register('country')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t pt-2 mt-2">
                         <div className="space-y-1.5">
                           <Label className="font-semibold">Work Email *</Label>
-                          <Input type="email" className="h-9 text-xs" placeholder="e.g. employee@company.com" {...form.register('workEmail')} />
+                          <Input type="email" className="h-9 text-xs" {...form.register('workEmail')} />
                           {form.formState.errors.workEmail && <p className="text-[10px] text-destructive">{form.formState.errors.workEmail.message}</p>}
                         </div>
                         <div className="space-y-1.5">
                           <Label>Work Phone (Optional)</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. +1 555-0100" {...form.register('workPhone')} />
+                          <Input className="h-9 text-xs" {...form.register('workPhone')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t pt-2 mt-2">
@@ -2921,11 +2961,11 @@ export function EmployeeMasterTab() {
                         </div>
                         <div className="space-y-1.5">
                           <Label>Relationship</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Spouse / Parent" {...form.register('emergencyContactRelationship')} />
+                          <Input className="h-9 text-xs" {...form.register('emergencyContactRelationship')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Emergency Contact Number</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. +91 9999999999" {...form.register('emergencyContactPhone')} />
+                          <Input className="h-9 text-xs" {...form.register('emergencyContactPhone')} />
                         </div>
                       </div>
                     </div>
@@ -2937,11 +2977,11 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Family Member Name</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Savitri Sharma" {...form.register('familyMemberName')} />
+                          <Input className="h-9 text-xs" {...form.register('familyMemberName')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Relationship</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Mother" {...form.register('familyRelationship')} />
+                          <Input className="h-9 text-xs" {...form.register('familyRelationship')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2951,21 +2991,21 @@ export function EmployeeMasterTab() {
                         </div>
                         <div className="space-y-1.5">
                           <Label>Contact Number</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. +91 9999988888" {...form.register('familyContact')} />
+                          <Input className="h-9 text-xs" {...form.register('familyContact')} />
                         </div>
                       </div>
                       <div className="border-t pt-2 mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label>Nominee Name</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Savitri Sharma" {...form.register('nomineeName')} />
+                          <Input className="h-9 text-xs" {...form.register('nomineeName')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Nominee Relationship</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Mother" {...form.register('nomineeRelationship')} />
+                          <Input className="h-9 text-xs" {...form.register('nomineeRelationship')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Nominee Share %</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 50" {...form.register('nomineeShare')} />
+                          <Input type="number" className="h-9 text-xs font-mono" {...form.register('nomineeShare')} />
                         </div>
                       </div>
                     </div>
@@ -2977,31 +3017,31 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Qualification</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Bachelor of Technology" {...form.register('educationQualification')} />
+                          <Input className="h-9 text-xs" {...form.register('educationQualification')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Specialization</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Computer Science" {...form.register('educationSpecialization')} />
+                          <Input className="h-9 text-xs" {...form.register('educationSpecialization')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Institution</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. PICT" {...form.register('educationInstitution')} />
+                          <Input className="h-9 text-xs" {...form.register('educationInstitution')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>University / Board</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Pune University" {...form.register('educationUniversity')} />
+                          <Input className="h-9 text-xs" {...form.register('educationUniversity')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Passing Year</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 2017" {...form.register('educationPassingYear')} />
+                          <Input type="number" className="h-9 text-xs font-mono" {...form.register('educationPassingYear')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Percentage / Grade</Label>
-                          <Input type="number" step="0.01" className="h-9 text-xs font-mono" placeholder="e.g. 89.5" {...form.register('educationPercentage')} />
+                          <Input type="number" step="0.01" className="h-9 text-xs font-mono" {...form.register('educationPercentage')} />
                         </div>
                       </div>
                     </div>
@@ -3013,11 +3053,11 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Previous Organization</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Infosys Technologies" {...form.register('prevCompany')} />
+                          <Input className="h-9 text-xs" {...form.register('prevCompany')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Job Title</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Software Developer" {...form.register('prevJobTitle')} />
+                          <Input className="h-9 text-xs" {...form.register('prevJobTitle')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -3033,11 +3073,11 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Total Experience</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. 3 Years 2 Months" {...form.register('prevTotalExp')} />
+                          <Input className="h-9 text-xs" {...form.register('prevTotalExp')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Reason for Leaving</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Career Growth" {...form.register('prevReasonForLeaving')} />
+                          <Input className="h-9 text-xs" {...form.register('prevReasonForLeaving')} />
                         </div>
                       </div>
                     </div>
@@ -3049,26 +3089,26 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Bank Name</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. HDFC Bank" {...form.register('bankName')} />
+                          <Input className="h-9 text-xs" {...form.register('bankName')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Account Number</Label>
-                          <Input className="h-9 text-xs font-mono" placeholder="e.g. 501002991823" {...form.register('bankAccountNumber')} />
+                          <Input className="h-9 text-xs font-mono" {...form.register('bankAccountNumber')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label>IFSC Code</Label>
-                          <Input className="h-9 text-xs font-mono uppercase" placeholder="e.g. HDFC0000104" {...form.register('bankIfscCode')} />
+                          <Input className="h-9 text-xs font-mono uppercase" {...form.register('bankIfscCode')} />
                         </div>
                         <div className="space-y-1.5 col-span-2">
                           <Label>Branch Name / Location</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Kalyani Nagar, Pune" {...form.register('bankBranchName')} />
+                          <Input className="h-9 text-xs" {...form.register('bankBranchName')} />
                         </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label>Account Holder Name</Label>
-                        <Input className="h-9 text-xs" placeholder="Account Holder Name" {...form.register('bankAccountHolderName')} />
+                        <Input className="h-9 text-xs" {...form.register('bankAccountHolderName')} />
                       </div>
                     </div>
                   )}
@@ -3079,15 +3119,15 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label>Aadhaar Number</Label>
-                          <Input className="h-9 text-xs font-mono" placeholder="e.g. 4567 8901 2345" {...form.register('aadhaarNumber')} />
+                          <Input className="h-9 text-xs font-mono" {...form.register('aadhaarNumber')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>PAN Number</Label>
-                          <Input className="h-9 text-xs font-mono uppercase" placeholder="e.g. ABCDE1234F" {...form.register('panNumber')} />
+                          <Input className="h-9 text-xs font-mono uppercase" {...form.register('panNumber')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Passport Number</Label>
-                          <Input className="h-9 text-xs font-mono uppercase" placeholder="e.g. Z9876543" {...form.register('passportNumber')} />
+                          <Input className="h-9 text-xs font-mono uppercase" {...form.register('passportNumber')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -3118,17 +3158,17 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label>UAN Number</Label>
-                          <Input className="h-9 text-xs font-mono" placeholder="e.g. 100918273645" {...form.register('uanNumber')} />
+                          <Input className="h-9 text-xs font-mono" {...form.register('uanNumber')} />
                         </div>
                         <div className="space-y-1.5 col-span-2">
                           <Label>PF Member ID</Label>
-                          <Input className="h-9 text-xs font-mono" placeholder="e.g. MH/BAN/0099182/000/1234567" {...form.register('pfMemberId')} />
+                          <Input className="h-9 text-xs font-mono" {...form.register('pfMemberId')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5 col-span-2">
                           <Label>ESIC Number</Label>
-                          <Input className="h-9 text-xs font-mono" placeholder="e.g. 3112456789" {...form.register('esicNumber')} />
+                          <Input className="h-9 text-xs font-mono" {...form.register('esicNumber')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>PF/ESIC Joining Date</Label>
@@ -3175,35 +3215,35 @@ export function EmployeeMasterTab() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Salary Grade</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. Grade A" {...form.register('salaryGrade')} />
+                          <Input className="h-9 text-xs" {...form.register('salaryGrade')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Salary Band</Label>
-                          <Input className="h-9 text-xs" placeholder="e.g. 5.0L - 8.0L" {...form.register('salaryBand')} />
+                          <Input className="h-9 text-xs" {...form.register('salaryBand')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label>Basic Salary (Monthly) *</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 30000" {...form.register('basicSalary')} />
+                          <Input type="number" className="h-9 text-xs font-mono" {...form.register('basicSalary')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>HRA (Monthly)</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 1500" {...form.register('hra')} />
+                          <Input type="number" className="h-9 text-xs font-mono" {...form.register('hra')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Conveyance (Monthly)</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 3000" {...form.register('conveyance')} />
+                          <Input type="number" className="h-9 text-xs font-mono" {...form.register('conveyance')} />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label>Special Allowance (Monthly)</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 12000" {...form.register('specialAllowance')} />
+                          <Input type="number" className="h-9 text-xs font-mono" {...form.register('specialAllowance')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Other Allowances (Monthly)</Label>
-                          <Input type="number" className="h-9 text-xs font-mono" placeholder="e.g. 13500" {...form.register('otherAllowances')} />
+                          <Input type="number" className="h-9 text-xs font-mono" {...form.register('otherAllowances')} />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-emerald-600 font-bold">Gross Salary [Auto-Calculated]</Label>
