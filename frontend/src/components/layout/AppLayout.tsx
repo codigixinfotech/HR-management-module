@@ -89,7 +89,7 @@ export function AppLayout() {
         )}
 
         <main className={cn(
-          "flex-1 min-h-0 overflow-y-auto bg-background pb-20 md:pb-8",
+          "flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-background pb-20 md:pb-8",
           isLandingPage ? "p-2 sm:p-3 lg:p-4" : "p-0 md:p-6 lg:p-8"
         )}>
           <div className={cn("mx-auto w-full", isLandingPage ? "max-w-full" : "max-w-[1600px]")}>

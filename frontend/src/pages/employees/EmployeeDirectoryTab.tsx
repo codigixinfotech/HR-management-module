@@ -490,24 +490,24 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
 
   return (
     <div className="space-y-4">
-      {/* Search and Filters Toolbar */}
-      <div className="flex items-center justify-between gap-2 overflow-x-auto scrollbar-none py-0.5">
-        <div className="flex items-center gap-2 shrink-0 flex-nowrap">
-          {/* Segmented Grouping Buttons: See All | Group by Department | Group by Designation */}
-          <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
+      {/* Search and Filters Toolbar - Compact Single Line */}
+      <div className="flex items-center justify-between gap-1 py-0.5 w-full">
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Segmented Grouping Buttons: All | Department | Designation */}
+          <div className="flex items-center bg-muted/40 p-0.5 rounded-lg border border-border shrink-0">
             <button
               type="button"
               onClick={() => {
                 setGroupMode('all');
                 handleClearFilters();
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-semibold rounded-md transition-all ${
                 groupMode === 'all'
-                  ? 'bg-background text-foreground shadow-xs'
+                  ? 'bg-background text-foreground shadow-2xs'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Users className="h-3.5 w-3.5" /> See All
+              <Users className="h-3 w-3" /> All
             </button>
             <button
               type="button"
@@ -517,13 +517,13 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                 setDropdownSearchQuery('');
                 setCurrentPage(1);
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-semibold rounded-md transition-all ${
                 groupMode === 'department'
-                  ? 'bg-background text-foreground shadow-xs'
+                  ? 'bg-background text-foreground shadow-2xs'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Building2 className="h-3.5 w-3.5" /> Group by Department
+              <Building2 className="h-3 w-3" /> Department
             </button>
             <button
               type="button"
@@ -533,13 +533,13 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                 setDropdownSearchQuery('');
                 setCurrentPage(1);
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-semibold rounded-md transition-all ${
                 groupMode === 'designation'
-                  ? 'bg-background text-foreground shadow-xs'
+                  ? 'bg-background text-foreground shadow-2xs'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Briefcase className="h-3.5 w-3.5" /> Group by Designation
+              <Briefcase className="h-3 w-3" /> Designation
             </button>
           </div>
 
@@ -549,73 +549,73 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
               <button
                 type="button"
                 onClick={() => setDropdownOpen(prev => !prev)}
-                className="group flex items-center gap-2 px-2.5 py-1 rounded-xl border border-border/80 bg-background hover:bg-muted/40 transition-all text-xs font-medium shadow-2xs hover:shadow-xs h-8 shrink-0"
+                className="group flex items-center gap-1 px-1.5 py-0.5 rounded-lg border border-border/80 bg-background hover:bg-muted/40 transition-all text-[11px] font-medium shadow-2xs h-7 shrink-0"
               >
                 {/* Overlapping Colorful Avatar Stack */}
-                <div className="flex items-center -space-x-1.5 overflow-hidden">
-                  {(groupMode === 'designation' ? designationsMeta : departmentsMeta).slice(0, 3).map((item) => (
+                <div className="flex items-center -space-x-1 overflow-hidden">
+                  {(groupMode === 'designation' ? designationsMeta : departmentsMeta).slice(0, 2).map((item) => (
                     <span
                       key={item.name}
                       title={`${item.name} (${item.count} personnel)`}
-                      className={`inline-flex items-center justify-center h-5 w-5 rounded-full text-[9px] font-bold text-white ring-2 ring-background shrink-0 transition-transform group-hover:scale-105 ${item.palette.bg}`}
+                      className={`inline-flex items-center justify-center h-4 w-4 rounded-full text-[8px] font-bold text-white ring-1 ring-background shrink-0 ${item.palette.bg}`}
                     >
                       {item.initials}
                     </span>
                   ))}
-                  {(groupMode === 'designation' ? designationsMeta : departmentsMeta).length > 3 && (
-                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[8.5px] font-bold bg-muted text-muted-foreground ring-2 ring-background shrink-0">
-                      +{(groupMode === 'designation' ? designationsMeta : departmentsMeta).length - 3}
+                  {(groupMode === 'designation' ? designationsMeta : departmentsMeta).length > 2 && (
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[7.5px] font-bold bg-muted text-muted-foreground ring-1 ring-background shrink-0">
+                      +{(groupMode === 'designation' ? designationsMeta : departmentsMeta).length - 2}
                     </span>
                   )}
                   {(groupMode === 'designation' ? designationsMeta : departmentsMeta).length === 0 && (
-                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[9px] font-bold bg-primary/10 text-primary ring-2 ring-background shrink-0">
-                      <Users className="h-2.5 w-2.5" />
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[8px] font-bold bg-primary/10 text-primary ring-1 ring-background shrink-0">
+                      <Users className="h-2 w-2" />
                     </span>
                   )}
                 </div>
 
-                <span className="font-semibold text-foreground">
-                  {groupMode === 'designation' ? 'All Designations' : groupMode === 'department' ? 'All Departments' : 'Filter by Group'}
+                <span className="font-semibold text-foreground text-[11px]">
+                  {groupMode === 'designation' ? 'Designations' : groupMode === 'department' ? 'Departments' : 'Groups'}
                 </span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
+                <span className="px-1 py-0.2 rounded-full text-[9px] font-bold bg-primary/10 text-primary">
                   {totalEmployeesCount}
                 </span>
-                <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
               </button>
             ) : (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setDropdownOpen(prev => !prev)}
-                  className="group flex items-center gap-2 px-2.5 py-1 rounded-xl border border-primary/40 bg-primary/5 hover:bg-primary/10 transition-all text-xs font-semibold text-foreground shadow-2xs h-8 shrink-0"
+                  className="group flex items-center gap-1 px-1.5 py-0.5 rounded-lg border border-primary/40 bg-primary/5 hover:bg-primary/10 transition-all text-[11px] font-semibold text-foreground shadow-2xs h-7 shrink-0"
                 >
                   {/* Single Selected Avatar */}
                   <span
-                    className={`inline-flex items-center justify-center h-5 w-5 rounded-full text-[9.5px] font-bold text-white shrink-0 ${currentActiveMeta?.palette.bg}`}
+                    className={`inline-flex items-center justify-center h-4 w-4 rounded-full text-[8.5px] font-bold text-white shrink-0 ${currentActiveMeta?.palette.bg}`}
                   >
                     {currentActiveMeta?.initials}
                   </span>
-                  <span className="text-foreground">{currentActiveMeta?.name}</span>
-                  <span className="text-muted-foreground font-normal text-[10.5px]">
-                    • {currentActiveMeta?.count} {currentActiveMeta?.count === 1 ? 'Employee' : 'Employees'}
+                  <span className="text-foreground max-w-24 truncate text-[11px]">{currentActiveMeta?.name}</span>
+                  <span className="text-muted-foreground font-normal text-[9.5px]">
+                    ({currentActiveMeta?.count})
                   </span>
-                  <ChevronDown className={`h-3.5 w-3.5 text-primary transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3 w-3 text-primary transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 <button
                   type="button"
                   onClick={handleClearFilters}
                   title="Clear filter & see all"
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-border/80 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shadow-2xs h-8 shrink-0"
+                  className="flex items-center gap-0.5 px-1 py-0.5 rounded-md border border-border/80 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shadow-2xs h-7 shrink-0"
                 >
-                  <X className="h-3.5 w-3.5" />
-                  <span>See All</span>
+                  <X className="h-3 w-3" />
+                  <span>All</span>
                 </button>
               </div>
             )}
 
             {/* Dropdown Menu Popover */}
             {dropdownOpen && (
-              <div className="absolute left-0 top-full mt-1.5 z-50 w-80 sm:w-96 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl animate-in fade-in-0 zoom-in-95">
+              <div className="absolute left-0 top-full mt-2 z-50 w-72 sm:w-80 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl animate-in fade-in-0 zoom-in-95">
                 {/* Search inside dropdown */}
                 <div className="relative mb-2">
                   <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -624,7 +624,6 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                     value={dropdownSearchQuery}
                     onChange={e => setDropdownSearchQuery(e.target.value)}
                     className="h-8 pl-8 pr-7 text-xs bg-muted/40 focus-visible:ring-1"
-                    autoFocus
                   />
                   {dropdownSearchQuery && (
                     <button
@@ -748,9 +747,9 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                   setCurrentPage(1);
                 }}
               >
-                <SelectTrigger className="h-8 px-2.5 text-xs rounded-xl bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
-                  <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="text-muted-foreground text-[11px]">Branch:</span>
+                <SelectTrigger className="h-7 px-1.5 text-[11px] rounded-lg bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1 w-auto shrink-0">
+                  <GitFork className="h-3 w-3 text-primary shrink-0" />
+                  <span className="text-muted-foreground text-[10px]">Branch:</span>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -771,39 +770,40 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
               </Select>
             </div>
           )}
+        </div>
 
+        {/* View Toggler, Search Input & CSV Export Button - Compact */}
+        <div className="flex items-center gap-1 shrink-0">
           {/* View Toggler (Grid / Table) */}
-          <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
+          <div className="flex items-center bg-muted/40 p-0.5 rounded-lg border border-border shrink-0 h-7">
             <button
               onClick={() => setDisplayMode('grid')}
-              className={`p-1 rounded-lg text-xs transition-all ${displayMode === 'grid'
-                ? 'bg-background text-foreground shadow-xs'
+              className={`p-1 rounded text-xs transition-all ${displayMode === 'grid'
+                ? 'bg-background text-foreground shadow-2xs'
                 : 'text-muted-foreground hover:text-foreground'
                 }`}
               title="Grid View"
             >
-              <Grid className="h-3.5 w-3.5" />
+              <Grid className="h-3 w-3" />
             </button>
             <button
               onClick={() => setDisplayMode('table')}
-              className={`p-1 rounded-lg text-xs transition-all ${displayMode === 'table'
-                ? 'bg-background text-foreground shadow-xs'
+              className={`p-1 rounded text-xs transition-all ${displayMode === 'table'
+                ? 'bg-background text-foreground shadow-2xs'
                 : 'text-muted-foreground hover:text-foreground'
                 }`}
               title="Table View"
             >
-              <List className="h-3.5 w-3.5" />
+              <List className="h-3 w-3" />
             </button>
           </div>
-        </div>
 
-        {/* Search Input & CSV Export Button */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="relative w-40 sm:w-48 lg:w-56 shrink-0">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          {/* Compact Search Input */}
+          <div className="relative w-28 sm:w-32 shrink-0">
+            <Search className="absolute left-2 top-2 h-3 w-3 text-muted-foreground" />
             <Input
-              className="h-8 pl-8 pr-7 text-xs bg-background"
-              placeholder={groupMode === 'all' ? "Search all personnel..." : `Search in ${groupMode}s...`}
+              className="h-7 pl-6 pr-5 text-[11px] bg-background rounded-lg"
+              placeholder="Search..."
               value={searchQuery}
               onChange={e => {
                 setSearchQuery(e.target.value);
@@ -817,20 +817,24 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                   setSearchQuery('');
                   setCurrentPage(1);
                 }}
-                className="absolute right-2 top-2 text-muted-foreground hover:text-foreground p-0.5 rounded"
+                className="absolute right-1 top-1.5 text-muted-foreground hover:text-foreground p-0.5 rounded"
                 title="Clear search"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-2.5 w-2.5" />
               </button>
             )}
           </div>
+
+          {/* Export (.CSV) Button - Icon Only */}
           <Button
             variant="outline"
             size="sm"
-            className="h-8 px-2.5 text-xs gap-1.5 font-semibold shadow-2xs shrink-0"
+            className="h-7 w-7 p-0 shrink-0 shadow-2xs rounded-lg"
+            title="Export to CSV"
             onClick={handleExportCsv}
           >
-            <Download className="h-3.5 w-3.5" /> Export (.CSV)
+            <Download className="h-3 w-3" />
+            <span className="sr-only">Export (.CSV)</span>
           </Button>
         </div>
       </div>
