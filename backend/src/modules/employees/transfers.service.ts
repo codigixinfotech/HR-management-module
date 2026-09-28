@@ -233,26 +233,38 @@ export class TransfersService {
     return this.findById(id);
   }
 
-  async approve(id: string, body: { comments?: string; approvedBy?: string }) {
-    await this.findById(id);
+  async approve(id: string, body: { comments?: string; approvedBy?: string }, branchId?: string) {
+    const t = await this.findById(id);
+    if (branchId && branchId !== 'ALL' && branchId !== 'HEAD_OFFICE' && branchId !== 'NO_BRANCH_ASSIGNED') {
+      const emp = await this.prisma.employee.findUnique({ where: { id: t.employeeId } });
+      if (emp?.branchId && emp.branchId !== branchId && t.prevBranchId !== branchId && t.newBranchId !== branchId) {
+        throw new ForbiddenException('Branch Admin can only approve transfers for their assigned branch');
+      }
+    }
     await this.prisma.$executeRawUnsafe(
       `UPDATE employee_transfers SET 
         status = 'APPROVED', approvedBy = ?, approvedDate = NOW(), approvalComments = ?, updatedAt = NOW()
        WHERE id = ?`,
-      body.approvedBy ?? 'HR Manager',
+      body.approvedBy ?? 'Branch Admin',
       body.comments ?? null,
       id,
     );
     return this.findById(id);
   }
 
-  async reject(id: string, body: { reason: string; comments?: string; approvedBy?: string }) {
-    await this.findById(id);
+  async reject(id: string, body: { reason: string; comments?: string; approvedBy?: string }, branchId?: string) {
+    const t = await this.findById(id);
+    if (branchId && branchId !== 'ALL' && branchId !== 'HEAD_OFFICE' && branchId !== 'NO_BRANCH_ASSIGNED') {
+      const emp = await this.prisma.employee.findUnique({ where: { id: t.employeeId } });
+      if (emp?.branchId && emp.branchId !== branchId && t.prevBranchId !== branchId && t.newBranchId !== branchId) {
+        throw new ForbiddenException('Branch Admin can only reject transfers for their assigned branch');
+      }
+    }
     await this.prisma.$executeRawUnsafe(
       `UPDATE employee_transfers SET 
         status = 'REJECTED', approvedBy = ?, approvedDate = NOW(), rejectionReason = ?, approvalComments = ?, updatedAt = NOW()
        WHERE id = ?`,
-      body.approvedBy ?? 'HR Manager',
+      body.approvedBy ?? 'Branch Admin',
       body.reason ?? body.comments ?? 'Rejected',
       body.comments ?? body.reason ?? null,
       id,

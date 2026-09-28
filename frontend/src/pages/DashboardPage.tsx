@@ -82,6 +82,9 @@ export default function DashboardPage() {
 
   // Render Employee Self Service Dashboard if logged in user is a normal employee
   if (!isHrOrAdmin) {
+    if (activeTab === 'metrics') {
+      return <RealTimeMetricsView />;
+    }
     return <EmployeeDashboardView />;
   }
 

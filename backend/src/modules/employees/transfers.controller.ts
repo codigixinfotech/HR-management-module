@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -36,11 +37,25 @@ export class TransfersController {
   }
 
   @Post()
-  @Permissions('employees.write')
   create(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: any,
   ) {
+    const isBranchAdmin = user.roles?.some((r) => r.includes('BRANCH_ADMIN') || r.includes('BRANCH ADMIN')) ||
+      user.primaryRole?.toUpperCase().includes('BRANCH ADMIN');
+    const isHrOrAdmin = isBranchAdmin || user.roles?.some((r) => r.includes('HR') || r.includes('ADMIN') || r === 'SUPER_ADMIN') ||
+      user.primaryRole?.toUpperCase().includes('ADMIN') || user.primaryRole?.toUpperCase().includes('HR') ||
+      user.permissions?.includes('*') || user.permissions?.includes('employees.write');
+
+    const userEmpId = user.employee?.id;
+
+    // Regular employees can only queue workforce movements for themselves
+    if (!isHrOrAdmin) {
+      if (userEmpId && dto.employeeId && dto.employeeId !== userEmpId) {
+        throw new ForbiddenException('Employees can only queue workforce movements for themselves');
+      }
+    }
+
     const tenantCompanyId = getTenantCompanyId(user);
     const tenantBranchId = getTenantBranchId(user);
     return this.transfersService.create(dto, tenantCompanyId, tenantBranchId);
@@ -53,26 +68,55 @@ export class TransfersController {
   }
 
   @Post(':id/approve')
-  @Permissions('employees.write')
-  approve(@Param('id') id: string, @Body() body: any) {
-    return this.transfersService.approve(id, body);
+  approve(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    this.assertApprover(user);
+    const tenantBranchId = getTenantBranchId(user);
+    const approverName = user.employee ? `${user.employee.firstName} ${user.employee.lastName}` : (user.primaryRole || 'Branch Admin');
+    return this.transfersService.approve(id, { ...body, approvedBy: approverName }, tenantBranchId);
   }
 
   @Post(':id/reject')
-  @Permissions('employees.write')
-  reject(@Param('id') id: string, @Body() body: any) {
-    return this.transfersService.reject(id, body);
+  reject(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    this.assertApprover(user);
+    const tenantBranchId = getTenantBranchId(user);
+    const approverName = user.employee ? `${user.employee.firstName} ${user.employee.lastName}` : (user.primaryRole || 'Branch Admin');
+    return this.transfersService.reject(id, { ...body, approvedBy: approverName }, tenantBranchId);
   }
 
   @Post(':id/effective')
-  @Permissions('employees.write')
-  effective(@Param('id') id: string) {
+  effective(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    this.assertApprover(user);
     return this.transfersService.makeEffective(id);
   }
 
   @Post(':id/cancel')
-  @Permissions('employees.write')
-  cancel(@Param('id') id: string) {
+  cancel(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
     return this.transfersService.cancel(id);
+  }
+
+  private assertApprover(user: CurrentUserPayload) {
+    const isBranchAdmin = user.roles?.some((r) => r.includes('BRANCH_ADMIN') || r.includes('BRANCH ADMIN')) ||
+      user.primaryRole?.toUpperCase().includes('BRANCH ADMIN');
+    const isHrOrAdmin = isBranchAdmin || user.roles?.some((r) => r.includes('HR') || r.includes('ADMIN') || r === 'SUPER_ADMIN') ||
+      user.primaryRole?.toUpperCase().includes('ADMIN') || user.primaryRole?.toUpperCase().includes('HR') ||
+      user.permissions?.includes('*') || user.permissions?.includes('employees.write');
+
+    if (!isBranchAdmin && !isHrOrAdmin) {
+      throw new ForbiddenException('Only Branch Admin or HR Admin can approve/reject workforce movements');
+    }
   }
 }

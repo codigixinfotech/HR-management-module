@@ -11,9 +11,11 @@ import {
   FileText,
   UserCheck,
   Building2,
+  GitFork,
 } from 'lucide-react';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +25,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { employeesApi } from '@/api/employees';
+import { branchesApi } from '@/api/organization';
 
 interface FlatDocRecord {
   employeeId: string;
@@ -45,21 +48,23 @@ export function DocumentVaultTab() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>(activeCompanyId);
 
   const user = useAuthStore((s) => s.user);
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdminUser(user) || isCompanyAdminUser(user), [user]);
   const isBranchAdmin = useMemo(() => {
     if (!user) return false;
-    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
-    const primary = user.primaryRole?.toUpperCase();
-    return (
-      roles.includes('BRANCH_ADMIN') ||
-      roles.includes('BRANCH ADMIN') ||
-      primary === 'BRANCH_ADMIN' ||
-      primary === 'BRANCH ADMIN' ||
-      Boolean(user.branchId)
-    );
-  }, [user]);
+    if (isSuperOrCompanyAdmin) return false;
+    return isBranchAdminUser(user);
+  }, [user, isSuperOrCompanyAdmin]);
 
   const assignedBranchId = user?.branchId || user?.employee?.branchId;
   const effectiveBranchId = isBranchAdmin && assignedBranchId ? assignedBranchId : undefined;
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('HEAD_OFFICE');
+
+  const { data: apiBranches = [] } = useQuery({
+    queryKey: ['branches', selectedCompanyId],
+    queryFn: () => (selectedCompanyId ? branchesApi.list(selectedCompanyId) : branchesApi.list()),
+    enabled: Boolean(selectedCompanyId && isSuperOrCompanyAdmin),
+  });
 
   // Modal State
   const [isOpen, setIsOpen] = useState(false);
@@ -76,10 +81,38 @@ export function DocumentVaultTab() {
 
   const employees = employeesData?.items ?? [];
 
+  const branchScopedEmployees = useMemo(() => {
+    if (!isSuperOrCompanyAdmin) return employees;
+
+    if (selectedBranchFilter === 'HEAD_OFFICE') {
+      return employees.filter((e: any) => {
+        if (e.branchId && e.branchId !== 'NONE') {
+          const branchObj = apiBranches.find((b: any) => b.id === e.branchId) || e.branch;
+          const bName = (branchObj?.name || '').toLowerCase();
+          return bName.includes('head') || bName.includes('corporate') || bName.includes('main');
+        }
+        return (
+          !e.branchId ||
+          e.branchId === 'NONE' ||
+          (e.location && (e.location.toLowerCase().includes('head office') || e.location.toLowerCase().includes('corporate')))
+        );
+      });
+    }
+
+    if (selectedBranchFilter !== 'ALL') {
+      return employees.filter((e: any) =>
+        (e.branchId && e.branchId === selectedBranchFilter) ||
+        (e.branch?.id && e.branch.id === selectedBranchFilter)
+      );
+    }
+
+    return employees;
+  }, [employees, isSuperOrCompanyAdmin, selectedBranchFilter, apiBranches]);
+
   // Flatten database employees and their documents into single records (Only documents with actual uploaded files)
   const flatDocs = useMemo<FlatDocRecord[]>(() => {
     const list: FlatDocRecord[] = [];
-    employees.forEach(emp => {
+    branchScopedEmployees.forEach(emp => {
       const name = `${emp.firstName} ${emp.lastName}`;
       const code = emp.employeeCode;
       const kycStatus = emp.kycStatus === 'VERIFIED' ? 'VERIFIED' : 'PENDING_VERIFICATION';
@@ -347,14 +380,14 @@ export function DocumentVaultTab() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-x-auto py-0.5">
               {/* Company Selector */}
               {companies.length > 1 && (
                 <Select
                   value={selectedCompanyId ?? ''}
                   onValueChange={val => setSelectedCompanyId(val || undefined)}
                 >
-                  <SelectTrigger className="h-8 w-44 text-xs gap-1.5 bg-background">
+                  <SelectTrigger className="h-8 w-44 text-xs gap-1.5 bg-background shrink-0">
                     <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
                     <SelectValue placeholder="Select company..." />
                   </SelectTrigger>
@@ -369,7 +402,7 @@ export function DocumentVaultTab() {
               )}
 
               {/* Category Filter Pills */}
-              <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
+              <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
                 {[
                   { id: 'all', label: 'All Docs' },
                   { id: 'aadhaar', label: 'Aadhaar' },
@@ -388,6 +421,37 @@ export function DocumentVaultTab() {
                   </button>
                 ))}
               </div>
+
+              {/* Branch Filter (Only for Super Admin / Company Admin) */}
+              {isSuperOrCompanyAdmin && (
+                <div className="relative shrink-0">
+                  <Select
+                    value={selectedBranchFilter}
+                    onValueChange={(val) => setSelectedBranchFilter(val)}
+                  >
+                    <SelectTrigger className="h-8 px-2.5 text-xs rounded-xl bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
+                      <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="text-muted-foreground text-[11px]">Branch:</span>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HEAD_OFFICE" className="text-xs font-semibold">
+                        Head Office
+                      </SelectItem>
+                      <SelectItem value="ALL" className="text-xs">
+                        All Branches
+                      </SelectItem>
+                      {apiBranches
+                        .filter((b: any) => !b.name?.toLowerCase().includes('head office'))
+                        .map((b: any) => (
+                          <SelectItem key={b.id} value={b.id} className="text-xs">
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Search Bar */}
               <div className="relative w-40 sm:w-52">

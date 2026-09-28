@@ -17,28 +17,24 @@ import { EmployeeReportsTab } from './EmployeeReportsTab';
 
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
+import { isHrOrAdminUser, isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 
 export default function EmployeeListPage() {
   const navigate = useNavigate();
   const { tab: routeTab } = useParams();
   const [searchParams] = useSearchParams();
-  const rawTab = routeTab || searchParams.get('tab') || 'directory';
+  const user = useAuthStore((s) => s.user);
+  const isHrOrAdmin = isHrOrAdminUser(user);
+  const defaultTab = isHrOrAdmin ? 'directory' : 'transfers';
+  const rawTab = routeTab || searchParams.get('tab') || defaultTab;
   const activeTab = rawTab === 'skills' ? 'directory' : rawTab;
 
   const { activeCompanyId } = useCompany();
-  const user = useAuthStore((s) => s.user);
 
   const isBranchAdmin = useMemo(() => {
     if (!user) return false;
-    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
-    const primary = user.primaryRole?.toUpperCase();
-    return (
-      roles.includes('BRANCH_ADMIN') ||
-      roles.includes('BRANCH ADMIN') ||
-      primary === 'BRANCH_ADMIN' ||
-      primary === 'BRANCH ADMIN' ||
-      Boolean(user.branchId)
-    );
+    if (isSuperAdminUser(user) || isCompanyAdminUser(user)) return false;
+    return isBranchAdminUser(user);
   }, [user]);
 
   const assignedBranchId = user?.branchId || user?.employee?.branchId;
@@ -80,8 +76,8 @@ export default function EmployeeListPage() {
 
   return (
     <div className="space-y-6">
-      {/* PageHeader and Top StatCards — Hidden on 'reports' tab to avoid double cards and irrelevant master action */}
-      {activeTab !== 'reports' && (
+      {/* PageHeader and Top StatCards — Hidden on 'reports', 'transfers', and 'exit' tabs to avoid double cards */}
+      {activeTab !== 'reports' && activeTab !== 'transfers' && activeTab !== 'exit' && (
         <>
           <PageHeader
             icon={Users}

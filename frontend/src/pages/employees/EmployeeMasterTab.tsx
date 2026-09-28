@@ -32,6 +32,7 @@ import {
   Copy,
   Check,
   CheckCircle2,
+  GitFork,
 } from 'lucide-react';
 
 import { employeesApi } from '@/api/employees';
@@ -263,6 +264,7 @@ export function EmployeeMasterTab() {
   const [activeStep, setActiveStep] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('HEAD_OFFICE');
   const [selectedFiles, setSelectedFiles] = useState<Record<string, File>>({});
 
   // Auto policies template display state
@@ -784,6 +786,37 @@ export function EmployeeMasterTab() {
 
     return list;
   }, [allBranches, selectedCompanyId, isBranchAdmin, userBranchId]);
+
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdmin || isCompanyAdmin, [isSuperAdmin, isCompanyAdmin]);
+
+  const branchScopedEmployees = useMemo(() => {
+    const items = employeesData?.items ?? [];
+    if (!isSuperOrCompanyAdmin) return items;
+
+    if (selectedBranchFilter === 'HEAD_OFFICE') {
+      return items.filter((e: any) => {
+        if (e.branchId && e.branchId !== 'NONE') {
+          const branchObj = branchOptions.find((b: any) => b.id === e.branchId) || e.branch;
+          const bName = (branchObj?.name || '').toLowerCase();
+          return bName.includes('head') || bName.includes('corporate') || bName.includes('main');
+        }
+        return (
+          !e.branchId ||
+          e.branchId === 'NONE' ||
+          (e.location && (e.location.toLowerCase().includes('head office') || e.location.toLowerCase().includes('corporate')))
+        );
+      });
+    }
+
+    if (selectedBranchFilter !== 'ALL') {
+      return items.filter((e: any) =>
+        (e.branchId && e.branchId === selectedBranchFilter) ||
+        (e.branch?.id && e.branch.id === selectedBranchFilter)
+      );
+    }
+
+    return items;
+  }, [employeesData, isSuperOrCompanyAdmin, selectedBranchFilter, branchOptions]);
 
   const selectedBranch = useMemo(() => {
     return branchOptions?.find((b: any) => b.id === selectedBranchId);
@@ -1484,8 +1517,8 @@ export function EmployeeMasterTab() {
   };
 
   const statutoryRecords = useMemo(() => {
-    if (!employeesData?.items) return [];
-    return employeesData.items.filter((emp: any) => {
+    if (!branchScopedEmployees) return [];
+    return branchScopedEmployees.filter((emp: any) => {
       const matchesSearch =
         emp.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         emp.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1500,7 +1533,7 @@ export function EmployeeMasterTab() {
       if (selectedStatus === 'incomplete') return matchesSearch && isIncomplete;
       return matchesSearch;
     });
-  }, [employeesData, searchQuery, selectedStatus]);
+  }, [branchScopedEmployees, searchQuery, selectedStatus]);
 
   // Render Onboarding Stepper
   if (isAdding || isEditing) {
@@ -3302,7 +3335,7 @@ export function EmployeeMasterTab() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">PF & ESIC Linked</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {employeesData?.items?.filter((e: any) => e.panNumber && e.uanNumber && e.bankAccountNumber).length || 0} Staff
+                {branchScopedEmployees?.filter((e: any) => e.panNumber && e.uanNumber && e.bankAccountNumber).length || 0} Staff
               </p>
               <p className="text-[10px] text-emerald-600 font-semibold mt-1">100% Tax Compliant</p>
             </div>
@@ -3317,7 +3350,7 @@ export function EmployeeMasterTab() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pending Allocation</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {employeesData?.items?.filter((e: any) => !e.panNumber || !e.uanNumber || !e.bankAccountNumber).length || 0} Records
+                {branchScopedEmployees?.filter((e: any) => !e.panNumber || !e.uanNumber || !e.bankAccountNumber).length || 0} Records
               </p>
               <p className="text-[10px] text-amber-600 font-semibold mt-1">Allocation pending</p>
             </div>
@@ -3332,7 +3365,7 @@ export function EmployeeMasterTab() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Bank Accounts</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {employeesData?.items ? Math.round((employeesData.items.filter((e: any) => e.bankAccountNumber).length / Math.max(1, employeesData.items.length)) * 100) : 0}% Linked
+                {branchScopedEmployees ? Math.round((branchScopedEmployees.filter((e: any) => e.bankAccountNumber).length / Math.max(1, branchScopedEmployees.length)) * 100) : 0}% Linked
               </p>
               <p className="text-[10px] text-primary font-semibold mt-1">Salary disbursement active</p>
             </div>
@@ -3347,7 +3380,7 @@ export function EmployeeMasterTab() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Emergency Contacts</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {employeesData?.items ? Math.round((employeesData.items.filter((e: any) => e.emergencyContactPhone).length / Math.max(1, employeesData.items.length)) * 100) : 0}% Declared
+                {branchScopedEmployees ? Math.round((branchScopedEmployees.filter((e: any) => e.emergencyContactPhone).length / Math.max(1, branchScopedEmployees.length)) * 100) : 0}% Declared
               </p>
               <p className="text-[10px] text-violet-600 font-semibold mt-1">Nominees assigned</p>
             </div>
@@ -3371,9 +3404,9 @@ export function EmployeeMasterTab() {
               </CardDescription>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-x-auto py-0.5">
               {/* Category Filter Pills */}
-              <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
+              <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
                 {[
                   { id: 'all', label: 'All' },
                   { id: 'verified', label: 'Verified' },
@@ -3393,8 +3426,39 @@ export function EmployeeMasterTab() {
                 ))}
               </div>
 
+              {/* Branch Filter (Only for Super Admin / Company Admin) */}
+              {isSuperOrCompanyAdmin && (
+                <div className="relative shrink-0">
+                  <Select
+                    value={selectedBranchFilter}
+                    onValueChange={(val) => setSelectedBranchFilter(val)}
+                  >
+                    <SelectTrigger className="h-8 px-2.5 text-xs rounded-xl bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
+                      <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="text-muted-foreground text-[11px]">Branch:</span>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HEAD_OFFICE" className="text-xs font-semibold">
+                        Head Office
+                      </SelectItem>
+                      <SelectItem value="ALL" className="text-xs">
+                        All Branches
+                      </SelectItem>
+                      {branchOptions
+                        .filter((b: any) => !b.name?.toLowerCase().includes('head office'))
+                        .map((b: any) => (
+                          <SelectItem key={b.id} value={b.id} className="text-xs">
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Search Bar */}
-              <div className="relative w-40 sm:w-52">
+              <div className="relative w-36 sm:w-48 shrink-0">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   type="text"
@@ -3406,7 +3470,7 @@ export function EmployeeMasterTab() {
               </div>
 
               {/* Add Master Details Toggle Button */}
-              <Button size="sm" className="h-8 text-xs gap-1.5" onClick={enterAddingState}>
+              <Button size="sm" className="h-8 text-xs gap-1.5 shrink-0" onClick={enterAddingState}>
                 <Plus className="h-3.5 w-3.5" /> Declare Statutory
               </Button>
             </div>

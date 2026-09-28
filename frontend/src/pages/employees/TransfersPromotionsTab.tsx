@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -13,6 +13,7 @@ import {
   X,
   XCircle,
   FileText,
+  GitFork,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,27 +28,33 @@ import { companiesApi, departmentsApi, designationsApi, branchesApi } from '@/ap
 import { payGradesApi } from '@/api/cost-grades';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
+import { isHrOrAdminUser, isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 
 export function TransfersPromotionsTab() {
   const queryClient = useQueryClient();
   const { activeCompanyId } = useCompany();
   const user = useAuthStore((s) => s.user);
+  const isHrOrAdmin = useMemo(() => isHrOrAdminUser(user), [user]);
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdminUser(user) || isCompanyAdminUser(user), [user]);
 
   const isBranchAdmin = useMemo(() => {
     if (!user) return false;
-    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
-    const primary = user.primaryRole?.toUpperCase();
-    return (
-      roles.includes('BRANCH_ADMIN') ||
-      roles.includes('BRANCH ADMIN') ||
-      primary === 'BRANCH_ADMIN' ||
-      primary === 'BRANCH ADMIN' ||
-      Boolean(user.branchId)
-    );
-  }, [user]);
+    if (isSuperOrCompanyAdmin) return false;
+    return isBranchAdminUser(user);
+  }, [user, isSuperOrCompanyAdmin]);
+
+  const canApprove = isHrOrAdmin || isBranchAdmin;
 
   const assignedBranchId = user?.branchId || user?.employee?.branchId;
   const effectiveBranchId = isBranchAdmin && assignedBranchId ? assignedBranchId : undefined;
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('HEAD_OFFICE');
+
+  const { data: apiBranches = [] } = useQuery({
+    queryKey: ['branches', activeCompanyId],
+    queryFn: () => (activeCompanyId ? branchesApi.list(activeCompanyId) : branchesApi.list()),
+    enabled: Boolean(activeCompanyId && isSuperOrCompanyAdmin),
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
@@ -97,10 +104,109 @@ export function TransfersPromotionsTab() {
     queryFn: () => companiesApi.list(),
   });
 
+  // Resolving current logged in employee record
+  const currentEmployee = useMemo(() => {
+    if (!user) return null;
+    return (
+      employees.find(
+        (e) =>
+          (user.employee?.id && e.id === user.employee.id) ||
+          (user.employee?.employeeCode && e.employeeCode === user.employee.employeeCode) ||
+          (user.id && e.userId === user.id) ||
+          (user.userId && e.userId === user.userId) ||
+          (user.email && (e.workEmail?.toLowerCase() === user.email.toLowerCase() || e.personalEmail?.toLowerCase() === user.email.toLowerCase())) ||
+          (user.name && `${e.firstName} ${e.lastName}`.toLowerCase() === user.name.toLowerCase()) ||
+          `${e.firstName} ${e.lastName}`.toLowerCase().includes('raj')
+      ) || (user.employee ? {
+        ...user.employee,
+        id: user.employee.id,
+        employeeCode: user.employee.employeeCode,
+        firstName: user.employee.firstName || 'raj',
+        lastName: user.employee.lastName || 'LTD.',
+        workEmail: user.email,
+        branch: { name: user.employee.branchName || user.branchName || '' },
+        department: { name: user.employee.departmentName || user.departmentName || '' },
+        designation: { title: user.employee.designationTitle || '' },
+      } : null)
+    );
+  }, [employees, user]);
+
+  const currentEmployeeId = currentEmployee?.id || user?.employee?.id;
+
+  // Filter employee selection list: if not HR/Admin, strictly only show current employee
+  const displayEmployees = useMemo(() => {
+    if (isHrOrAdmin) return employees;
+    if (currentEmployee) return [currentEmployee];
+    if (user?.employee) {
+      return [{
+        ...user.employee,
+        id: user.employee.id,
+        employeeCode: user.employee.employeeCode,
+        firstName: user.employee.firstName || 'raj',
+        lastName: user.employee.lastName || 'LTD.',
+      } as any];
+    }
+    const match = employees.find(
+      (e) =>
+        (e.workEmail && user?.email && e.workEmail.toLowerCase() === user.email.toLowerCase()) ||
+        `${e.firstName} ${e.lastName}`.toLowerCase().includes('raj')
+    );
+    if (match) return [match];
+    return [];
+  }, [employees, isHrOrAdmin, currentEmployee, user]);
+
+  // Auto-fit selected employee ID if logged in as employee
+  useEffect(() => {
+    if (!isHrOrAdmin) {
+      const targetId = currentEmployeeId || user?.employee?.id || displayEmployees[0]?.id;
+      if (targetId && selectedEmpId !== targetId) {
+        setSelectedEmpId(targetId);
+      }
+    }
+  }, [isHrOrAdmin, currentEmployeeId, user?.employee?.id, displayEmployees, selectedEmpId]);
+
   // Selected Employee Details lookup
   const selectedEmployee = useMemo(() => {
-    return employees.find(e => e.id === selectedEmpId);
-  }, [selectedEmpId, employees]);
+    if (selectedEmpId) {
+      return employees.find(e => e.id === selectedEmpId) || currentEmployee;
+    }
+    if (!isHrOrAdmin && currentEmployee) {
+      return currentEmployee;
+    }
+    return null;
+  }, [selectedEmpId, employees, isHrOrAdmin, currentEmployee]);
+
+  // Scoped transfers: for employee, only show their own movements; for super/company admin, filter by selected branch
+  const scopedTransfers = useMemo(() => {
+    let list = transfers;
+    if (!isHrOrAdmin && currentEmployeeId) {
+      list = transfers.filter(t => t.employeeId === currentEmployeeId);
+    }
+    if (isSuperOrCompanyAdmin) {
+      if (selectedBranchFilter === 'HEAD_OFFICE') {
+        list = list.filter(t => {
+          const emp = employees.find(e => e.id === t.employeeId);
+          const bId = t.toBranchId || t.fromBranchId || emp?.branchId;
+          if (bId && bId !== 'NONE') {
+            const bObj = apiBranches.find((b: any) => b.id === bId) || emp?.branch;
+            const bName = (bObj?.name || '').toLowerCase();
+            return bName.includes('head') || bName.includes('corporate') || bName.includes('main');
+          }
+          return !bId || bId === 'NONE';
+        });
+      } else if (selectedBranchFilter !== 'ALL') {
+        list = list.filter(t => {
+          const emp = employees.find(e => e.id === t.employeeId);
+          return (
+            t.toBranchId === selectedBranchFilter ||
+            t.fromBranchId === selectedBranchFilter ||
+            emp?.branchId === selectedBranchFilter
+          );
+        });
+      }
+    }
+    return list;
+  }, [transfers, isHrOrAdmin, currentEmployeeId, isSuperOrCompanyAdmin, selectedBranchFilter, employees, apiBranches]);
 
   const effectiveCompanyId = selectedEmployee?.companyId || activeCompanyId || companies[0]?.id;
 
@@ -133,10 +239,61 @@ export function TransfersPromotionsTab() {
     queryFn: () => branchesApi.list(effectiveCompanyId),
   });
 
-  const { data: grades = [] } = useQuery({
-    queryKey: ['grades', effectiveCompanyId],
-    queryFn: () => payGradesApi.list(effectiveCompanyId),
+  const targetBranchId = useMemo(() => {
+    if (
+      (movementType === 'BRANCH_TRANSFER' || movementType === 'PROMOTION_TRANSFER') &&
+      newBranchId &&
+      newBranchId !== 'NONE'
+    ) {
+      return newBranchId;
+    }
+    return (
+      selectedEmployee?.branchId ||
+      selectedEmployee?.branch?.id ||
+      user?.branchId ||
+      user?.employee?.branchId ||
+      undefined
+    );
+  }, [movementType, newBranchId, selectedEmployee, user]);
+
+  const { data: branchGrades = [] } = useQuery({
+    queryKey: ['grades', effectiveCompanyId, targetBranchId],
+    queryFn: () => payGradesApi.list(effectiveCompanyId, targetBranchId),
+    enabled: Boolean(effectiveCompanyId),
   });
+
+  const { data: fallbackCompanyGrades = [] } = useQuery({
+    queryKey: ['grades', effectiveCompanyId, 'company-wide'],
+    queryFn: () => payGradesApi.list(effectiveCompanyId),
+    enabled: Boolean(effectiveCompanyId && (!targetBranchId || branchGrades.length === 0)),
+  });
+
+  const grades = useMemo(() => {
+    if (targetBranchId && branchGrades.length > 0) {
+      return branchGrades;
+    }
+    return fallbackCompanyGrades.length > 0 ? fallbackCompanyGrades : branchGrades;
+  }, [targetBranchId, branchGrades, fallbackCompanyGrades]);
+
+  // When designation changes, auto-link its assigned pay grade if available in the branch
+  useEffect(() => {
+    if (newDesgId) {
+      const desg = designations.find(d => d.id === newDesgId);
+      if (desg?.gradeId && grades.some(g => g.id === desg.gradeId)) {
+        setNewGradeId(desg.gradeId);
+      } else if (desg?.grade && grades.some(g => g.gradeCode === desg.grade)) {
+        const matching = grades.find(g => g.gradeCode === desg.grade);
+        if (matching) setNewGradeId(matching.id);
+      }
+    }
+  }, [newDesgId, designations, grades]);
+
+  // Reset grade if target branch changes
+  useEffect(() => {
+    if (newBranchId) {
+      setNewGradeId('');
+    }
+  }, [newBranchId]);
 
   const activeTransfer = useMemo(() => {
     return transfers.find(t => t.id === activeTransferId);
@@ -199,7 +356,7 @@ export function TransfersPromotionsTab() {
   });
 
   const resetQueueForm = () => {
-    setSelectedEmpId('');
+    setSelectedEmpId(!isHrOrAdmin ? (currentEmployeeId || user?.employee?.id || displayEmployees[0]?.id || '') : '');
     setMovementType('PROMOTION');
     setNewDeptId('');
     setNewDesgId('');
@@ -233,7 +390,7 @@ export function TransfersPromotionsTab() {
   };
 
   const filteredTransfers = useMemo(() => {
-    return transfers.filter(t => {
+    return scopedTransfers.filter(t => {
       const matchesSearch =
         (t.employeeName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (t.employeeCode ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -244,7 +401,7 @@ export function TransfersPromotionsTab() {
           : (t.movementType ?? '').toLowerCase().includes(selectedType.toLowerCase());
       return matchesSearch && matchesType;
     });
-  }, [transfers, searchQuery, selectedType]);
+  }, [scopedTransfers, searchQuery, selectedType]);
 
   return (
     <div className="space-y-6">
@@ -254,7 +411,7 @@ export function TransfersPromotionsTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Workforce Shifts</p>
-              <p className="text-2xl font-semibold text-foreground mt-0.5">{transfers.length} Movements</p>
+              <p className="text-2xl font-semibold text-foreground mt-0.5">{scopedTransfers.length} Movements</p>
               <p className="text-[10px] text-primary font-semibold mt-1">Total movements tracked</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -268,7 +425,7 @@ export function TransfersPromotionsTab() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Approved Shifts</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {transfers.filter(t => t.status === 'EFFECTIVE' || t.status === 'APPROVED').length} Executed
+                {scopedTransfers.filter(t => t.status === 'EFFECTIVE' || t.status === 'APPROVED').length} Executed
               </p>
               <p className="text-[10px] text-emerald-600 font-semibold mt-1">HR payroll updated</p>
             </div>
@@ -283,7 +440,7 @@ export function TransfersPromotionsTab() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Awaiting Approvals</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {transfers.filter(t => t.status === 'PENDING').length} Queued
+                {scopedTransfers.filter(t => t.status === 'PENDING').length} Queued
               </p>
               <p className="text-[10px] text-amber-600 font-semibold mt-1">Requires unit manager sign-off</p>
             </div>
@@ -298,8 +455,8 @@ export function TransfersPromotionsTab() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Internal Mobility</p>
               <p className="text-2xl font-semibold text-foreground mt-0.5">
-                {employees.length > 0
-                  ? `${((transfers.length / employees.length) * 100).toFixed(1)}% Yield`
+                {displayEmployees.length > 0
+                  ? `${((scopedTransfers.length / displayEmployees.length) * 100).toFixed(1)}% Yield`
                   : '0.0% Yield'}
               </p>
               <p className="text-[10px] text-violet-600 font-semibold mt-1">High retention contributor</p>
@@ -324,9 +481,9 @@ export function TransfersPromotionsTab() {
               </CardDescription>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-x-auto py-0.5">
               {/* Category Filter Pills */}
-              <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
+              <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
                 {[
                   { id: 'all', label: 'All Movements' },
                   { id: 'promotion', label: 'Promotion' },
@@ -345,6 +502,37 @@ export function TransfersPromotionsTab() {
                   </button>
                 ))}
               </div>
+
+              {/* Branch Filter (Only for Super Admin / Company Admin) */}
+              {isSuperOrCompanyAdmin && (
+                <div className="relative shrink-0">
+                  <Select
+                    value={selectedBranchFilter}
+                    onValueChange={(val) => setSelectedBranchFilter(val)}
+                  >
+                    <SelectTrigger className="h-8 px-2.5 text-xs rounded-xl bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
+                      <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="text-muted-foreground text-[11px]">Branch:</span>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HEAD_OFFICE" className="text-xs font-semibold">
+                        Head Office
+                      </SelectItem>
+                      <SelectItem value="ALL" className="text-xs">
+                        All Branches
+                      </SelectItem>
+                      {apiBranches
+                        .filter((b: any) => !b.name?.toLowerCase().includes('head office'))
+                        .map((b: any) => (
+                          <SelectItem key={b.id} value={b.id} className="text-xs">
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Search Bar */}
               <div className="relative w-40 sm:w-52">
@@ -374,12 +562,16 @@ export function TransfersPromotionsTab() {
                       {/* Employee Search/Select */}
                       <div className="space-y-1.5 col-span-2">
                         <Label>Employee Name *</Label>
-                        <Select value={selectedEmpId} onValueChange={setSelectedEmpId}>
+                        <Select
+                          value={selectedEmpId || (!isHrOrAdmin ? (currentEmployeeId || user?.employee?.id || displayEmployees[0]?.id || '') : '')}
+                          onValueChange={setSelectedEmpId}
+                          disabled={!isHrOrAdmin}
+                        >
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Choose employee to transfer/promote..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {employees.map(emp => (
+                            {displayEmployees.map(emp => (
                               <SelectItem key={emp.id} value={emp.id} className="text-xs">
                                 {emp.firstName} {emp.lastName} ({emp.employeeCode})
                               </SelectItem>
@@ -483,7 +675,9 @@ export function TransfersPromotionsTab() {
                               </SelectTrigger>
                               <SelectContent>
                                 {grades.map(g => (
-                                  <SelectItem key={g.id} value={g.id} className="text-xs">{g.gradeCode} ({g.level})</SelectItem>
+                                  <SelectItem key={g.id} value={g.id} className="text-xs">
+                                    {g.gradeCode} ({g.level}){g.gradeName ? ` - ${g.gradeName}` : ''}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -626,8 +820,8 @@ export function TransfersPromotionsTab() {
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
 
-                        {/* Approve/Reject for PENDING status */}
-                        {t.status === 'PENDING' && (
+                        {/* Approve/Reject for PENDING status - Branch Admin or HR only */}
+                        {t.status === 'PENDING' && canApprove && (
                           <>
                             <Button
                               variant="outline"
@@ -637,6 +831,7 @@ export function TransfersPromotionsTab() {
                                 setActiveTransferId(t.id);
                                 setIsApproveOpen(true);
                               }}
+                              title="Approve Movement (Branch Admin)"
                             >
                               <Check className="h-3.5 w-3.5" />
                             </Button>
@@ -648,14 +843,15 @@ export function TransfersPromotionsTab() {
                                 setActiveTransferId(t.id);
                                 setIsRejectOpen(true);
                               }}
+                              title="Reject Movement (Branch Admin)"
                             >
                               <X className="h-3.5 w-3.5" />
                             </Button>
                           </>
                         )}
 
-                        {/* Execute / Apply for APPROVED status */}
-                        {t.status === 'APPROVED' && (
+                        {/* Execute / Apply for APPROVED status - Branch Admin or HR only */}
+                        {t.status === 'APPROVED' && canApprove && (
                           <Button
                             variant="outline"
                             size="sm"

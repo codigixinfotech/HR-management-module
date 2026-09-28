@@ -19,6 +19,7 @@ import {
   Calendar,
   Sparkles,
   ExternalLink,
+  GitFork,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,10 +27,12 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Pagination } from '@/components/common/Pagination';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { employeesApi } from '@/api/employees';
-import { departmentsApi } from '@/api/organization';
+import { departmentsApi, branchesApi } from '@/api/organization';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 import type { Employee } from '@/api/types';
 
 // Vibrant Curated Color Palette for Charts
@@ -67,22 +70,24 @@ function calculateAgeYears(dobStr?: string | null): number | null {
 export function EmployeeReportsTab() {
   const { activeCompanyId } = useCompany();
   const user = useAuthStore((s) => s.user);
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdminUser(user) || isCompanyAdminUser(user), [user]);
 
   const isBranchAdmin = useMemo(() => {
     if (!user) return false;
-    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
-    const primary = user.primaryRole?.toUpperCase();
-    return (
-      roles.includes('BRANCH_ADMIN') ||
-      roles.includes('BRANCH ADMIN') ||
-      primary === 'BRANCH_ADMIN' ||
-      primary === 'BRANCH ADMIN' ||
-      Boolean(user.branchId)
-    );
-  }, [user]);
+    if (isSuperOrCompanyAdmin) return false;
+    return isBranchAdminUser(user);
+  }, [user, isSuperOrCompanyAdmin]);
 
   const assignedBranchId = user?.branchId || user?.employee?.branchId;
   const effectiveBranchId = isBranchAdmin && assignedBranchId ? assignedBranchId : undefined;
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('HEAD_OFFICE');
+
+  const { data: apiBranches = [] } = useQuery({
+    queryKey: ['branches', activeCompanyId],
+    queryFn: () => (activeCompanyId ? branchesApi.list(activeCompanyId) : branchesApi.list()),
+    enabled: Boolean(activeCompanyId && isSuperOrCompanyAdmin),
+  });
 
   // Filter States
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('all');
@@ -103,7 +108,35 @@ export function EmployeeReportsTab() {
     queryFn: () => employeesApi.list({ page: 1, pageSize: 1000, companyId: activeCompanyId, branchId: effectiveBranchId }),
   });
 
-  const employees: Employee[] = useMemo(() => employeeData?.items || [], [employeeData]);
+  const rawEmployees: Employee[] = useMemo(() => employeeData?.items || [], [employeeData]);
+
+  const employees: Employee[] = useMemo(() => {
+    if (!isSuperOrCompanyAdmin) return rawEmployees;
+
+    if (selectedBranchFilter === 'HEAD_OFFICE') {
+      return rawEmployees.filter((e: any) => {
+        if (e.branchId && e.branchId !== 'NONE') {
+          const branchObj = apiBranches.find((b: any) => b.id === e.branchId) || e.branch;
+          const bName = (branchObj?.name || '').toLowerCase();
+          return bName.includes('head') || bName.includes('corporate') || bName.includes('main');
+        }
+        return (
+          !e.branchId ||
+          e.branchId === 'NONE' ||
+          (e.location && (e.location.toLowerCase().includes('head office') || e.location.toLowerCase().includes('corporate')))
+        );
+      });
+    }
+
+    if (selectedBranchFilter !== 'ALL') {
+      return rawEmployees.filter((e: any) =>
+        (e.branchId && e.branchId === selectedBranchFilter) ||
+        (e.branch?.id && e.branch.id === selectedBranchFilter)
+      );
+    }
+
+    return rawEmployees;
+  }, [rawEmployees, isSuperOrCompanyAdmin, selectedBranchFilter, apiBranches]);
 
   // Fetch departments for master reference
   const { data: _apiDepartments = [] } = useQuery({
@@ -967,6 +1000,40 @@ export function EmployeeReportsTab() {
                 </button>
               )}
             </div>
+
+            {/* Branch Filter (Only for Super Admin / Company Admin) */}
+            {isSuperOrCompanyAdmin && (
+              <div className="relative shrink-0">
+                <Select
+                  value={selectedBranchFilter}
+                  onValueChange={(val) => {
+                    setSelectedBranchFilter(val);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-8.5 px-2.5 text-xs rounded-lg bg-background border-border font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
+                    <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="text-muted-foreground text-[11px]">Branch:</span>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HEAD_OFFICE" className="text-xs font-semibold">
+                      Head Office
+                    </SelectItem>
+                    <SelectItem value="ALL" className="text-xs">
+                      All Branches
+                    </SelectItem>
+                    {apiBranches
+                      .filter((b: any) => !b.name?.toLowerCase().includes('head office'))
+                      .map((b: any) => (
+                        <SelectItem key={b.id} value={b.id} className="text-xs">
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Department Filter Selector */}
             <select

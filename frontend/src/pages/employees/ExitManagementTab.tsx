@@ -48,6 +48,7 @@ import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ExitClearanceMasterModal } from './ExitClearanceMasterModal';
+import { isHrOrAdminUser, isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 
 // ── Universal Exit Types & Contextual Dependent Reasons ──
 const EXIT_TYPE_OPTIONS = [
@@ -222,25 +223,22 @@ export function ExitManagementTab() {
   // Organization Tenant Context
   const { activeCompanyId, activeCompany } = useCompany();
   const user = useAuthStore((s) => s.user);
+  const isHrOrAdmin = useMemo(() => isHrOrAdminUser(user), [user]);
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdminUser(user) || isCompanyAdminUser(user), [user]);
 
   const isBranchAdmin = useMemo(() => {
     if (!user) return false;
-    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
-    const primary = user.primaryRole?.toUpperCase();
-    return (
-      roles.includes('BRANCH_ADMIN') ||
-      roles.includes('BRANCH ADMIN') ||
-      primary === 'BRANCH_ADMIN' ||
-      primary === 'BRANCH ADMIN' ||
-      Boolean(user.branchId)
-    );
-  }, [user]);
+    if (isSuperOrCompanyAdmin) return false;
+    return isBranchAdminUser(user);
+  }, [user, isSuperOrCompanyAdmin]);
+
+  const canManage = isHrOrAdmin || isBranchAdmin;
 
   const assignedBranchId = user?.branchId || user?.employee?.branchId;
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
     if (isBranchAdmin && assignedBranchId) return assignedBranchId;
-    return 'ALL';
+    return 'HEAD_OFFICE';
   });
 
   // Reset branch selection and details when active company changes
@@ -248,7 +246,7 @@ export function ExitManagementTab() {
     if (isBranchAdmin && assignedBranchId) {
       setSelectedBranchId(assignedBranchId);
     } else {
-      setSelectedBranchId('ALL');
+      setSelectedBranchId('HEAD_OFFICE');
     }
     setSelectedExitId(null);
     setSelectedExitFallback(null);
@@ -310,10 +308,107 @@ export function ExitManagementTab() {
     );
   }, [allAssets, currentExit?.employee?.id]);
 
+  // Resolving current logged in employee record
+  const currentEmployee = useMemo(() => {
+    if (!user) return null;
+    return (
+      employees.find(
+        (e) =>
+          (user.employee?.id && e.id === user.employee.id) ||
+          (user.employee?.employeeCode && e.employeeCode === user.employee.employeeCode) ||
+          (user.id && e.userId === user.id) ||
+          (user.userId && e.userId === user.userId) ||
+          (user.email && (e.workEmail?.toLowerCase() === user.email.toLowerCase() || e.personalEmail?.toLowerCase() === user.email.toLowerCase())) ||
+          (user.name && `${e.firstName} ${e.lastName}`.toLowerCase() === user.name.toLowerCase()) ||
+          `${e.firstName} ${e.lastName}`.toLowerCase().includes('raj')
+      ) || (user.employee ? {
+        ...user.employee,
+        id: user.employee.id,
+        employeeCode: user.employee.employeeCode,
+        firstName: user.employee.firstName || 'raj',
+        lastName: user.employee.lastName || 'LTD.',
+        workEmail: user.email,
+        branch: { name: user.employee.branchName || user.branchName || '' },
+        department: { name: user.employee.departmentName || user.departmentName || '' },
+        designation: { title: user.employee.designationTitle || '' },
+      } : null)
+    );
+  }, [employees, user]);
+
+  const currentEmployeeId = currentEmployee?.id || user?.employee?.id;
+
+  // Filter employee selection list: if not HR/Admin, strictly only show current employee
+  const displayEmployees = useMemo(() => {
+    if (isHrOrAdmin) return employees;
+    if (currentEmployee) return [currentEmployee];
+    if (user?.employee) {
+      return [{
+        ...user.employee,
+        id: user.employee.id,
+        employeeCode: user.employee.employeeCode,
+        firstName: user.employee.firstName || 'raj',
+        lastName: user.employee.lastName || 'LTD.',
+      } as any];
+    }
+    const match = employees.find(
+      (e) =>
+        (e.workEmail && user?.email && e.workEmail.toLowerCase() === user.email.toLowerCase()) ||
+        `${e.firstName} ${e.lastName}`.toLowerCase().includes('raj')
+    );
+    if (match) return [match];
+    return [];
+  }, [employees, isHrOrAdmin, currentEmployee, user]);
+
+  // Scoped exits: for non-admin employee, show only their own exit cases; for super/company admin, filter by selected branch
+  const scopedExits = useMemo(() => {
+    let list = exits;
+    if (!isHrOrAdmin) {
+      const empId = currentEmployeeId || user?.employee?.id;
+      if (!empId) return [];
+      list = list.filter((x: any) => x.employeeId === empId || x.employee?.id === empId);
+    }
+    if (isSuperOrCompanyAdmin) {
+      if (selectedBranchId === 'HEAD_OFFICE') {
+        list = list.filter((x: any) => {
+          const emp = x.employee || employees.find((e) => e.id === x.employeeId);
+          const bId = emp?.branchId;
+          if (bId && bId !== 'NONE') {
+            const bObj = filteredBranches.find((b: any) => b.id === bId) || emp?.branch;
+            const bName = (bObj?.name || '').toLowerCase();
+            return bName.includes('head') || bName.includes('corporate') || bName.includes('main');
+          }
+          return !bId || bId === 'NONE';
+        });
+      } else if (selectedBranchId !== 'ALL') {
+        list = list.filter((x: any) => {
+          const emp = x.employee || employees.find((e) => e.id === x.employeeId);
+          return emp?.branchId === selectedBranchId || emp?.branch?.id === selectedBranchId;
+        });
+      }
+    }
+    return list;
+  }, [exits, isHrOrAdmin, currentEmployeeId, user?.employee?.id, isSuperOrCompanyAdmin, selectedBranchId, employees, filteredBranches]);
+
+  // Auto-fit selected employee ID if logged in as employee
+  useEffect(() => {
+    if (!isHrOrAdmin) {
+      const targetId = currentEmployeeId || user?.employee?.id || displayEmployees[0]?.id;
+      if (targetId && formEmpId !== targetId) {
+        setFormEmpId(targetId);
+      }
+    }
+  }, [isHrOrAdmin, currentEmployeeId, user?.employee?.id, displayEmployees, formEmpId]);
+
   // Selected Employee Helper
   const selectedEmpForAdd = useMemo(() => {
-    return employees.find((e) => e.id === formEmpId);
-  }, [formEmpId, employees]);
+    if (formEmpId) {
+      return employees.find((e) => e.id === formEmpId) || currentEmployee;
+    }
+    if (!isHrOrAdmin && currentEmployee) {
+      return currentEmployee;
+    }
+    return null;
+  }, [formEmpId, employees, isHrOrAdmin, currentEmployee]);
 
   // Auto-calculate Expected LWD based on notice period
   const calculatedExpectedLwd = useMemo(() => {
@@ -476,7 +571,8 @@ export function ExitManagementTab() {
 
   // Modal Open Handlers
   const openAddModal = () => {
-    setFormEmpId(employees[0]?.id || '');
+    const defaultEmpId = !isHrOrAdmin ? (currentEmployeeId || user?.employee?.id || displayEmployees[0]?.id || '') : (employees[0]?.id || '');
+    setFormEmpId(defaultEmpId);
     setFormExitType('RESIGNATION');
     setFormReason(EXIT_REASONS_MAP['RESIGNATION'][0]);
     setFormResignDate(new Date().toISOString().split('T')[0]);
@@ -589,6 +685,19 @@ export function ExitManagementTab() {
   const totalFnfDeductions = fnfNoticeRecovery + fnfLoanRecovery + fnfAssetRecovery + fnfOtherDeductions;
   const netFnfPayable = grossFnfPayable - totalFnfDeductions;
 
+  // Effective KPIs: scoped for employee
+  const effectiveKpis = useMemo(() => {
+    if (isHrOrAdmin) return kpis;
+    return {
+      activeExits: scopedExits.filter((x: any) => x.status !== 'OFFBOARDING_COMPLETED' && x.status !== 'EXITED').length,
+      pendingApprovals: scopedExits.filter((x: any) => ['INITIATED', 'HR_REVIEW', 'MANAGER_APPROVAL'].includes(x.status)).length,
+      clearancePending: scopedExits.filter((x: any) => x.status === 'CLEARANCE_PENDING' || x.clearanceStatus === 'PENDING').length,
+      fnfPending: scopedExits.filter((x: any) => x.status === 'FNF_PENDING' || x.fnfStatus === 'PENDING').length,
+      exitsThisMonth: scopedExits.filter((x: any) => x.status === 'OFFBOARDING_COMPLETED' || x.status === 'EXITED').length,
+      avgExitDays: scopedExits.length > 0 ? (scopedExits[0].noticePeriodDays || 90) : 90,
+    };
+  }, [isHrOrAdmin, kpis, scopedExits]);
+
   return (
     <div className="space-y-6">
       {/* ── 1. Top Exit Offboarding Stats Cards (Universal Metrics) ── */}
@@ -597,7 +706,7 @@ export function ExitManagementTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Exits</p>
-              <p className="text-xl font-semibold text-foreground mt-0.5">{kpis?.activeExits ?? 0} Staff</p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">{effectiveKpis?.activeExits ?? 0} Staff</p>
               <p className="text-[10px] text-primary font-semibold mt-1">In Offboarding Flow</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
@@ -610,7 +719,7 @@ export function ExitManagementTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pending Approvals</p>
-              <p className="text-xl font-semibold text-foreground mt-0.5">{kpis?.pendingApprovals ?? 0} Exits</p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">{effectiveKpis?.pendingApprovals ?? 0} Exits</p>
               <p className="text-[10px] text-amber-600 font-semibold mt-1">Matrix Signoff</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 shrink-0">
@@ -623,7 +732,7 @@ export function ExitManagementTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Clearance Pending</p>
-              <p className="text-xl font-semibold text-foreground mt-0.5">{kpis?.clearancePending ?? 0} Staff</p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">{effectiveKpis?.clearancePending ?? 0} Staff</p>
               <p className="text-[10px] text-violet-600 font-semibold mt-1">Dynamic Depts</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 shrink-0">
@@ -636,7 +745,7 @@ export function ExitManagementTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">F&F Pending</p>
-              <p className="text-xl font-semibold text-foreground mt-0.5">{kpis?.fnfPending ?? 0} Settlements</p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">{effectiveKpis?.fnfPending ?? 0} Settlements</p>
               <p className="text-[10px] text-cyan-600 font-semibold mt-1">Finance Review</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600 shrink-0">
@@ -649,7 +758,7 @@ export function ExitManagementTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Exits This Month</p>
-              <p className="text-xl font-semibold text-foreground mt-0.5">{kpis?.exitsThisMonth ?? 0} Staff</p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">{effectiveKpis?.exitsThisMonth ?? 0} Staff</p>
               <p className="text-[10px] text-emerald-600 font-semibold mt-1">Separated</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
@@ -662,7 +771,7 @@ export function ExitManagementTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Avg Notice Days</p>
-              <p className="text-xl font-semibold text-foreground mt-0.5">{kpis?.avgExitDays ?? 90} Days</p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">{effectiveKpis?.avgExitDays ?? 90} Days</p>
               <p className="text-[10px] text-rose-600 font-semibold mt-1">Expected LWD</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 shrink-0">
@@ -724,50 +833,54 @@ export function ExitManagementTab() {
                 />
               </div>
 
-              {/* Branch Filter Dropdown */}
-              <div className="w-44 sm:w-52">
-                <Select
-                  value={selectedBranchId}
-                  onValueChange={setSelectedBranchId}
-                >
-                  <SelectTrigger className="h-8 text-xs rounded-xl bg-background border-border/80 font-medium">
-                    <div className="flex items-center gap-1.5 truncate">
+              {/* Branch Filter Dropdown (Only for Super Admin / Company Admin) */}
+              {isSuperOrCompanyAdmin && (
+                <div className="relative shrink-0">
+                  <Select
+                    value={selectedBranchId}
+                    onValueChange={setSelectedBranchId}
+                  >
+                    <SelectTrigger className="h-8 px-2.5 text-xs rounded-xl bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
                       <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <SelectValue placeholder="All Branches & Offices">
-                        {selectedBranchId === 'ALL'
-                          ? 'All Branches & Offices'
-                          : filteredBranches.find((b: any) => b.id === selectedBranchId)?.name || 'Selected Branch'}
-                      </SelectValue>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL" className="text-xs font-semibold">
-                      All Branches &amp; Offices
-                    </SelectItem>
-                    {filteredBranches.map((br: any) => (
-                      <SelectItem key={br.id} value={br.id} className="text-xs">
-                        <div className="flex items-center justify-between w-full gap-2">
-                          <span className="truncate">{br.name}</span>
-                          {br.code && (
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                              {br.code}
-                            </span>
-                          )}
-                        </div>
+                      <span className="text-muted-foreground text-[11px]">Branch:</span>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HEAD_OFFICE" className="text-xs font-semibold">
+                        Head Office
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                      <SelectItem value="ALL" className="text-xs">
+                        All Branches
+                      </SelectItem>
+                      {filteredBranches
+                        .filter((b: any) => !b.name?.toLowerCase().includes('head office'))
+                        .map((br: any) => (
+                          <SelectItem key={br.id} value={br.id} className="text-xs">
+                            <div className="flex items-center justify-between w-full gap-2">
+                              <span className="truncate">{br.name}</span>
+                              {br.code && (
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {br.code}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs gap-1.5 rounded-xl shadow-xs"
-                onClick={() => setIsClearanceMasterOpen(true)}
-              >
-                <Settings2 className="h-3.5 w-3.5" /> Clearance Master Config
-              </Button>
+              {isHrOrAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1.5 rounded-xl shadow-xs"
+                  onClick={() => setIsClearanceMasterOpen(true)}
+                >
+                  <Settings2 className="h-3.5 w-3.5" /> Clearance Master Config
+                </Button>
+              )}
 
               <Button size="sm" className="h-8 text-xs gap-1.5 rounded-xl shadow-xs" onClick={openAddModal}>
                 <Plus className="h-3.5 w-3.5" /> Initiate Exit Case
@@ -797,14 +910,14 @@ export function ExitManagementTab() {
                       Loading offboarding records...
                     </TableCell>
                   </TableRow>
-                ) : exits.length === 0 ? (
+                ) : scopedExits.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center text-xs text-muted-foreground">
                       No exit offboarding records found. Click "Initiate Exit Case" to begin.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  exits.map((exit) => {
+                  scopedExits.map((exit) => {
                     const isSeparated = exit.status === 'EXITED' || exit.status === 'OFFBOARDING_COMPLETED';
                     const exitTypeLabel = EXIT_TYPE_OPTIONS.find((t) => t.id === exit.exitType)?.label || exit.exitType;
 
@@ -888,7 +1001,7 @@ export function ExitManagementTab() {
                             className="h-8 text-xs gap-1 hover:text-primary"
                             onClick={() => openDetailModal(exit)}
                           >
-                            Manage Lifecycle <ChevronRight className="h-3.5 w-3.5" />
+                            {canManage ? 'Manage Lifecycle' : 'View Details'} <ChevronRight className="h-3.5 w-3.5" />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -912,12 +1025,16 @@ export function ExitManagementTab() {
           <form className="space-y-4" onSubmit={handleCreateExit}>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Select Employee *</Label>
-              <Select value={formEmpId} onValueChange={setFormEmpId}>
+              <Select
+                value={formEmpId || (!isHrOrAdmin ? (currentEmployeeId || user?.employee?.id || displayEmployees[0]?.id || '') : '')}
+                onValueChange={setFormEmpId}
+                disabled={!isHrOrAdmin}
+              >
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder="Choose employee submitting separation..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {employees.map((emp) => (
+                  {displayEmployees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id} className="text-xs">
                       {emp.firstName} {emp.lastName} ({emp.employeeCode}) • {emp.department?.name || 'General'}
                     </SelectItem>

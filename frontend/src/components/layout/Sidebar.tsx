@@ -7,6 +7,7 @@ import {
   isBranchAdminUser,
   isCompanyAdminUser,
   isManagerOrHrOrAdmin,
+  isHrOrAdminUser,
   type HcmModule,
   type SubModuleItem,
 } from '@/lib/modules';
@@ -31,12 +32,12 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-function normalizePath(p: string) {
+function normalizePath(p: string, isHrOrAdmin?: boolean) {
   const [base] = p.split('?');
   if (base === '/profile') return '/employees/detail/me';
   if (base === '/organization') return '/organization/structure';
   if (base === '/recruitment') return '/recruitment/requisitions';
-  if (base === '/employees') return '/employees/directory';
+  if (base === '/employees') return isHrOrAdmin === false ? '/employees/transfers' : '/employees/directory';
   if (base === '/attendance-leave') return '/attendance-leave';
   if (base === '/dashboard') return '/dashboard/overview';
   return base;
@@ -54,6 +55,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
   const isSuperAdmin = useMemo(() => isSuperAdminUser(user), [user]);
   const isBranchAdmin = useMemo(() => isBranchAdminUser(user), [user]);
   const isCompanyAdmin = useMemo(() => isCompanyAdminUser(user), [user]);
+  const isHrOrAdmin = useMemo(() => isHrOrAdminUser(user), [user]);
 
   // Fetch active company's subscription modules
   const { data: subData } = useQuery({
@@ -75,8 +77,8 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
 
     if (!isSuperAdmin && !isBranchAdmin && !isCompanyAdmin && enabledModuleKeysSet) {
       base = modulesForRole.filter((mod) => {
-        // Always allow Dashboard, Settings/Administration, and Landing Page Demo
-        if (mod.key === 'dashboard' || mod.key === 'administration' || mod.key === 'landing-page') {
+        // Always allow Dashboard, Employees, Settings/Administration, and Landing Page Demo
+        if (mod.key === 'dashboard' || mod.key === 'employees' || mod.key === 'administration' || mod.key === 'landing-page') {
           return true;
         }
         let catalogKey = mod.key;
@@ -104,8 +106,10 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       });
     }
 
-    // Role-based visibility for Attendance & Leave
+    // Role-based visibility for Attendance & Leave, and Employees
     const isManagerOrAdmin = isManagerOrHrOrAdmin(user);
+    const isHrOrAdmin = isHrOrAdminUser(user);
+
     base = base.map((mod) => {
       if (mod.key === 'attendance-leave' && mod.subItems) {
         return {
@@ -117,6 +121,19 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           ),
         };
       }
+
+      // Configure Employees module subitems for non-admin employees
+      if (mod.key === 'employees' && !isHrOrAdmin && mod.subItems) {
+        return {
+          ...mod,
+          path: '/employees/transfers',
+          subItems: [
+            { key: 'transfers', label: 'Transfers & Promotions', path: '/employees/transfers' },
+            { key: 'exit', label: 'Exit Management', path: '/employees/exit' },
+          ],
+        };
+      }
+
       return mod;
     });
 
@@ -138,9 +155,9 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       const currentPath = location.pathname;
       const currentSearch = location.search;
 
-      const normCurrent = normalizePath(currentPath);
+      const normCurrent = normalizePath(currentPath, isHrOrAdmin);
       const [subBasePath, subQuery] = subPath.split('?');
-      const normSubBase = normalizePath(subBasePath);
+      const normSubBase = normalizePath(subBasePath, isHrOrAdmin);
 
       // Base path must match
       const isPathMatch =
@@ -216,7 +233,7 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       // 1. If already on this exact path or equivalent normalized path, prevent duplicate navigation
       if (
         currentFull === targetPath ||
-        (normalizePath(location.pathname) === normalizePath(targetPath) && !targetPath.includes('?'))
+        (normalizePath(location.pathname, isHrOrAdmin) === normalizePath(targetPath, isHrOrAdmin) && !targetPath.includes('?'))
       ) {
         return;
       }

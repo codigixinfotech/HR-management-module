@@ -74,7 +74,10 @@ export function ProtectedRoute() {
   // 1. Role Access Check
   const isAdminOnly =
     ADMIN_ONLY_ROUTES.some((route) => currentPath === route || currentPath.startsWith(`${route}/`)) ||
-    (currentPath.startsWith('/employees') && !currentPath.startsWith('/employees/detail/me'));
+    (currentPath.startsWith('/employees') &&
+      !currentPath.startsWith('/employees/detail/me') &&
+      !currentPath.startsWith('/employees/transfers') &&
+      !currentPath.startsWith('/employees/exit'));
 
   if (isEmployee && isAdminOnly) {
     return <Navigate to="/dashboard" replace />;

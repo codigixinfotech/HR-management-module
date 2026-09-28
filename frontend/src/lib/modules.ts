@@ -413,6 +413,18 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
     ],
   },
   {
+    key: 'employees',
+    label: 'Employees',
+    path: '/employees/transfers',
+    phase: 2,
+    status: 'active',
+    icon: Users,
+    subItems: [
+      { key: 'transfers', label: 'Transfers & Promotions', path: '/employees/transfers' },
+      { key: 'exit', label: 'Exit Management', path: '/employees/exit' },
+    ],
+  },
+  {
     key: 'my-attendance',
     label: 'My Attendance',
     path: '/attendance-leave',
@@ -639,7 +651,7 @@ export function getModulesForRole(user?: any): HcmModule[] {
   if (userPerms.includes('*')) return HCM_MODULES;
 
   return HCM_MODULES.filter((mod) => {
-    if (mod.key === 'dashboard' || mod.key === 'landing-page' || mod.key === 'profile') return true;
+    if (mod.key === 'dashboard' || mod.key === 'landing-page' || mod.key === 'profile' || mod.key === 'employees') return true;
     return hasModulePermission(user, mod.key, 'view');
   });
 }

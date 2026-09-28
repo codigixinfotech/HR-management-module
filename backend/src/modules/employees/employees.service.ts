@@ -44,11 +44,6 @@ export class EmployeesService implements OnModuleInit {
       console.error('Failed auto-repair of Grade IDs in DB:', e);
     }
 
-    try {
-      await this.autoRepairAdminEmployees();
-    } catch (e) {
-      console.error('Failed auto-repair of Admin Employees in DB:', e);
-    }
   }
 
   private async autoRepairAdminEmployees() {

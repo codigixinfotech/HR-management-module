@@ -19,16 +19,20 @@ import {
   Building2,
   Briefcase,
   GitBranch,
+  GitFork,
   FolderTree,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { employeesApi } from '@/api/employees';
-import { departmentsApi, designationsApi } from '@/api/organization';
+import { departmentsApi, designationsApi, branchesApi } from '@/api/organization';
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSuperAdminUser, isCompanyAdminUser } from '@/lib/modules';
 import type { Employee } from '@/api/types';
 import { Pagination } from '@/components/common/Pagination';
 
@@ -145,6 +149,10 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
   const [selectedDept, setSelectedDept] = useState<string>('all');
   const [selectedDesig, setSelectedDesig] = useState<string>('all');
 
+  const user = useAuthStore((s) => s.user);
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdminUser(user) || isCompanyAdminUser(user), [user]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('HEAD_OFFICE');
+
   // Dropdown state
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownSearchQuery, setDropdownSearchQuery] = useState('');
@@ -163,6 +171,46 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
     queryKey: ['designations', activeCompanyId],
     queryFn: () => designationsApi.list(activeCompanyId),
   });
+
+  const { data: apiBranches = [] } = useQuery({
+    queryKey: ['branches', activeCompanyId],
+    queryFn: () => (activeCompanyId ? branchesApi.list(activeCompanyId) : branchesApi.list()),
+    enabled: Boolean(activeCompanyId && isSuperOrCompanyAdmin),
+  });
+
+  // Branch-scoped employees for Super Admin / Company Admin
+  const branchScopedEmployees = useMemo(() => {
+    if (!employees) return [];
+    if (!isSuperOrCompanyAdmin) return employees;
+
+    if (selectedBranch === 'HEAD_OFFICE') {
+      return employees.filter(e => {
+        // If assigned to a specific branch, only match if it's head office/corporate
+        if (e.branchId && e.branchId !== 'NONE') {
+          const branchObj = apiBranches.find(b => b.id === e.branchId) || e.branch;
+          const bName = (branchObj?.name || '').toLowerCase();
+          return bName.includes('head') || bName.includes('corporate') || bName.includes('main');
+        }
+
+        const meta = getEmployeeDisplayMeta(e);
+        return (
+          !e.branchId ||
+          e.branchId === 'NONE' ||
+          meta.scope === 'COMPANY' ||
+          (e.location && (e.location.toLowerCase().includes('head office') || e.location.toLowerCase().includes('corporate')))
+        );
+      });
+    }
+
+    if (selectedBranch !== 'ALL') {
+      return employees.filter(e =>
+        (e.branchId && e.branchId === selectedBranch) ||
+        (e.branch?.id && e.branch.id === selectedBranch)
+      );
+    }
+
+    return employees;
+  }, [employees, isSuperOrCompanyAdmin, selectedBranch, apiBranches]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -200,8 +248,8 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
   const departmentsMeta = useMemo(() => {
     const map = new Map<string, { count: number; activeCount: number; probationCount: number; id?: string }>();
 
-    if (employees) {
-      employees.forEach(e => {
+    if (branchScopedEmployees) {
+      branchScopedEmployees.forEach(e => {
         const meta = getEmployeeDisplayMeta(e);
         const deptName = meta.department;
         if (deptName) {
@@ -239,14 +287,14 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
 
     list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
     return list;
-  }, [employees, apiDepartments]);
+  }, [branchScopedEmployees, apiDepartments]);
 
   // Compile rich Designation metadata (avatars, counts, active counts, probation counts)
   const designationsMeta = useMemo(() => {
     const map = new Map<string, { count: number; activeCount: number; probationCount: number; id?: string }>();
 
-    if (employees) {
-      employees.forEach(e => {
+    if (branchScopedEmployees) {
+      branchScopedEmployees.forEach(e => {
         const meta = getEmployeeDisplayMeta(e);
         const desigName = meta.designation;
         if (desigName) {
@@ -284,9 +332,9 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
 
     list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
     return list;
-  }, [employees, apiDesignations]);
+  }, [branchScopedEmployees, apiDesignations]);
 
-  const totalEmployeesCount = employees?.length ?? 0;
+  const totalEmployeesCount = branchScopedEmployees?.length ?? 0;
 
   // Selected Department details
   const activeDeptMeta = useMemo(() => {
@@ -325,8 +373,8 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
 
   // Filtered employees based on search & active group filter
   const filteredEmployees = useMemo(() => {
-    if (!employees) return [];
-    return employees.filter(e => {
+    if (!branchScopedEmployees) return [];
+    return branchScopedEmployees.filter(e => {
       const meta = getEmployeeDisplayMeta(e);
       const fullName = `${e.firstName} ${e.lastName}`.toLowerCase();
       const matchesSearch =
@@ -342,7 +390,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
 
       return matchesSearch && matchesGroupFilter;
     });
-  }, [employees, searchQuery, selectedDept, selectedDesig]);
+  }, [branchScopedEmployees, searchQuery, selectedDept, selectedDesig]);
 
   // Paginated employees for unified list
   const paginatedEmployees = useMemo(() => {
@@ -443,17 +491,17 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
   return (
     <div className="space-y-4">
       {/* Search and Filters Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2.5">
+      <div className="flex items-center justify-between gap-2 overflow-x-auto scrollbar-none py-0.5">
+        <div className="flex items-center gap-2 shrink-0 flex-nowrap">
           {/* Segmented Grouping Buttons: See All | Group by Department | Group by Designation */}
-          <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
+          <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
             <button
               type="button"
               onClick={() => {
                 setGroupMode('all');
                 handleClearFilters();
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
                 groupMode === 'all'
                   ? 'bg-background text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
@@ -469,7 +517,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                 setDropdownSearchQuery('');
                 setCurrentPage(1);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
                 groupMode === 'department'
                   ? 'bg-background text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
@@ -485,7 +533,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                 setDropdownSearchQuery('');
                 setCurrentPage(1);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
                 groupMode === 'designation'
                   ? 'bg-background text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
@@ -496,32 +544,32 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
           </div>
 
           {/* Adaptive Avatar-Group Dropdown Selector */}
-          <div className="relative" ref={dropdownRef}>
+          <div className="relative shrink-0" ref={dropdownRef}>
             {!isFilterApplied ? (
               <button
                 type="button"
                 onClick={() => setDropdownOpen(prev => !prev)}
-                className="group flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-border/80 bg-background hover:bg-muted/40 transition-all text-xs font-medium shadow-2xs hover:shadow-xs"
+                className="group flex items-center gap-2 px-2.5 py-1 rounded-xl border border-border/80 bg-background hover:bg-muted/40 transition-all text-xs font-medium shadow-2xs hover:shadow-xs h-8 shrink-0"
               >
                 {/* Overlapping Colorful Avatar Stack */}
                 <div className="flex items-center -space-x-1.5 overflow-hidden">
-                  {(groupMode === 'designation' ? designationsMeta : departmentsMeta).slice(0, 5).map((item) => (
+                  {(groupMode === 'designation' ? designationsMeta : departmentsMeta).slice(0, 3).map((item) => (
                     <span
                       key={item.name}
                       title={`${item.name} (${item.count} personnel)`}
-                      className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-[9.5px] font-bold text-white ring-2 ring-background shrink-0 transition-transform group-hover:scale-105 ${item.palette.bg}`}
+                      className={`inline-flex items-center justify-center h-5 w-5 rounded-full text-[9px] font-bold text-white ring-2 ring-background shrink-0 transition-transform group-hover:scale-105 ${item.palette.bg}`}
                     >
                       {item.initials}
                     </span>
                   ))}
-                  {(groupMode === 'designation' ? designationsMeta : departmentsMeta).length > 5 && (
-                    <span className="inline-flex items-center justify-center h-6 w-6 rounded-full text-[9px] font-bold bg-muted text-muted-foreground ring-2 ring-background shrink-0">
-                      +{(groupMode === 'designation' ? designationsMeta : departmentsMeta).length - 5}
+                  {(groupMode === 'designation' ? designationsMeta : departmentsMeta).length > 3 && (
+                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[8.5px] font-bold bg-muted text-muted-foreground ring-2 ring-background shrink-0">
+                      +{(groupMode === 'designation' ? designationsMeta : departmentsMeta).length - 3}
                     </span>
                   )}
                   {(groupMode === 'designation' ? designationsMeta : departmentsMeta).length === 0 && (
-                    <span className="inline-flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold bg-primary/10 text-primary ring-2 ring-background shrink-0">
-                      <Users className="h-3 w-3" />
+                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[9px] font-bold bg-primary/10 text-primary ring-2 ring-background shrink-0">
+                      <Users className="h-2.5 w-2.5" />
                     </span>
                   )}
                 </div>
@@ -529,7 +577,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                 <span className="font-semibold text-foreground">
                   {groupMode === 'designation' ? 'All Designations' : groupMode === 'department' ? 'All Departments' : 'Filter by Group'}
                 </span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10.5px] font-bold bg-primary/10 text-primary">
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
                   {totalEmployeesCount}
                 </span>
                 <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
@@ -539,16 +587,16 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                 <button
                   type="button"
                   onClick={() => setDropdownOpen(prev => !prev)}
-                  className="group flex items-center gap-2 px-3 py-1.5 rounded-xl border border-primary/40 bg-primary/5 hover:bg-primary/10 transition-all text-xs font-semibold text-foreground shadow-2xs"
+                  className="group flex items-center gap-2 px-2.5 py-1 rounded-xl border border-primary/40 bg-primary/5 hover:bg-primary/10 transition-all text-xs font-semibold text-foreground shadow-2xs h-8 shrink-0"
                 >
                   {/* Single Selected Avatar */}
                   <span
-                    className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold text-white shrink-0 ${currentActiveMeta?.palette.bg}`}
+                    className={`inline-flex items-center justify-center h-5 w-5 rounded-full text-[9.5px] font-bold text-white shrink-0 ${currentActiveMeta?.palette.bg}`}
                   >
                     {currentActiveMeta?.initials}
                   </span>
                   <span className="text-foreground">{currentActiveMeta?.name}</span>
-                  <span className="text-muted-foreground font-normal text-[11px]">
+                  <span className="text-muted-foreground font-normal text-[10.5px]">
                     • {currentActiveMeta?.count} {currentActiveMeta?.count === 1 ? 'Employee' : 'Employees'}
                   </span>
                   <ChevronDown className={`h-3.5 w-3.5 text-primary transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
@@ -557,7 +605,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                   type="button"
                   onClick={handleClearFilters}
                   title="Clear filter & see all"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border/80 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shadow-2xs"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-border/80 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shadow-2xs h-8 shrink-0"
                 >
                   <X className="h-3.5 w-3.5" />
                   <span>See All</span>
@@ -690,11 +738,45 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
             )}
           </div>
 
+          {/* Branch Filter (Only for Super Admin / Company Admin) */}
+          {isSuperOrCompanyAdmin && (
+            <div className="relative shrink-0">
+              <Select
+                value={selectedBranch}
+                onValueChange={(val) => {
+                  setSelectedBranch(val);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 px-2.5 text-xs rounded-xl bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
+                  <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="text-muted-foreground text-[11px]">Branch:</span>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HEAD_OFFICE" className="text-xs font-semibold">
+                    Head Office
+                  </SelectItem>
+                  <SelectItem value="ALL" className="text-xs">
+                    All Branches
+                  </SelectItem>
+                  {apiBranches
+                    .filter((b) => !b.name.toLowerCase().includes('head office'))
+                    .map((b) => (
+                      <SelectItem key={b.id} value={b.id} className="text-xs">
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* View Toggler (Grid / Table) */}
-          <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border">
+          <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
             <button
               onClick={() => setDisplayMode('grid')}
-              className={`p-1.5 rounded-lg text-xs transition-all ${displayMode === 'grid'
+              className={`p-1 rounded-lg text-xs transition-all ${displayMode === 'grid'
                 ? 'bg-background text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
                 }`}
@@ -704,7 +786,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
             </button>
             <button
               onClick={() => setDisplayMode('table')}
-              className={`p-1.5 rounded-lg text-xs transition-all ${displayMode === 'table'
+              className={`p-1 rounded-lg text-xs transition-all ${displayMode === 'table'
                 ? 'bg-background text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
                 }`}
@@ -716,11 +798,11 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
         </div>
 
         {/* Search Input & CSV Export Button */}
-        <div className="flex items-center gap-2">
-          <div className="relative w-52 sm:w-60">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="relative w-40 sm:w-48 lg:w-56 shrink-0">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              className="h-8.5 pl-8 pr-7 text-xs bg-background"
+              className="h-8 pl-8 pr-7 text-xs bg-background"
               placeholder={groupMode === 'all' ? "Search all personnel..." : `Search in ${groupMode}s...`}
               value={searchQuery}
               onChange={e => {
@@ -735,7 +817,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
                   setSearchQuery('');
                   setCurrentPage(1);
                 }}
-                className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded"
+                className="absolute right-2 top-2 text-muted-foreground hover:text-foreground p-0.5 rounded"
                 title="Clear search"
               >
                 <X className="h-3.5 w-3.5" />
@@ -745,7 +827,7 @@ export function EmployeeDirectoryTab({ employees, isLoading }: EmployeeDirectory
           <Button
             variant="outline"
             size="sm"
-            className="h-8.5 text-xs gap-1.5 font-semibold shadow-2xs"
+            className="h-8 px-2.5 text-xs gap-1.5 font-semibold shadow-2xs shrink-0"
             onClick={handleExportCsv}
           >
             <Download className="h-3.5 w-3.5" /> Export (.CSV)
