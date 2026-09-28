@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   OnModuleInit,
@@ -11,6 +13,12 @@ import {
   PaginationQueryDto,
   buildPagination,
 } from '../../common/dto/pagination.dto';
+import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import {
+  isUserSuperAdmin,
+  isUserCompanyAdmin,
+  isUserBranchAdmin,
+} from '../../common/utils/tenant-context.util';
 
 @Injectable()
 export class EmployeesService implements OnModuleInit {
@@ -200,7 +208,18 @@ export class EmployeesService implements OnModuleInit {
         },
       },
     },
-    documents: true,
+    documents: {
+      include: {
+        verifiedByUser: {
+          select: {
+            id: true,
+            email: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { uploadedAt: 'desc' as const },
+    },
   };
 
   private readonly fullInclude = {
@@ -209,7 +228,18 @@ export class EmployeesService implements OnModuleInit {
     department: { select: { id: true, name: true } },
     designation: { select: { id: true, title: true } },
     reportingManager: { select: { id: true, firstName: true, lastName: true } },
-    documents: true,
+    documents: {
+      include: {
+        verifiedByUser: {
+          select: {
+            id: true,
+            email: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { uploadedAt: 'desc' as const },
+    },
     onboardingTasks: { orderBy: { createdAt: 'asc' as const } },
     courseEnrollments: { orderBy: { createdAt: 'desc' as const } },
     kpis: { orderBy: { createdAt: 'desc' as const } },
@@ -734,13 +764,39 @@ export class EmployeesService implements OnModuleInit {
     await this.findById(employeeId);
     const normalizedFilePath = (filePath || '').replace(/\\/g, '/');
     return this.prisma.employeeDocument.create({
-      data: { employeeId, docType, fileName, filePath: normalizedFilePath },
+      data: {
+        employeeId,
+        docType,
+        fileName,
+        filePath: normalizedFilePath,
+        verificationStatus: 'PENDING',
+        verifiedBy: null,
+        verifiedAt: null,
+      },
+      include: {
+        verifiedByUser: {
+          select: {
+            id: true,
+            email: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
     });
   }
 
   async getDocument(documentId: string) {
     const doc = await this.prisma.employeeDocument.findUnique({
       where: { id: documentId },
+      include: {
+        verifiedByUser: {
+          select: {
+            id: true,
+            email: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
     });
     if (!doc) throw new NotFoundException('Document not found');
     return doc;
@@ -750,6 +806,15 @@ export class EmployeesService implements OnModuleInit {
     await this.findById(employeeId);
     return this.prisma.employeeDocument.findMany({
       where: { employeeId },
+      include: {
+        verifiedByUser: {
+          select: {
+            id: true,
+            email: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
       orderBy: { uploadedAt: 'desc' },
     });
   }
@@ -761,6 +826,106 @@ export class EmployeesService implements OnModuleInit {
     if (!doc) throw new NotFoundException('Document not found');
     await this.prisma.employeeDocument.delete({ where: { id: documentId } });
     return { success: true };
+  }
+
+  async verifyDocument(
+    documentId: string,
+    user: CurrentUserPayload,
+    status: 'VERIFIED' | 'REJECTED' | 'PENDING' = 'VERIFIED',
+    employeeId?: string,
+  ) {
+    if (!user) {
+      throw new ForbiddenException('Not authenticated');
+    }
+
+    const isSuper = isUserSuperAdmin(user);
+    const isCompany = isUserCompanyAdmin(user);
+    const isBranch = isUserBranchAdmin(user);
+
+    if (!isSuper && !isCompany && !isBranch) {
+      throw new ForbiddenException('Only Company Admin, Branch Admin, or Super Admin can verify documents');
+    }
+
+    const doc = await this.prisma.employeeDocument.findUnique({
+      where: { id: documentId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            companyId: true,
+            branchId: true,
+            employeeCode: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        verifiedByUser: {
+          select: {
+            id: true,
+            email: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('Document not found');
+    }
+
+    if (employeeId && doc.employeeId !== employeeId) {
+      throw new BadRequestException('Document does not belong to the specified employee');
+    }
+
+    // Multi-company isolation check:
+    // Non-super admins can only verify documents belonging to their assigned company
+    if (!isSuper && user.companyId) {
+      if (doc.employee.companyId !== user.companyId) {
+        throw new ForbiddenException('Cross-company document verification is forbidden');
+      }
+    }
+
+    // Branch Admin branch-scoping check:
+    // Branch Admin can strictly verify documents ONLY belonging to employees of their assigned branch
+    if (isBranch) {
+      const adminBranchId = user.branchId || user.employee?.branchId;
+      if (!adminBranchId) {
+        throw new ForbiddenException('Branch Admin has no assigned branch');
+      }
+      if (!doc.employee.branchId || doc.employee.branchId !== adminBranchId) {
+        throw new ForbiddenException(
+          'Branch Admin can only verify documents belonging to employees of their assigned branch',
+        );
+      }
+    }
+
+    // If already in requested status and verified, return existing record
+    if (doc.verificationStatus === status && status === 'VERIFIED') {
+      return doc;
+    }
+
+    const now = new Date();
+    const isVerifying = status === 'VERIFIED';
+
+    const updated = await this.prisma.employeeDocument.update({
+      where: { id: documentId },
+      data: {
+        verificationStatus: status,
+        verifiedBy: isVerifying ? user.userId : (status === 'PENDING' ? null : user.userId),
+        verifiedAt: isVerifying ? now : (status === 'PENDING' ? null : now),
+      },
+      include: {
+        verifiedByUser: {
+          select: {
+            id: true,
+            email: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+    });
+
+    return updated;
   }
 
   async enrollInCourse(

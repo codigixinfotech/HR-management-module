@@ -28,6 +28,7 @@ async function bootstrap() {
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
       frameguard: false,
+      contentSecurityPolicy: false,
     }),
   );
   app.use(compression());

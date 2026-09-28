@@ -35,6 +35,16 @@ export const employeesApi = {
   },
   removeDocument: async (id: string, documentId: string) =>
     (await apiClient.delete(`/employees/${id}/documents/${documentId}`)).data,
+  verifyDocument: async (
+    id: string,
+    documentId: string,
+    status: 'VERIFIED' | 'REJECTED' | 'PENDING' = 'VERIFIED',
+  ) =>
+    (
+      await apiClient.patch(`/employees/${id}/documents/${documentId}/verify`, {
+        status,
+      })
+    ).data,
 
   listOnboardingTasks: async (id: string) =>
     (await apiClient.get<OnboardingTask[]>(`/employees/${id}/onboarding-tasks`)).data,

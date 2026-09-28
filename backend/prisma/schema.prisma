@@ -146,6 +146,7 @@ model User {
   employee      Employee?
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
+  verifiedDocuments EmployeeDocument[] @relation("DocumentVerifier")
 
   @@index([companyId])
   @@index([branchId])
@@ -738,16 +739,21 @@ model Employee {
 }
 
 model EmployeeDocument {
-  id         String   @id @default(cuid())
-  employeeId String
-  docType    String
-  fileName   String
-  filePath   String
-  uploadedAt DateTime @default(now())
+  id                 String    @id @default(cuid())
+  employeeId         String
+  docType            String
+  fileName           String
+  filePath           String
+  uploadedAt         DateTime  @default(now())
+  verificationStatus String    @default("PENDING")
+  verifiedBy         String?
+  verifiedAt         DateTime?
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  verifiedByUser User?     @relation("DocumentVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([verifiedBy])
   @@map("employee_documents")
 }
 

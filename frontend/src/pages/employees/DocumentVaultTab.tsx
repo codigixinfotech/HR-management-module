@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -12,6 +12,10 @@ import {
   UserCheck,
   Building2,
   GitFork,
+  Eye,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
@@ -21,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { employeesApi } from '@/api/employees';
@@ -36,6 +40,11 @@ interface FlatDocRecord {
   status: 'VERIFIED' | 'PENDING_VERIFICATION' | 'REJECTED';
   fileId?: string;
   filePath?: string;
+  verifiedBy?: string | null;
+  verifiedAt?: string | null;
+  verifiedByName?: string | null;
+  employeeBranchId?: string | null;
+  employeeCompanyId?: string | null;
 }
 
 export function DocumentVaultTab() {
@@ -109,13 +118,54 @@ export function DocumentVaultTab() {
     return employees;
   }, [employees, isSuperOrCompanyAdmin, selectedBranchFilter, apiBranches]);
 
+  // Confirmation dialog state for document verification
+  const [docToVerify, setDocToVerify] = useState<FlatDocRecord | null>(null);
+
+  // Document preview state
+  const [previewDoc, setPreviewDoc] = useState<FlatDocRecord | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // Check if current user is authorized to verify a specific document
+  const canVerifyDoc = (doc: FlatDocRecord) => {
+    if (!user) return false;
+    // Super Admin & Company Admin can verify documents in company
+    if (isSuperOrCompanyAdmin) return true;
+    // Branch Admin can strictly verify documents only for their assigned branch
+    if (isBranchAdmin) {
+      if (!assignedBranchId) return false;
+      return doc.employeeBranchId === assignedBranchId;
+    }
+    return false;
+  };
+
+  const formatVerificationDate = (isoString?: string | null) => {
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      const datePart = d.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+      const timePart = d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+      return `${datePart}, ${timePart}`;
+    } catch {
+      return isoString;
+    }
+  };
+
   // Flatten database employees and their documents into single records (Only documents with actual uploaded files)
   const flatDocs = useMemo<FlatDocRecord[]>(() => {
     const list: FlatDocRecord[] = [];
     branchScopedEmployees.forEach(emp => {
       const name = `${emp.firstName} ${emp.lastName}`;
       const code = emp.employeeCode;
-      const kycStatus = emp.kycStatus === 'VERIFIED' ? 'VERIFIED' : 'PENDING_VERIFICATION';
 
       // Only iterate over actual uploaded documents in emp.documents
       if (emp.documents && Array.isArray(emp.documents)) {
@@ -140,32 +190,58 @@ export function DocumentVaultTab() {
             friendlyType = 'Joining Letter';
           }
 
+          let docStatus: 'VERIFIED' | 'PENDING_VERIFICATION' | 'REJECTED' = 'PENDING_VERIFICATION';
+          if (doc.verificationStatus === 'VERIFIED') {
+            docStatus = 'VERIFIED';
+          } else if (doc.verificationStatus === 'REJECTED') {
+            docStatus = 'REJECTED';
+          } else {
+            docStatus = 'PENDING_VERIFICATION';
+          }
+
+          const verifiedByName = doc.verifiedByUser?.employee
+            ? `${doc.verifiedByUser.employee.firstName} ${doc.verifiedByUser.employee.lastName}`
+            : (doc.verifiedByUser?.email || (doc.verifiedBy ? 'Admin' : null));
+
           list.push({
             employeeId: emp.id,
             code,
             name,
             docType: friendlyType,
             docNumber: docNum,
-            status: kycStatus,
+            status: docStatus,
             fileId: doc.id,
             filePath: doc.filePath,
+            verifiedBy: doc.verifiedBy,
+            verifiedAt: doc.verifiedAt,
+            verifiedByName,
+            employeeBranchId: emp.branchId,
+            employeeCompanyId: emp.companyId,
           });
         });
       }
     });
     return list;
-  }, [employees]);
+  }, [branchScopedEmployees]);
 
   // Mutations
   const verifyMutation = useMutation({
-    mutationFn: (employeeId: string) =>
-      employeesApi.update(employeeId, {
-        kycStatus: 'VERIFIED',
-        kycVerificationDate: new Date().toISOString(),
-      }),
+    mutationFn: ({
+      employeeId,
+      documentId,
+      status,
+    }: {
+      employeeId: string;
+      documentId: string;
+      status?: 'VERIFIED' | 'REJECTED';
+    }) => employeesApi.verifyDocument(employeeId, documentId, status || 'VERIFIED'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Document successfully verified!');
+      setDocToVerify(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Verification failed');
     },
   });
 
@@ -215,6 +291,57 @@ export function DocumentVaultTab() {
     }
     return 'http://localhost:3001';
   };
+
+  const getDocumentViewUrl = (doc: FlatDocRecord) => {
+    const serverBase = getServerUrl();
+    if (doc.fileId) {
+      return `${serverBase}/api/employees/documents/${doc.fileId}/view`;
+    }
+    if (doc.filePath) {
+      return `${serverBase}/${(doc.filePath || '').replace(/\\/g, '/').replace(/^\.?\/?/, '')}`;
+    }
+    return '';
+  };
+
+  // Convert document to local blob URL to bypass cross-origin / CSP iframe restrictions
+  useEffect(() => {
+    if (!previewDoc) {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        setBlobUrl(null);
+      }
+      setIsLoadingPreview(false);
+      setPreviewError(null);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingPreview(true);
+    setPreviewError(null);
+
+    const url = getDocumentViewUrl(previewDoc);
+    fetch(url)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        if (active) {
+          const objUrl = URL.createObjectURL(blob);
+          setBlobUrl(objUrl);
+          setIsLoadingPreview(false);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          console.error('Preview load failed:', err);
+          setPreviewError('Failed to load document content');
+          setIsLoadingPreview(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [previewDoc]);
 
   const triggerBlobDownload = (blob: Blob, doc: FlatDocRecord) => {
     const url = window.URL.createObjectURL(blob);
@@ -575,41 +702,73 @@ export function DocumentVaultTab() {
                     <TableCell className="text-xs text-muted-foreground font-semibold">{doc.docType}</TableCell>
                     <TableCell className="text-xs font-mono font-medium">{doc.docNumber}</TableCell>
                     <TableCell className="text-xs">
-                      <Badge
-                        variant="outline"
-                        className={`text-[9.5px] font-semibold ${doc.status === 'VERIFIED'
-                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                          : doc.status === 'PENDING_VERIFICATION'
-                            ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                            : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-                          }`}
-                      >
-                        {doc.status}
-                      </Badge>
+                      <div className="flex flex-col gap-1 items-start">
+                        <Badge
+                          variant="outline"
+                          className={`text-[9.5px] font-semibold ${doc.status === 'VERIFIED'
+                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                            : doc.status === 'PENDING_VERIFICATION'
+                              ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                              : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                            }`}
+                        >
+                          {doc.status === 'PENDING_VERIFICATION' ? 'PENDING' : doc.status}
+                        </Badge>
+                        {doc.status === 'VERIFIED' && (doc.verifiedByName || doc.verifiedAt) && (
+                          <div className="text-[10px] text-muted-foreground leading-tight space-y-0.5">
+                            {doc.verifiedByName && (
+                              <p>
+                                Verified by: <span className="font-medium text-foreground">{doc.verifiedByName}</span>
+                              </p>
+                            )}
+                            {doc.verifiedAt && (
+                              <p className="font-mono text-[9px] text-muted-foreground/80">
+                                Verified at: {formatVerificationDate(doc.verifiedAt)}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {doc.status === 'PENDING_VERIFICATION' && (
+                        {doc.status === 'PENDING_VERIFICATION' && canVerifyDoc(doc) && doc.fileId && (
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 text-[10.5px] px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-semibold"
-                            onClick={() => handleVerify(doc.employeeId)}
+                            className="h-7 text-[10.5px] px-2.5 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-semibold transition-colors"
+                            onClick={() => setDocToVerify(doc)}
                             disabled={verifyMutation.isPending}
                           >
-                            Verify Doc
+                            <CheckCircle2 className="h-3 w-3" /> Verify
                           </Button>
                         )}
+                        {doc.status === 'VERIFIED' && (
+                          <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                            ✓ Verified
+                          </span>
+                        )}
                         {(doc.filePath || doc.fileId) ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10 transition-colors"
-                            title={`Download ${doc.docNumber || doc.docType}`}
-                            onClick={() => handleDownload(doc)}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-sky-600 hover:text-sky-700 hover:bg-sky-500/10 transition-colors"
+                              title={`View / Preview ${doc.docNumber || doc.docType}`}
+                              onClick={() => setPreviewDoc(doc)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10 transition-colors"
+                              title={`Download ${doc.docNumber || doc.docType}`}
+                              onClick={() => handleDownload(doc)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </>
                         ) : (
                           <span className="text-[10px] text-muted-foreground italic px-1">No file</span>
                         )}
@@ -622,6 +781,206 @@ export function DocumentVaultTab() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* ── Confirmation Modal for Document Verification ── */}
+      <Dialog open={Boolean(docToVerify)} onOpenChange={(open) => !open && setDocToVerify(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" /> Confirm Document Verification
+            </DialogTitle>
+            <DialogDescription className="text-xs pt-1">
+              Are you sure you want to verify this document?
+            </DialogDescription>
+          </DialogHeader>
+
+          {docToVerify && (
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-3 space-y-2 text-xs">
+              <div className="flex justify-between items-center py-0.5 border-b border-border/40">
+                <span className="text-muted-foreground">Employee:</span>
+                <span className="font-semibold text-foreground">{docToVerify.name} ({docToVerify.code})</span>
+              </div>
+              <div className="flex justify-between items-center py-0.5 border-b border-border/40">
+                <span className="text-muted-foreground">Document Type:</span>
+                <span className="font-semibold text-foreground">{docToVerify.docType}</span>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-muted-foreground">Ref / File:</span>
+                <span className="font-mono text-foreground font-medium">{docToVerify.docNumber}</span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => setDocToVerify(null)}
+              disabled={verifyMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-semibold"
+              onClick={() => {
+                if (docToVerify?.fileId) {
+                  verifyMutation.mutate({
+                    employeeId: docToVerify.employeeId,
+                    documentId: docToVerify.fileId,
+                    status: 'VERIFIED',
+                  });
+                }
+              }}
+              disabled={verifyMutation.isPending}
+            >
+              {verifyMutation.isPending ? 'Verifying...' : 'Verify'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Document Preview Modal ── */}
+      <Dialog open={Boolean(previewDoc)} onOpenChange={(open) => !open && setPreviewDoc(null)}>
+        <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-6 overflow-hidden">
+          <DialogHeader className="pb-3 border-b border-border/60">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pr-6">
+              <div>
+                <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+                  <FileText className="h-4 w-4 text-primary" /> {previewDoc?.docType}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground pt-0.5">
+                  {previewDoc?.name} ({previewDoc?.code}) &bull; Ref: {previewDoc?.docNumber}
+                </DialogDescription>
+              </div>
+              {previewDoc && (
+                <Badge
+                  variant="outline"
+                  className={`w-fit text-[10px] font-semibold ${
+                    previewDoc.status === 'VERIFIED'
+                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                      : previewDoc.status === 'PENDING_VERIFICATION'
+                        ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                        : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                  }`}
+                >
+                  {previewDoc.status === 'PENDING_VERIFICATION' ? 'PENDING' : previewDoc.status}
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          {/* Preview Viewport */}
+          <div className="flex-1 my-3 overflow-hidden rounded-lg border border-border/80 bg-muted/20 flex items-center justify-center min-h-[50vh] relative">
+            {isLoadingPreview && (
+              <div className="flex flex-col items-center justify-center gap-2 p-8 text-center text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-xs font-medium">Loading document preview...</p>
+              </div>
+            )}
+
+            {previewError && !isLoadingPreview && (
+              <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+                <AlertCircle className="h-8 w-8 text-destructive" />
+                <p className="text-xs font-medium text-foreground">{previewError}</p>
+                <div className="flex gap-2 mt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      if (previewDoc) {
+                        const url = getDocumentViewUrl(previewDoc);
+                        window.open(url, '_blank');
+                      }
+                    }}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> Open Direct Link
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {blobUrl && !isLoadingPreview && (
+              (() => {
+                const isImage = (previewDoc?.filePath || previewDoc?.docNumber || '')
+                  .match(/\.(jpeg|jpg|png|webp|gif|svg)$/i);
+
+                if (isImage) {
+                  return (
+                    <div className="w-full h-full flex items-center justify-center p-4 overflow-auto max-h-[68vh]">
+                      <img
+                        src={blobUrl}
+                        alt={previewDoc?.docType}
+                        className="max-h-[64vh] max-w-full object-contain rounded-md shadow-sm border bg-white"
+                      />
+                    </div>
+                  );
+                }
+
+                return (
+                  <iframe
+                    src={blobUrl}
+                    title={previewDoc?.docType}
+                    className="w-full h-[68vh] rounded-md border-0 bg-white"
+                  />
+                );
+              })()
+            )}
+          </div>
+
+          {/* Preview Footer */}
+          <DialogFooter className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-border/60">
+            <div className="flex items-center gap-2">
+              {previewDoc?.status === 'PENDING_VERIFICATION' && canVerifyDoc(previewDoc) && (
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-semibold"
+                  onClick={() => {
+                    setDocToVerify(previewDoc);
+                    setPreviewDoc(null);
+                  }}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Verify This Document
+                </Button>
+              )}
+              {previewDoc && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => {
+                    const url = getDocumentViewUrl(previewDoc);
+                    window.open(url, '_blank');
+                  }}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Open in New Tab
+                </Button>
+              )}
+              {previewDoc && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => handleDownload(previewDoc)}
+                >
+                  <Download className="h-3.5 w-3.5" /> Download
+                </Button>
+              )}
+            </div>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setPreviewDoc(null)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

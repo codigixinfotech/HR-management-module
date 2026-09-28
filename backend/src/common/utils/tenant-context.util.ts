@@ -40,6 +40,46 @@ export function isUserSuperAdmin(
   );
 }
 
+export function isUserBranchAdmin(
+  user?: CurrentUserPayload | null,
+): boolean {
+  if (!user) return false;
+
+  const roles = (user.roles ?? [])
+    .filter((r): r is string => typeof r === 'string')
+    .map((r) => r.trim().toUpperCase());
+  const primaryRole = user.primaryRole?.trim().toUpperCase();
+
+  return (
+    roles.includes('BRANCH_ADMIN') ||
+    roles.includes('BRANCH ADMIN') ||
+    primaryRole === 'BRANCH_ADMIN' ||
+    primaryRole === 'BRANCH ADMIN'
+  );
+}
+
+export function isUserCompanyAdmin(
+  user?: CurrentUserPayload | null,
+): boolean {
+  if (!user) return false;
+  if (isUserBranchAdmin(user)) return false;
+  if (isUserSuperAdmin(user)) return false;
+
+  const roles = (user.roles ?? [])
+    .filter((r): r is string => typeof r === 'string')
+    .map((r) => r.trim().toUpperCase());
+  const primaryRole = user.primaryRole?.trim().toUpperCase();
+
+  return (
+    roles.includes('COMPANY_ADMIN') ||
+    roles.includes('COMPANY ADMIN') ||
+    roles.includes('HR_ADMIN') ||
+    primaryRole === 'COMPANY_ADMIN' ||
+    primaryRole === 'COMPANY ADMIN' ||
+    primaryRole === 'HR_ADMIN'
+  );
+}
+
 export function getTenantCompanyId(
   user?: CurrentUserPayload | null,
   queryCompanyId?: string,
