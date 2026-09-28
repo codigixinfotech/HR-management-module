@@ -470,22 +470,25 @@ export function TransfersPromotionsTab() {
 
       {/* ── 2. Transfers Directory Table ── */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <ArrowRightLeft className="h-4 w-4 text-primary" /> Transfers & Promotion Mobility Movement Log
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Log and monitor employee promotions, department reallocations, and inter-branch relocations
-              </CardDescription>
-            </div>
+        <CardHeader className="py-3 px-4 sm:px-6 border-b border-border/60 space-y-2.5">
+          {/* 1. Header Title & Subtitle */}
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <ArrowRightLeft className="h-4 w-4 text-primary shrink-0" /> Transfers &amp; Promotion Mobility Movement Log
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground mt-0.5">
+              Log and monitor employee promotions, department reallocations, and inter-branch relocations
+            </CardDescription>
+          </div>
 
-            <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-x-auto py-0.5">
+          {/* 2. Controls Toolbar: Left Filters + Right Search/Action (All in One Line, No Scroller) */}
+          <div className="flex items-center justify-between gap-1 pt-0.5 overflow-hidden">
+            {/* Left Controls: Category Pills + Branch */}
+            <div className="flex items-center gap-1 shrink-0">
               {/* Category Filter Pills */}
-              <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
+              <div className="flex items-center bg-muted/40 p-0.5 rounded-lg border border-border">
                 {[
-                  { id: 'all', label: 'All Movements' },
+                  { id: 'all', label: 'All' },
                   { id: 'promotion', label: 'Promotion' },
                   { id: 'branch_transfer', label: 'Branch Move' },
                   { id: 'department_shift', label: 'Dept Shift' },
@@ -493,7 +496,7 @@ export function TransfersPromotionsTab() {
                   <button
                     key={type.id}
                     onClick={() => setSelectedType(type.id)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${selectedType === type.id
+                    className={`px-1.5 py-0.5 text-[10.5px] font-semibold rounded-md capitalize transition-all ${selectedType === type.id
                       ? 'bg-background text-foreground shadow-xs'
                       : 'text-muted-foreground hover:text-foreground'
                       }`}
@@ -505,14 +508,14 @@ export function TransfersPromotionsTab() {
 
               {/* Branch Filter (Only for Super Admin / Company Admin) */}
               {isSuperOrCompanyAdmin && (
-                <div className="relative shrink-0">
+                <div className="relative">
                   <Select
                     value={selectedBranchFilter}
                     onValueChange={(val) => setSelectedBranchFilter(val)}
                   >
-                    <SelectTrigger className="h-8 px-2.5 text-xs rounded-xl bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
-                      <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="text-muted-foreground text-[11px]">Branch:</span>
+                    <SelectTrigger className="h-7 px-1.5 text-[10.5px] rounded-lg bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1 w-auto">
+                      <GitFork className="h-3 w-3 text-primary shrink-0" />
+                      <span className="text-muted-foreground text-[10px]">Branch:</span>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -533,24 +536,26 @@ export function TransfersPromotionsTab() {
                   </Select>
                 </div>
               )}
+            </div>
 
-              {/* Search Bar */}
-              <div className="relative w-40 sm:w-52">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            {/* Right Controls: Search Bar + Queue Movement Dialog */}
+            <div className="flex items-center gap-1 shrink-0 ml-auto">
+              <div className="relative w-28 sm:w-32">
+                <Search className="absolute left-2 top-2 h-3 w-3 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="Filter candidate or ID..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 text-xs bg-background"
+                  className="h-7 pl-6 text-[10.5px] bg-background"
                 />
               </div>
 
               {/* Queue Movement Dialog */}
               <Dialog open={isQueueOpen} onOpenChange={setIsQueueOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 text-xs gap-1.5" onClick={resetQueueForm}>
-                    <Plus className="h-3.5 w-3.5" /> Queue Movement
+                  <Button size="sm" className="h-7 text-[10.5px] px-2 gap-1 shrink-0" onClick={resetQueueForm}>
+                    <Plus className="h-3 w-3" /> Queue Movement
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-xl">

@@ -487,35 +487,29 @@ export function DocumentVaultTab() {
 
       {/* ── 2. Statutory Documents Verification Table ── */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-primary" /> Employee statutory verification vault
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Aadhaar, PAN, Passport, Education Degree Certificates & Verification Auditing Statuses
-              </CardDescription>
-              {/* Active company badge */}
-              {companies.length > 0 && (
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <Building2 className="h-3 w-3 text-primary" />
-                  <span className="text-[11px] font-semibold text-primary">
-                    {companies.find(c => c.id === selectedCompanyId)?.name ?? 'All Companies'}
-                  </span>
-                </div>
-              )}
-            </div>
+        <CardHeader className="py-3 px-4 sm:px-6 border-b border-border/60 space-y-2.5">
+          {/* 1. Header Title & Subtitle */}
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary shrink-0" /> Employee statutory verification vault
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground mt-0.5">
+              Aadhaar, PAN, Passport, Education Degree Certificates &amp; Verification Auditing Statuses
+            </CardDescription>
+          </div>
 
-            <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-x-auto py-0.5">
+          {/* 2. Controls Toolbar: Left Filters + Right Search/Upload (All in One Line, No Scroller) */}
+          <div className="flex items-center justify-between gap-1.5 pt-0.5 overflow-hidden">
+            {/* Left Controls: Company + Category Pills + Branch */}
+            <div className="flex items-center gap-1.5 shrink-0">
               {/* Company Selector */}
-              {companies.length > 1 && (
+              {companies.length > 1 ? (
                 <Select
                   value={selectedCompanyId ?? ''}
                   onValueChange={val => setSelectedCompanyId(val || undefined)}
                 >
-                  <SelectTrigger className="h-8 w-44 text-xs gap-1.5 bg-background shrink-0">
-                    <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <SelectTrigger className="h-8 w-48 text-xs font-medium gap-1.5 px-2 bg-background whitespace-nowrap">
+                    <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <SelectValue placeholder="Select company..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -526,12 +520,17 @@ export function DocumentVaultTab() {
                     ))}
                   </SelectContent>
                 </Select>
-              )}
+              ) : companies.length === 1 ? (
+                <div className="flex items-center gap-1.5 h-8 px-2 rounded-lg bg-muted/40 border border-border text-xs font-medium text-foreground whitespace-nowrap">
+                  <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="truncate max-w-[200px]">{companies[0].name}</span>
+                </div>
+              ) : null}
 
               {/* Category Filter Pills */}
-              <div className="flex items-center bg-muted/40 p-0.5 rounded-xl border border-border shrink-0">
+              <div className="flex items-center bg-muted/40 p-0.5 rounded-lg border border-border">
                 {[
-                  { id: 'all', label: 'All Docs' },
+                  { id: 'all', label: 'All' },
                   { id: 'aadhaar', label: 'Aadhaar' },
                   { id: 'pan', label: 'PAN' },
                   { id: 'passport', label: 'Passport' },
@@ -539,10 +538,11 @@ export function DocumentVaultTab() {
                   <button
                     key={type.id}
                     onClick={() => setSelectedDocType(type.id)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${selectedDocType === type.id
-                      ? 'bg-background text-foreground shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                    className={`px-2 py-0.5 text-xs font-semibold rounded-md capitalize transition-all ${
+                      selectedDocType === type.id
+                        ? 'bg-background text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
                   >
                     {type.label}
                   </button>
@@ -551,12 +551,12 @@ export function DocumentVaultTab() {
 
               {/* Branch Filter (Only for Super Admin / Company Admin) */}
               {isSuperOrCompanyAdmin && (
-                <div className="relative shrink-0">
+                <div className="relative">
                   <Select
                     value={selectedBranchFilter}
                     onValueChange={(val) => setSelectedBranchFilter(val)}
                   >
-                    <SelectTrigger className="h-8 px-2.5 text-xs rounded-xl bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
+                    <SelectTrigger className="h-8 px-2 text-xs rounded-lg bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1 w-auto whitespace-nowrap">
                       <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
                       <span className="text-muted-foreground text-[11px]">Branch:</span>
                       <SelectValue />
@@ -579,23 +579,25 @@ export function DocumentVaultTab() {
                   </Select>
                 </div>
               )}
+            </div>
 
-              {/* Search Bar */}
-              <div className="relative w-40 sm:w-52">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            {/* Right Controls: Search Bar + Upload Document Button */}
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              <div className="relative w-28 sm:w-32">
+                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="Filter name or ID..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 text-xs bg-background"
+                  className="h-8 pl-7 text-xs bg-background"
                 />
               </div>
 
               {/* Upload Document Dialog */}
               <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 text-xs gap-1.5">
+                  <Button size="sm" className="h-8 text-xs px-2.5 gap-1 shrink-0">
                     <Plus className="h-3.5 w-3.5" /> Upload Document
                   </Button>
                 </DialogTrigger>
