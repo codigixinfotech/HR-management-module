@@ -137,7 +137,10 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
       return mod;
     });
 
-    return base;
+    // Completely hide Task Management from sidebar menu across all user logins
+    return base.filter(
+      (mod) => mod.key !== 'tasks' && mod.key !== 'my-tasks' && mod.label !== 'Task Management'
+    );
   }, [modulesForRole, enabledModuleKeysSet, isSuperAdmin, isAssessmentEnabled, user]);
 
   // Track expanded parent sections
