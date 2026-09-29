@@ -216,7 +216,7 @@ export function ReturnTab({ companyId }: { companyId?: string }) {
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground block">{emp?.branch?.name || a.branch?.name || 'Main Branch'}</span>
+                        <span className="font-medium text-foreground block">{emp?.branch?.name || a.branch?.name || 'Head Office'}</span>
                         <span className="text-[10px]">{emp?.department?.name || a.department?.name || 'General Dept'}</span>
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{a.serialNumber || 'N/A'}</TableCell>
@@ -287,7 +287,7 @@ export function ReturnTab({ companyId }: { companyId?: string }) {
                   <div>
                     <span className="text-muted-foreground block text-[9.5px] uppercase font-semibold">Branch & Dept</span>
                     <strong className="text-foreground font-semibold">
-                      {selectedAsset.branch?.name || 'Branch'} / {selectedAsset.department?.name || 'Dept'}
+                      {selectedAsset.branch?.name || 'Head Office'} / {selectedAsset.department?.name || 'Dept'}
                     </strong>
                   </div>
                   <div>

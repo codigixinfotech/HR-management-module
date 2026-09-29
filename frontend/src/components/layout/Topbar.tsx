@@ -140,21 +140,28 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
     let currentPath = '';
 
     const firstSeg = pathSegments[0];
-    const foundModule = HCM_MODULES.find((m) => m.id === firstSeg || m.path === `/${firstSeg}`);
+    const foundModule = HCM_MODULES.find(
+      (m) => m.key === firstSeg || (m as any).id === firstSeg || m.path === `/${firstSeg}`,
+    );
 
     if (foundModule) {
       currentPath = foundModule.path;
-      items.push({ title: foundModule.name, path: currentPath });
+      items.push({ title: foundModule.label || (foundModule as any).name, path: currentPath });
 
       if (pathSegments.length > 1) {
         const subId = pathSegments[1];
-        const foundSub = foundModule.submodules?.find(
-          (s) => s.id === subId || s.path.endsWith(`/${subId}`)
+        const subList = foundModule.subItems || (foundModule as any).submodules || [];
+        const foundSub = subList.find(
+          (s: any) =>
+            s.key === subId ||
+            s.id === subId ||
+            s.path === `${currentPath}/${subId}` ||
+            s.path.endsWith(`/${subId}`),
         );
 
         if (foundSub) {
           currentPath = foundSub.path;
-          items.push({ title: foundSub.name, path: currentPath });
+          items.push({ title: foundSub.label || (foundSub as any).name, path: currentPath });
         } else {
           const formattedSub = subId.charAt(0).toUpperCase() + subId.slice(1).replace(/-/g, ' ');
           items.push({ title: formattedSub, path: `${currentPath}/${subId}` });

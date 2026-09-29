@@ -6,6 +6,8 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateEmployeeDto, UpdateEmployeeDto, UpdateMyProfileDto } from './dto/employee.dto';
@@ -22,7 +24,10 @@ import {
 
 @Injectable()
 export class EmployeesService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) { }
 
   async onModuleInit() {
     try {
@@ -1243,4 +1248,129 @@ export class EmployeesService implements OnModuleInit {
       };
     });
   }
+
+  async sendMilestoneWish(
+    dto: {
+      employeeId: string;
+      recipientEmail: string;
+      recipientName: string;
+      milestoneType: 'birthday' | 'anniversary';
+      milestoneTitle: string;
+      subject: string;
+      message: string;
+    },
+    currentUser?: CurrentUserPayload,
+  ) {
+    if (!dto.recipientEmail || !dto.recipientEmail.includes('@')) {
+      throw new BadRequestException('A valid recipient email address is required.');
+    }
+    if (!dto.subject || !dto.subject.trim()) {
+      throw new BadRequestException('Email subject cannot be empty.');
+    }
+    if (!dto.message || !dto.message.trim()) {
+      throw new BadRequestException('Greeting message cannot be empty.');
+    }
+
+    const host = this.configService?.get<string>('SMTP_HOST') || process.env.SMTP_HOST || 'smtp.gmail.com';
+    const port = parseInt(this.configService?.get<string>('SMTP_PORT') || process.env.SMTP_PORT || '587', 10);
+    const user = this.configService?.get<string>('SMTP_USER') || process.env.SMTP_USER || 'reactjscodigix@gmail.com';
+    const passRaw = this.configService?.get<string>('SMTP_PASSWORD') || process.env.SMTP_PASSWORD || 'sano ezdn gqta tkfv';
+    const pass = passRaw ? passRaw.replace(/\s+/g, '') : '';
+    const secure = (this.configService?.get<string>('SMTP_SECURE') || process.env.SMTP_SECURE || 'false') === 'true';
+    const fromName = this.configService?.get<string>('SMTP_FROM_NAME') || process.env.SMTP_FROM_NAME || 'E-HCM Platform';
+    const fromEmail = this.configService?.get<string>('SMTP_FROM_EMAIL') || process.env.SMTP_FROM_EMAIL || user;
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: user && pass ? { user, pass } : undefined,
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+
+    const isBday = dto.milestoneType === 'birthday';
+    const primaryColor = isBday ? '#e11d48' : '#d97706';
+    const bgGradient = isBday
+      ? 'linear-gradient(135deg, #e11d48 0%, #9333ea 100%)'
+      : 'linear-gradient(135deg, #d97706 0%, #ea580c 100%)';
+    const iconHeader = isBday ? '🎂 🎉 🎈' : '🏆 🌟 🎖️';
+    const bannerTitle = isBday
+      ? `Happy Birthday, ${dto.recipientName}!`
+      : `Happy Work Anniversary, ${dto.recipientName}!`;
+
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${dto.subject}</title>
+      <style>
+        body { margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .header { background: ${bgGradient}; padding: 40px 30px; text-align: center; color: #ffffff; }
+        .icon-large { font-size: 42px; margin-bottom: 12px; }
+        .title { margin: 0 0 10px; font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+        .badge { display: inline-block; background: rgba(255,255,255,0.25); backdrop-filter: blur(4px); padding: 5px 14px; border-radius: 9999px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .body-card { padding: 36px 32px; background: #ffffff; }
+        .message-box { background: #f8fafc; border-left: 4px solid ${primaryColor}; padding: 20px; border-radius: 8px; font-size: 15px; line-height: 1.7; color: #334155; white-space: pre-line; margin-bottom: 24px; }
+        .signature { border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #475569; }
+        .footer { padding: 20px; background: #f8fafc; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="icon-large">${iconHeader}</div>
+          <h1 class="title">${bannerTitle}</h1>
+          <div class="badge">${dto.milestoneTitle}</div>
+        </div>
+        <div class="body-card">
+          <div class="message-box">${dto.message.replace(/\n/g, '<br/>')}</div>
+          <div class="signature">
+            <p style="margin: 0 0 4px; font-weight: 600; color: #1e293b;">With warmest regards & best wishes,</p>
+            <p style="margin: 0; color: ${primaryColor}; font-weight: 700;">Your Team & Management</p>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #64748b;">E-HCM Enterprise Platform</p>
+          </div>
+        </div>
+        <div class="footer">
+          Sent with ❤️ by the HR Team via E-HCM Platform
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: dto.recipientEmail,
+      subject: dto.subject,
+      text: dto.message,
+      html: htmlContent,
+    });
+
+    if (dto.employeeId) {
+      try {
+        await this.prisma.employeeHrNote.create({
+          data: {
+            employeeId: dto.employeeId,
+            note: `Celebration email sent to ${dto.recipientEmail} (${dto.milestoneTitle}) by ${currentUser?.email || 'HR Admin'}. Message ID: ${info.messageId || 'delivered'}`,
+            noteType: 'GENERAL',
+            createdBy: currentUser?.email || 'HR Admin',
+          },
+        });
+      } catch {
+        // Non-blocking HR note
+      }
+    }
+
+    return {
+      success: true,
+      message: `Celebration email successfully dispatched to ${dto.recipientEmail}`,
+      messageId: info.messageId,
+    };
+  }
 }
+

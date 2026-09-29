@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Boxes, Laptop, UserCheck, Wrench } from 'lucide-react';
 import { assetsApi } from '@/api/asset-management';
@@ -14,33 +13,18 @@ import { AllocationTab } from './AllocationTab';
 import { ReturnTab } from './ReturnTab';
 import { MaintenanceTab } from './MaintenanceTab';
 import { AssetReportsTab } from './AssetReportsTab';
-import { getCompanyCategoryConfig } from './assetCategoryConfig';
 
 export default function AssetManagementPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'dashboard';
+  const { tab: routeTab } = useParams<{ tab?: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // Directly prioritize URL path param (/asset-management/:tab) -> query param ?tab=... -> default 'master'
+  const activeTab = routeTab || searchParams.get('tab') || 'master';
 
   const { activeCompanyId, setActiveCompanyId, companies } = useCompany();
   const currentCompany = companies.find((c) => c.id === activeCompanyId) || companies[0];
   const companyId = activeCompanyId || currentCompany?.id;
-  const companyEntityType = currentCompany?.entityType;
-
-  const [activeSectorName, setActiveSectorName] = useState(() =>
-    getCompanyCategoryConfig(companyId, companyEntityType).sectorName
-  );
-
-  useEffect(() => {
-    const cfg = getCompanyCategoryConfig(companyId, companyEntityType);
-    setActiveSectorName(cfg.sectorName);
-
-    const onUpdate = (e: any) => {
-      if (!companyId || e.detail?.companyId === companyId) {
-        setActiveSectorName(e.detail?.config?.sectorName || cfg.sectorName);
-      }
-    };
-    window.addEventListener('ehcm_asset_category_updated', onUpdate);
-    return () => window.removeEventListener('ehcm_asset_category_updated', onUpdate);
-  }, [companyId, companyEntityType]);
 
   const { data: assets } = useQuery({
     queryKey: ['assets', companyId],
@@ -67,9 +51,9 @@ export default function AssetManagementPage() {
     <div className="space-y-6">
       <PageHeader
         icon={Boxes}
-        title={`Asset Management — ${activeSectorName}`}
+        title="Asset Management"
         description="Manage organizational assets, employee allocations, returns, maintenance and asset lifecycle."
-        badge={`${activeSectorName} · ${assets?.length ?? 0} Total Asset Tags`}
+        badge={`${assets?.length ?? 0} Total Asset Tags`}
         badgeVariant="info"
         actions={
           companies && companies.length > 0 ? (
@@ -122,7 +106,13 @@ export default function AssetManagementPage() {
         />
       </div>
 
-      <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(val) => {
+          navigate(`/asset-management/${val}`);
+        }}
+        className="w-full"
+      >
         <TabsList className="flex h-auto flex-wrap gap-1 bg-muted/60 p-1">
           <TabsTrigger value="dashboard" className="text-xs px-3 py-1.5">Overview</TabsTrigger>
           <TabsTrigger value="master" className="text-xs px-3 py-1.5">Asset Master</TabsTrigger>

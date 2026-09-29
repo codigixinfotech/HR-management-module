@@ -71,6 +71,23 @@ export class EmployeesController {
     return this.employeesService.removeSkill(id);
   }
 
+  @Post('send-milestone-wish')
+  @Permissions('employees.read')
+  sendMilestoneWish(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: {
+      employeeId: string;
+      recipientEmail: string;
+      recipientName: string;
+      milestoneType: 'birthday' | 'anniversary';
+      milestoneTitle: string;
+      subject: string;
+      message: string;
+    },
+  ) {
+    return this.employeesService.sendMilestoneWish(dto, user);
+  }
+
   @Get('me')
   findMe(@CurrentUser() user: CurrentUserPayload) {
     return this.employeesService.findMe(user);

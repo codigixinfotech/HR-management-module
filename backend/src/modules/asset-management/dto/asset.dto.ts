@@ -22,12 +22,12 @@ export class CreateAssetDto {
   assetType?: string;
 
   @IsOptional()
-  @IsString({ message: 'Branch / Location is required.' })
-  branchId?: string;
+  @IsString()
+  branchId?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'Department is required.' })
-  departmentId?: string;
+  @IsString()
+  departmentId?: string | null;
 
   @IsOptional()
   @IsString()

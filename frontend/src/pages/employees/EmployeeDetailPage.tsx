@@ -541,9 +541,12 @@ export default function EmployeeDetailPage() {
   });
   const activeExitRecord = employeeExits[0] || null;
 
+  const employeeCompanyId = (employee as any)?.companyId;
+
   const { data: assets = [] } = useQuery({
-    queryKey: ['assets'],
-    queryFn: () => assetsApi.list(),
+    queryKey: ['assets', employeeCompanyId],
+    queryFn: () => assetsApi.list(employeeCompanyId),
+    enabled: !!employeeCompanyId,
   });
 
   const { data: payGrades = [] } = useQuery({
@@ -571,7 +574,15 @@ export default function EmployeeDetailPage() {
     return `${g} / ${l}`;
   };
 
-  const availableAssets = assets.filter(a => a.status === 'IN_STOCK');
+  const availableAssets = useMemo(() => {
+    return assets.filter(
+      (a) =>
+        (!employeeCompanyId || a.companyId === employeeCompanyId) &&
+        (a.status === 'IN_STOCK' || a.status === 'AVAILABLE') &&
+        a.assignmentType !== 'LOCATION' &&
+        a.assignmentType !== 'DEPARTMENT',
+    );
+  }, [assets, employeeCompanyId]);
 
   const probationDetailCheckpoints = useMemo(() => {
     if (!employee) return null;
@@ -4181,7 +4192,16 @@ export default function EmployeeDetailPage() {
               <Card className="shadow-2xs">
                 <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
                   <CardTitle className="text-sm font-semibold">Assigned Company Assets</CardTitle>
-                  <Dialog open={isAssetOpen} onOpenChange={setIsAssetOpen}>
+                  <Dialog
+                    open={isAssetOpen}
+                    onOpenChange={(open) => {
+                      setIsAssetOpen(open);
+                      if (!open) {
+                        setSelectedAssetId('');
+                        setAssetRemarks('');
+                      }
+                    }}
+                  >
                     <DialogTrigger asChild>
                       <Button size="sm" className="text-xs h-8 gap-1">
                         <Plus className="h-3.5 w-3.5" /> Allocate Asset
@@ -4217,7 +4237,7 @@ export default function EmployeeDetailPage() {
                       </div>
                       <DialogFooter>
                         <Button
-                          disabled={!selectedAssetId || allocateAssetMutation.isPending}
+                          disabled={!selectedAssetId || selectedAssetId === 'none' || allocateAssetMutation.isPending}
                           onClick={() => allocateAssetMutation.mutate()}
                           size="sm"
                         >

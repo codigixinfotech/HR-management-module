@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { assetsApi } from '@/api/asset-management';
 import { employeesApi } from '@/api/employees';
+import { branchesApi } from '@/api/organization';
+import { useCompany } from '@/context/CompanyContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +31,7 @@ const ALLOCATION_TYPES = ['New Allocation', 'Replacement', 'Temporary Issue', 'P
 
 export function AllocationTab({ companyId }: { companyId?: string }) {
   const queryClient = useQueryClient();
+  const { activeCompanyId, companies } = useCompany();
 
   const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState('');
@@ -36,6 +39,7 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Form Fields
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
   const [employeeId, setEmployeeId] = useState('');
   const [allocationDate, setAllocationDate] = useState(new Date().toISOString().split('T')[0]);
   const [allocationType, setAllocationType] = useState('New Allocation');
@@ -46,28 +50,52 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
   // Inline Form Errors
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  // Effective Company Context (Asset company > active company > first company)
+  const effectiveCompanyId = selectedAsset?.companyId || companyId || activeCompanyId || companies[0]?.id;
+
   // Queries
   const { data: assets = [], isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets', companyId],
     queryFn: () => assetsApi.list(companyId),
   });
 
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches', effectiveCompanyId],
+    queryFn: () => branchesApi.list(effectiveCompanyId || undefined),
+    enabled: !!effectiveCompanyId,
+  });
+
   const { data: employeesPage } = useQuery({
-    queryKey: ['employees', 'asset-allocation-picker', companyId],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 200, companyId }),
+    queryKey: ['employees', 'asset-allocation-picker', effectiveCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 300, companyId: effectiveCompanyId || undefined }),
+    enabled: !!effectiveCompanyId,
   });
 
   const employees = employeesPage?.items ?? [];
 
-  // Filter available employees matching asset company & ACTIVE status
+  // Filter available employees matching asset company, branch filter, & ACTIVE status
   const eligibleEmployees = useMemo(() => {
-    if (!selectedAsset) return employees;
+    if (!employees || employees.length === 0) return [];
+    const targetCompId = selectedAsset?.companyId || companyId || activeCompanyId;
+
     return employees.filter((e) => {
-      const isCompanyMatch = !selectedAsset.companyId || e.companyId === selectedAsset.companyId;
-      const isActive = e.status === 'ACTIVE' || !e.dateOfExit;
-      return isCompanyMatch && isActive;
+      // 1. Strict Company Match
+      if (targetCompId && e.companyId && e.companyId !== targetCompId) return false;
+
+      // 2. Active Employee check (cannot allocate to exited/terminated employees)
+      const isActive = e.status === 'ACTIVE' || (!e.dateOfExit && e.status !== 'TERMINATED' && e.status !== 'RESIGNED');
+      if (!isActive) return false;
+
+      // 3. Branch filter
+      if (selectedBranchId === 'ALL') {
+        return true;
+      }
+      if (selectedBranchId === 'NONE' || selectedBranchId === 'HEAD_OFFICE') {
+        return !e.branchId || e.branchId === 'NONE' || e.branchId === 'HEAD_OFFICE';
+      }
+      return e.branchId === selectedBranchId;
     });
-  }, [employees, selectedAsset]);
+  }, [employees, selectedAsset, companyId, activeCompanyId, selectedBranchId]);
 
   // Selected Employee Details for Auto-Fill
   const selectedEmp = useMemo(() => {
@@ -99,12 +127,13 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
   const availableAssets = useMemo(() => {
     return assets.filter(
       (a) =>
+        (!companyId || a.companyId === companyId) &&
         (a.status === 'IN_STOCK' || a.status === 'AVAILABLE') &&
         !isFixedOrLocationAsset(a) &&
         a.assignmentType !== 'LOCATION' &&
         a.assignmentType !== 'DEPARTMENT'
     );
-  }, [assets]);
+  }, [assets, companyId]);
 
   const allocatedAssets = useMemo(() => {
     return assets.filter(
@@ -139,6 +168,7 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
     const assetToSelect = preselectedAsset || availableAssets[0];
     setSelectedAsset(assetToSelect);
     setSelectedAssetId(assetToSelect.id);
+    setSelectedBranchId(assetToSelect?.branchId || 'ALL');
     setEmployeeId('');
     setAllocationDate(new Date().toISOString().split('T')[0]);
     setAllocationType('New Allocation');
@@ -155,6 +185,8 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
     setSelectedAsset(a);
     if (a) {
       setLocation(a.physicalLocation || a.branch?.name || '');
+      setSelectedBranchId(a.branchId || 'ALL');
+      setEmployeeId('');
     }
   };
 
@@ -178,7 +210,7 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
         errors.employeeId = 'Selected employee is inactive and cannot receive an asset.';
       }
       if (selectedAsset.companyId && selectedEmp.companyId && selectedEmp.companyId !== selectedAsset.companyId) {
-        errors.employeeId = 'Selected employee does not belong to this company.';
+        errors.employeeId = 'Selected employee and asset belong to different companies.';
       }
     }
 
@@ -212,6 +244,8 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
       setIsAllocateModalOpen(false);
       setSelectedAsset(null);
       setSelectedAssetId('');
+      setSelectedBranchId('ALL');
+      setEmployeeId('');
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to allocate asset'),
   });
@@ -404,48 +438,104 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
 
             {/* 1. Employee Selection */}
             <div className="space-y-3 bg-muted/20 p-3 rounded-xl border border-border/50">
-              <h4 className="font-semibold text-xs text-primary flex items-center gap-1.5 border-b pb-1">
-                <User className="h-3.5 w-3.5" /> Employee Selection & Organizational Details
-              </h4>
+              <div className="flex items-center justify-between border-b pb-1">
+                <h4 className="font-semibold text-xs text-primary flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5" /> Employee Selection & Organizational Details
+                </h4>
+                <Badge variant="outline" className="text-[10px] font-normal px-2 py-0 h-5 bg-background">
+                  Company: <span className="font-semibold ml-1 text-foreground">{selectedAsset?.company?.name || 'Current Company'}</span>
+                </Badge>
+              </div>
 
-              <div className="space-y-1">
-                <Label className="font-semibold">Select Employee * (Active Company Staff)</Label>
-                <Select
-                  value={employeeId}
-                  onValueChange={(val) => {
-                    setEmployeeId(val);
-                    if (formErrors.employeeId)
-                      setFormErrors((p) => {
-                        const n = { ...p };
-                        delete n.employeeId;
-                        return n;
-                      });
-                  }}
-                >
-                  <SelectTrigger
-                    className={`h-8 text-xs bg-background ${formErrors.employeeId ? 'border-destructive' : ''}`}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Branch / Office Filter */}
+                <div className="space-y-1">
+                  <Label className="font-semibold text-xs flex items-center gap-1">
+                    <Building2 className="h-3 w-3 text-muted-foreground" /> Filter Branch / Office
+                  </Label>
+                  <Select
+                    value={selectedBranchId}
+                    onValueChange={(val) => {
+                      setSelectedBranchId(val);
+                      // If current employee does not belong to the selected branch filter, reset employeeId
+                      if (employeeId && selectedEmp) {
+                        if (val === 'NONE' && selectedEmp.branchId && selectedEmp.branchId !== 'NONE' && selectedEmp.branchId !== 'HEAD_OFFICE') {
+                          setEmployeeId('');
+                        } else if (val !== 'ALL' && val !== 'NONE' && selectedEmp.branchId !== val) {
+                          setEmployeeId('');
+                        }
+                      }
+                    }}
                   >
-                    <SelectValue placeholder="Choose active employee..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[200px]">
-                    {eligibleEmployees.length === 0 ? (
-                      <SelectItem value="none" disabled className="text-xs italic text-muted-foreground">
-                        No active employees found matching company context
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="All Branches" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[220px]">
+                      <SelectItem value="ALL" className="text-xs font-medium">
+                        🏢 All Branches & Offices
                       </SelectItem>
-                    ) : (
-                      eligibleEmployees.map((e) => (
-                        <SelectItem key={e.id} value={e.id} className="text-xs">
-                          {e.firstName} {e.lastName} ({e.employeeCode}) — {e.department?.name || 'General'}
+                      <SelectItem value="NONE" className="text-xs font-medium">
+                        🏛️ Head Office / No Branch
+                      </SelectItem>
+                      {branches.map((b) => (
+                        <SelectItem key={b.id} value={b.id} className="text-xs">
+                          📍 {b.name} ({b.code})
                         </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {formErrors.employeeId && (
-                  <p className="text-[10px] text-destructive font-semibold flex items-center gap-1 mt-0.5">
-                    <AlertTriangle className="h-3 w-3 inline" /> {formErrors.employeeId}
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">
+                    Filters the staff list by chosen branch or corporate head office
                   </p>
-                )}
+                </div>
+
+                {/* Employee Selector */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-semibold text-xs flex items-center gap-1">
+                      <User className="h-3 w-3 text-muted-foreground" /> Select Employee *
+                    </Label>
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {eligibleEmployees.length} staff found
+                    </span>
+                  </div>
+                  <Select
+                    value={employeeId}
+                    onValueChange={(val) => {
+                      setEmployeeId(val);
+                      if (formErrors.employeeId)
+                        setFormErrors((p) => {
+                          const n = { ...p };
+                          delete n.employeeId;
+                          return n;
+                        });
+                    }}
+                  >
+                    <SelectTrigger
+                      className={`h-8 text-xs bg-background ${formErrors.employeeId ? 'border-destructive' : ''}`}
+                    >
+                      <SelectValue placeholder={eligibleEmployees.length === 0 ? "No active employees found" : "Choose active employee..."} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[220px]">
+                      {eligibleEmployees.length === 0 ? (
+                        <SelectItem value="none" disabled className="text-xs italic text-muted-foreground">
+                          No active employees found matching branch/company
+                        </SelectItem>
+                      ) : (
+                        eligibleEmployees.map((e) => (
+                          <SelectItem key={e.id} value={e.id} className="text-xs">
+                            {e.firstName} {e.lastName} ({e.employeeCode}) — {e.branch?.name ? e.branch.name : 'Head Office'} • {e.department?.name || 'General'}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.employeeId && (
+                    <p className="text-[10px] text-destructive font-semibold flex items-center gap-1 mt-0.5">
+                      <AlertTriangle className="h-3 w-3 inline" /> {formErrors.employeeId}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Auto-filled Employee Context Summary Cards */}
@@ -462,7 +552,7 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
                   <div className="bg-background p-2 rounded-lg border">
                     <span className="text-muted-foreground block text-[9.5px] uppercase font-semibold">Branch</span>
                     <strong className="text-foreground truncate block font-semibold">
-                      {selectedEmp.branch?.name || selectedAsset?.branch?.name || 'Main Branch'}
+                      {selectedEmp.branch?.name || (selectedEmp.branchId ? 'Assigned Branch' : 'Head Office / No Branch')}
                     </strong>
                   </div>
                   <div className="bg-background p-2 rounded-lg border">
@@ -470,7 +560,7 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
                       Department
                     </span>
                     <strong className="text-foreground truncate block font-semibold">
-                      {selectedEmp.department?.name || selectedAsset?.department?.name || 'General Dept'}
+                      {selectedEmp.department?.name || 'General Dept'}
                     </strong>
                   </div>
                   <div className="bg-background p-2 rounded-lg border">

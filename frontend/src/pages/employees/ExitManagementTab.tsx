@@ -183,9 +183,16 @@ export function ExitManagementTab() {
 
   // Clearance Filter State
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('all');
+  const [isClearingAll, setIsClearingAll] = useState(false);
 
   // Asset Return State (Dynamic sync with Asset Allocation module)
-  const [assetItemsState, setAssetItemsState] = useState<Record<string, { status: string; condition: string; recoveryCost: number }>>({});
+  const [assetItemsState, setAssetItemsState] = useState<Record<string, { status: string; condition: string; recoveryCost: number; returnDate?: string; returnedBy?: string; remarks?: string }>>({});
+  const [returnModalAsset, setReturnModalAsset] = useState<any | null>(null);
+  const [returnModalDate, setReturnModalDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [returnModalCondition, setReturnModalCondition] = useState<string>('Good');
+  const [returnModalReturnedBy, setReturnModalReturnedBy] = useState<string>('');
+  const [returnModalRemarks, setReturnModalRemarks] = useState<string>('');
+  const [returnModalRecoveryCost, setReturnModalRecoveryCost] = useState<number>(0);
 
   // Exit Interview Form State (Conditional & Waivable)
   const [interviewRequired, setInterviewRequired] = useState(true);
@@ -296,17 +303,45 @@ export function ExitManagementTab() {
 
   // Query live assets from Asset Allocation module
   const { data: allAssets = [] } = useQuery({
-    queryKey: ['assets-for-exit'],
-    queryFn: () => assetsApi.list(),
+    queryKey: ['assets-for-exit', activeCompanyId],
+    queryFn: () => assetsApi.list(activeCompanyId),
   });
 
   // Dynamically resolve active allocations for selected exit employee
   const activeAssignedAssets = useMemo(() => {
     if (!currentExit?.employee?.id) return [];
+    const empId = currentExit.employee.id;
     return allAssets.filter(
-      (a) => a.currentEmployeeId === currentExit.employee?.id && a.status === 'ALLOCATED',
+      (a: any) =>
+        (a.currentEmployeeId === empId && a.status === 'ALLOCATED') ||
+        (a.allocations && a.allocations.some((al: any) => al.employeeId === empId && !al.returnedAt)) ||
+        assetItemsState[a.id]?.status === 'RETURNED' ||
+        (a.allocations && a.allocations.some((al: any) => al.employeeId === empId && al.returnedAt && al.returnReason?.includes('Exit Clearance'))),
     );
-  }, [allAssets, currentExit?.employee?.id]);
+  }, [allAssets, currentExit?.employee?.id, assetItemsState]);
+
+  const isAssetItemReturned = (asset: any) => {
+    if (!currentExit?.employee?.id) return false;
+    const empId = currentExit.employee.id;
+    if (assetItemsState[asset.id]?.status === 'RETURNED') return true;
+    if (asset.status !== 'ALLOCATED' && asset.allocations?.some((al: any) => al.employeeId === empId && al.returnedAt)) {
+      return true;
+    }
+    return false;
+  };
+
+  const getAssetReturnDetails = (asset: any) => {
+    if (!currentExit?.employee?.id) return null;
+    const empId = currentExit.employee.id;
+    const local = assetItemsState[asset.id];
+    const alloc = asset.allocations?.find((al: any) => al.employeeId === empId && al.returnedAt);
+    return {
+      returnDate: local?.returnDate || (alloc?.returnedAt ? new Date(alloc.returnedAt).toLocaleDateString() : new Date().toLocaleDateString()),
+      returnedBy: local?.returnedBy || alloc?.returnedBy || (user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'HR Admin') || 'HR Admin',
+      condition: local?.condition || alloc?.conditionOnReturn || asset.condition || 'Good',
+      remarks: local?.remarks || alloc?.remarks || '',
+    };
+  };
 
   // Resolving current logged in employee record
   const currentEmployee = useMemo(() => {
@@ -503,6 +538,56 @@ export function ExitManagementTab() {
   });
   const updateClearanceItemMutation = updateClearanceMutation;
 
+  const handleClearAllClearances = async (itemsToClear?: ExitClearanceItem[]) => {
+    const items = itemsToClear || (currentExit?.clearanceItems || []).filter((i) => i.status === 'PENDING');
+    if (!items.length) {
+      toast.info('No pending clearance items to clear.');
+      return;
+    }
+    try {
+      setIsClearingAll(true);
+      const verifier = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'HR Lead' : 'HR Lead';
+      const nowIso = new Date().toISOString();
+
+      setSelectedExitFallback((prev) => {
+        if (!prev) return prev;
+        const clearedIds = new Set(items.map((i) => i.id));
+        return {
+          ...prev,
+          clearanceItems: (prev.clearanceItems || []).map((ci) =>
+            clearedIds.has(ci.id)
+              ? { ...ci, status: 'CLEARED', verifiedBy: verifier, verifiedAt: nowIso }
+              : ci,
+          ),
+        };
+      });
+
+      await Promise.all(
+        items.map((item) =>
+          exitsApi.updateClearanceItem(item.id, {
+            status: 'CLEARED',
+            verifiedBy: verifier,
+            remarks: 'Cleared via HR Offboarding Signoff',
+          })
+        )
+      );
+
+      if (selectedExitId) {
+        queryClient.invalidateQueries({ queryKey: ['exit-detail', selectedExitId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['exits'] });
+      queryClient.invalidateQueries({ queryKey: ['exits-kpis'] });
+      toast.success('All mandatory department clearances marked as CLEARED!');
+    } catch (err: any) {
+      if (selectedExitId) {
+        queryClient.invalidateQueries({ queryKey: ['exit-detail', selectedExitId] });
+      }
+      toast.error(err?.response?.data?.message || 'Failed to clear all items');
+    } finally {
+      setIsClearingAll(false);
+    }
+  };
+
   const saveInterviewMutation = useMutation({
     mutationFn: (payload: any) =>
       selectedExitId ? exitsApi.saveExitInterview(selectedExitId, payload) : Promise.reject('No exit ID'),
@@ -651,11 +736,25 @@ export function ExitManagementTab() {
   };
 
   const returnAssetMutation = useMutation({
-    mutationFn: ({ assetId, condition, remarks }: { assetId: string; condition: string; remarks?: string }) =>
+    mutationFn: ({
+      assetId,
+      condition,
+      remarks,
+      returnDate,
+      returnedBy,
+    }: {
+      assetId: string;
+      condition: string;
+      remarks?: string;
+      returnDate?: string;
+      returnedBy?: string;
+    }) =>
       assetsApi.returnAsset(assetId, {
         returnReason: 'Exit Clearance & Separation',
         condition: condition || 'Good',
         remarks,
+        returnDate,
+        returnedBy,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets-for-exit'] });
@@ -1214,13 +1313,10 @@ export function ExitManagementTab() {
           ) : (
             <div className="space-y-4 text-xs">
               {(() => {
-                const pendingMandatoryClearance = (currentExit.clearanceItems || []).filter(
-                  (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
-                );
-                const isClearanceDone = pendingMandatoryClearance.length === 0;
                 const isAssetDone =
                   activeAssignedAssets.length === 0 ||
-                  activeAssignedAssets.every((a) => assetItemsState[a.id]?.status === 'RETURNED');
+                  activeAssignedAssets.every((a) => isAssetItemReturned(a));
+                const isClearanceDone = isAssetDone;
                 const isAttendanceDone = attendanceClosed;
                 const isInterviewDone =
                   currentExit.exitInterviewStatus === 'COMPLETED' ||
@@ -1230,7 +1326,7 @@ export function ExitManagementTab() {
                 const isLwdDone = !!(currentExit.adjustedLwd || currentExit.lastWorkingDay);
                 const isMatrixDone = currentExit.status !== 'REJECTED';
                 const isEligibleForFinalSignoff =
-                  isClearanceDone && isAssetDone && isAttendanceDone && isInterviewDone && isFnfDone && isLwdDone && isMatrixDone;
+                  isClearanceDone && isAttendanceDone && isInterviewDone && isFnfDone && isLwdDone && isMatrixDone;
                 const isAlreadySeparated =
                   currentExit.status === 'EXITED' || currentExit.status === 'OFFBOARDING_COMPLETED';
 
@@ -1763,443 +1859,361 @@ export function ExitManagementTab() {
                       </div>
                     )}
 
-                    {/* ── STEP 5: CLEARANCE & ASSETS (UNIFIED) ── */}
-                    {wizardStep === 5 && (
-                      <div className="space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <div>
-                            <h3 className="font-semibold text-foreground text-xs flex items-center gap-2">
-                              Department Clearance & Asset Return Matrix
-                              <Badge variant="outline" className="text-[10px] font-mono uppercase bg-primary/5 text-primary border-primary/20">
-                                Intelligent Dynamic Engine
+                    {/* ── STEP 5: CLEARANCE & ASSETS ── */}
+                    {wizardStep === 5 && (() => {
+                      const totalAssigned = activeAssignedAssets.length;
+                      const returnedCount = activeAssignedAssets.filter((a) => isAssetItemReturned(a)).length;
+                      const pendingAssetCount = totalAssigned - returnedCount;
+                      const isClearanceComplete = pendingAssetCount === 0;
+
+                      return (
+                        <div className="space-y-4">
+                          {/* 1. Employee Details (Header Card) */}
+                          <div className="p-4 bg-muted/30 rounded-xl border border-border/80 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                                  <UserCheck className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <h3 className="font-bold text-xs text-foreground">Employee Details</h3>
+                                  <p className="text-[11px] text-muted-foreground">Exit Clearance & Asset Return Profile</p>
+                                </div>
+                              </div>
+                              <Badge variant="outline" className="font-mono text-[11px] bg-background self-start sm:self-auto">
+                                Code: {currentExit.employee?.employeeCode}
                               </Badge>
-                            </h3>
-                            <p className="text-[11px] text-muted-foreground">
-                              Clearance tasks evaluated from Company Clearance Master based on employee's role, personal assets & exit type
-                            </p>
-                          </div>
+                            </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5 font-semibold"
-                              onClick={() => recalculateMutation.mutate(currentExit.id)}
-                              disabled={recalculateMutation.isPending}
-                            >
-                              <RotateCcw className={`h-3.5 w-3.5 ${recalculateMutation.isPending ? 'animate-spin' : ''}`} />
-                              {recalculateMutation.isPending ? 'Evaluating Rules...' : 'Re-evaluate Clearance Rules'}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Summary Metric Strip */}
-                        {(() => {
-                          const items = currentExit.clearanceItems || [];
-                          const mandatoryPending = items.filter(
-                            (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
-                          ).length;
-                          const clearedCount = items.filter(
-                            (i) => i.status === 'CLEARED' || i.status === 'WAIVED',
-                          ).length;
-                          const notApplicableCount = items.filter(
-                            (i) => i.status === 'NOT_APPLICABLE',
-                          ).length;
-
-                          return (
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                              <div className="p-2.5 rounded-xl border bg-card shadow-2xs">
-                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
-                                  Configured Tasks
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1 text-xs">
+                              <div>
+                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Employee Name</span>
+                                <span className="font-semibold text-foreground">
+                                  {currentExit.employee?.firstName} {currentExit.employee?.lastName}
                                 </span>
-                                <span className="text-base font-bold font-mono text-foreground">{items.length} Total</span>
                               </div>
-                              <div className="p-2.5 rounded-xl border bg-rose-500/10 border-rose-500/20 shadow-2xs">
-                                <span className="text-[10px] text-rose-700 uppercase font-semibold block">
-                                  Mandatory Pending (Blocks Exit)
+                              <div>
+                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Employee Code</span>
+                                <span className="font-mono font-medium text-foreground">
+                                  {currentExit.employee?.employeeCode || '—'}
                                 </span>
-                                <span className="text-base font-bold font-mono text-rose-700">{mandatoryPending}</span>
                               </div>
-                              <div className="p-2.5 rounded-xl border bg-emerald-500/10 border-emerald-500/20 shadow-2xs">
-                                <span className="text-[10px] text-emerald-700 uppercase font-semibold block">
-                                  Cleared / Waived
+                              <div>
+                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Department</span>
+                                <span className="text-foreground">
+                                  {currentExit.employee?.department?.name || 'General'}
                                 </span>
-                                <span className="text-base font-bold font-mono text-emerald-700">{clearedCount}</span>
                               </div>
-                              <div className="p-2.5 rounded-xl border bg-muted/40 border-border shadow-2xs">
-                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
-                                  Not Applicable (Auto-Excluded)
+                              <div>
+                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Designation</span>
+                                <span className="text-foreground">
+                                  {currentExit.employee?.designation?.title || 'Staff'}
                                 </span>
-                                <span className="text-base font-bold font-mono text-muted-foreground">{notApplicableCount}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Last Working Day</span>
+                                <span className="font-semibold text-foreground">
+                                  {currentExit.adjustedLwd || currentExit.lastWorkingDay
+                                    ? new Date(currentExit.adjustedLwd || currentExit.lastWorkingDay).toLocaleDateString()
+                                    : 'Pending'}
+                                </span>
                               </div>
                             </div>
-                          );
-                        })()}
+                          </div>
 
-                        {/* Dynamic Department & Asset Filter Pills */}
-                        <div className="flex flex-wrap items-center bg-muted/40 p-1 rounded-xl border border-border gap-1">
-                          {availableClearanceDepts.map((dept) => {
-                            const count =
-                              dept === 'all'
-                                ? (currentExit.clearanceItems || []).length
-                                : (currentExit.clearanceItems || []).filter((i) => i.department === dept).length;
-                            return (
-                              <button
-                                key={dept}
-                                type="button"
-                                onClick={() => setSelectedDeptFilter(dept)}
-                                className={`px-2.5 py-1 text-[10.5px] font-semibold rounded-lg capitalize transition-all ${
-                                  selectedDeptFilter === dept
-                                    ? 'bg-background text-foreground shadow-xs'
-                                    : 'text-muted-foreground hover:text-foreground'
+                          {/* 2. Clearance Status Indicator & KPI Strip */}
+                          <div className="space-y-3">
+                            {/* Status Indicator Banner */}
+                            <div
+                              className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
+                                isClearanceComplete
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                                  : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                {isClearanceComplete ? (
+                                  <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                                ) : (
+                                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+                                )}
+                                <div>
+                                  <h4 className="font-bold text-xs sm:text-sm">
+                                    {isClearanceComplete
+                                      ? 'Clearance & Asset Return Completed'
+                                      : 'Clearance & Asset Return Pending'}
+                                  </h4>
+                                  <p className="text-[11px] opacity-90">
+                                    {isClearanceComplete
+                                      ? 'All company equipment and hardware allocated to this employee have been returned and verified.'
+                                      : `${pendingAssetCount} assigned asset(s) pending return before clearance is completed.`}
+                                  </p>
+                                </div>
+                              </div>
+                              <Badge
+                                className={`text-[10px] uppercase font-bold shrink-0 ${
+                                  isClearanceComplete
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-amber-600 text-white'
                                 }`}
                               >
-                                {dept === 'all' ? `All Tasks (${count})` : `${dept} (${count})`}
-                              </button>
-                            );
-                          })}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDeptFilter('assets')}
-                            className={`px-2.5 py-1 text-[10.5px] font-semibold rounded-lg capitalize transition-all ${
-                              selectedDeptFilter === 'assets'
-                                ? 'bg-background text-foreground shadow-xs'
-                                : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                          >
-                            Company Assets ({activeAssignedAssets.length})
-                          </button>
-                        </div>
+                                {isClearanceComplete ? 'Clearance Complete' : 'Pending Verification'}
+                              </Badge>
+                            </div>
 
-                        {/* Clearance Task Cards Matrix (Shown unless 'assets' filter selected) */}
-                        {selectedDeptFilter !== 'assets' && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {(currentExit.clearanceItems || [])
-                              .filter((i) => selectedDeptFilter === 'all' || i.department === selectedDeptFilter)
-                              .map((item: ExitClearanceItem) => {
-                                const isMandatory = item.remarks?.includes('[MANDATORY]');
-                                const isConditional = item.remarks?.includes('[CONDITIONAL]');
-                                const isOptional = item.remarks?.includes('[OPTIONAL]');
-                                const isNotApplicable = item.status === 'NOT_APPLICABLE';
-                                const reasonText = item.remarks?.replace(/^\[.*?\]\s*/, '');
+                            {/* KPI Metrics Strip */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                              <div className="p-3 rounded-xl border bg-card shadow-2xs flex items-center justify-between">
+                                <div>
+                                  <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
+                                    Total Assigned Assets
+                                  </span>
+                                  <span className="text-xl font-bold font-mono text-foreground">{totalAssigned}</span>
+                                </div>
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                  <Laptop className="h-4 w-4" />
+                                </div>
+                              </div>
 
-                                return (
-                                  <div
-                                    key={item.id}
-                                    className={`flex flex-col justify-between p-3.5 rounded-xl border transition-all ${
-                                      isNotApplicable
-                                        ? 'border-dashed border-border/80 bg-muted/30 opacity-75'
-                                        : item.status === 'CLEARED'
-                                        ? 'border-emerald-500/30 bg-emerald-500/5'
-                                        : item.status === 'WAIVED'
-                                        ? 'border-amber-500/30 bg-amber-500/5'
-                                        : 'border-border/80 bg-card hover:bg-muted/20'
+                              <div className="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/20 shadow-2xs flex items-center justify-between">
+                                <div>
+                                  <span className="text-[10px] text-emerald-700 uppercase font-semibold block">
+                                    Assets Returned
+                                  </span>
+                                  <span className="text-xl font-bold font-mono text-emerald-700">{returnedCount}</span>
+                                </div>
+                                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 text-emerald-700 flex items-center justify-center">
+                                  <CheckCircle2 className="h-4 w-4" />
+                                </div>
+                              </div>
+
+                              <div
+                                className={`p-3 rounded-xl border shadow-2xs flex items-center justify-between ${
+                                  pendingAssetCount > 0
+                                    ? 'bg-amber-500/10 border-amber-500/20'
+                                    : 'bg-muted/30 border-border'
+                                }`}
+                              >
+                                <div>
+                                  <span
+                                    className={`text-[10px] uppercase font-semibold block ${
+                                      pendingAssetCount > 0 ? 'text-amber-700' : 'text-muted-foreground'
                                     }`}
                                   >
-                                    <div className="space-y-1.5">
-                                      <div className="flex items-center gap-1.5 flex-wrap justify-between">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <Badge variant="outline" className="text-[9.5px] font-mono bg-background">
-                                            {item.department}
-                                          </Badge>
-
-                                          {isMandatory && (
-                                            <Badge className="bg-rose-600/15 text-rose-700 hover:bg-rose-600/25 border-rose-300 text-[9px] font-mono">
-                                              MANDATORY
-                                            </Badge>
-                                          )}
-                                          {isConditional && (
-                                            <Badge className="bg-blue-600/15 text-blue-700 hover:bg-blue-600/25 border-blue-300 text-[9px] font-mono">
-                                              CONDITIONAL
-                                            </Badge>
-                                          )}
-                                          {isOptional && (
-                                            <Badge className="bg-slate-600/15 text-slate-700 hover:bg-slate-600/25 border-slate-300 text-[9px] font-mono">
-                                              OPTIONAL
-                                            </Badge>
-                                          )}
-                                        </div>
-
-                                        {isNotApplicable && (
-                                          <Badge variant="secondary" className="text-[9.5px] font-mono bg-muted text-muted-foreground">
-                                            NOT REQUIRED
-                                          </Badge>
-                                        )}
-                                      </div>
-
-                                      <span className="font-semibold text-foreground text-xs block">
-                                        {item.itemLabel}
-                                      </span>
-
-                                      {isNotApplicable ? (
-                                        <p className="text-[10.5px] text-muted-foreground italic flex items-center gap-1">
-                                          <Info className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                          {reasonText || 'Not required for employee profile'}
-                                        </p>
-                                      ) : item.verifiedBy ? (
-                                        <p className="text-[10px] text-muted-foreground">
-                                          Verified by <strong className="text-foreground">{item.verifiedBy}</strong> on{' '}
-                                          {new Date(item.verifiedAt || '').toLocaleDateString()}
-                                          {item.remarks && !item.remarks.startsWith('[') ? ` • "${item.remarks}"` : ''}
-                                        </p>
-                                      ) : (
-                                        <p className="text-[10px] text-muted-foreground">
-                                          {isOptional ? 'Optional task (does not block exit signoff)' : 'Mandatory signoff required before exit'}
-                                        </p>
-                                      )}
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-border/60">
-                                      <span className="text-[10px] font-mono text-muted-foreground uppercase">
-                                        Status: <strong>{item.status}</strong>
-                                      </span>
-
-                                      <div className="flex items-center gap-1">
-                                        {['PENDING', 'CLEARED', 'WAIVED'].map((st) => (
-                                          <button
-                                            key={st}
-                                            type="button"
-                                            disabled={updateClearanceMutation.isPending}
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              updateClearanceMutation.mutate({
-                                                itemId: item.id,
-                                                status: st,
-                                                remarks: `Status updated to ${st} by Department Lead`,
-                                              });
-                                            }}
-                                            className={`px-2.5 py-1 text-[10px] font-mono font-bold rounded-md transition-all cursor-pointer ${
-                                              item.status === st
-                                                ? st === 'CLEARED'
-                                                  ? 'bg-emerald-600 text-white shadow-xs hover:bg-emerald-700'
-                                                  : st === 'WAIVED'
-                                                  ? 'bg-amber-600 text-white shadow-xs hover:bg-amber-700'
-                                                  : 'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90'
-                                                : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground border border-border/70'
-                                            }`}
-                                          >
-                                            {st}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                    Assets Pending Return
+                                  </span>
+                                  <span
+                                    className={`text-xl font-bold font-mono ${
+                                      pendingAssetCount > 0 ? 'text-amber-700' : 'text-muted-foreground'
+                                    }`}
+                                  >
+                                    {pendingAssetCount}
+                                  </span>
+                                </div>
+                                <div
+                                  className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                                    pendingAssetCount > 0
+                                      ? 'bg-amber-500/20 text-amber-700'
+                                      : 'bg-muted text-muted-foreground'
+                                  }`}
+                                >
+                                  <Clock className="h-4 w-4" />
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        )}
 
-                        {/* Assigned Company Assets Return Checklist (Shown on 'assets' filter OR at bottom of 'all') */}
-                        {(selectedDeptFilter === 'assets' || selectedDeptFilter === 'all') && (
-                          <div className="space-y-4 p-4 border rounded-xl bg-card">
-                            <div className="flex items-center justify-between">
+                          {/* 3. Assigned Assets List */}
+                          <div className="space-y-3 p-4 border rounded-xl bg-card">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 border-b pb-2">
                               <div>
                                 <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                                  <Laptop className="h-4 w-4 text-primary" /> Assigned Asset Return & Physical Condition Audit
+                                  <Laptop className="h-4 w-4 text-primary" /> Assigned Assets List
                                 </h3>
                                 <p className="text-[11px] text-muted-foreground">
-                                  Live query from Asset Allocation register for{' '}
-                                  <strong>
-                                    {currentExit.employee?.firstName} {currentExit.employee?.lastName}
-                                  </strong>{' '}
-                                  ({currentExit.employee?.employeeCode})
+                                  Assets allocated in Employee Master for {currentExit.employee?.firstName} {currentExit.employee?.lastName}
                                 </p>
                               </div>
-                              {activeAssignedAssets.length > 0 && (
-                                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={syncAssetRecoveryToFnf}>
-                                  <DollarSign className="h-3.5 w-3.5 text-rose-600" /> Sync ₹{totalAssetRecovery} to F&F
+                              {totalAssetRecovery > 0 && (
+                                <Button size="sm" variant="outline" className="text-xs gap-1 h-7" onClick={syncAssetRecoveryToFnf}>
+                                  <DollarSign className="h-3.5 w-3.5 text-rose-600" /> Sync ₹{totalAssetRecovery.toLocaleString('en-IN')} to F&F
                                 </Button>
                               )}
                             </div>
 
-                            {activeAssignedAssets.length === 0 ? (
-                              <div className="p-6 bg-muted/20 rounded-xl border border-dashed text-center space-y-2 my-1">
-                                <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                                  <Laptop className="h-4 w-4" />
+                            {totalAssigned === 0 ? (
+                              <div className="p-8 bg-muted/20 rounded-xl border border-dashed text-center space-y-2 my-2">
+                                <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                                  <Laptop className="h-5 w-5" />
                                 </div>
                                 <h4 className="font-semibold text-xs text-foreground">
                                   No assets are currently assigned to this employee.
                                 </h4>
                                 <p className="text-[11px] text-muted-foreground max-w-md mx-auto">
-                                  This employee has 0 active device or hardware allocations. Asset clearance is automatically marked as{' '}
-                                  <strong className="text-emerald-600 font-semibold">NOT REQUIRED (CLEARED)</strong>.
+                                  This employee has no active company devices or hardware allocated in Employee Master. Asset clearance is automatically satisfied.
                                 </p>
                               </div>
                             ) : (
-                              <>
-                                <div className="border rounded-xl overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/40">
-                              <TableHead className="text-xs">Asset Item</TableHead>
-                              <TableHead className="text-xs">Tag / Serial</TableHead>
-                              <TableHead className="text-xs">Return Status</TableHead>
-                              <TableHead className="text-xs">Physical Condition</TableHead>
-                              <TableHead className="text-xs text-right">Recovery Fee (₹)</TableHead>
-                              <TableHead className="text-xs text-right">Action</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {activeAssignedAssets.map((asset) => {
-                              const state = assetItemsState[asset.id] || {
-                                status: 'PENDING',
-                                condition: 'GOOD',
-                                recoveryCost: 0,
-                              };
-                              const isReturned = state.status === 'RETURNED';
+                              <div className="space-y-3">
+                                {activeAssignedAssets.map((asset: any) => {
+                                  const isReturned = isAssetItemReturned(asset);
+                                  const returnDetails = isReturned ? getAssetReturnDetails(asset) : null;
+                                  const alloc = asset.allocations?.find(
+                                    (al: any) => al.employeeId === currentExit.employee?.id,
+                                  );
+                                  const assignedDate = alloc?.allocatedAt || asset.createdAt;
 
-                              return (
-                                <TableRow key={asset.id}>
-                                  <TableCell className="font-semibold text-xs text-foreground flex items-center gap-2">
-                                    <Laptop className="h-3.5 w-3.5 text-muted-foreground" /> {asset.name}
-                                  </TableCell>
-                                  <TableCell className="font-mono text-xs">
-                                    {asset.assetTag}
-                                    {asset.serialNumber && (
-                                      <span className="block text-[10px] text-muted-foreground font-sans">
-                                        S/N: {asset.serialNumber}
-                                      </span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Select
-                                      value={state.status}
-                                      onValueChange={(val) => {
-                                        setAssetItemsState((prev) => ({
-                                          ...prev,
-                                          [asset.id]: {
-                                            ...state,
-                                            status: val,
-                                          },
-                                        }));
-                                      }}
+                                  return (
+                                    <div
+                                      key={asset.id}
+                                      className={`p-3.5 rounded-xl border transition-all ${
+                                        isReturned
+                                          ? 'border-emerald-500/30 bg-emerald-500/5'
+                                          : 'border-border/80 bg-card hover:bg-muted/10 shadow-2xs'
+                                      }`}
                                     >
-                                      <SelectTrigger className="h-7 text-[11px] w-28">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="PENDING">Pending Return</SelectItem>
-                                        <SelectItem value="RETURNED">Returned</SelectItem>
-                                        <SelectItem value="DAMAGED">Damaged</SelectItem>
-                                        <SelectItem value="LOST">Lost / Missing</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Select
-                                      value={state.condition}
-                                      onValueChange={(val) => {
-                                        let recFee = state.recoveryCost;
-                                        if (val === 'DAMAGED' && recFee === 0) recFee = 2500;
-                                        if (val === 'LOST' && recFee === 0) recFee = 15000;
-                                        setAssetItemsState((prev) => ({
-                                          ...prev,
-                                          [asset.id]: {
-                                            ...state,
-                                            condition: val,
-                                            recoveryCost: recFee,
-                                          },
-                                        }));
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-7 text-[11px] w-28">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="GOOD">Good / Intact</SelectItem>
-                                        <SelectItem value="DAMAGED">Damaged</SelectItem>
-                                        <SelectItem value="LOST">Lost / Missing</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <Input
-                                      type="number"
-                                      value={state.recoveryCost}
-                                      onChange={(e) => {
-                                        const fee = Number(e.target.value) || 0;
-                                        setAssetItemsState((prev) => ({
-                                          ...prev,
-                                          [asset.id]: {
-                                            ...state,
-                                            recoveryCost: fee,
-                                          },
-                                        }));
-                                      }}
-                                      className="h-7 w-24 text-xs font-mono text-right inline-block"
-                                    />
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <Button
-                                      size="sm"
-                                      variant={isReturned ? 'outline' : 'default'}
-                                      className={`h-7 text-[10.5px] ${isReturned ? 'text-emerald-600' : 'bg-primary'}`}
-                                      onClick={() => {
-                                        returnAssetMutation.mutate({
-                                          assetId: asset.id,
-                                          condition: state.condition,
-                                        });
-                                        setAssetItemsState((prev) => ({
-                                          ...prev,
-                                          [asset.id]: { ...state, status: 'RETURNED' },
-                                        }));
-                                      }}
-                                      disabled={returnAssetMutation.isPending}
-                                    >
-                                      {isReturned ? 'Returned to Stock' : 'Mark Returned'}
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
+                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                        {/* Asset Core Details */}
+                                        <div className="space-y-1.5 flex-1">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                                              <Laptop className="h-3.5 w-3.5 text-primary" /> {asset.name}
+                                            </span>
+                                            <Badge variant="outline" className="font-mono text-[10px] bg-background">
+                                              {asset.assetTag}
+                                            </Badge>
+                                            {asset.category && (
+                                              <Badge variant="secondary" className="text-[10px]">
+                                                {asset.category}
+                                              </Badge>
+                                            )}
+                                            {isReturned ? (
+                                              <Badge className="bg-emerald-600 text-white text-[10px] font-bold">
+                                                ✓ RETURNED
+                                              </Badge>
+                                            ) : (
+                                              <Badge className="bg-amber-500/15 text-amber-700 border-amber-300 text-[10px] font-bold">
+                                                ASSIGNED
+                                              </Badge>
+                                            )}
+                                          </div>
 
-                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border">
-                        <span className="text-xs font-semibold text-muted-foreground">
-                          Total Asset Damage / Loss Recovery Fee:
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-bold font-mono text-rose-600">
-                            ₹{totalAssetRecovery.toLocaleString('en-IN')}
-                          </span>
-                          <Button
-                            size="sm"
-                            className="h-7 text-[11px] bg-rose-600 hover:bg-rose-700 text-white"
-                            onClick={syncAssetRecoveryToFnf}
-                          >
-                            Apply to F&F Deductions
-                          </Button>
+                                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
+                                            <div>
+                                              <span className="text-[10px] text-muted-foreground block">Serial Number</span>
+                                              <span className="font-mono font-medium text-foreground">
+                                                {asset.serialNumber || 'N/A'}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-[10px] text-muted-foreground block">Assigned Date</span>
+                                              <span className="font-medium text-foreground">
+                                                {assignedDate ? new Date(assignedDate).toLocaleDateString() : 'N/A'}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-[10px] text-muted-foreground block">Condition</span>
+                                              <span className="font-medium text-foreground">
+                                                {asset.condition || 'Good'}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-[10px] text-muted-foreground block">Location / Branch</span>
+                                              <span className="text-foreground">
+                                                {asset.branch?.name || asset.physicalLocation || 'HQ'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Action: Mark as Returned or Returned Info */}
+                                        <div className="shrink-0 flex items-center sm:self-center">
+                                          {!isReturned ? (
+                                            <Button
+                                              size="sm"
+                                              className="text-xs gap-1.5 bg-primary hover:bg-primary/90 shadow-2xs font-semibold"
+                                              onClick={() => {
+                                                setReturnModalAsset(asset);
+                                                setReturnModalDate(new Date().toISOString().split('T')[0]);
+                                                setReturnModalCondition(asset.condition || 'Good');
+                                                setReturnModalReturnedBy(
+                                                  user
+                                                    ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'HR Admin'
+                                                    : 'HR Admin',
+                                                );
+                                                setReturnModalRemarks('');
+                                                setReturnModalRecoveryCost(0);
+                                              }}
+                                              disabled={returnAssetMutation.isPending}
+                                            >
+                                              <CheckCircle2 className="h-3.5 w-3.5" /> Mark as Returned
+                                            </Button>
+                                          ) : (
+                                            <div className="text-right text-[10.5px] p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                                              <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                                                Returned: <strong>{returnDetails?.returnDate}</strong>
+                                              </p>
+                                              <p className="text-muted-foreground">
+                                                By: <strong className="text-foreground">{returnDetails?.returnedBy}</strong>
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Returned Details Receipt Block */}
+                                      {isReturned && returnDetails && (
+                                        <div className="mt-2.5 pt-2 border-t border-emerald-500/20 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px] bg-background/50 p-2 rounded-lg">
+                                          <div>
+                                            <span className="text-[9.5px] text-muted-foreground block">Return Date</span>
+                                            <strong className="text-foreground">{returnDetails.returnDate}</strong>
+                                          </div>
+                                          <div>
+                                            <span className="text-[9.5px] text-muted-foreground block">Returned By</span>
+                                            <strong className="text-foreground">{returnDetails.returnedBy}</strong>
+                                          </div>
+                                          <div>
+                                            <span className="text-[9.5px] text-muted-foreground block">Condition at Return</span>
+                                            <Badge variant="outline" className="text-[9px] font-mono">
+                                              {returnDetails.condition}
+                                            </Badge>
+                                          </div>
+                                          <div>
+                                            <span className="text-[9.5px] text-muted-foreground block">Inspection Remarks</span>
+                                            <span className="italic text-foreground">
+                                              {returnDetails.remarks || 'Hardware inspected & verified in working order.'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Step 5 Navigation Bar */}
+                          <div className="flex items-center justify-between pt-3 border-t">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs"
+                              onClick={() => setWizardStep(4)}
+                            >
+                              ← Back to Notice Period
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="text-xs gap-1"
+                              onClick={() => setWizardStep(6)}
+                            >
+                              Next: Exit Interview <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Step 5 Navigation Bar */}
-              <div className="flex items-center justify-between pt-3 border-t">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-xs"
-                  onClick={() => setWizardStep(4)}
-                >
-                  ← Back to Notice Period
-                </Button>
-                <Button
-                  size="sm"
-                  className="text-xs gap-1"
-                  onClick={() => setWizardStep(6)}
-                >
-                  Next: Exit Interview <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
+                      );
+                    })()}
 
           {/* ── STEP 6: EXIT INTERVIEW (CONDITIONAL) ── */}
           {wizardStep === 6 && (
@@ -2727,39 +2741,28 @@ export function ExitManagementTab() {
                   </Badge>
                 </div>
 
-                {/* Gate 3: Department Clearances */}
-                <div className={`flex items-center justify-between p-2.5 rounded-lg border ${isClearanceDone ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
-                  <div className="flex items-center gap-2">
-                    {isClearanceDone ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-rose-600" />}
-                    <span className="font-semibold text-xs">
-                      3. Mandatory Department Clearances ({pendingMandatoryClearance.length === 0 ? 'All Completed' : `${pendingMandatoryClearance.length} Pending`})
-                    </span>
-                  </div>
-                  <Badge variant={isClearanceDone ? 'default' : 'destructive'} className="text-[10px]">
-                    {isClearanceDone ? '100% CLEARED' : `${pendingMandatoryClearance.length} PENDING`}
-                  </Badge>
-                </div>
-
-                {/* Gate 4: Asset Return Clearance */}
+                {/* Gate 3: Company Asset Return & Equipment Clearance */}
                 <div className={`flex items-center justify-between p-2.5 rounded-lg border ${isAssetDone ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
                   <div className="flex items-center gap-2">
                     {isAssetDone ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-rose-600" />}
-                    <span className="font-semibold text-xs">4. Asset Return & Recovery Fee Reconciliation</span>
+                    <span className="font-semibold text-xs">
+                      3. Company Asset Return & Equipment Clearance
+                    </span>
                   </div>
                   <Badge variant={isAssetDone ? 'default' : 'destructive'} className="text-[10px]">
                     {activeAssignedAssets.length === 0
                       ? 'NOT REQUIRED (CLEARED)'
                       : isAssetDone
-                      ? 'ASSETS RETURNED'
+                      ? '100% RETURNED'
                       : 'PENDING RETURN'}
                   </Badge>
                 </div>
 
-                {/* Gate 5: Exit Interview (Conditional) */}
+                {/* Gate 4: Exit Interview (Conditional) */}
                 <div className={`flex items-center justify-between p-2.5 rounded-lg border ${isInterviewDone ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
                   <div className="flex items-center gap-2">
                     {isInterviewDone ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-rose-600" />}
-                    <span className="font-semibold text-xs">5. Exit Interview Questionnaire</span>
+                    <span className="font-semibold text-xs">4. Exit Interview Questionnaire</span>
                   </div>
                   <Badge variant={isInterviewDone ? 'default' : 'destructive'} className="text-[10px]">
                     {currentExit.exitInterviewStatus === 'WAIVED' || !interviewRequired
@@ -2770,22 +2773,22 @@ export function ExitManagementTab() {
                   </Badge>
                 </div>
 
-                {/* Gate 6: Attendance & Leave Closure */}
+                {/* Gate 5: Attendance & Leave Closure */}
                 <div className={`flex items-center justify-between p-2.5 rounded-lg border ${isAttendanceDone ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
                   <div className="flex items-center gap-2">
                     {isAttendanceDone ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-rose-600" />}
-                    <span className="font-semibold text-xs">6. Attendance & Leave Register Closure</span>
+                    <span className="font-semibold text-xs">5. Attendance & Leave Register Closure</span>
                   </div>
                   <Badge variant={isAttendanceDone ? 'default' : 'destructive'} className="text-[10px]">
                     {isAttendanceDone ? 'CLOSED' : 'PENDING'}
                   </Badge>
                 </div>
 
-                {/* Gate 7: F&F Settlement Approval */}
+                {/* Gate 6: F&F Settlement Approval */}
                 <div className={`flex items-center justify-between p-2.5 rounded-lg border ${isFnfDone ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
                   <div className="flex items-center gap-2">
                     {isFnfDone ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-rose-600" />}
-                    <span className="font-semibold text-xs">7. Full & Final Settlement (F&F) Finance Approval</span>
+                    <span className="font-semibold text-xs">6. Full & Final Settlement (F&F) Finance Approval</span>
                   </div>
                   <Badge variant={isFnfDone ? 'default' : 'destructive'} className="text-[10px]">
                     {isFnfDone ? 'FINANCE APPROVED' : 'APPROVAL PENDING'}
@@ -2795,21 +2798,35 @@ export function ExitManagementTab() {
 
               {!isEligibleForFinalSignoff ? (
                 <div className="p-3.5 bg-rose-500/10 rounded-xl border border-rose-500/30 text-[11px] text-rose-900 space-y-2">
-                  <p className="font-bold flex items-center gap-1.5 text-xs text-rose-900">
-                    <AlertCircle className="h-4 w-4 text-rose-600" /> FINAL SIGNOFF BLOCKED:
-                  </p>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <p className="font-bold flex items-center gap-1.5 text-xs text-rose-900">
+                      <AlertCircle className="h-4 w-4 text-rose-600" /> FINAL SIGNOFF BLOCKED:
+                    </p>
+                  </div>
 
-                  {pendingMandatoryClearance.length > 0 && (
+                  {!isAssetDone && (
                     <div className="space-y-1">
-                      <span className="font-semibold text-rose-800">
-                        {pendingMandatoryClearance.length} mandatory clearance item(s) pending:
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-rose-800">
+                          {activeAssignedAssets.filter((a) => !isAssetItemReturned(a)).length} assigned asset(s) pending return:
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 text-[10.5px] text-primary underline p-0 hover:bg-transparent"
+                          onClick={() => setWizardStep(5)}
+                        >
+                          Review & Return in Step 5 →
+                        </Button>
+                      </div>
                       <ul className="list-disc list-inside pl-1 space-y-0.5 text-rose-700">
-                        {pendingMandatoryClearance.map((item) => (
-                          <li key={item.id}>
-                            <strong>{item.itemLabel}</strong> — {item.department}
-                          </li>
-                        ))}
+                        {activeAssignedAssets
+                          .filter((a) => !isAssetItemReturned(a))
+                          .map((asset) => (
+                            <li key={asset.id}>
+                              <strong>{asset.name}</strong> ({asset.assetTag}) — {asset.category || 'Hardware'}
+                            </li>
+                          ))}
                       </ul>
                     </div>
                   )}
@@ -3090,6 +3107,154 @@ export function ExitManagementTab() {
               <DialogFooter>
                 <Button size="sm" variant="outline" className="text-xs" onClick={() => setDocModalType(null)}>
                   Close Preview
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Asset Return Confirmation Modal ── */}
+      <Dialog open={!!returnModalAsset} onOpenChange={(open) => !open && setReturnModalAsset(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Laptop className="h-5 w-5 text-primary" /> Mark Asset as Returned
+            </DialogTitle>
+          </DialogHeader>
+
+          {returnModalAsset && (
+            <div className="space-y-4 py-2 text-xs">
+              <div className="p-3 bg-muted/40 rounded-xl border border-border/80 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-xs text-foreground">{returnModalAsset.name}</h4>
+                  <p className="text-[11px] font-mono text-muted-foreground">Tag: {returnModalAsset.assetTag}</p>
+                </div>
+                {returnModalAsset.category && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {returnModalAsset.category}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Return Date *</Label>
+                    <Input
+                      type="date"
+                      value={returnModalDate}
+                      onChange={(e) => setReturnModalDate(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Condition at Return *</Label>
+                    <Select
+                      value={returnModalCondition}
+                      onValueChange={(val) => {
+                        setReturnModalCondition(val);
+                        if (val === 'Damaged' && returnModalRecoveryCost === 0) setReturnModalRecoveryCost(2500);
+                        if (val === 'Lost' && returnModalRecoveryCost === 0) setReturnModalRecoveryCost(15000);
+                        if (val === 'Good' || val === 'Fair') setReturnModalRecoveryCost(0);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Good">Good / Working Condition</SelectItem>
+                        <SelectItem value="Fair">Fair / Normal Wear & Tear</SelectItem>
+                        <SelectItem value="Damaged">Damaged / Needs Repair</SelectItem>
+                        <SelectItem value="Lost">Lost / Missing Asset</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold">Returned By (Receiver Name / Role) *</Label>
+                  <Input
+                    value={returnModalReturnedBy}
+                    onChange={(e) => setReturnModalReturnedBy(e.target.value)}
+                    placeholder="e.g. IT Administrator / HR Executive"
+                    className="h-8 text-xs"
+                  />
+                </div>
+
+                {(returnModalCondition === 'Damaged' || returnModalCondition === 'Lost') && (
+                  <div className="space-y-1 p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-lg">
+                    <Label className="text-[11px] font-semibold text-rose-800 dark:text-rose-300">
+                      Damage / Loss Recovery Fee (₹)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={returnModalRecoveryCost}
+                      onChange={(e) => setReturnModalRecoveryCost(Number(e.target.value) || 0)}
+                      placeholder="0"
+                      className="h-8 text-xs font-mono"
+                    />
+                    <p className="text-[10px] text-rose-700 dark:text-rose-400">
+                      This fee can be synced to Full & Final settlement deductions.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold">Inspection Remarks / Accessories Handover</Label>
+                  <Textarea
+                    value={returnModalRemarks}
+                    onChange={(e) => setReturnModalRemarks(e.target.value)}
+                    placeholder="e.g. Returned with original charger, adapter, and laptop bag in good condition."
+                    rows={2}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => setReturnModalAsset(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  disabled={returnAssetMutation.isPending || !returnModalDate || !returnModalReturnedBy}
+                  onClick={() => {
+                    if (!returnModalAsset) return;
+                    returnAssetMutation.mutate({
+                      assetId: returnModalAsset.id,
+                      condition: returnModalCondition,
+                      remarks: returnModalRemarks,
+                      returnDate: returnModalDate,
+                      returnedBy: returnModalReturnedBy,
+                    });
+                    setAssetItemsState((prev) => ({
+                      ...prev,
+                      [returnModalAsset.id]: {
+                        status: 'RETURNED',
+                        condition: returnModalCondition,
+                        remarks: returnModalRemarks,
+                        returnDate: returnModalDate,
+                        returnedBy: returnModalReturnedBy,
+                        recoveryCost: returnModalRecoveryCost,
+                      },
+                    }));
+                    setReturnModalAsset(null);
+                  }}
+                >
+                  {returnAssetMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  )}
+                  Confirm Asset Return
                 </Button>
               </DialogFooter>
             </div>

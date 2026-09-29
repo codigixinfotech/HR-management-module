@@ -2,6 +2,8 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { AssetsService } from './assets.service';
 import { AllocateAssetDto, CreateAssetDto, ReturnAssetDto, UpdateAssetDto } from './dto/asset.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('asset-management/assets')
 export class AssetsController {
@@ -9,8 +11,12 @@ export class AssetsController {
 
   @Get()
   @Permissions('asset_management.read')
-  list(@Query('companyId') companyId?: string) {
-    return this.assetsService.list(companyId);
+  list(
+    @CurrentUser() user?: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+  ) {
+    const effectiveCompanyId = getTenantCompanyId(user, companyId);
+    return this.assetsService.list(effectiveCompanyId);
   }
 
   @Get(':id')

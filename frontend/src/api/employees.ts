@@ -81,4 +81,20 @@ export const employeesApi = {
     (await apiClient.post(`/employees/transfers/${id}/reject`, payload)).data,
   makeTransferEffective: async (id: string) => (await apiClient.post(`/employees/transfers/${id}/effective`)).data,
   cancelTransfer: async (id: string) => (await apiClient.post(`/employees/transfers/${id}/cancel`)).data,
+
+  sendMilestoneWish: async (payload: {
+    employeeId: string;
+    recipientEmail: string;
+    recipientName: string;
+    milestoneType: 'birthday' | 'anniversary';
+    milestoneTitle: string;
+    subject: string;
+    message: string;
+  }) =>
+    (
+      await apiClient.post<{ success: boolean; message: string; messageId?: string }>(
+        '/employees/send-milestone-wish',
+        payload
+      )
+    ).data,
 };

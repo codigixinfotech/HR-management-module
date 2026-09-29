@@ -131,7 +131,7 @@ const getAssetAssignmentSummary = (a: Asset) => {
         ? `Storage: ${a.physicalLocation}`
         : a.branch?.name
         ? `Warehouse: ${a.branch.name}`
-        : 'Available in warehouse store',
+        : 'Head Office Store',
     };
   }
 
@@ -141,21 +141,21 @@ const getAssetAssignmentSummary = (a: Asset) => {
     return {
       type: 'EMPLOYEE' as const,
       title: `${emp.firstName} ${emp.lastName || ''}${code}`.trim(),
-      subtitle: a.branch?.name ? `Branch: ${a.branch.name}` : 'Employee Custody',
+      subtitle: a.branch?.name ? `Branch: ${a.branch.name}` : 'Head Office',
     };
   }
   if (a.currentEmployeeId || assignType === 'EMPLOYEE') {
     return {
       type: 'EMPLOYEE' as const,
       title: a.currentEmployeeId ? `Employee (${a.currentEmployeeId.substring(0, 8)})` : 'Employee Custody',
-      subtitle: a.branch?.name ? `Branch: ${a.branch.name}` : 'Employee Custody',
+      subtitle: a.branch?.name ? `Branch: ${a.branch.name}` : 'Head Office',
     };
   }
   if (assignType === 'LOCATION' || a.branch || a.branchId || a.physicalLocation) {
     return {
       type: 'LOCATION' as const,
-      title: a.branch?.name || 'Plant / Facility',
-      subtitle: `${a.department?.name ? `${a.department.name} · ` : ''}${a.physicalLocation || 'Facility Area'}`,
+      title: a.branch?.name || 'Head Office',
+      subtitle: `${a.department?.name ? `${a.department.name} · ` : ''}${a.physicalLocation || 'Corporate HQ'}`,
     };
   }
   if (assignType === 'DEPARTMENT' || a.department || a.departmentId) {
@@ -168,7 +168,7 @@ const getAssetAssignmentSummary = (a: Asset) => {
   return {
     type: 'UNASSIGNED' as const,
     title: 'In Stock / Spares',
-    subtitle: a.branch?.name ? `Warehouse: ${a.branch.name}` : 'Available in warehouse store',
+    subtitle: a.branch?.name ? `Warehouse: ${a.branch.name}` : 'Head Office Store',
   };
 };
 
@@ -221,7 +221,7 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
   const [targetCompanyId, setTargetCompanyId] = useState(companyId || '');
   const [assignmentType, setAssignmentType] = useState<'LOCATION' | 'DEPARTMENT' | 'EMPLOYEE' | 'UNASSIGNED'>('LOCATION');
   const [currentEmployeeId, setCurrentEmployeeId] = useState('');
-  const [branchId, setBranchId] = useState('');
+  const [branchId, setBranchId] = useState('NONE');
   const [departmentId, setDepartmentId] = useState('');
   const [assetTag, setAssetTag] = useState('');
   const [name, setName] = useState('');
@@ -276,6 +276,67 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
     enabled: !!activeCompId,
   });
   const employees = employeesPage?.items ?? [];
+
+  // Filter departments by active company and selected branchId (Head Office vs specific branch)
+  const availableDepartments = useMemo(() => {
+    if (!departments || departments.length === 0) return [];
+    const filtered = departments.filter((d: any) => {
+      // 1. Strictly match active company context
+      if (d.companyId && activeCompId && d.companyId !== activeCompId) return false;
+
+      // 2. Head Office / No Branch selected:
+      // Show ONLY departments that do not have a branchId (corporate / HQ departments)
+      if (branchId === 'NONE' || !branchId || branchId === 'HEAD_OFFICE') {
+        return !d.branchId || d.branchId === 'NONE' || d.branchId === 'HEAD_OFFICE';
+      }
+
+      // 3. Specific Branch selected (e.g. Cravita B or Branch D):
+      // Show ONLY departments belonging to that specific branch
+      return d.branchId === branchId;
+    });
+
+    // If editing existing asset and it has an assigned department, ensure it is preserved
+    if (isEditOpen && selectedAsset?.departmentId) {
+      const currentDept = departments.find((d: any) => d.id === selectedAsset.departmentId);
+      if (currentDept && !filtered.some((d: any) => d.id === currentDept.id)) {
+        filtered.push(currentDept);
+      }
+    }
+
+    return filtered;
+  }, [departments, activeCompId, branchId, isEditOpen, selectedAsset]);
+
+  // Filter employees by active company and selected branchId (Head Office vs specific branch)
+  const availableEmployees = useMemo(() => {
+    if (!employees || employees.length === 0) return [];
+    const filtered = employees.filter((emp: any) => {
+      // 1. Strictly match active company context
+      if (emp.companyId && activeCompId && emp.companyId !== activeCompId) return false;
+
+      // 2. Active status check (cannot allocate new asset to exited employee)
+      if (emp.status && emp.status !== 'ACTIVE' && emp.dateOfExit) return false;
+
+      // 3. Head Office / No Branch selected:
+      // Show ONLY employees that have no branchId or explicit head office
+      if (branchId === 'NONE' || !branchId || branchId === 'HEAD_OFFICE') {
+        return !emp.branchId || emp.branchId === 'NONE' || emp.branchId === 'HEAD_OFFICE';
+      }
+
+      // 4. Specific Branch selected (e.g. Cravita C, Cravita B, or Branch D):
+      // Show ONLY employees belonging to that specific branch
+      return emp.branchId === branchId;
+    });
+
+    // If editing existing asset and it has an assigned employee, ensure it is preserved
+    if (isEditOpen && selectedAsset?.currentEmployeeId) {
+      const currentEmp = employees.find((e: any) => e.id === selectedAsset.currentEmployeeId);
+      if (currentEmp && !filtered.some((e: any) => e.id === currentEmp.id)) {
+        filtered.push(currentEmp);
+      }
+    }
+
+    return filtered;
+  }, [employees, activeCompId, branchId, isEditOpen, selectedAsset]);
 
   const handleAssignmentTypeChange = (newType: 'LOCATION' | 'DEPARTMENT' | 'EMPLOYEE' | 'UNASSIGNED') => {
     setAssignmentType(newType);
@@ -417,17 +478,17 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
     return activeCats.length > 0 ? activeCats : companyCategories;
   }, [companyCategories, deactivatedCategories, isEditOpen, selectedAsset]);
 
-  // Auto-select first branch when branches load for the selected company
+  // Auto-select Head Office when opening add modal if unassigned
   useEffect(() => {
-    if (branches.length > 0 && !branchId && isAddOpen) {
-      setBranchId(branches[0].id);
+    if (!branchId && isAddOpen) {
+      setBranchId('NONE');
     }
-  }, [branches, branchId, isAddOpen]);
+  }, [branchId, isAddOpen]);
 
   // Handle Company change -> reset Branch & Department
   const handleCompanyChange = (newCompId: string) => {
     setTargetCompanyId(newCompId);
-    setBranchId('');
+    setBranchId('NONE');
     setDepartmentId('');
     if (formErrors.companyId || formErrors.branchId) {
       setFormErrors((prev) => {
@@ -450,7 +511,7 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
     setFormErrors({});
     const defaultCompId = (selectedCompanyFilter !== 'ALL' ? selectedCompanyFilter : '') || effectiveCompanyId || (companies[0]?.id ?? '');
     setTargetCompanyId(defaultCompId);
-    setBranchId(branches[0]?.id || '');
+    setBranchId('NONE');
     setDepartmentId('');
     setAssetTag('');
     setName('');
@@ -484,9 +545,7 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
     setTargetCompanyId(defaultCompId);
     setCategory(companyCategories[0] || 'General Asset');
     setSerialNumber(generateUniqueSerial());
-    if (branches.length > 0) {
-      setBranchId(branches[0].id);
-    }
+    setBranchId('NONE');
     setIsAddOpen(true);
   };
 
@@ -495,7 +554,7 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
     setActiveFormTab('basic');
     setFormErrors({});
     setTargetCompanyId(asset.companyId || companyId || (companies[0]?.id ?? ''));
-    setBranchId(asset.branchId || '');
+    setBranchId(asset.branchId || 'NONE');
     setDepartmentId(asset.departmentId || '');
     setAssetTag(asset.assetTag || '');
     setName(asset.name || '');
@@ -584,10 +643,12 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
       errors.companyId = 'Company / Entity is required.';
     }
 
-    if (assignmentType === 'LOCATION' && !branchId && branches.length > 0) {
-      errors.branchId = 'Branch / Location is required for Location Assignment.';
-    } else if (branches.length > 0 && branchId && !branches.some((b) => b.id === branchId)) {
-      errors.branchId = 'Selected branch does not belong to the selected company.';
+    if (assignmentType === 'LOCATION') {
+      if (!branchId) {
+        errors.branchId = 'Branch / Location is required for Location Assignment.';
+      } else if (branchId !== 'NONE' && branches.length > 0 && !branches.some((b) => b.id === branchId)) {
+        errors.branchId = 'Selected branch does not belong to the selected company.';
+      }
     }
 
     if (assignmentType === 'DEPARTMENT' && (!departmentId || departmentId === 'NONE') && departments.length > 0) {
@@ -795,17 +856,20 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
           : 'IN_STOCK'
         : status;
 
+    const targetBranchId = branchId === 'NONE' || !branchId ? null : branchId;
+    const targetDeptId = assignmentType === 'UNASSIGNED' ? null : (departmentId === 'NONE' || !departmentId ? null : departmentId);
+
     const payload = {
       companyId: activeCompId,
-      branchId: branchId || undefined,
-      departmentId: assignmentType === 'UNASSIGNED' ? null : (departmentId || undefined),
+      branchId: targetBranchId,
+      departmentId: targetDeptId,
       assetTag: assetTag.trim() || undefined,
       name: name.trim(),
       category: category.trim(),
       assetType: assignmentType,
       assignmentType,
       currentEmployeeId: assignmentType === 'EMPLOYEE' ? (currentEmployeeId || undefined) : null,
-      physicalLocation: physicalLocation.trim() || undefined,
+      physicalLocation: physicalLocation.trim() || (targetBranchId === null ? 'Head Office' : undefined),
       notes: notes.trim() || undefined,
       purchaseDate,
       value: Number(purchaseCost),
@@ -856,8 +920,9 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
   }, [assets, searchQuery, selectedCategory, selectedStatus, selectedCondition]);
 
   const currentBranchName = useMemo(() => {
+    if (branchId === 'NONE' || !branchId) return 'Head Office / No Branch';
     const b = branches.find((item) => item.id === branchId);
-    return b?.name || (branchId ? 'Plant / Branch' : 'Not assigned');
+    return b?.name || 'Head Office / No Branch';
   }, [branches, branchId]);
 
   const currentDeptName = useMemo(() => {
@@ -898,20 +963,17 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
               </CardDescription>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs font-semibold gap-1.5 border-border"
+                className="h-8 text-xs font-semibold gap-1.5 border-border whitespace-nowrap"
                 onClick={openCategoryConfig}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
                 <span>Configure Categories</span>
-                <Badge variant="secondary" className="text-[10px] ml-1 py-0 px-1.5 font-semibold text-primary bg-primary/10">
-                  {activeSectorName}
-                </Badge>
               </Button>
-              <Button size="sm" className="h-8 text-xs font-semibold gap-1.5" onClick={openAddDialog}>
+              <Button size="sm" className="h-8 text-xs font-semibold gap-1.5 whitespace-nowrap" onClick={openAddDialog}>
                 <Plus className="h-3.5 w-3.5" /> Register Asset
               </Button>
             </div>
@@ -1357,16 +1419,30 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
                       <div className="space-y-1">
                         <Label className="font-semibold">Branch / Plant Facility *</Label>
                         <Select
-                          value={branchId}
+                          value={branchId || 'NONE'}
                           onValueChange={(val) => {
                             setBranchId(val);
+                            if (val === 'NONE' && !physicalLocation) {
+                              setPhysicalLocation('Head Office');
+                            }
                             if (formErrors.branchId) setFormErrors((p) => { const n = { ...p }; delete n.branchId; return n; });
+                            // Auto-reset departmentId if current department doesn't belong to the newly selected branch
+                            if (departmentId && departmentId !== 'NONE') {
+                              const dept = departments.find((d) => d.id === departmentId);
+                              const isValid = val === 'NONE'
+                                ? (!dept?.branchId || dept.branchId === 'NONE' || dept.branchId === 'HEAD_OFFICE')
+                                : dept?.branchId === val;
+                              if (!isValid) setDepartmentId('');
+                            }
                           }}
                         >
                           <SelectTrigger className={`h-8 text-xs bg-background ${formErrors.branchId ? 'border-destructive' : ''}`}>
                             <SelectValue placeholder="Select Branch / Plant" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="NONE" className="text-xs text-muted-foreground italic font-medium">
+                              Head Office / No Branch
+                            </SelectItem>
                             {branches.map((b) => (
                               <SelectItem key={b.id} value={b.id} className="text-xs">
                                 {b.name} ({b.code})
@@ -1384,15 +1460,20 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
                         <Label className="font-semibold">Department Context</Label>
                         <Select value={departmentId} onValueChange={setDepartmentId}>
                           <SelectTrigger className="h-8 text-xs bg-background">
-                            <SelectValue placeholder="Select Department" />
+                            <SelectValue placeholder={availableDepartments.length === 0 ? "No departments available" : "Select Department"} />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="NONE">None / General Plant</SelectItem>
-                            {departments.map((d) => (
+                            {availableDepartments.map((d) => (
                               <SelectItem key={d.id} value={d.id} className="text-xs">
                                 {d.name} ({d.code})
                               </SelectItem>
                             ))}
+                            {availableDepartments.length === 0 && (
+                              <SelectItem value="__none_avail__" disabled className="text-xs text-muted-foreground italic">
+                                No departments in this {branchId === 'NONE' || !branchId ? 'Head Office' : 'Branch'}
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1408,17 +1489,31 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
                           onValueChange={(val) => {
                             setDepartmentId(val);
                             if (formErrors.departmentId) setFormErrors((p) => { const n = { ...p }; delete n.departmentId; return n; });
+                            // If a department is selected and is tied to a specific branch, auto-sync branchId
+                            const matched = departments.find((d) => d.id === val);
+                            if (matched) {
+                              if (matched.branchId) {
+                                setBranchId(matched.branchId);
+                              } else {
+                                setBranchId('NONE');
+                              }
+                            }
                           }}
                         >
                           <SelectTrigger className={`h-8 text-xs bg-background ${formErrors.departmentId ? 'border-destructive' : ''}`}>
-                            <SelectValue placeholder="Select Department" />
+                            <SelectValue placeholder={availableDepartments.length === 0 ? "No departments available" : "Select Department"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {departments.map((d) => (
+                            {availableDepartments.map((d) => (
                               <SelectItem key={d.id} value={d.id} className="text-xs">
                                 {d.name} ({d.code})
                               </SelectItem>
                             ))}
+                            {availableDepartments.length === 0 && (
+                              <SelectItem value="__none_avail__" disabled className="text-xs text-muted-foreground italic">
+                                No departments in this {branchId === 'NONE' || !branchId ? 'Head Office' : 'Branch'}
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                         {formErrors.departmentId && (
@@ -1429,11 +1524,27 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
                       </div>
                       <div className="space-y-1">
                         <Label className="font-semibold">Branch / Facility Context</Label>
-                        <Select value={branchId} onValueChange={setBranchId}>
+                        <Select
+                          value={branchId || 'NONE'}
+                          onValueChange={(val) => {
+                            setBranchId(val);
+                            // Auto-reset departmentId if current department doesn't belong to the newly selected branch
+                            if (departmentId && departmentId !== 'NONE') {
+                              const dept = departments.find((d) => d.id === departmentId);
+                              const isValid = val === 'NONE'
+                                ? (!dept?.branchId || dept.branchId === 'NONE' || dept.branchId === 'HEAD_OFFICE')
+                                : dept?.branchId === val;
+                              if (!isValid) setDepartmentId('');
+                            }
+                          }}
+                        >
                           <SelectTrigger className="h-8 text-xs bg-background">
                             <SelectValue placeholder="Select Branch" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="NONE" className="text-xs text-muted-foreground italic font-medium">
+                              Head Office / Corporate
+                            </SelectItem>
                             {branches.map((b) => (
                               <SelectItem key={b.id} value={b.id} className="text-xs">
                                 {b.name} ({b.code})
@@ -1454,17 +1565,31 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
                           onValueChange={(val) => {
                             setCurrentEmployeeId(val);
                             if (formErrors.currentEmployeeId) setFormErrors((p) => { const n = { ...p }; delete n.currentEmployeeId; return n; });
+                            // Auto-sync branchId if selected employee belongs to a branch
+                            const matched = employees.find((e) => e.id === val);
+                            if (matched) {
+                              if (matched.branchId) {
+                                setBranchId(matched.branchId);
+                              } else {
+                                setBranchId('NONE');
+                              }
+                            }
                           }}
                         >
                           <SelectTrigger className={`h-8 text-xs bg-background ${formErrors.currentEmployeeId ? 'border-destructive' : ''}`}>
-                            <SelectValue placeholder="Select Employee" />
+                            <SelectValue placeholder={availableEmployees.length === 0 ? "No employees for this branch" : "Select Employee"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {employees.map((emp) => (
+                            {availableEmployees.map((emp) => (
                               <SelectItem key={emp.id} value={emp.id} className="text-xs font-semibold">
                                 {emp.firstName} {emp.lastName || ''} ({emp.employeeCode || emp.id.substring(0, 6)})
                               </SelectItem>
                             ))}
+                            {availableEmployees.length === 0 && (
+                              <SelectItem value="__none_emp__" disabled className="text-xs text-muted-foreground italic">
+                                No employees in this {branchId === 'NONE' || !branchId ? 'Head Office' : 'Branch'}
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                         {formErrors.currentEmployeeId && (
@@ -1475,11 +1600,27 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
                       </div>
                       <div className="space-y-1">
                         <Label className="font-semibold">Branch / Office Context</Label>
-                        <Select value={branchId} onValueChange={setBranchId}>
+                        <Select
+                          value={branchId || 'NONE'}
+                          onValueChange={(val) => {
+                            setBranchId(val);
+                            // Auto-reset currentEmployeeId if current employee doesn't belong to the newly selected branch
+                            if (currentEmployeeId) {
+                              const emp = employees.find((e) => e.id === currentEmployeeId);
+                              const isValid = val === 'NONE'
+                                ? (!emp?.branchId || emp.branchId === 'NONE' || emp.branchId === 'HEAD_OFFICE')
+                                : emp?.branchId === val;
+                              if (!isValid) setCurrentEmployeeId('');
+                            }
+                          }}
+                        >
                           <SelectTrigger className="h-8 text-xs bg-background">
                             <SelectValue placeholder="Select Branch" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="NONE" className="text-xs text-muted-foreground italic font-medium">
+                              Head Office / Corporate
+                            </SelectItem>
                             {branches.map((b) => (
                               <SelectItem key={b.id} value={b.id} className="text-xs">
                                 {b.name} ({b.code})
@@ -1495,11 +1636,14 @@ export function AssetsTab({ companyId }: { companyId?: string }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div className="space-y-1">
                         <Label className="font-semibold">Storage Branch / Warehouse</Label>
-                        <Select value={branchId} onValueChange={setBranchId}>
+                        <Select value={branchId || 'NONE'} onValueChange={setBranchId}>
                           <SelectTrigger className="h-8 text-xs bg-background">
                             <SelectValue placeholder="Select Warehouse / Branch" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="NONE" className="text-xs text-muted-foreground italic font-medium">
+                              Head Office / Central Store
+                            </SelectItem>
                             {branches.map((b) => (
                               <SelectItem key={b.id} value={b.id} className="text-xs">
                                 {b.name} ({b.code})

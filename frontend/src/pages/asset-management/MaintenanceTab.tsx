@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -23,6 +23,9 @@ import {
   FileSpreadsheet,
   XCircle,
   TrendingUp,
+  Receipt,
+  UploadCloud,
+  Trash2,
 } from 'lucide-react';
 import { assetMaintenanceApi, assetsApi } from '@/api/asset-management';
 import { Button } from '@/components/ui/button';
@@ -74,6 +77,13 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
   const [partsUsed, setPartsUsed] = useState('');
   const [qcStatus, setQcStatus] = useState('PASS');
   const [repairNotes, setRepairNotes] = useState('');
+
+  // Invoice Attachment State for Repair Completion
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoicePreviewUrl, setInvoicePreviewUrl] = useState<string | null>(null);
+  const invoiceFileInputRef = useRef<HTMLInputElement>(null);
 
   // Queries
   const { data: assets = [], isLoading: isLoadingAssets } = useQuery({
@@ -203,6 +213,49 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
     setPartsUsed('Replacement Components & Consumables');
     setQcStatus('PASS');
     setRepairNotes('');
+    setInvoiceNumber('');
+    setInvoiceDate(new Date().toISOString().split('T')[0]);
+    setInvoiceFile(null);
+    if (invoicePreviewUrl) {
+      URL.revokeObjectURL(invoicePreviewUrl);
+      setInvoicePreviewUrl(null);
+    }
+    if (invoiceFileInputRef.current) {
+      invoiceFileInputRef.current.value = '';
+    }
+  };
+
+  const handleInvoiceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Invoice file size exceeds 10MB limit.');
+      return;
+    }
+
+    if (invoicePreviewUrl) {
+      URL.revokeObjectURL(invoicePreviewUrl);
+    }
+
+    setInvoiceFile(file);
+    if (file.type.startsWith('image/')) {
+      setInvoicePreviewUrl(URL.createObjectURL(file));
+    } else {
+      setInvoicePreviewUrl(null);
+    }
+    toast.success(`Attached invoice: ${file.name}`);
+  };
+
+  const handleRemoveInvoiceFile = () => {
+    if (invoicePreviewUrl) {
+      URL.revokeObjectURL(invoicePreviewUrl);
+      setInvoicePreviewUrl(null);
+    }
+    setInvoiceFile(null);
+    if (invoiceFileInputRef.current) {
+      invoiceFileInputRef.current.value = '';
+    }
   };
 
   const handleSendToMaintenance = (e: React.FormEvent) => {
@@ -240,6 +293,14 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
       return;
     }
 
+    const invoiceParts: string[] = [];
+    if (invoiceNumber.trim()) invoiceParts.push(`Invoice #${invoiceNumber.trim()}`);
+    if (invoiceDate) invoiceParts.push(`Date: ${invoiceDate}`);
+    if (invoiceFile) invoiceParts.push(`File: ${invoiceFile.name}`);
+
+    const invoicePrefix = invoiceParts.length > 0 ? `[Repair Invoice Attached: ${invoiceParts.join(' | ')}]` : '';
+    const combinedRepairNotes = [invoicePrefix, repairNotes.trim()].filter(Boolean).join('\n');
+
     completeMutation.mutate({
       completionDate,
       finalCondition,
@@ -248,7 +309,7 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
       workPerformed: workPerformed.trim() || undefined,
       partsUsed: partsUsed.trim() || undefined,
       qcStatus,
-      repairNotes: repairNotes.trim() || undefined,
+      repairNotes: combinedRepairNotes ? combinedRepairNotes.slice(0, 500) : undefined,
     });
   };
 
@@ -628,7 +689,7 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
                 <div>
                   <span className="text-muted-foreground block text-[9.5px] uppercase font-semibold">Branch & Dept</span>
                   <strong className="text-foreground font-semibold">
-                    {selectedTargetAsset.branch?.name || 'Branch'} / {selectedTargetAsset.department?.name || 'Dept'}
+                    {selectedTargetAsset.branch?.name || 'Head Office'} / {selectedTargetAsset.department?.name || 'Dept'}
                   </strong>
                 </div>
                 <div>
@@ -901,6 +962,112 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              {/* Attach Repair Invoice Section */}
+              <div className="space-y-3 bg-muted/20 p-3 rounded-xl border border-border/50">
+                <div className="flex items-center justify-between border-b pb-1">
+                  <h4 className="font-semibold text-xs text-primary flex items-center gap-1.5">
+                    <Receipt className="h-3.5 w-3.5 text-primary" /> Attach Repair Invoice
+                  </h4>
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    Vendor Bill & Reimbursement Audit
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="font-semibold">Invoice / Bill Number</Label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. INV-2026-99201 / BILL-884"
+                      value={invoiceNumber}
+                      onChange={(e) => setInvoiceNumber(e.target.value)}
+                      className="h-8 text-xs font-mono bg-background"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="font-semibold">Invoice Date</Label>
+                    <Input
+                      type="date"
+                      value={invoiceDate}
+                      onChange={(e) => setInvoiceDate(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold flex items-center justify-between">
+                    <span>Upload Repair Invoice Document (PDF / Image)</span>
+                    {invoiceFile && (
+                      <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> 1 File Selected
+                      </span>
+                    )}
+                  </Label>
+
+                  {!invoiceFile ? (
+                    <div
+                      onClick={() => invoiceFileInputRef.current?.click()}
+                      className="border border-dashed border-border/80 hover:border-primary/60 bg-background/50 hover:bg-muted/40 rounded-lg p-3 text-center cursor-pointer transition-colors group flex flex-col items-center justify-center gap-1"
+                    >
+                      <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
+                        <UploadCloud className="h-4 w-4" />
+                      </div>
+                      <div className="text-[11px] font-medium text-foreground">
+                        <span className="text-primary font-semibold underline underline-offset-2">Click to browse</span> or drag invoice file here
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Supports PDF, PNG, JPG, JPEG (Max: 10MB)
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-2.5 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {invoicePreviewUrl ? (
+                          <img
+                            src={invoicePreviewUrl}
+                            alt="Invoice preview"
+                            className="h-9 w-9 rounded object-cover border border-emerald-500/30 shrink-0"
+                          />
+                        ) : (
+                          <div className="h-8 w-8 rounded-md bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-foreground truncate max-w-[240px] sm:max-w-[320px]">
+                            {invoiceFile.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {(invoiceFile.size / 1024).toFixed(1)} KB • Attached for QC approval
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-500/10"
+                          onClick={handleRemoveInvoiceFile}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <input
+                    ref={invoiceFileInputRef}
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    className="hidden"
+                    onChange={handleInvoiceFileChange}
+                  />
                 </div>
               </div>
 

@@ -756,17 +756,20 @@ export class ExitsService implements OnModuleInit {
   async completeExit(id: string, performedBy?: string) {
     const exit = await this.findOne(id);
 
-    // Gate 1: Check Mandatory / Required Clearance Items
+    // Gate 1: Auto-clear any remaining departmental/system clearance checklist items
     const pendingMandatory = (exit.clearanceItems || []).filter(
       (i) => i.status === 'PENDING' && !i.remarks?.includes('[OPTIONAL]'),
     );
     if (pendingMandatory.length > 0) {
-      const itemsList = pendingMandatory
-        .map((i) => `• ${i.itemLabel} — ${i.department}`)
-        .join('\n');
-      throw new BadRequestException(
-        `FINAL SIGNOFF BLOCKED\n\n${pendingMandatory.length} mandatory clearance item(s) pending:\n${itemsList}`,
-      );
+      await this.prisma.exitClearanceItem.updateMany({
+        where: { exitId: id, status: 'PENDING' },
+        data: {
+          status: 'CLEARED',
+          verifiedBy: performedBy || 'Final Exit Signoff Gate',
+          verifiedAt: new Date(),
+          remarks: 'Auto-cleared as part of final separation signoff',
+        },
+      });
     }
 
     // Gate 2: Check Exit Interview questionnaire
@@ -783,7 +786,7 @@ export class ExitsService implements OnModuleInit {
       );
     }
 
-    const lastWorkingDay = exit.adjustedLwd || exit.lastWorkingDay;
+    const lastWorkingDay = new Date(exit.adjustedLwd || exit.lastWorkingDay || new Date());
     const nextEmpStatus = exit.exitType === 'TERMINATION' ? 'TERMINATED' : 'EXITED';
 
     // Transition Exit status to EXITED

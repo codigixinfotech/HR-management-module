@@ -12,6 +12,10 @@ export class AssetsService {
     branch: { select: { id: true, name: true, code: true } },
     department: { select: { id: true, name: true, code: true } },
     currentEmployee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } },
+    allocations: {
+      include: { employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } } },
+      orderBy: { allocatedAt: 'desc' as const },
+    },
   };
 
   list(companyId?: string) {
@@ -27,10 +31,6 @@ export class AssetsService {
       where: { id },
       include: {
         ...this.listInclude,
-        allocations: {
-          include: { employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } } },
-          orderBy: { allocatedAt: 'desc' },
-        },
         maintenanceLogs: { orderBy: { startDate: 'desc' } },
       },
     });
@@ -94,8 +94,8 @@ export class AssetsService {
     return this.prisma.asset.create({
       data: {
         companyId: dto.companyId,
-        branchId: dto.branchId || null,
-        departmentId: dto.departmentId || null,
+        branchId: dto.branchId && dto.branchId !== 'NONE' ? dto.branchId : null,
+        departmentId: dto.departmentId && dto.departmentId !== 'NONE' ? dto.departmentId : null,
         currentEmployeeId: computedEmployeeId,
         assetTag,
         name: dto.name,
@@ -143,11 +143,22 @@ export class AssetsService {
       }
     }
 
-    const { companyId, status, purchaseDate, warrantyStart, warrantyExpiry, assignmentType, currentEmployeeId, ...rest } = dto;
+    const { companyId, status, purchaseDate, warrantyStart, warrantyExpiry, assignmentType, currentEmployeeId, branchId, ...rest } = dto;
 
     let targetStatus: AssetStatus | undefined = undefined;
     let updateEmployeeId: string | null | undefined = currentEmployeeId !== undefined ? currentEmployeeId || null : undefined;
-    let updateDepartmentId: string | null | undefined = rest.departmentId !== undefined ? rest.departmentId || null : undefined;
+    let updateDepartmentId: string | null | undefined =
+      rest.departmentId !== undefined
+        ? rest.departmentId && rest.departmentId !== 'NONE'
+          ? rest.departmentId
+          : null
+        : undefined;
+    let updateBranchId: string | null | undefined =
+      branchId !== undefined
+        ? branchId && branchId !== 'NONE'
+          ? branchId
+          : null
+        : undefined;
     let computedAssetType: string | undefined = assignmentType || rest.assetType;
 
     if (assignmentType === 'LOCATION') {
@@ -179,6 +190,7 @@ export class AssetsService {
         ...(computedAssetType ? { assetType: computedAssetType } : {}),
         ...(updateEmployeeId !== undefined ? { currentEmployeeId: updateEmployeeId } : {}),
         ...(updateDepartmentId !== undefined ? { departmentId: updateDepartmentId } : {}),
+        ...(updateBranchId !== undefined ? { branchId: updateBranchId } : {}),
         ...(companyId ? { companyId } : {}),
         ...(targetStatus ? { status: targetStatus } : {}),
         purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
@@ -209,7 +221,7 @@ export class AssetsService {
       throw new BadRequestException('Selected employee is inactive and cannot receive an asset.');
     }
     if (employee.companyId !== asset.companyId) {
-      throw new BadRequestException('Selected employee does not belong to this company.');
+      throw new BadRequestException('Selected employee and asset belong to different companies.');
     }
 
     const allocatedAt = dto.allocationDate ? new Date(dto.allocationDate) : new Date();

@@ -20,10 +20,17 @@ import {
   Sparkles,
   ExternalLink,
   GitFork,
+  Cake,
+  Award,
+  PartyPopper,
+  Gift,
+  Mail,
+  Copy,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Pagination } from '@/components/common/Pagination';
@@ -34,6 +41,7 @@ import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
 import { isSuperAdminUser, isCompanyAdminUser, isBranchAdminUser } from '@/lib/modules';
 import type { Employee } from '@/api/types';
+import { SendMilestoneWishModal } from './SendMilestoneWishModal';
 
 // Vibrant Curated Color Palette for Charts
 const CHART_COLORS = [
@@ -65,6 +73,138 @@ function calculateAgeYears(dobStr?: string | null): number | null {
   const diffMs = Math.max(0, Date.now() - dob.getTime());
   const years = diffMs / (1000 * 60 * 60 * 24 * 365.25);
   return Math.floor(years);
+}
+
+export interface MilestoneItem {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  workEmail?: string | null;
+  departmentName: string;
+  designationTitle: string;
+  type: 'birthday' | 'anniversary';
+  eventDate: Date;
+  daysAway: number;
+  isToday: boolean;
+  yearsCount?: number;
+  milestoneTitle: string;
+  formattedDate: string;
+}
+
+function getMilestoneSuffix(n: number): string {
+  if (n % 100 >= 11 && n % 100 <= 13) return 'th';
+  switch (n % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
+  }
+}
+
+function computeUpcomingMilestones(
+  employeesList: Employee[],
+  referenceDate: Date = new Date()
+): { birthdays: MilestoneItem[]; anniversaries: MilestoneItem[]; all: MilestoneItem[] } {
+  const birthdays: MilestoneItem[] = [];
+  const anniversaries: MilestoneItem[] = [];
+
+  const today = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const curYear = today.getFullYear();
+
+  employeesList.forEach((emp) => {
+    // 1. Birthday computation
+    if (emp.dateOfBirth) {
+      const dob = new Date(emp.dateOfBirth);
+      if (!isNaN(dob.getTime())) {
+        const bMonth = dob.getMonth();
+        const bDay = dob.getDate();
+
+        let candidateDate = new Date(curYear, bMonth, bDay);
+        if (candidateDate < today) {
+          candidateDate = new Date(curYear + 1, bMonth, bDay);
+        }
+
+        const diffTime = candidateDate.getTime() - today.getTime();
+        const daysAway = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        const isToday = daysAway === 0;
+        const turningAge = candidateDate.getFullYear() - dob.getFullYear();
+
+        birthdays.push({
+          id: `bday-${emp.id}`,
+          employeeId: emp.id,
+          employeeCode: emp.employeeCode,
+          firstName: emp.firstName,
+          lastName: emp.lastName,
+          fullName: `${emp.firstName} ${emp.lastName}`.trim(),
+          workEmail: emp.workEmail,
+          departmentName: emp.department?.name || 'General Operations',
+          designationTitle: emp.designation?.title || 'Staff Member',
+          type: 'birthday',
+          eventDate: candidateDate,
+          daysAway,
+          isToday,
+          yearsCount: turningAge > 0 ? turningAge : undefined,
+          milestoneTitle: turningAge > 0 ? `${turningAge}${getMilestoneSuffix(turningAge)} Birthday` : 'Birthday',
+          formattedDate: candidateDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+        });
+      }
+    }
+
+    // 2. Work Anniversary computation
+    const dojStr = (emp as any).dateOfJoining || emp.joiningDate;
+    if (dojStr) {
+      const doj = new Date(dojStr);
+      if (!isNaN(doj.getTime())) {
+        const jMonth = doj.getMonth();
+        const jDay = doj.getDate();
+
+        let candidateDate = new Date(curYear, jMonth, jDay);
+        if (candidateDate < today) {
+          candidateDate = new Date(curYear + 1, jMonth, jDay);
+        }
+
+        const diffTime = candidateDate.getTime() - today.getTime();
+        const daysAway = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        const isToday = daysAway === 0;
+        const yearsCompleted = candidateDate.getFullYear() - doj.getFullYear();
+
+        if (yearsCompleted >= 1) {
+          anniversaries.push({
+            id: `anniv-${emp.id}`,
+            employeeId: emp.id,
+            employeeCode: emp.employeeCode,
+            firstName: emp.firstName,
+            lastName: emp.lastName,
+            fullName: `${emp.firstName} ${emp.lastName}`.trim(),
+            workEmail: emp.workEmail,
+            departmentName: emp.department?.name || 'General Operations',
+            designationTitle: emp.designation?.title || 'Staff Member',
+            type: 'anniversary',
+            eventDate: candidateDate,
+            daysAway,
+            isToday,
+            yearsCount: yearsCompleted,
+            milestoneTitle: `${yearsCompleted}${getMilestoneSuffix(yearsCompleted)} Work Anniversary`,
+            formattedDate: candidateDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+          });
+        }
+      }
+    }
+  });
+
+  birthdays.sort((a, b) => a.daysAway - b.daysAway);
+  anniversaries.sort((a, b) => a.daysAway - b.daysAway);
+
+  const all = [...birthdays, ...anniversaries].sort((a, b) => a.daysAway - b.daysAway);
+
+  return { birthdays, anniversaries, all };
 }
 
 export function EmployeeReportsTab() {
@@ -101,6 +241,12 @@ export function EmployeeReportsTab() {
   // Interactive Onboarding Trend Chart Points
   const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null);
   const [selectedTrendIndex, setSelectedTrendIndex] = useState<number | null>(null);
+
+  // Milestone Celebrations Filter States: 'today' | 'tomorrow' | '14' | '30' | '90' | 'all'
+  const [milestoneWindow, setMilestoneWindow] = useState<'today' | 'tomorrow' | '14' | '30' | '90' | 'all'>('all');
+  const [milestoneType, setMilestoneType] = useState<'all' | 'birthday' | 'anniversary'>('all');
+  const [selectedMilestoneForWish, setSelectedMilestoneForWish] = useState<MilestoneItem | null>(null);
+  const [isWishModalOpen, setIsWishModalOpen] = useState(false);
 
   // Pagination for Drill-Down Roster
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -141,6 +287,43 @@ export function EmployeeReportsTab() {
 
     return rawEmployees;
   }, [rawEmployees, isSuperOrCompanyAdmin, selectedBranchFilter, apiBranches]);
+
+  // Compute Upcoming Milestones & Celebrations
+  const { birthdays, anniversaries, all: allUpcomingMilestones } = useMemo(() => {
+    return computeUpcomingMilestones(employees);
+  }, [employees]);
+
+  // Current active list based on milestoneType
+  const activeTypeList = useMemo(() => {
+    if (milestoneType === 'birthday') return birthdays;
+    if (milestoneType === 'anniversary') return anniversaries;
+    return allUpcomingMilestones;
+  }, [allUpcomingMilestones, birthdays, anniversaries, milestoneType]);
+
+  // Window counts for active type
+  const windowCounts = useMemo(() => {
+    return {
+      today: activeTypeList.filter((m) => m.daysAway === 0).length,
+      tomorrow: activeTypeList.filter((m) => m.daysAway === 1).length,
+      in14: activeTypeList.filter((m) => m.daysAway <= 14).length,
+      in30: activeTypeList.filter((m) => m.daysAway <= 30).length,
+      in90: activeTypeList.filter((m) => m.daysAway <= 90).length,
+      all: activeTypeList.length,
+    };
+  }, [activeTypeList]);
+
+  const filteredMilestones = useMemo(() => {
+    if (milestoneWindow === 'all') return activeTypeList;
+    if (milestoneWindow === 'today') return activeTypeList.filter((m) => m.daysAway === 0);
+    if (milestoneWindow === 'tomorrow') return activeTypeList.filter((m) => m.daysAway === 1);
+    const maxDays = Number(milestoneWindow);
+    return activeTypeList.filter((m) => m.daysAway <= maxDays);
+  }, [activeTypeList, milestoneWindow]);
+
+  const handleSendWish = (item: MilestoneItem) => {
+    setSelectedMilestoneForWish(item);
+    setIsWishModalOpen(true);
+  };
 
   // Fetch departments for master reference
   const { data: _apiDepartments = [] } = useQuery({
@@ -1051,6 +1234,412 @@ export function EmployeeReportsTab() {
         </Card>
       </div>
 
+      {/* ── 3.5. Workforce Celebrations & Milestones Showcase ── */}
+      <Card className="shadow-xs border-border/80 overflow-hidden">
+        <CardHeader className="py-3 px-4 sm:px-6 border-b border-border/60 bg-muted/20 space-y-2.5">
+          {/* Header Title Row */}
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <PartyPopper className="h-4 w-4 text-amber-500" />
+                  Workforce Celebrations & Milestones
+                </CardTitle>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                  <Sparkles className="h-3 w-3" /> Live Calendar
+                </span>
+              </div>
+              <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                Upcoming employee birthdays and company tenure work anniversaries
+              </CardDescription>
+            </div>
+          </div>
+
+          {/* Timeframe & Type Controls - Strictly All Buttons In One Single Line */}
+          <div className="flex flex-nowrap items-center justify-between gap-2 pt-1.5 border-t border-border/50 overflow-x-auto">
+            {/* Type Switcher Pills */}
+            <div className="flex flex-nowrap items-center rounded-lg border border-border bg-background p-0.5 text-xs shadow-2xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setMilestoneType('all')}
+                className={`px-2.5 py-1 rounded-md font-semibold whitespace-nowrap transition-all ${
+                  milestoneType === 'all'
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                All ({allUpcomingMilestones.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMilestoneType('birthday')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold whitespace-nowrap transition-all ${
+                  milestoneType === 'birthday'
+                    ? 'bg-rose-500 text-white shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Cake className="h-3 w-3" /> Birthdays ({birthdays.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMilestoneType('anniversary')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold whitespace-nowrap transition-all ${
+                  milestoneType === 'anniversary'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Award className="h-3 w-3" /> Anniversaries ({anniversaries.length})
+              </button>
+            </div>
+
+            {/* Timeframe Selector Pills with Today & Tomorrow */}
+            <div className="flex flex-nowrap items-center rounded-lg border border-border bg-background p-0.5 text-xs shadow-2xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setMilestoneWindow('today')}
+                className={`px-2 py-1 rounded-md font-medium text-[11px] whitespace-nowrap transition-all flex items-center gap-1 ${
+                  milestoneWindow === 'today'
+                    ? 'bg-muted text-foreground font-bold shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Today
+                <span
+                  className={`text-[9.5px] px-1 py-0 rounded-full font-mono ${
+                    windowCounts.today > 0 ? 'bg-emerald-500 text-white font-bold' : 'text-muted-foreground'
+                  }`}
+                >
+                  {windowCounts.today}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMilestoneWindow('tomorrow')}
+                className={`px-2 py-1 rounded-md font-medium text-[11px] whitespace-nowrap transition-all flex items-center gap-1 ${
+                  milestoneWindow === 'tomorrow'
+                    ? 'bg-muted text-foreground font-bold shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Tomorrow
+                <span
+                  className={`text-[9.5px] px-1 py-0 rounded-full font-mono ${
+                    windowCounts.tomorrow > 0 ? 'bg-primary text-primary-foreground font-bold' : 'text-muted-foreground'
+                  }`}
+                >
+                  {windowCounts.tomorrow}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMilestoneWindow('14')}
+                className={`px-2 py-1 rounded-md font-medium text-[11px] whitespace-nowrap transition-all ${
+                  milestoneWindow === '14'
+                    ? 'bg-muted text-foreground font-bold shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                14 Days
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMilestoneWindow('30')}
+                className={`px-2 py-1 rounded-md font-medium text-[11px] whitespace-nowrap transition-all ${
+                  milestoneWindow === '30'
+                    ? 'bg-muted text-foreground font-bold shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                30 Days
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMilestoneWindow('90')}
+                className={`px-2 py-1 rounded-md font-medium text-[11px] whitespace-nowrap transition-all ${
+                  milestoneWindow === '90'
+                    ? 'bg-muted text-foreground font-bold shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                90 Days
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMilestoneWindow('all')}
+                className={`px-2.5 py-1 rounded-md font-semibold text-[11px] whitespace-nowrap transition-all ${
+                  milestoneWindow === 'all'
+                    ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Full Year ({activeTypeList.length})
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Telemetry KPI Highlights (Interactive Click to Filter) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div
+              onClick={() => {
+                setMilestoneType('birthday');
+                setMilestoneWindow('all');
+              }}
+              className={`flex items-center gap-2.5 p-2 rounded-xl bg-background border transition-all cursor-pointer hover:border-rose-400 hover:shadow-xs ${
+                milestoneType === 'birthday' ? 'border-rose-500 ring-1 ring-rose-500/20 bg-rose-500/5' : 'border-border/70'
+              }`}
+              title="Click to view all upcoming birthdays"
+            >
+              <div className="h-7 w-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                <Cake className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground">Upcoming Birthdays</p>
+                <p className="text-sm font-bold text-foreground">{birthdays.length} Celebrations</p>
+              </div>
+            </div>
+
+            <div
+              onClick={() => {
+                setMilestoneType('anniversary');
+                setMilestoneWindow('all');
+              }}
+              className={`flex items-center gap-2.5 p-2 rounded-xl bg-background border transition-all cursor-pointer hover:border-amber-400 hover:shadow-xs ${
+                milestoneType === 'anniversary' ? 'border-amber-500 ring-1 ring-amber-500/20 bg-amber-500/5' : 'border-border/70'
+              }`}
+              title="Click to view all upcoming work anniversaries"
+            >
+              <div className="h-7 w-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                <Award className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground">Work Anniversaries</p>
+                <p className="text-sm font-bold text-foreground">{anniversaries.length} Milestones</p>
+              </div>
+            </div>
+
+            <div
+              onClick={() => {
+                setMilestoneWindow('today');
+              }}
+              className={`flex items-center gap-2.5 p-2 rounded-xl bg-background border transition-all cursor-pointer hover:border-emerald-400 hover:shadow-xs ${
+                milestoneWindow === 'today' ? 'border-emerald-500 ring-1 ring-emerald-500/20 bg-emerald-500/5' : 'border-border/70'
+              }`}
+              title="Click to filter celebrations happening today"
+            >
+              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                <Sparkles className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground">Celebrating Today</p>
+                <p className="text-sm font-bold text-foreground">
+                  {allUpcomingMilestones.filter((m) => m.isToday).length} Personnel
+                </p>
+              </div>
+            </div>
+
+            <div
+              onClick={() => {
+                setMilestoneType('all');
+                setMilestoneWindow('all');
+              }}
+              className="flex items-center gap-2.5 p-2 rounded-xl bg-background border border-border/70 transition-all cursor-pointer hover:border-primary hover:shadow-xs"
+              title="Click to view all upcoming milestones"
+            >
+              <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Calendar className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground">Next Milestone</p>
+                <p className="text-xs font-bold text-foreground truncate">
+                  {allUpcomingMilestones[0]
+                    ? `${allUpcomingMilestones[0].fullName} (${allUpcomingMilestones[0].formattedDate})`
+                    : 'None scheduled'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4 sm:p-5">
+          {filteredMilestones.length === 0 ? (
+            <div className="text-center py-8 px-4 bg-muted/20 border border-dashed border-border rounded-xl space-y-2.5">
+              <PartyPopper className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+              <p className="text-xs font-semibold text-foreground">
+                {milestoneWindow === 'today'
+                  ? 'No celebrations scheduled for Today'
+                  : milestoneWindow === 'tomorrow'
+                  ? 'No celebrations scheduled for Tomorrow'
+                  : `No upcoming milestones within the selected ${milestoneWindow === 'all' ? 'year' : `${milestoneWindow} days`}`}
+              </p>
+              <p className="text-[11px] text-muted-foreground max-w-md mx-auto">
+                {activeTypeList.length > 0 ? (
+                  <span>
+                    The next upcoming milestone is <strong>{activeTypeList[0].fullName}</strong> ({activeTypeList[0].milestoneTitle}) on{' '}
+                    <strong>{activeTypeList[0].formattedDate}</strong> ({activeTypeList[0].daysAway} days away).
+                  </span>
+                ) : (
+                  'No dates found for current employees. You can update employee DOB and Joining Date in Employee Master.'
+                )}
+              </p>
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                {activeTypeList.length > 0 && (
+                  <Button
+                    size="sm"
+                    className="h-7.5 text-xs font-semibold gap-1.5"
+                    onClick={() => setMilestoneWindow('all')}
+                  >
+                    View All {activeTypeList.length} {milestoneType === 'birthday' ? 'Birthdays' : milestoneType === 'anniversary' ? 'Anniversaries' : 'Milestones'} (Full Year)
+                  </Button>
+                )}
+                {milestoneType !== 'all' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7.5 text-xs font-semibold"
+                    onClick={() => {
+                      setMilestoneType('all');
+                      setMilestoneWindow('all');
+                    }}
+                  >
+                    View All Celebrations ({allUpcomingMilestones.length})
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {filteredMilestones.map((item) => {
+                const isBday = item.type === 'birthday';
+                const initials = ((item.firstName?.[0] || '') + (item.lastName?.[0] || '')).toUpperCase() || 'EMP';
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`relative p-3.5 rounded-xl border transition-all hover:shadow-md flex flex-col justify-between gap-3 ${
+                      item.isToday
+                        ? 'bg-gradient-to-br from-emerald-500/10 via-background to-card border-emerald-500/40 ring-1 ring-emerald-500/30'
+                        : isBday
+                        ? 'bg-gradient-to-br from-rose-500/5 via-background to-card border-rose-500/20 hover:border-rose-400/50'
+                        : 'bg-gradient-to-br from-amber-500/5 via-background to-card border-amber-500/20 hover:border-amber-400/50'
+                    }`}
+                  >
+                    <div>
+                      {/* Top Header: Badge & Days Count */}
+                      <div className="flex items-center justify-between gap-1.5 pb-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10.5px] font-bold gap-1 px-2 py-0.5 ${
+                            item.isToday
+                              ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 animate-pulse'
+                              : isBday
+                              ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                              : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                          }`}
+                        >
+                          {isBday ? <Cake className="h-3 w-3" /> : <Award className="h-3 w-3" />}
+                          {item.milestoneTitle}
+                        </Badge>
+
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                            item.isToday
+                              ? 'bg-emerald-500 text-white shadow-2xs'
+                              : item.daysAway <= 3
+                              ? 'bg-primary/10 text-primary border border-primary/20'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {item.isToday ? 'Today! 🎉' : item.daysAway === 1 ? 'Tomorrow' : `In ${item.daysAway} days`}
+                        </span>
+                      </div>
+
+                      {/* Employee Identification */}
+                      <div className="flex items-start gap-3 pt-1">
+                        <div
+                          className={`h-10 w-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 border shadow-2xs ${
+                            isBday
+                              ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                              : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                          }`}
+                        >
+                          {initials}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            to={`/employees/detail/${item.employeeId}`}
+                            className="font-bold text-xs text-foreground hover:text-primary transition-colors flex items-center gap-1 group"
+                          >
+                            <span className="truncate">{item.fullName}</span>
+                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
+                          </Link>
+                          <p className="text-[10.5px] text-muted-foreground truncate font-mono">
+                            {item.employeeCode}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 text-[10.5px] text-muted-foreground">
+                            <span className="flex items-center gap-1 truncate font-medium">
+                              <Building2 className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                              {item.departmentName}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 truncate">
+                              <Briefcase className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                              {item.designationTitle}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Footer */}
+                    <div className="flex items-center justify-between border-t border-border/50 pt-2.5 mt-1 text-xs">
+                      <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] font-mono">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                        <span>{item.formattedDate}</span>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className={`h-7 px-2.5 text-[11px] font-semibold gap-1.5 transition-all ${
+                          item.isToday
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
+                            : isBday
+                            ? 'text-rose-600 hover:text-rose-700 hover:bg-rose-500/10'
+                            : 'text-amber-600 hover:text-amber-700 hover:bg-amber-500/10'
+                        }`}
+                        onClick={() => handleSendWish(item)}
+                      >
+                        <Gift className="h-3 w-3" />
+                        <span>Send Wishes</span>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Send Milestone Wish Interactive Modal */}
+      <SendMilestoneWishModal
+        isOpen={isWishModalOpen}
+        onClose={() => {
+          setIsWishModalOpen(false);
+          setSelectedMilestoneForWish(null);
+        }}
+        milestone={selectedMilestoneForWish}
+      />
+
       {/* ── 4. Drill-Down Filter Toolbar & Roster Table ── */}
       <Card className="shadow-xs border-border/80">
         <CardHeader className="py-3 px-4 sm:px-6 border-b border-border/60 space-y-2">
@@ -1222,7 +1811,8 @@ export function EmployeeReportsTab() {
               </TableHeader>
               <TableBody>
                 {paginatedRoster.map(employee => {
-                  const tenure = calculateTenureYears(employee.joiningDate);
+                  const effectiveJoiningDate = employee.joiningDate || (employee as any).dateOfJoining;
+                  const tenure = calculateTenureYears(effectiveJoiningDate);
                   return (
                     <TableRow key={employee.id} className="hover:bg-muted/40 transition-colors">
                       <TableCell className="font-mono text-xs font-semibold text-primary">
@@ -1249,8 +1839,8 @@ export function EmployeeReportsTab() {
                       <TableCell className="text-xs text-muted-foreground font-mono">
                         <span className="flex items-center gap-1.5">
                           <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {employee.joiningDate
-                            ? new Date(employee.joiningDate).toLocaleDateString('en-US', {
+                          {effectiveJoiningDate
+                            ? new Date(effectiveJoiningDate).toLocaleDateString('en-US', {
                                 day: '2-digit',
                                 month: 'short',
                                 year: 'numeric',
