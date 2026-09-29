@@ -335,7 +335,7 @@ export class InterviewsService {
       whereClause.AND = andConditions;
     }
 
-    return this.prisma.candidateInterview.findMany({
+    const interviews = await this.prisma.candidateInterview.findMany({
       where: whereClause,
       include: {
         candidate: {
@@ -386,6 +386,17 @@ export class InterviewsService {
         },
       },
       orderBy: { interviewDate: 'asc' },
+    });
+
+    return interviews.map((interview) => {
+      const stage = (interview.candidate?.stage || '').toUpperCase();
+      const isOfferReleased = stage === 'OFFERED' || stage === 'HIRED' || stage === 'ONBOARDED';
+      const offerStatus = isOfferReleased ? 'RELEASED' : 'PENDING';
+      return {
+        ...interview,
+        offerStatus,
+        isOfferReleased,
+      };
     });
   }
 
@@ -443,7 +454,13 @@ export class InterviewsService {
       throw new NotFoundException(`Interview with ID ${id} not found`);
     }
 
-    return interview;
+    const stage = (interview.candidate?.stage || '').toUpperCase();
+    const isOfferReleased = stage === 'OFFERED' || stage === 'HIRED' || stage === 'ONBOARDED';
+    return {
+      ...interview,
+      offerStatus: isOfferReleased ? 'RELEASED' : 'PENDING',
+      isOfferReleased,
+    };
   }
 
   async updateSchedule(id: string, dto: UpdateInterviewScheduleDto) {

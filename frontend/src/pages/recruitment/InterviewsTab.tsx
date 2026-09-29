@@ -158,6 +158,57 @@ export function InterviewsTab() {
     setIsDetailsOpen(true);
   };
 
+  // Helper to verify if an offer has been released via DB, backend status, candidate stage, or local storage
+  const isCandidateOfferReleased = (item: any) => {
+    if (item.offerStatus === 'RELEASED' || item.isOfferReleased) return true;
+    const stage = (item.candidate?.stage || '').toUpperCase();
+    if (['OFFERED', 'HIRED', 'ONBOARDED'].includes(stage)) return true;
+    try {
+      const saved = localStorage.getItem('ehcm_recruitment_offers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const candName = item.candidate
+            ? `${item.candidate.firstName} ${item.candidate.lastName}`.toLowerCase().trim()
+            : '';
+          const match = parsed.some(
+            (o: any) =>
+              (item.candidateId && o.candidateId === item.candidateId) ||
+              (item.interviewCode && o.interviewCode === item.interviewCode) ||
+              (candName && o.candidate && o.candidate.toLowerCase().trim() === candName),
+          );
+          if (match) return true;
+        }
+      }
+    } catch {}
+    return false;
+  };
+
+  // Helper to verify if candidate has accepted the released offer
+  const isCandidateOfferAccepted = (item: any) => {
+    const stage = (item.candidate?.stage || '').toUpperCase();
+    if (stage === 'HIRED' || stage === 'ONBOARDED') return true;
+    try {
+      const saved = localStorage.getItem('ehcm_recruitment_offers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const candName = item.candidate
+            ? `${item.candidate.firstName} ${item.candidate.lastName}`.toLowerCase().trim()
+            : '';
+          const match = parsed.find(
+            (o: any) =>
+              (item.candidateId && o.candidateId === item.candidateId) ||
+              (item.interviewCode && o.interviewCode === item.interviewCode) ||
+              (candName && o.candidate && o.candidate.toLowerCase().trim() === candName),
+          );
+          if (match && match.status === 'ACCEPTED') return true;
+        }
+      }
+    } catch {}
+    return false;
+  };
+
   const statusBadge = (st: string) => {
     switch (st?.toUpperCase()) {
       case 'EVALUATED':
@@ -561,27 +612,47 @@ export function InterviewsTab() {
                             ) : null}
 
                             {item.status === 'SELECTED' && (
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1 shadow-xs"
-                                onClick={() => {
-                                  const candName = item.candidate
-                                    ? `${item.candidate.firstName} ${item.candidate.lastName}`
-                                    : 'Selected Candidate';
-                                  const urlParams = new URLSearchParams({
-                                    autoCreate: 'true',
-                                    candidateId: item.candidateId || '',
-                                    candidateName: candName,
-                                    candidateEmail: item.candidate?.email || 'candidate@example.com',
-                                    position: item.position || 'Product Designer',
-                                    requisitionCode: item.requisitionCode || 'JR-2026-001',
-                                    interviewCode: item.interviewCode || 'INT-2026-001',
-                                  });
-                                  navigate(`/recruitment/offers?${urlParams.toString()}`);
-                                }}
-                              >
-                                <FileSignature className="h-3.5 w-3.5" /> Release Offer
-                              </Button>
+                              isCandidateOfferReleased(item) ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    navigate('/recruitment/offers');
+                                  }}
+                                  className="h-7 text-xs border-emerald-500/50 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 font-bold gap-1.5 shadow-2xs cursor-pointer"
+                                  title="Official Offer Letter has been released. Click to view in Offers & Digital Onboarding."
+                                >
+                                  <FileCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  Offer Letter Released
+                                  {isCandidateOfferAccepted(item) && (
+                                    <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-semibold ml-0.5">
+                                      Accepted
+                                    </span>
+                                  )}
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1 shadow-xs cursor-pointer"
+                                  onClick={() => {
+                                    const candName = item.candidate
+                                      ? `${item.candidate.firstName} ${item.candidate.lastName}`
+                                      : 'Selected Candidate';
+                                    const urlParams = new URLSearchParams({
+                                      autoCreate: 'true',
+                                      candidateId: item.candidateId || '',
+                                      candidateName: candName,
+                                      candidateEmail: item.candidate?.email || 'candidate@example.com',
+                                      position: item.position || 'Product Designer',
+                                      requisitionCode: item.requisitionCode || 'JR-2026-001',
+                                      interviewCode: item.interviewCode || 'INT-2026-001',
+                                    });
+                                    navigate(`/recruitment/offers?${urlParams.toString()}`);
+                                  }}
+                                >
+                                  <FileSignature className="h-3.5 w-3.5" /> Release Offer
+                                </Button>
+                              )
                             )}
 
                             <Button

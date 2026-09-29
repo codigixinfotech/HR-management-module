@@ -532,36 +532,56 @@ export function InterviewDetailsModal({
                       <div className="flex items-center gap-2.5 text-emerald-800 dark:text-emerald-200">
                         <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                         <div>
-                          <span className="font-bold text-xs block">Candidate Selected for Offer</span>
+                          <span className="font-bold text-xs block">
+                            {(interview.offerStatus === 'RELEASED' || ['OFFERED', 'HIRED', 'ONBOARDED'].includes((interview.candidate?.stage || '').toUpperCase()))
+                              ? ((interview.candidate?.stage || '').toUpperCase() === 'HIRED' ? 'Offer Released & Candidate Accepted' : 'Official Offer Letter Released')
+                              : 'Candidate Selected for Offer'}
+                          </span>
                           <span className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
-                            Workflow: Selected for Offer → Offer Generation & Release → Joining / Onboarding
+                            {(interview.offerStatus === 'RELEASED' || ['OFFERED', 'HIRED', 'ONBOARDED'].includes((interview.candidate?.stage || '').toUpperCase()))
+                              ? 'Official offer letter has been generated and released for this candidate.'
+                              : 'Workflow: Selected for Offer → Offer Generation & Release → Joining / Onboarding'}
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="h-8 px-3.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-sm"
-                          onClick={() => {
-                            onClose();
-                            const candName = interview.candidate
-                              ? `${interview.candidate.firstName} ${interview.candidate.lastName}`
-                              : 'Selected Candidate';
-                            const urlParams = new URLSearchParams({
-                              autoCreate: 'true',
-                              candidateId: interview.candidateId || '',
-                              candidateName: candName,
-                              candidateEmail: interview.candidate?.email || 'candidate@example.com',
-                              position: interview.position || 'Product Designer',
-                              requisitionCode: interview.requisitionCode || 'JR-2026-001',
-                              interviewCode: interview.interviewCode || 'INT-2026-001',
-                            });
-                            navigate(`/recruitment/offers?${urlParams.toString()}`);
-                          }}
-                        >
-                          <FileSignature className="h-4 w-4" /> Proceed to Offers & Joining →
-                        </Button>
+                        {(interview.offerStatus === 'RELEASED' || ['OFFERED', 'HIRED', 'ONBOARDED'].includes((interview.candidate?.stage || '').toUpperCase())) ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-3.5 text-xs border-emerald-500/50 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 font-bold gap-1.5 shadow-2xs"
+                            onClick={() => {
+                              onClose();
+                              navigate('/recruitment/offers');
+                            }}
+                          >
+                            <FileCheck className="h-4 w-4 text-emerald-600" /> View Released Offer Letter →
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="h-8 px-3.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-sm"
+                            onClick={() => {
+                              onClose();
+                              const candName = interview.candidate
+                                ? `${interview.candidate.firstName} ${interview.candidate.lastName}`
+                                : 'Selected Candidate';
+                              const urlParams = new URLSearchParams({
+                                autoCreate: 'true',
+                                candidateId: interview.candidateId || '',
+                                candidateName: candName,
+                                candidateEmail: interview.candidate?.email || 'candidate@example.com',
+                                position: interview.position || 'Product Designer',
+                                requisitionCode: interview.requisitionCode || 'JR-2026-001',
+                                interviewCode: interview.interviewCode || 'INT-2026-001',
+                              });
+                              navigate(`/recruitment/offers?${urlParams.toString()}`);
+                            }}
+                          >
+                            <FileSignature className="h-4 w-4" /> Proceed to Offers & Joining →
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -892,7 +912,7 @@ export function InterviewDetailsModal({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-border/60 bg-card">
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <Label className="text-xs font-semibold">Technical Skills (1–5):</Label>
+                          <Label className="text-xs font-semibold">Job Skills (1–5):</Label>
                           <span className="font-bold text-primary font-mono">{techRating} ★</span>
                         </div>
                         <Slider
@@ -920,7 +940,7 @@ export function InterviewDetailsModal({
 
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <Label className="text-xs font-semibold">Problem Solving & Logic (1–5):</Label>
+                          <Label className="text-xs font-semibold">Problem Solving & Decision Making (1–5):</Label>
                           <span className="font-bold text-primary font-mono">{problemRating} ★</span>
                         </div>
                         <Slider
@@ -1075,7 +1095,7 @@ export function InterviewDetailsModal({
                         {/* Breakdown Grid */}
                         <div className="grid grid-cols-5 gap-2 text-[10px] text-center bg-muted/20 p-2 rounded-lg font-mono">
                           <div>
-                            <span className="text-muted-foreground block text-[9px]">Tech</span>
+                            <span className="text-muted-foreground block text-[9px]">Job Skills</span>
                             <strong>{ev.technicalSkills} ★</strong>
                           </div>
                           <div>
@@ -1083,7 +1103,7 @@ export function InterviewDetailsModal({
                             <strong>{ev.communication} ★</strong>
                           </div>
                           <div>
-                            <span className="text-muted-foreground block text-[9px]">Problem</span>
+                            <span className="text-muted-foreground block text-[9px]">Problem & Decision</span>
                             <strong>{ev.problemSolving} ★</strong>
                           </div>
                           <div>

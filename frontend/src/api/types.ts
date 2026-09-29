@@ -534,6 +534,8 @@ export interface CandidateInterview {
   jobOpening?: JobOpening;
   panelMembers: CandidateInterviewPanel[];
   evaluations: CandidateInterviewEvaluation[];
+  offerStatus?: 'RELEASED' | 'PENDING' | string;
+  isOfferReleased?: boolean;
 }
 
 export interface InterviewSummary {
