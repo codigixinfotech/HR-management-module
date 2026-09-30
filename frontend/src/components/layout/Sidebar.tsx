@@ -40,6 +40,7 @@ function normalizePath(p: string, isHrOrAdmin?: boolean) {
   if (base === '/employees') return isHrOrAdmin === false ? '/employees/transfers' : '/employees/directory';
   if (base === '/attendance-leave') return '/attendance-leave';
   if (base === '/dashboard') return '/dashboard/overview';
+  if (base === '/asset-management') return '/asset-management/master';
   return base;
 }
 

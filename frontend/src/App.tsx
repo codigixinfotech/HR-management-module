@@ -22,7 +22,11 @@ import PerformancePage from '@/pages/performance/PerformancePage';
 import LearningPage from '@/pages/learning/LearningPage';
 import CompensationBenefitsPage from '@/pages/compensation-benefits/CompensationBenefitsPage';
 import EmployeeExperiencePage from '@/pages/employee-experience/EmployeeExperiencePage';
-import AssetManagementPage from '@/pages/asset-management/AssetManagementPage';
+import AssetMasterPage from '@/pages/asset-management/AssetMasterPage';
+import AssetAllocationPage from '@/pages/asset-management/AssetAllocationPage';
+import AssetReturnPage from '@/pages/asset-management/AssetReturnPage';
+import AssetMaintenancePage from '@/pages/asset-management/AssetMaintenancePage';
+import AssetReportsPage from '@/pages/asset-management/AssetReportsPage';
 import TravelExpensePage from '@/pages/travel-expense/TravelExpensePage';
 import SafetyEhsPage from '@/pages/ehs/SafetyEhsPage';
 import AiIntelligencePage from '@/pages/ai-intelligence/AiIntelligencePage';
@@ -163,9 +167,13 @@ export default function App() {
               <Route path="/employee-experience" element={<EmployeeExperiencePage />} />
               <Route path="/employee-experience/:tab" element={<EmployeeExperiencePage />} />
 
-              {/* Assets Routes */}
-              <Route path="/asset-management" element={<AssetManagementPage />} />
-              <Route path="/asset-management/:tab" element={<AssetManagementPage />} />
+              {/* Assets Routes (Standalone Pages) */}
+              <Route path="/asset-management" element={<Navigate to="/asset-management/master" replace />} />
+              <Route path="/asset-management/master" element={<AssetMasterPage />} />
+              <Route path="/asset-management/allocation" element={<AssetAllocationPage />} />
+              <Route path="/asset-management/return" element={<AssetReturnPage />} />
+              <Route path="/asset-management/maintenance" element={<AssetMaintenancePage />} />
+              <Route path="/asset-management/reports" element={<AssetReportsPage />} />
 
               {/* Travel & Expense Routes */}
               <Route path="/travel-expense" element={<TravelExpensePage />} />
