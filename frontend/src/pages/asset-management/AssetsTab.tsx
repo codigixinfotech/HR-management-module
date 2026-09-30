@@ -860,28 +860,36 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
     }
   };
 
-  const handleSaveAsset = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveAsset = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
     if (isSubmitting || isSubmittingRef.current) {
       return;
     }
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
 
     if (!validateTab1()) {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
       setActiveFormTab('basic');
       return;
     }
     if (!validateTab2()) {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
       setActiveFormTab('purchase');
       return;
     }
     if (!validateTab3()) {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
       setActiveFormTab('status');
       return;
     }
 
-    isSubmittingRef.current = true;
-    setIsSubmitting(true);
+    let isSuccess = false;
+    let createdAsset: any = null;
 
     try {
       const targetStatus =
@@ -930,20 +938,22 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
 
       if (isEditOpen && selectedAsset) {
         await assetsApi.update(selectedAsset.id, payload);
+        toast.dismiss();
         toast.success('Asset Master updated successfully.');
         setIsEditOpen(false);
+        setSelectedAsset(null);
+        isSuccess = true;
       } else {
-        const created = await assetsApi.create(payload);
+        createdAsset = await assetsApi.create(payload);
+        toast.dismiss();
         toast.success('Asset registered successfully.');
         setIsAddOpen(false);
         resetForm();
-        if (created?.companyId && created.companyId !== selectedCompanyFilter) {
-          setSelectedCompanyFilter(created.companyId);
-        }
+        isSuccess = true;
       }
-      await queryClient.invalidateQueries({ queryKey: ['assets'] });
     } catch (err: any) {
       console.error('Failed to save asset:', err);
+      toast.dismiss();
       const rawMsg = err?.response?.data?.message;
       const errorText = Array.isArray(rawMsg)
         ? rawMsg.join(', ')
@@ -952,6 +962,13 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
+    }
+
+    if (isSuccess) {
+      queryClient.invalidateQueries({ queryKey: ['assets'] }).catch(() => {});
+      if (isSuperOrCompanyAdmin && selectedCompanyFilter !== 'ALL' && createdAsset?.companyId && createdAsset.companyId !== selectedCompanyFilter) {
+        setSelectedCompanyFilter(createdAsset.companyId);
+      }
     }
   };
 
