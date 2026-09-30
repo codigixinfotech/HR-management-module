@@ -287,8 +287,9 @@ export class AssetsService {
     if (!employee) {
       throw new BadRequestException('Employee is required.');
     }
-    if (employee.status !== 'ACTIVE') {
-      throw new BadRequestException('Selected employee is inactive and cannot receive an asset.');
+    const isExited = employee.status === 'EXITED' || employee.status === 'TERMINATED' || (employee.dateOfExit && new Date(employee.dateOfExit) <= new Date());
+    if (isExited) {
+      throw new BadRequestException('Selected employee is inactive/exited and cannot receive an asset.');
     }
     if (employee.companyId !== asset.companyId) {
       throw new BadRequestException('Selected employee and asset belong to different companies.');

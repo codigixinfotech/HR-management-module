@@ -126,8 +126,8 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
       if (targetCompId && e.companyId && e.companyId !== targetCompId) return false;
 
       // 2. Active Employee check (cannot allocate to exited/terminated employees)
-      const isActive = e.status === 'ACTIVE' || (!e.dateOfExit && e.status !== 'TERMINATED' && e.status !== 'RESIGNED');
-      if (!isActive) return false;
+      const isExited = e.status === 'EXITED' || e.status === 'TERMINATED' || (e.dateOfExit && new Date(e.dateOfExit) <= new Date());
+      if (isExited) return false;
 
       // 3. Branch filter
       if (isBranchAdmin && userAssignedBranchId) {
@@ -271,7 +271,8 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
     if (!employeeId) {
       errors.employeeId = 'Employee is required.';
     } else if (selectedEmp) {
-      if (selectedEmp.status && selectedEmp.status !== 'ACTIVE' && selectedEmp.dateOfExit) {
+      const isExited = selectedEmp.status === 'EXITED' || selectedEmp.status === 'TERMINATED' || (selectedEmp.dateOfExit && new Date(selectedEmp.dateOfExit) <= new Date());
+      if (isExited) {
         errors.employeeId = 'Selected employee is inactive and cannot receive an asset.';
       }
       if (selectedAsset.companyId && selectedEmp.companyId && selectedEmp.companyId !== selectedAsset.companyId) {

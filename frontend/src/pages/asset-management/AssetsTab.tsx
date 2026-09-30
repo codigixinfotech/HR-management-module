@@ -361,7 +361,8 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
       if (emp.companyId && activeCompId && emp.companyId !== activeCompId) return false;
 
       // 2. Active status check (cannot allocate new asset to exited employee)
-      if (emp.status && emp.status !== 'ACTIVE' && emp.dateOfExit) return false;
+      const isExited = emp.status === 'EXITED' || emp.status === 'TERMINATED' || (emp.dateOfExit && new Date(emp.dateOfExit) <= new Date());
+      if (isExited) return false;
 
       // 3. Head Office / No Branch selected:
       if (!isBranchAdmin && (activeBranchFilter === 'NONE' || !activeBranchFilter || activeBranchFilter === 'HEAD_OFFICE')) {
