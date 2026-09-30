@@ -12,7 +12,11 @@ const ADMIN_ONLY_ROUTES = [
   '/compliance',
   '/performance',
   '/workforce',
-  '/asset-management',
+  '/asset-management/master',
+  '/asset-management/allocation',
+  '/asset-management/return',
+  '/asset-management/maintenance',
+  '/asset-management/reports',
   '/ehs',
   '/ai-intelligence',
   '/iot-devices',
@@ -72,6 +76,10 @@ export function ProtectedRoute() {
   const isEmployee = !isHrOrAdmin && !isSuperAdmin && !isBranchAdmin && !isCompanyAdmin;
 
   // 1. Role Access Check
+  if (isEmployee && currentPath === '/asset-management') {
+    return <Navigate to="/asset-management/requests" replace />;
+  }
+
   const isAdminOnly =
     ADMIN_ONLY_ROUTES.some((route) => currentPath === route || currentPath.startsWith(`${route}/`)) ||
     (currentPath.startsWith('/employees') &&

@@ -11,6 +11,7 @@ import {
   User,
   Plus,
   Search,
+  RotateCcw,
 } from 'lucide-react';
 import { assetsApi } from '@/api/asset-management';
 import { employeesApi } from '@/api/employees';
@@ -53,6 +54,7 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
   const [selectedAssetId, setSelectedAssetId] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
 
   // Form Fields
   const [selectedBranchId, setSelectedBranchId] = useState<string>(
@@ -189,10 +191,17 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
     );
   }, [assets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches]);
 
+  const availableCategories = useMemo(() => {
+    return Array.from(new Set(assets.map((a) => a.category).filter(Boolean)));
+  }, [assets]);
+
   const filteredAllocations = useMemo(() => {
-    if (!searchQuery.trim()) return allocatedAssets;
-    const q = searchQuery.toLowerCase();
     return allocatedAssets.filter((a) => {
+      if (selectedCategory !== 'ALL' && a.category !== selectedCategory) {
+        return false;
+      }
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
       const activeAlloc = a.allocations?.find((al) => !al.returnedAt);
       const emp = activeAlloc?.employee || a.currentEmployee;
       const empName = emp
@@ -206,7 +215,7 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
         empName.includes(q)
       );
     });
-  }, [allocatedAssets, searchQuery]);
+  }, [allocatedAssets, searchQuery, selectedCategory]);
 
   const openNewAllocationModal = (preselectedAsset?: Asset) => {
     if (availableAssets.length === 0) {
@@ -348,9 +357,10 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <CardContent className="p-4 sm:p-6 space-y-4">
+          {/* ── Search & Filter Controls Bar ── */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 p-3 rounded-xl border border-border/60">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search allocations by employee, asset ID, serial..."
@@ -359,14 +369,43 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
                 className="pl-8 h-8 text-xs bg-background"
               />
             </div>
-            <AssetBranchFilter
-              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
-              isBranchAdmin={isBranchAdmin}
-              selectedBranch={selectedBranchFilter}
-              onBranchChange={setSelectedBranchFilter}
-              branches={branches}
-              assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <AssetBranchFilter
+                isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+                isBranchAdmin={isBranchAdmin}
+                selectedBranch={selectedBranchFilter}
+                onBranchChange={setSelectedBranchFilter}
+                branches={branches}
+                assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
+              />
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="h-8 text-xs w-[150px] bg-background">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Categories</SelectItem>
+                  {availableCategories.map((cat) => (
+                    <SelectItem key={cat} value={cat} className="text-xs">
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(searchQuery !== '' || selectedCategory !== 'ALL' || selectedBranchFilter !== (isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE')) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory('ALL');
+                    setSelectedBranchFilter(isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE');
+                  }}
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" /> Reset
+                </Button>
+              )}
+            </div>
           </div>
 
           <Table>

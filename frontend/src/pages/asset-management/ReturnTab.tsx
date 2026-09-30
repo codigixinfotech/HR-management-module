@@ -16,6 +16,7 @@ import {
   Info,
   Wrench,
   Search,
+  RotateCcw,
 } from 'lucide-react';
 import { assetsApi } from '@/api/asset-management';
 import { branchesApi } from '@/api/organization';
@@ -61,6 +62,7 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
     isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE'
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
 
   useEffect(() => {
     if (isBranchAdmin && userAssignedBranchId) {
@@ -95,6 +97,10 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
     enabled: !!effectiveCompanyId,
   });
 
+  const availableCategories = useMemo(() => {
+    return Array.from(new Set(assets.map((a) => a.category).filter(Boolean)));
+  }, [assets]);
+
   // Only assets allocated to employees appear in Employee Asset Return / Exit Clearance
   const allocatedAssets = useMemo(() => {
     return assets.filter((a) => {
@@ -102,6 +108,9 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
         return false;
       }
       if (!matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)) {
+        return false;
+      }
+      if (selectedCategory !== 'ALL' && a.category !== selectedCategory) {
         return false;
       }
       if (searchQuery.trim()) {
@@ -113,12 +122,13 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
           a.name.toLowerCase().includes(q) ||
           a.assetTag.toLowerCase().includes(q) ||
           (a.serialNumber && a.serialNumber.toLowerCase().includes(q)) ||
+          (a.category && a.category.toLowerCase().includes(q)) ||
           empName.includes(q)
         );
       }
       return true;
     });
-  }, [assets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches, searchQuery]);
+  }, [assets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches, searchQuery, selectedCategory]);
 
   const openReturnModal = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -224,9 +234,10 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 sm:p-6 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <CardContent className="p-4 sm:p-6 space-y-4">
+          {/* ── Search & Filter Controls Bar ── */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 p-3 rounded-xl border border-border/60">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search by asset tag, name, serial, or employee..."
@@ -235,14 +246,43 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
                 className="pl-8 h-8 text-xs bg-background"
               />
             </div>
-            <AssetBranchFilter
-              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
-              isBranchAdmin={isBranchAdmin}
-              selectedBranch={selectedBranchFilter}
-              onBranchChange={setSelectedBranchFilter}
-              branches={branches}
-              assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <AssetBranchFilter
+                isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+                isBranchAdmin={isBranchAdmin}
+                selectedBranch={selectedBranchFilter}
+                onBranchChange={setSelectedBranchFilter}
+                branches={branches}
+                assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
+              />
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="h-8 text-xs w-[150px] bg-background">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Categories</SelectItem>
+                  {availableCategories.map((cat) => (
+                    <SelectItem key={cat} value={cat} className="text-xs">
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(searchQuery !== '' || selectedCategory !== 'ALL' || selectedBranchFilter !== (isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE')) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory('ALL');
+                    setSelectedBranchFilter(isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE');
+                  }}
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" /> Reset
+                </Button>
+              )}
+            </div>
           </div>
 
           <Table>

@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { Asset, AssetMaintenanceRecord } from './types';
+import type { Asset, AssetMaintenanceRecord, AssetRequest } from './types';
 
 export const assetsApi = {
   list: async (companyId?: string, branchId?: string) =>
@@ -58,4 +58,44 @@ export const assetMaintenanceApi = {
       repairNotes?: string;
     }
   ) => (await apiClient.post<AssetMaintenanceRecord>(`/asset-management/maintenance/${id}/complete`, payload)).data,
+};
+
+export const assetRequestsApi = {
+  list: async (params?: {
+    companyId?: string;
+    branchId?: string;
+    status?: string;
+    category?: string;
+    employeeId?: string;
+  }) =>
+    (await apiClient.get<AssetRequest[]>('/asset-management/requests', { params })).data,
+  getMyRequests: async () =>
+    (await apiClient.get<AssetRequest[]>('/asset-management/requests/my-requests')).data,
+  getMyAssets: async () =>
+    (await apiClient.get<Asset[]>('/asset-management/requests/my-assets')).data,
+  get: async (id: string) =>
+    (await apiClient.get<AssetRequest>(`/asset-management/requests/${id}`)).data,
+  create: async (payload: Partial<AssetRequest>) =>
+    (await apiClient.post<AssetRequest>('/asset-management/requests', payload)).data,
+  update: async (id: string, payload: Partial<AssetRequest>) =>
+    (await apiClient.patch<AssetRequest>(`/asset-management/requests/${id}`, payload)).data,
+  review: async (
+    id: string,
+    payload: {
+      action: 'APPROVE' | 'REJECT' | 'SENT_BACK';
+      rejectionReason?: string;
+      remarks?: string;
+    }
+  ) => (await apiClient.post<AssetRequest>(`/asset-management/requests/${id}/review`, payload)).data,
+  markWaitingProcurement: async (id: string) =>
+    (await apiClient.post<AssetRequest>(`/asset-management/requests/${id}/waiting-procurement`)).data,
+  allocate: async (
+    id: string,
+    payload: {
+      assetId: string;
+      allocationDate?: string;
+      expectedReturnDate?: string;
+      allocationNotes?: string;
+    }
+  ) => (await apiClient.post<AssetRequest>(`/asset-management/requests/${id}/allocate`, payload)).data,
 };

@@ -20,6 +20,7 @@ import {
   Minus,
   CheckCircle2,
   GitFork,
+  RotateCcw,
 } from 'lucide-react';
 import { assetsApi, assetMaintenanceApi } from '@/api/asset-management';
 import { branchesApi } from '@/api/organization';
@@ -45,6 +46,7 @@ export function AssetReportsTab({ companyId, branchId: propBranchId }: { company
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(() =>
     isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE'
   );
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
   useEffect(() => {
     if (isBranchAdmin && userAssignedBranchId) {
@@ -64,11 +66,22 @@ export function AssetReportsTab({ companyId, branchId: propBranchId }: { company
     enabled: !!effectiveCompanyId,
   });
 
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    rawAssets.forEach((a) => {
+      if (a.category) set.add(a.category);
+    });
+    return Array.from(set);
+  }, [rawAssets]);
+
   const assets = useMemo(() => {
-    return rawAssets.filter((a) =>
-      matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)
-    );
-  }, [rawAssets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches]);
+    return rawAssets.filter((a) => {
+      const branchMatch = matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches);
+      if (!branchMatch) return false;
+      if (selectedCategory !== 'ALL' && a.category !== selectedCategory) return false;
+      return true;
+    });
+  }, [rawAssets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches, selectedCategory]);
 
   const { data: rawRecords = [] } = useQuery({
     queryKey: ['asset-maintenance', effectiveCompanyId, effectiveBranchId],
@@ -228,9 +241,37 @@ export function AssetReportsTab({ companyId, branchId: propBranchId }: { company
             branches={branches}
             assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
           />
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-[160px] h-8 text-xs bg-background">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Categories</SelectItem>
+              {availableCategories.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Badge variant="outline" className="h-8 px-3 text-xs gap-1.5 font-medium bg-background">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" /> 01 Aug 2026 - 25 Aug 2026
           </Badge>
+          {(selectedBranchFilter !== (isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE') || selectedCategory !== 'ALL') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSelectedBranchFilter(isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE');
+                setSelectedCategory('ALL');
+              }}
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+              title="Reset filters"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+              Reset
+            </Button>
+          )}
         </div>
 
         <Button size="sm" className="h-8 text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white">

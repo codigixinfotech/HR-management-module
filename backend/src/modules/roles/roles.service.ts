@@ -177,7 +177,7 @@ export class RolesService implements OnModuleInit {
           dataScope: 'OWN',
           loginAccess: { web: true, mobile: true, ess: true, admin: false, reports: false },
           getModuleKeys: () => ({
-            keys: ['attendance-leave', 'performance', 'learning', 'employee-experience'],
+            keys: ['attendance-leave', 'performance', 'learning', 'employee-experience', 'asset-management'],
             actions: ['view', 'create'],
           }),
         },

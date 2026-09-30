@@ -110,6 +110,23 @@ enum AssetStatus {
   RETIRED
 }
 
+enum AssetRequestStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  SENT_BACK
+  WAITING_PROCUREMENT
+  ALLOCATED
+  CANCELLED
+}
+
+enum AssetRequestPriority {
+  NORMAL
+  URGENT
+}
+
 enum IncidentSeverity {
   LOW
   MEDIUM
@@ -308,6 +325,7 @@ model Company {
   complianceTasks  ComplianceTask[]
 
   assets          Asset[]
+  assetRequests   AssetRequest[]
   safetyIncidents SafetyIncident[]
   ppeItems        PpeItem[]
   safetyAudits    SafetyAudit[]
@@ -361,6 +379,7 @@ model Branch {
   designations Designation[]
   travelBookings TravelBooking[]
   assets Asset[]
+  assetRequests AssetRequest[]
   manpowerPlans ManpowerPlan[]
   manpowerRequisitions ManpowerRequisition[]
 
@@ -430,6 +449,7 @@ model Department {
   manpowerRequisitions ManpowerRequisition[]
   travelBookings       TravelBooking[]
   assets               Asset[]
+  assetRequests        AssetRequest[]
 
   @@unique([companyId, branchId, code])
   @@index([branchId])
@@ -715,9 +735,11 @@ model Employee {
   filedComplianceTasks ComplianceTask[]
   pfRecords            PfEmployeeRecord[]
 
-  currentAssets     Asset[]
-  assetAllocations  AssetAllocation[]
-  reportedIncidents SafetyIncident[]
+  currentAssets         Asset[]
+  assetAllocations      AssetAllocation[]
+  assetRequests         AssetRequest[] @relation("EmployeeAssetRequests")
+  assetRequestsApproved AssetRequest[] @relation("ManagerAssetApprovals")
+  reportedIncidents     SafetyIncident[]
   ppeIssuances      PpeIssuance[]
   employeeTransfers EmployeeTransfer[]
 
@@ -1952,6 +1974,7 @@ model Asset {
   currentEmployee Employee?                @relation(fields: [currentEmployeeId], references: [id], onDelete: SetNull)
   allocations     AssetAllocation[]
   maintenanceLogs AssetMaintenanceRecord[]
+  assetRequests   AssetRequest[]
 
   @@unique([companyId, assetTag])
   @@map("assets")
@@ -2004,6 +2027,48 @@ model AssetMaintenanceRecord {
 
   @@index([assetId])
   @@map("asset_maintenance_records")
+}
+
+model AssetRequest {
+  id               String               @id @default(cuid())
+  requestNumber    String
+  companyId        String
+  branchId         String?
+  departmentId     String?
+  employeeId       String
+
+  category         String
+  assetType        String?              @default("Physical Asset")
+  specification    String?              @db.Text
+  quantity         Int                  @default(1)
+  requiredDate     DateTime
+  priority         AssetRequestPriority @default(NORMAL)
+  reason           String               @db.Text
+  remarks          String?              @db.Text
+  status           AssetRequestStatus   @default(SUBMITTED)
+
+  approverId       String?
+  approvedAt       DateTime?
+  rejectionReason  String?              @db.Text
+
+  allocatedAssetId String?
+  allocatedAt      DateTime?
+  allocationNotes  String?              @db.Text
+
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch           Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department       Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  employee         Employee             @relation("EmployeeAssetRequests", fields: [employeeId], references: [id], onDelete: Cascade)
+  approver         Employee?            @relation("ManagerAssetApprovals", fields: [approverId], references: [id], onDelete: SetNull)
+  allocatedAsset   Asset?               @relation(fields: [allocatedAssetId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, branchId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("asset_requests")
 }
 
 // ---------------------------------------------------------------------------

@@ -1167,6 +1167,73 @@ export interface AssetMaintenanceRecord {
   };
 }
 
+export type AssetRequestStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'SENT_BACK'
+  | 'WAITING_PROCUREMENT'
+  | 'ALLOCATED'
+  | 'CANCELLED';
+
+export type AssetRequestPriority = 'NORMAL' | 'URGENT';
+
+export interface AssetRequest {
+  id: string;
+  requestNumber: string;
+  companyId: string;
+  branchId?: string | null;
+  departmentId?: string | null;
+  employeeId: string;
+  category: string;
+  assetType?: string | null;
+  specification?: string | null;
+  quantity: number;
+  requiredDate: string;
+  priority: AssetRequestPriority;
+  reason: string;
+  remarks?: string | null;
+  status: AssetRequestStatus;
+  approverId?: string | null;
+  approvedAt?: string | null;
+  rejectionReason?: string | null;
+  allocatedAssetId?: string | null;
+  allocatedAt?: string | null;
+  allocationNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  company?: { id: string; name: string; code?: string } | null;
+  branch?: { id: string; name: string; code?: string } | null;
+  department?: { id: string; name: string; code?: string } | null;
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+    workEmail?: string | null;
+    personalEmail?: string | null;
+    branchId?: string | null;
+    departmentId?: string | null;
+  } | null;
+  approver?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+  } | null;
+  allocatedAsset?: {
+    id: string;
+    assetTag: string;
+    name: string;
+    serialNumber?: string | null;
+    category?: string;
+    status?: string;
+    physicalLocation?: string | null;
+  } | null;
+}
+
 export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type IncidentStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 

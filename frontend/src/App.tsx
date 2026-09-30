@@ -23,6 +23,7 @@ import LearningPage from '@/pages/learning/LearningPage';
 import CompensationBenefitsPage from '@/pages/compensation-benefits/CompensationBenefitsPage';
 import EmployeeExperiencePage from '@/pages/employee-experience/EmployeeExperiencePage';
 import AssetMasterPage from '@/pages/asset-management/AssetMasterPage';
+import AssetRequestPage from '@/pages/asset-management/AssetRequestPage';
 import AssetAllocationPage from '@/pages/asset-management/AssetAllocationPage';
 import AssetReturnPage from '@/pages/asset-management/AssetReturnPage';
 import AssetMaintenancePage from '@/pages/asset-management/AssetMaintenancePage';
@@ -170,6 +171,7 @@ export default function App() {
               {/* Assets Routes (Standalone Pages) */}
               <Route path="/asset-management" element={<Navigate to="/asset-management/master" replace />} />
               <Route path="/asset-management/master" element={<AssetMasterPage />} />
+              <Route path="/asset-management/requests" element={<AssetRequestPage />} />
               <Route path="/asset-management/allocation" element={<AssetAllocationPage />} />
               <Route path="/asset-management/return" element={<AssetReturnPage />} />
               <Route path="/asset-management/maintenance" element={<AssetMaintenancePage />} />

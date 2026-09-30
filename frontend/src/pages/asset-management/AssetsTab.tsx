@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -34,6 +34,7 @@ import {
   RotateCcw,
   Settings,
   GitFork,
+  Loader2,
 } from 'lucide-react';
 import { assetsApi } from '@/api/asset-management';
 import { branchesApi, departmentsApi } from '@/api/organization';
@@ -224,6 +225,8 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
@@ -857,38 +860,12 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
     }
   };
 
-  // Create Mutation
-  const createMutation = useMutation({
-    mutationFn: (payload: any) => assetsApi.create(payload),
-    onSuccess: (newAsset: any, variables: any) => {
-      queryClient.invalidateQueries({ queryKey: ['assets'] });
-      const createdCompanyId = variables?.companyId || newAsset?.companyId;
-      if (createdCompanyId) {
-        setSelectedCompanyFilter(createdCompanyId);
-        if (setActiveCompanyId) {
-          setActiveCompanyId(createdCompanyId);
-        }
-      }
-      toast.success('Asset registered successfully.');
-      setIsAddOpen(false);
-      resetForm();
-    },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to register asset'),
-  });
-
-  // Update Mutation
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: any }) => assetsApi.update(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assets'] });
-      toast.success('Asset Master updated successfully.');
-      setIsEditOpen(false);
-    },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to update asset master'),
-  });
-
-  const handleSaveAsset = (e: React.FormEvent) => {
+  const handleSaveAsset = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting || isSubmittingRef.current) {
+      return;
+    }
 
     if (!validateTab1()) {
       setActiveFormTab('basic');
@@ -903,54 +880,78 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
       return;
     }
 
-    const targetStatus =
-      assignmentType === 'UNASSIGNED'
-        ? status === 'UNDER_MAINTENANCE' || status === 'RETIRED' || status === 'DAMAGED'
-          ? status
-          : 'IN_STOCK'
-        : status;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
 
-    const targetBranchId = (isBranchAdmin && userAssignedBranchId)
-      ? userAssignedBranchId
-      : (branchId === 'NONE' || !branchId ? null : branchId);
-    const targetCompId = (isBranchAdmin && userAssignedCompanyId)
-      ? userAssignedCompanyId
-      : activeCompId;
-    const targetDeptId = assignmentType === 'UNASSIGNED' ? null : (departmentId === 'NONE' || !departmentId ? null : departmentId);
+    try {
+      const targetStatus =
+        assignmentType === 'UNASSIGNED'
+          ? status === 'UNDER_MAINTENANCE' || status === 'RETIRED' || status === 'DAMAGED'
+            ? status
+            : 'IN_STOCK'
+          : status;
 
-    const payload = {
-      companyId: targetCompId,
-      branchId: targetBranchId,
-      departmentId: targetDeptId,
-      assetTag: assetTag.trim() || undefined,
-      name: name.trim(),
-      category: category.trim(),
-      assetType: assignmentType,
-      assignmentType,
-      currentEmployeeId: assignmentType === 'EMPLOYEE' ? (currentEmployeeId || undefined) : null,
-      physicalLocation: physicalLocation.trim() || (targetBranchId === null && !isBranchAdmin ? 'Head Office' : undefined),
-      notes: notes.trim() || undefined,
-      purchaseDate,
-      value: Number(purchaseCost),
-      vendor: vendor.trim() || undefined,
-      invoiceNumber: invoiceNumber.trim() || undefined,
-      poNumber: poNumber.trim() || undefined,
-      serialNumber: serialNumber.trim() || undefined,
-      manufacturer: manufacturer.trim() || undefined,
-      modelNumber: modelNumber.trim() || undefined,
-      warrantyStart: warrantyStart || undefined,
-      warrantyExpiry: warrantyExpiry || undefined,
-      status: targetStatus,
-      condition,
-      usefulLife: formatUsefulLife(usefulLifeYears, usefulLifeMonths),
-      remarks: remarks.trim() || undefined,
-      photoUrl: photoUrl.trim() || undefined,
-    };
+      const targetBranchId = (isBranchAdmin && userAssignedBranchId)
+        ? userAssignedBranchId
+        : (branchId === 'NONE' || !branchId ? null : branchId);
+      const targetCompId = (isBranchAdmin && userAssignedCompanyId)
+        ? userAssignedCompanyId
+        : activeCompId;
+      const targetDeptId = assignmentType === 'UNASSIGNED' ? null : (departmentId === 'NONE' || !departmentId ? null : departmentId);
 
-    if (isEditOpen && selectedAsset) {
-      updateMutation.mutate({ id: selectedAsset.id, payload });
-    } else {
-      createMutation.mutate(payload);
+      const payload = {
+        companyId: targetCompId,
+        branchId: targetBranchId,
+        departmentId: targetDeptId,
+        assetTag: assetTag.trim() || undefined,
+        name: name.trim(),
+        category: category.trim(),
+        assetType: assignmentType,
+        assignmentType,
+        currentEmployeeId: assignmentType === 'EMPLOYEE' ? (currentEmployeeId || undefined) : null,
+        physicalLocation: physicalLocation.trim() || (targetBranchId === null && !isBranchAdmin ? 'Head Office' : undefined),
+        notes: notes.trim() || undefined,
+        purchaseDate,
+        value: Number(purchaseCost),
+        vendor: vendor.trim() || undefined,
+        invoiceNumber: invoiceNumber.trim() || undefined,
+        poNumber: poNumber.trim() || undefined,
+        serialNumber: serialNumber.trim() || undefined,
+        manufacturer: manufacturer.trim() || undefined,
+        modelNumber: modelNumber.trim() || undefined,
+        warrantyStart: warrantyStart || undefined,
+        warrantyExpiry: warrantyExpiry || undefined,
+        status: targetStatus,
+        condition,
+        usefulLife: formatUsefulLife(usefulLifeYears, usefulLifeMonths),
+        remarks: remarks.trim() || undefined,
+        photoUrl: photoUrl.trim() || undefined,
+      };
+
+      if (isEditOpen && selectedAsset) {
+        await assetsApi.update(selectedAsset.id, payload);
+        toast.success('Asset Master updated successfully.');
+        setIsEditOpen(false);
+      } else {
+        const created = await assetsApi.create(payload);
+        toast.success('Asset registered successfully.');
+        setIsAddOpen(false);
+        resetForm();
+        if (created?.companyId && created.companyId !== selectedCompanyFilter) {
+          setSelectedCompanyFilter(created.companyId);
+        }
+      }
+      await queryClient.invalidateQueries({ queryKey: ['assets'] });
+    } catch (err: any) {
+      console.error('Failed to save asset:', err);
+      const rawMsg = err?.response?.data?.message;
+      const errorText = Array.isArray(rawMsg)
+        ? rawMsg.join(', ')
+        : (typeof rawMsg === 'string' && rawMsg.trim().length > 0 ? rawMsg : 'Failed to register asset');
+      toast.error(errorText);
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -1278,7 +1279,21 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
             </div>
           )}
 
-          <form onSubmit={handleSaveAsset} className="space-y-4 text-xs pt-2">
+          <form
+            onSubmit={handleSaveAsset}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+                if (activeFormTab === 'basic') {
+                  e.preventDefault();
+                  handleNextFromTab1();
+                } else if (activeFormTab === 'purchase') {
+                  e.preventDefault();
+                  handleNextFromTab2();
+                }
+              }
+            }}
+            className="space-y-4 text-xs pt-2"
+          >
             <Tabs value={activeFormTab} onValueChange={(val: any) => setActiveFormTab(val)} className="w-full">
               <TabsList className="grid grid-cols-3 h-9 p-1 bg-muted/50 rounded-xl">
                 <TabsTrigger value="basic" className="text-xs font-semibold gap-1.5">
@@ -2198,10 +2213,17 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
                       type="submit"
                       size="sm"
                       className="text-xs font-semibold gap-1.5"
-                      disabled={updateMutation.isPending}
+                      disabled={isSubmitting}
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      {updateMutation.isPending ? 'Updating...' : 'Update Asset'}
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Update Asset
+                        </>
+                      )}
                     </Button>
                   </>
                 ) : (
@@ -2221,9 +2243,17 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
                         type="submit"
                         size="sm"
                         className="text-xs font-semibold gap-1.5"
-                        disabled={createMutation.isPending}
+                        disabled={isSubmitting}
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5" /> REGISTER ASSET
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Registering...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5" /> REGISTER ASSET
+                          </>
+                        )}
                       </Button>
                     )}
                   </>

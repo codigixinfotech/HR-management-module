@@ -5,7 +5,6 @@ import { assetsApi } from '@/api/asset-management';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
 import { isBranchAdminUser } from '@/lib/modules';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
 
@@ -51,28 +50,6 @@ export function AssetPageLayout({ title, description, children }: AssetPageLayou
         description={description}
         badge={`${assets?.length ?? 0} Total Asset Tags`}
         badgeVariant="info"
-        actions={
-          selectableCompanies && selectableCompanies.length > 0 ? (
-            <div className="w-64">
-              <Select
-                value={effectiveCompanyId}
-                onValueChange={setActiveCompanyId}
-                disabled={isBranchAdmin}
-              >
-                <SelectTrigger className="h-9 text-xs bg-background">
-                  <SelectValue placeholder="Select Company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectableCompanies.map((c) => (
-                    <SelectItem key={c.id} value={c.id} className="text-xs">
-                      {c.name} ({c.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : undefined
-        }
       />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

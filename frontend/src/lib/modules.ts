@@ -228,6 +228,7 @@ export const HCM_MODULES: HcmModule[] = [
     icon: Boxes,
     subItems: [
       { key: 'master', label: 'Asset Master', path: '/asset-management/master' },
+      { key: 'requests', label: 'Asset Request', path: '/asset-management/requests' },
       { key: 'allocation', label: 'Asset Allocation', path: '/asset-management/allocation' },
       { key: 'return', label: 'Asset Return', path: '/asset-management/return' },
       { key: 'maintenance', label: 'Maintenance & Repairs', path: '/asset-management/maintenance' },
@@ -507,6 +508,17 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
     ],
   },
   {
+    key: 'asset-management',
+    label: 'Assets',
+    path: '/asset-management/requests',
+    phase: 3,
+    status: 'active',
+    icon: Boxes,
+    subItems: [
+      { key: 'requests', label: 'Asset Request', path: '/asset-management/requests' },
+    ],
+  },
+  {
     key: 'notifications',
     label: 'Notifications',
     path: '/workflow-automation/notifications',
@@ -620,6 +632,7 @@ export function hasModulePermission(user: any, moduleKey: string, action: string
     learning: ['learning', 'lms'],
     ehs: ['safetyehs', 'ehs'],
     'iot-devices': ['integrationsiot', 'iot'],
+    'asset-management': ['assetmanagement', 'assets', 'asset'],
   };
 
   const possibleModuleNames = ALIAS_MAP[moduleKey] || [targetModule];
@@ -651,7 +664,13 @@ export function getModulesForRole(user?: any): HcmModule[] {
   if (userPerms.includes('*')) return HCM_MODULES;
 
   return HCM_MODULES.filter((mod) => {
-    if (mod.key === 'dashboard' || mod.key === 'landing-page' || mod.key === 'profile' || mod.key === 'employees') return true;
+    if (
+      mod.key === 'dashboard' ||
+      mod.key === 'landing-page' ||
+      mod.key === 'profile' ||
+      mod.key === 'employees' ||
+      mod.key === 'asset-management'
+    ) return true;
     return hasModulePermission(user, mod.key, 'view');
   });
 }

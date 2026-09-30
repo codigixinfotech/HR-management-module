@@ -27,6 +27,8 @@ import {
   UploadCloud,
   Trash2,
   GitFork,
+  Search,
+  RotateCcw,
 } from 'lucide-react';
 import { assetMaintenanceApi, assetsApi } from '@/api/asset-management';
 import { branchesApi } from '@/api/organization';
@@ -63,6 +65,9 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(() =>
     isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE'
   );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [selectedPriority, setSelectedPriority] = useState('ALL');
 
   useEffect(() => {
     if (isBranchAdmin && userAssignedBranchId) {
@@ -145,14 +150,42 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
     return assets.find((a) => a.id === targetAssetId) || null;
   }, [assets, targetAssetId]);
 
+  const availableCategories = useMemo(() => {
+    return Array.from(new Set(assets.map((a) => a.category).filter(Boolean)));
+  }, [assets]);
+
   // Assets currently in UNDER_MAINTENANCE status
   const assetsUnderMaintenance = useMemo(() => {
-    return assets.filter(
-      (a) =>
-        a.status === 'UNDER_MAINTENANCE' &&
-        matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)
-    );
-  }, [assets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches]);
+    return assets.filter((a) => {
+      if (a.status !== 'UNDER_MAINTENANCE') return false;
+      if (!matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)) {
+        return false;
+      }
+      if (selectedCategory !== 'ALL' && a.category !== selectedCategory) {
+        return false;
+      }
+      const activeRecord = records.find((r) => r.assetId === a.id && !r.endDate);
+      if (selectedPriority !== 'ALL') {
+        const p = activeRecord?.priority || 'MEDIUM';
+        if (p !== selectedPriority) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const woNumber = (activeRecord?.workOrderNumber || `WO-${a.assetTag}`).toLowerCase();
+        const vendorName = (activeRecord?.vendor || a.vendor || '').toLowerCase();
+        const issueDesc = (activeRecord?.issue || a.remarks || '').toLowerCase();
+        return (
+          a.name.toLowerCase().includes(q) ||
+          a.assetTag.toLowerCase().includes(q) ||
+          (a.serialNumber && a.serialNumber.toLowerCase().includes(q)) ||
+          woNumber.includes(q) ||
+          vendorName.includes(q) ||
+          issueDesc.includes(q)
+        );
+      }
+      return true;
+    });
+  }, [assets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches, selectedCategory, selectedPriority, searchQuery, records]);
 
   // Eligible assets for sending to maintenance (IN_STOCK or ALLOCATED)
   const eligibleAssets = assets.filter(
@@ -460,16 +493,8 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
               </Button>
             </div>
 
-            {/* Header Controls & Action Button */}
+            {/* Header Action Button */}
             <div className="flex items-center gap-2">
-              <AssetBranchFilter
-                isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
-                isBranchAdmin={isBranchAdmin}
-                selectedBranch={selectedBranchFilter}
-                onBranchChange={setSelectedBranchFilter}
-                branches={branches}
-                assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
-              />
               <Button
                 size="sm"
                 className="h-8 text-xs font-semibold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shrink-0"
@@ -481,7 +506,69 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 sm:p-6">
+        <CardContent className="p-4 sm:p-6 space-y-4">
+          {/* ── Search & Filter Controls Bar ── */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 p-3 rounded-xl border border-border/60">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search WO #, Asset Tag, Name, S/N, Vendor, Issue..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-xs bg-background"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <AssetBranchFilter
+                isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+                isBranchAdmin={isBranchAdmin}
+                selectedBranch={selectedBranchFilter}
+                onBranchChange={setSelectedBranchFilter}
+                branches={branches}
+                assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
+              />
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="h-8 text-xs w-[150px] bg-background">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Categories</SelectItem>
+                  {availableCategories.map((cat) => (
+                    <SelectItem key={cat} value={cat} className="text-xs">
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+                <SelectTrigger className="h-8 text-xs w-[120px] bg-background">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Priorities</SelectItem>
+                  <SelectItem value="HIGH">High</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="LOW">Low</SelectItem>
+                </SelectContent>
+              </Select>
+              {(searchQuery !== '' || selectedCategory !== 'ALL' || selectedPriority !== 'ALL' || selectedBranchFilter !== (isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE')) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory('ALL');
+                    setSelectedPriority('ALL');
+                    setSelectedBranchFilter(isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE');
+                  }}
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" /> Reset
+                </Button>
+              )}
+            </div>
+          </div>
+
           {/* SUB-TAB 1 — ACTIVE WORK ORDERS */}
           {activeSubTab === 'work-orders' && (
             <Table>

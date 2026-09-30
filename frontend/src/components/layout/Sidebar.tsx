@@ -40,7 +40,7 @@ function normalizePath(p: string, isHrOrAdmin?: boolean) {
   if (base === '/employees') return isHrOrAdmin === false ? '/employees/transfers' : '/employees/directory';
   if (base === '/attendance-leave') return '/attendance-leave';
   if (base === '/dashboard') return '/dashboard/overview';
-  if (base === '/asset-management') return '/asset-management/master';
+  if (base === '/asset-management') return isHrOrAdmin === false ? '/asset-management/requests' : '/asset-management/master';
   return base;
 }
 
@@ -78,8 +78,14 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
 
     if (!isSuperAdmin && !isBranchAdmin && !isCompanyAdmin && enabledModuleKeysSet) {
       base = modulesForRole.filter((mod) => {
-        // Always allow Dashboard, Employees, Settings/Administration, and Landing Page Demo
-        if (mod.key === 'dashboard' || mod.key === 'employees' || mod.key === 'administration' || mod.key === 'landing-page') {
+        // Always allow Dashboard, Employees, Settings/Administration, Landing Page Demo, and Asset Management
+        if (
+          mod.key === 'dashboard' ||
+          mod.key === 'employees' ||
+          mod.key === 'administration' ||
+          mod.key === 'landing-page' ||
+          mod.key === 'asset-management'
+        ) {
           return true;
         }
         let catalogKey = mod.key;
@@ -131,6 +137,17 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           subItems: [
             { key: 'transfers', label: 'Transfers & Promotions', path: '/employees/transfers' },
             { key: 'exit', label: 'Exit Management', path: '/employees/exit' },
+          ],
+        };
+      }
+
+      // Configure Assets module subitems for non-admin employees (Show ONLY Asset Request)
+      if (mod.key === 'asset-management' && !isHrOrAdmin && mod.subItems) {
+        return {
+          ...mod,
+          path: '/asset-management/requests',
+          subItems: [
+            { key: 'requests', label: 'Asset Request', path: '/asset-management/requests' },
           ],
         };
       }

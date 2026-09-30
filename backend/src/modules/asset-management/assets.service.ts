@@ -59,9 +59,34 @@ export class AssetsService {
   }
 
   private async generateNextAssetTag(companyId: string): Promise<string> {
-    const count = await this.prisma.asset.count({ where: { companyId } });
-    const nextNum = (count + 1).toString().padStart(6, '0');
-    return `AST-${nextNum}`;
+    const existingAssets = await this.prisma.asset.findMany({
+      where: {
+        companyId,
+        assetTag: { startsWith: 'AST-' },
+      },
+      select: { assetTag: true },
+    });
+
+    let maxNum = 0;
+    for (const a of existingAssets) {
+      const match = a.assetTag.match(/^AST-(\d+)$/i);
+      if (match && match[1]) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+
+    let nextNum = maxNum + 1;
+    let candidate = `AST-${nextNum.toString().padStart(6, '0')}`;
+
+    while (await this.prisma.asset.findFirst({ where: { companyId, assetTag: candidate } })) {
+      nextNum++;
+      candidate = `AST-${nextNum.toString().padStart(6, '0')}`;
+    }
+
+    return candidate;
   }
 
   async create(dto: CreateAssetDto, user?: CurrentUserPayload) {
