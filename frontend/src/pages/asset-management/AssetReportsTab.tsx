@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Package,
@@ -19,8 +19,10 @@ import {
   ArrowDownRight,
   Minus,
   CheckCircle2,
+  GitFork,
 } from 'lucide-react';
 import { assetsApi, assetMaintenanceApi } from '@/api/asset-management';
+import { branchesApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,15 +30,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/stores/auth-store';
-import { isBranchAdminUser } from '@/lib/modules';
+import { isBranchAdminUser, isSuperAdminUser, isCompanyAdminUser } from '@/lib/modules';
+import { AssetBranchFilter, matchAssetBranch } from './AssetBranchFilter';
 
 export function AssetReportsTab({ companyId, branchId: propBranchId }: { companyId?: string; branchId?: string }) {
   const user = useAuthStore((s) => s.user);
   const isBranchAdmin = isBranchAdminUser(user);
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdminUser(user) || isCompanyAdminUser(user), [user]);
   const userAssignedBranchId = propBranchId || user?.branchId || user?.employee?.branchId;
   const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
   const effectiveCompanyId = (isBranchAdmin && userAssignedCompanyId) ? userAssignedCompanyId : companyId;
   const effectiveBranchId = isBranchAdmin ? userAssignedBranchId : undefined;
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(() =>
+    isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE'
+  );
+
+  useEffect(() => {
+    if (isBranchAdmin && userAssignedBranchId) {
+      setSelectedBranchFilter(userAssignedBranchId);
+    }
+  }, [isBranchAdmin, userAssignedBranchId]);
 
   // Queries
   const { data: rawAssets = [], isLoading: isLoadingAssets } = useQuery({
@@ -44,12 +58,17 @@ export function AssetReportsTab({ companyId, branchId: propBranchId }: { company
     queryFn: () => assetsApi.list(effectiveCompanyId, effectiveBranchId),
   });
 
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches', effectiveCompanyId],
+    queryFn: () => branchesApi.list(effectiveCompanyId || undefined),
+    enabled: !!effectiveCompanyId,
+  });
+
   const assets = useMemo(() => {
-    if (isBranchAdmin && userAssignedBranchId) {
-      return rawAssets.filter((a) => a.branchId === userAssignedBranchId);
-    }
-    return rawAssets;
-  }, [rawAssets, isBranchAdmin, userAssignedBranchId]);
+    return rawAssets.filter((a) =>
+      matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)
+    );
+  }, [rawAssets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches]);
 
   const { data: rawRecords = [] } = useQuery({
     queryKey: ['asset-maintenance', effectiveCompanyId, effectiveBranchId],
@@ -63,15 +82,13 @@ export function AssetReportsTab({ companyId, branchId: propBranchId }: { company
         const recCompId = r.asset?.company?.id || (r.asset as any)?.companyId;
         if (recCompId && recCompId !== effectiveCompanyId) return false;
       }
-      if (isBranchAdmin && userAssignedBranchId) {
-        const bId = r.asset?.branch?.id || (r.asset as any)?.branchId;
-        if (bId && bId !== userAssignedBranchId) return false;
-        const belongsToBranch = assets.some((a) => a.id === r.assetId && a.branchId === userAssignedBranchId);
-        if (!bId && !belongsToBranch) return false;
+      const assetObj = r.asset || rawAssets.find((a) => a.id === r.assetId);
+      if (assetObj) {
+        return matchAssetBranch(assetObj, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches);
       }
       return true;
     });
-  }, [rawRecords, effectiveCompanyId, isBranchAdmin, userAssignedBranchId, assets]);
+  }, [rawRecords, effectiveCompanyId, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, rawAssets, branches]);
 
   const { data: employeesPage } = useQuery({
     queryKey: ['employees', 'asset-reports-count', effectiveCompanyId, effectiveBranchId],
@@ -202,13 +219,18 @@ export function AssetReportsTab({ companyId, branchId: propBranchId }: { company
     <div className="space-y-6 text-xs">
       {/* ── TOP HEADER FILTERS & ACTIONS ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-xs">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <AssetBranchFilter
+            isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+            isBranchAdmin={isBranchAdmin}
+            selectedBranch={selectedBranchFilter}
+            onBranchChange={setSelectedBranchFilter}
+            branches={branches}
+            assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
+          />
           <Badge variant="outline" className="h-8 px-3 text-xs gap-1.5 font-medium bg-background">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" /> 01 Aug 2026 - 25 Aug 2026
           </Badge>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
-          </Button>
         </div>
 
         <Button size="sm" className="h-8 text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white">

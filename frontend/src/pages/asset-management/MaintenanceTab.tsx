@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -26,8 +26,10 @@ import {
   Receipt,
   UploadCloud,
   Trash2,
+  GitFork,
 } from 'lucide-react';
 import { assetMaintenanceApi, assetsApi } from '@/api/asset-management';
+import { branchesApi } from '@/api/organization';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,7 +41,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuthStore } from '@/stores/auth-store';
-import { isBranchAdminUser } from '@/lib/modules';
+import { isBranchAdminUser, isSuperAdminUser, isCompanyAdminUser } from '@/lib/modules';
+import { AssetBranchFilter, matchAssetBranch } from './AssetBranchFilter';
 import type { Asset, AssetMaintenanceRecord } from '@/api/types';
 
 const MAINTENANCE_TYPES = ['Repair', 'Preventive Maintenance', 'Warranty Claim', 'Inspection'];
@@ -51,10 +54,21 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
 
   const user = useAuthStore((s) => s.user);
   const isBranchAdmin = isBranchAdminUser(user);
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdminUser(user) || isCompanyAdminUser(user), [user]);
   const userAssignedBranchId = propBranchId || user?.branchId || user?.employee?.branchId;
   const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
   const effectiveCompanyId = (isBranchAdmin && userAssignedCompanyId) ? userAssignedCompanyId : companyId;
   const effectiveBranchId = isBranchAdmin ? userAssignedBranchId : undefined;
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(() =>
+    isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE'
+  );
+
+  useEffect(() => {
+    if (isBranchAdmin && userAssignedBranchId) {
+      setSelectedBranchFilter(userAssignedBranchId);
+    }
+  }, [isBranchAdmin, userAssignedBranchId]);
 
   // Navigation Sub-Tab State inside Maintenance Page
   const [activeSubTab, setActiveSubTab] = useState<'work-orders' | 'requests' | 'history'>('work-orders');
@@ -100,6 +114,12 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
     queryFn: () => assetsApi.list(effectiveCompanyId, effectiveBranchId),
   });
 
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches', effectiveCompanyId],
+    queryFn: () => branchesApi.list(effectiveCompanyId || undefined),
+    enabled: !!effectiveCompanyId,
+  });
+
   const { data: rawRecords = [], isLoading: isLoadingRecords } = useQuery({
     queryKey: ['asset-maintenance', effectiveCompanyId, effectiveBranchId],
     queryFn: () => assetMaintenanceApi.list(undefined, effectiveCompanyId, effectiveBranchId),
@@ -112,15 +132,13 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
         const recCompId = r.asset?.company?.id || (r.asset as any)?.companyId;
         if (recCompId && recCompId !== effectiveCompanyId) return false;
       }
-      if (isBranchAdmin && userAssignedBranchId) {
-        const bId = r.asset?.branch?.id || (r.asset as any)?.branchId;
-        if (bId && bId !== userAssignedBranchId) return false;
-        const belongsToBranch = assets.some((a) => a.id === r.assetId && a.branchId === userAssignedBranchId);
-        if (!bId && !belongsToBranch) return false;
+      const assetObj = r.asset || assets.find((a) => a.id === r.assetId);
+      if (assetObj) {
+        return matchAssetBranch(assetObj, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches);
       }
       return true;
     });
-  }, [rawRecords, effectiveCompanyId, isBranchAdmin, userAssignedBranchId, assets]);
+  }, [rawRecords, effectiveCompanyId, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, assets, branches]);
 
   // Selected Target Asset for Create Modal
   const selectedTargetAsset = useMemo(() => {
@@ -128,9 +146,13 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
   }, [assets, targetAssetId]);
 
   // Assets currently in UNDER_MAINTENANCE status
-  const assetsUnderMaintenance = assets.filter(
-    (a) => a.status === 'UNDER_MAINTENANCE' && (!isBranchAdmin || !userAssignedBranchId || a.branchId === userAssignedBranchId)
-  );
+  const assetsUnderMaintenance = useMemo(() => {
+    return assets.filter(
+      (a) =>
+        a.status === 'UNDER_MAINTENANCE' &&
+        matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)
+    );
+  }, [assets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches]);
 
   // Eligible assets for sending to maintenance (IN_STOCK or ALLOCATED)
   const eligibleAssets = assets.filter(
@@ -438,14 +460,24 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
               </Button>
             </div>
 
-            {/* Header Action Button */}
-            <Button
-              size="sm"
-              className="h-8 text-xs font-semibold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
-              onClick={() => { resetCreateForm(); setIsCreateOpen(true); }}
-            >
-              <Plus className="h-3.5 w-3.5" /> Create Work Order
-            </Button>
+            {/* Header Controls & Action Button */}
+            <div className="flex items-center gap-2">
+              <AssetBranchFilter
+                isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+                isBranchAdmin={isBranchAdmin}
+                selectedBranch={selectedBranchFilter}
+                onBranchChange={setSelectedBranchFilter}
+                branches={branches}
+                assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
+              />
+              <Button
+                size="sm"
+                className="h-8 text-xs font-semibold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+                onClick={() => { resetCreateForm(); setIsCreateOpen(true); }}
+              >
+                <Plus className="h-3.5 w-3.5" /> Create Work Order
+              </Button>
+            </div>
           </div>
         </CardHeader>
 

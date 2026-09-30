@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -15,8 +15,10 @@ import {
   ShieldAlert,
   Info,
   Wrench,
+  Search,
 } from 'lucide-react';
 import { assetsApi } from '@/api/asset-management';
+import { branchesApi } from '@/api/organization';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +29,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/stores/auth-store';
-import { isBranchAdminUser } from '@/lib/modules';
+import { isBranchAdminUser, isSuperAdminUser, isCompanyAdminUser } from '@/lib/modules';
+import { AssetBranchFilter, matchAssetBranch } from './AssetBranchFilter';
 import type { Asset } from '@/api/types';
 
 const RETURN_REASONS = [
@@ -48,10 +51,22 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
 
   const user = useAuthStore((s) => s.user);
   const isBranchAdmin = isBranchAdminUser(user);
+  const isSuperOrCompanyAdmin = useMemo(() => isSuperAdminUser(user) || isCompanyAdminUser(user), [user]);
   const userAssignedBranchId = propBranchId || user?.branchId || user?.employee?.branchId;
   const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
   const effectiveCompanyId = (isBranchAdmin && userAssignedCompanyId) ? userAssignedCompanyId : companyId;
   const effectiveBranchId = isBranchAdmin ? userAssignedBranchId : undefined;
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(() =>
+    isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE'
+  );
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (isBranchAdmin && userAssignedBranchId) {
+      setSelectedBranchFilter(userAssignedBranchId);
+    }
+  }, [isBranchAdmin, userAssignedBranchId]);
 
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
@@ -74,13 +89,36 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
     queryFn: () => assetsApi.list(effectiveCompanyId, effectiveBranchId),
   });
 
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches', effectiveCompanyId],
+    queryFn: () => branchesApi.list(effectiveCompanyId || undefined),
+    enabled: !!effectiveCompanyId,
+  });
+
   // Only assets allocated to employees appear in Employee Asset Return / Exit Clearance
-  const allocatedAssets = assets.filter(
-    (a) =>
-      (!isBranchAdmin || !userAssignedBranchId || a.branchId === userAssignedBranchId) &&
-      a.status === 'ALLOCATED' &&
-      (a.currentEmployeeId || (a as any).currentEmployee)
-  );
+  const allocatedAssets = useMemo(() => {
+    return assets.filter((a) => {
+      if (a.status !== 'ALLOCATED' || (!a.currentEmployeeId && !(a as any).currentEmployee)) {
+        return false;
+      }
+      if (!matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const alloc = a.allocations?.find((al) => !al.returnedAt);
+        const emp = alloc?.employee || a.currentEmployee;
+        const empName = emp ? `${emp.firstName} ${emp.lastName || ''} ${emp.employeeCode || ''}`.toLowerCase() : '';
+        return (
+          a.name.toLowerCase().includes(q) ||
+          a.assetTag.toLowerCase().includes(q) ||
+          (a.serialNumber && a.serialNumber.toLowerCase().includes(q)) ||
+          empName.includes(q)
+        );
+      }
+      return true;
+    });
+  }, [assets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches, searchQuery]);
 
   const openReturnModal = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -186,7 +224,27 @@ export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: s
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 sm:p-6">
+        <CardContent className="p-4 sm:p-6 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search by asset tag, name, serial, or employee..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-xs bg-background"
+              />
+            </div>
+            <AssetBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranchFilter}
+              onBranchChange={setSelectedBranchFilter}
+              branches={branches}
+              assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
+            />
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>

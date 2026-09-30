@@ -17,7 +17,8 @@ import { employeesApi } from '@/api/employees';
 import { branchesApi } from '@/api/organization';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
-import { isBranchAdminUser } from '@/lib/modules';
+import { isBranchAdminUser, isSuperAdminUser, isCompanyAdminUser } from '@/lib/modules';
+import { AssetBranchFilter, matchAssetBranch } from './AssetBranchFilter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,6 +40,14 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
   const isBranchAdmin = isBranchAdminUser(user);
   const userAssignedBranchId = propBranchId || user?.branchId || user?.employee?.branchId;
   const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
+
+  const isSuperOrCompanyAdmin = useMemo(
+    () => isSuperAdminUser(user) || isCompanyAdminUser(user),
+    [user]
+  );
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(() =>
+    isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'HEAD_OFFICE'
+  );
 
   const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState('');
@@ -62,6 +71,7 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
   useEffect(() => {
     if (isBranchAdmin && userAssignedBranchId) {
       setSelectedBranchId(userAssignedBranchId);
+      setSelectedBranchFilter(userAssignedBranchId);
     }
   }, [isBranchAdmin, userAssignedBranchId]);
 
@@ -173,11 +183,11 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
   const allocatedAssets = useMemo(() => {
     return assets.filter(
       (a) =>
-        (!isBranchAdmin || !userAssignedBranchId || a.branchId === userAssignedBranchId) &&
         a.status === 'ALLOCATED' &&
-        (a.currentEmployeeId || (a as any).currentEmployee)
+        (a.currentEmployeeId || (a as any).currentEmployee) &&
+        matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)
     );
-  }, [assets, isBranchAdmin, userAssignedBranchId]);
+  }, [assets, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches]);
 
   const filteredAllocations = useMemo(() => {
     if (!searchQuery.trim()) return allocatedAssets;
@@ -339,8 +349,8 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
           </div>
         </CardHeader>
         <CardContent className="p-4 sm:p-6 space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search allocations by employee, asset ID, serial..."
@@ -349,6 +359,14 @@ export function AllocationTab({ companyId, branchId: propBranchId }: { companyId
                 className="pl-8 h-8 text-xs bg-background"
               />
             </div>
+            <AssetBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranchFilter}
+              onBranchChange={setSelectedBranchFilter}
+              branches={branches}
+              assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
+            />
           </div>
 
           <Table>

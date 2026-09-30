@@ -33,13 +33,15 @@ import {
   X,
   RotateCcw,
   Settings,
+  GitFork,
 } from 'lucide-react';
 import { assetsApi } from '@/api/asset-management';
 import { branchesApi, departmentsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
-import { isBranchAdminUser } from '@/lib/modules';
+import { isBranchAdminUser, isSuperAdminUser, isCompanyAdminUser } from '@/lib/modules';
+import { AssetBranchFilter, matchAssetBranch } from './AssetBranchFilter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -194,17 +196,23 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
     ? userAssignedCompanyId
     : (companyId || activeCompanyId || selectableCompanies[0]?.id);
 
-  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>(effectiveCompanyId || 'ALL');
+  const isSuperOrCompanyAdmin = useMemo(
+    () => isSuperAdminUser(user) || isCompanyAdminUser(user),
+    [user]
+  );
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(() => {
+    if (isBranchAdmin && userAssignedBranchId) {
+      return userAssignedBranchId;
+    }
+    return 'HEAD_OFFICE';
+  });
 
   useEffect(() => {
-    if (isBranchAdmin && userAssignedCompanyId) {
-      setSelectedCompanyFilter(userAssignedCompanyId);
-    } else if (companyId) {
-      setSelectedCompanyFilter(companyId);
-    } else if (activeCompanyId) {
-      setSelectedCompanyFilter(activeCompanyId);
+    if (isBranchAdmin && userAssignedBranchId) {
+      setSelectedBranchFilter(userAssignedBranchId);
     }
-  }, [companyId, activeCompanyId, isBranchAdmin, userAssignedCompanyId]);
+  }, [isBranchAdmin, userAssignedBranchId]);
 
   // Search & Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -271,20 +279,20 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
   const [remarks, setRemarks] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
 
-  // Queries
-  const { data: assets = [], isLoading } = useQuery({
-    queryKey: ['assets', selectedCompanyFilter, isBranchAdmin ? userAssignedBranchId : 'ALL'],
-    queryFn: () =>
-      assetsApi.list(
-        selectedCompanyFilter === 'ALL' ? undefined : selectedCompanyFilter,
-        isBranchAdmin ? userAssignedBranchId || undefined : undefined,
-      ),
-  });
-
   const activeCompId =
     (isBranchAdmin && userAssignedCompanyId)
       ? userAssignedCompanyId
-      : (targetCompanyId || (selectedCompanyFilter !== 'ALL' ? selectedCompanyFilter : '') || effectiveCompanyId || (selectableCompanies[0]?.id ?? ''));
+      : (targetCompanyId || effectiveCompanyId || (selectableCompanies[0]?.id ?? ''));
+
+  // Queries
+  const { data: assets = [], isLoading } = useQuery({
+    queryKey: ['assets', activeCompId, isBranchAdmin ? userAssignedBranchId : 'ALL'],
+    queryFn: () =>
+      assetsApi.list(
+        activeCompId || undefined,
+        isBranchAdmin ? userAssignedBranchId || undefined : undefined,
+      ),
+  });
 
   const { data: branches = [] } = useQuery({
     queryKey: ['branches', activeCompId],
@@ -946,12 +954,13 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
     }
   };
 
-  // Filtered Assets using Effective Status
+  // Filtered Assets using Effective Status and Branch Filter
   const filteredAssets = useMemo(() => {
     return assets.filter((a) => {
-      if (isBranchAdmin && userAssignedBranchId && a.branchId !== userAssignedBranchId) {
+      if (!matchAssetBranch(a, selectedBranchFilter, isBranchAdmin, userAssignedBranchId, branches)) {
         return false;
       }
+
       const effectiveSts = getEffectiveAssetStatus(a);
       const matchesSearch =
         a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -971,7 +980,18 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
 
       return matchesSearch && matchesCat && matchesSts && matchesCnd;
     });
-  }, [assets, searchQuery, selectedCategory, selectedStatus, selectedCondition, isBranchAdmin, userAssignedBranchId]);
+  }, [
+    assets,
+    searchQuery,
+    selectedCategory,
+    selectedStatus,
+    selectedCondition,
+    isBranchAdmin,
+    userAssignedBranchId,
+    isSuperOrCompanyAdmin,
+    selectedBranchFilter,
+    branches,
+  ]);
 
   const currentBranchName = useMemo(() => {
     if (branchId === 'NONE' || !branchId) {
@@ -1051,29 +1071,15 @@ export function AssetsTab({ companyId, branchId: propBranchId }: { companyId?: s
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {companies.length > 1 && (
-                <Select
-                  value={selectedCompanyFilter}
-                  onValueChange={(val) => {
-                    setSelectedCompanyFilter(val);
-                    if (val !== 'ALL' && setActiveCompanyId) {
-                      setActiveCompanyId(val);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs w-[180px] bg-background">
-                    <SelectValue placeholder="Company" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Companies</SelectItem>
-                    {companies.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.name} ({c.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              {/* Branch Filter (Same as Employee Module) */}
+              <AssetBranchFilter
+                isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+                isBranchAdmin={isBranchAdmin}
+                selectedBranch={selectedBranchFilter}
+                onBranchChange={setSelectedBranchFilter}
+                branches={branches}
+                assignedBranchName={branches.find((b) => b.id === userAssignedBranchId)?.name}
+              />
 
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="h-8 text-xs w-[160px] bg-background">
