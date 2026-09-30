@@ -38,14 +38,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useAuthStore } from '@/stores/auth-store';
+import { isBranchAdminUser } from '@/lib/modules';
 import type { Asset, AssetMaintenanceRecord } from '@/api/types';
 
 const MAINTENANCE_TYPES = ['Repair', 'Preventive Maintenance', 'Warranty Claim', 'Inspection'];
 const PRIORITY_OPTIONS = ['HIGH', 'MEDIUM', 'LOW'];
 const CONDITION_OPTIONS = ['GOOD', 'EXCELLENT', 'FAIR', 'DAMAGED'];
 
-export function MaintenanceTab({ companyId }: { companyId?: string }) {
+export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyId?: string; branchId?: string }) {
   const queryClient = useQueryClient();
+
+  const user = useAuthStore((s) => s.user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const userAssignedBranchId = propBranchId || user?.branchId || user?.employee?.branchId;
+  const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
+  const effectiveCompanyId = (isBranchAdmin && userAssignedCompanyId) ? userAssignedCompanyId : companyId;
+  const effectiveBranchId = isBranchAdmin ? userAssignedBranchId : undefined;
 
   // Navigation Sub-Tab State inside Maintenance Page
   const [activeSubTab, setActiveSubTab] = useState<'work-orders' | 'requests' | 'history'>('work-orders');
@@ -87,24 +96,31 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
 
   // Queries
   const { data: assets = [], isLoading: isLoadingAssets } = useQuery({
-    queryKey: ['assets', companyId],
-    queryFn: () => assetsApi.list(companyId),
+    queryKey: ['assets', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => assetsApi.list(effectiveCompanyId, effectiveBranchId),
   });
 
   const { data: rawRecords = [], isLoading: isLoadingRecords } = useQuery({
-    queryKey: ['asset-maintenance', companyId],
-    queryFn: () => assetMaintenanceApi.list(undefined, companyId),
+    queryKey: ['asset-maintenance', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => assetMaintenanceApi.list(undefined, effectiveCompanyId, effectiveBranchId),
   });
 
-  // Strict tenant boundary: only records whose asset belongs to this active company
+  // Strict tenant boundary: only records whose asset belongs to this active company and branch
   const records = useMemo(() => {
-    if (!companyId) return rawRecords;
     return rawRecords.filter((r) => {
-      const recCompId = r.asset?.company?.id || (r.asset as any)?.companyId;
-      if (recCompId) return recCompId === companyId;
-      return assets.some((a) => a.id === r.assetId);
+      if (effectiveCompanyId) {
+        const recCompId = r.asset?.company?.id || (r.asset as any)?.companyId;
+        if (recCompId && recCompId !== effectiveCompanyId) return false;
+      }
+      if (isBranchAdmin && userAssignedBranchId) {
+        const bId = r.asset?.branch?.id || (r.asset as any)?.branchId;
+        if (bId && bId !== userAssignedBranchId) return false;
+        const belongsToBranch = assets.some((a) => a.id === r.assetId && a.branchId === userAssignedBranchId);
+        if (!bId && !belongsToBranch) return false;
+      }
+      return true;
     });
-  }, [rawRecords, companyId, assets]);
+  }, [rawRecords, effectiveCompanyId, isBranchAdmin, userAssignedBranchId, assets]);
 
   // Selected Target Asset for Create Modal
   const selectedTargetAsset = useMemo(() => {
@@ -112,10 +128,16 @@ export function MaintenanceTab({ companyId }: { companyId?: string }) {
   }, [assets, targetAssetId]);
 
   // Assets currently in UNDER_MAINTENANCE status
-  const assetsUnderMaintenance = assets.filter((a) => a.status === 'UNDER_MAINTENANCE');
+  const assetsUnderMaintenance = assets.filter(
+    (a) => a.status === 'UNDER_MAINTENANCE' && (!isBranchAdmin || !userAssignedBranchId || a.branchId === userAssignedBranchId)
+  );
 
   // Eligible assets for sending to maintenance (IN_STOCK or ALLOCATED)
-  const eligibleAssets = assets.filter((a) => a.status === 'IN_STOCK' || a.status === 'AVAILABLE' || a.status === 'ALLOCATED');
+  const eligibleAssets = assets.filter(
+    (a) =>
+      (a.status === 'IN_STOCK' || a.status === 'AVAILABLE' || a.status === 'ALLOCATED') &&
+      (!isBranchAdmin || !userAssignedBranchId || a.branchId === userAssignedBranchId)
+  );
 
   // Active records undergoing maintenance
   const activeRecords = useMemo(() => {

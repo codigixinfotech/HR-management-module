@@ -2,8 +2,9 @@ import { PartialType } from '@nestjs/mapped-types';
 import { IsDateString, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateAssetDto {
+  @IsOptional()
   @IsString({ message: 'Company / Entity is required.' })
-  companyId: string;
+  companyId?: string;
 
   @IsOptional()
   @IsString()

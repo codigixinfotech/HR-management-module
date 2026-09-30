@@ -27,32 +27,55 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuthStore } from '@/stores/auth-store';
+import { isBranchAdminUser } from '@/lib/modules';
 
-export function AssetReportsTab({ companyId }: { companyId?: string }) {
+export function AssetReportsTab({ companyId, branchId: propBranchId }: { companyId?: string; branchId?: string }) {
+  const user = useAuthStore((s) => s.user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const userAssignedBranchId = propBranchId || user?.branchId || user?.employee?.branchId;
+  const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
+  const effectiveCompanyId = (isBranchAdmin && userAssignedCompanyId) ? userAssignedCompanyId : companyId;
+  const effectiveBranchId = isBranchAdmin ? userAssignedBranchId : undefined;
+
   // Queries
-  const { data: assets = [], isLoading: isLoadingAssets } = useQuery({
-    queryKey: ['assets', companyId],
-    queryFn: () => assetsApi.list(companyId),
+  const { data: rawAssets = [], isLoading: isLoadingAssets } = useQuery({
+    queryKey: ['assets', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => assetsApi.list(effectiveCompanyId, effectiveBranchId),
   });
+
+  const assets = useMemo(() => {
+    if (isBranchAdmin && userAssignedBranchId) {
+      return rawAssets.filter((a) => a.branchId === userAssignedBranchId);
+    }
+    return rawAssets;
+  }, [rawAssets, isBranchAdmin, userAssignedBranchId]);
 
   const { data: rawRecords = [] } = useQuery({
-    queryKey: ['asset-maintenance', companyId],
-    queryFn: () => assetMaintenanceApi.list(undefined, companyId),
+    queryKey: ['asset-maintenance', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => assetMaintenanceApi.list(undefined, effectiveCompanyId, effectiveBranchId),
   });
 
-  // Strict tenant boundary: only records whose asset belongs to this active company
+  // Strict tenant boundary: only records whose asset belongs to this active company and branch
   const records = useMemo(() => {
-    if (!companyId) return rawRecords;
     return rawRecords.filter((r) => {
-      const recCompId = r.asset?.company?.id || (r.asset as any)?.companyId;
-      if (recCompId) return recCompId === companyId;
-      return assets.some((a) => a.id === r.assetId);
+      if (effectiveCompanyId) {
+        const recCompId = r.asset?.company?.id || (r.asset as any)?.companyId;
+        if (recCompId && recCompId !== effectiveCompanyId) return false;
+      }
+      if (isBranchAdmin && userAssignedBranchId) {
+        const bId = r.asset?.branch?.id || (r.asset as any)?.branchId;
+        if (bId && bId !== userAssignedBranchId) return false;
+        const belongsToBranch = assets.some((a) => a.id === r.assetId && a.branchId === userAssignedBranchId);
+        if (!bId && !belongsToBranch) return false;
+      }
+      return true;
     });
-  }, [rawRecords, companyId, assets]);
+  }, [rawRecords, effectiveCompanyId, isBranchAdmin, userAssignedBranchId, assets]);
 
   const { data: employeesPage } = useQuery({
-    queryKey: ['employees', 'asset-reports-count', companyId],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 200, companyId }),
+    queryKey: ['employees', 'asset-reports-count', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 200, companyId: effectiveCompanyId, branchId: effectiveBranchId }),
   });
 
   const totalEmployeesCount = employeesPage?.total ?? employeesPage?.items?.length ?? 120;

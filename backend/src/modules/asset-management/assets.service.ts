@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { AssetStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AllocateAssetDto, CreateAssetDto, ReturnAssetDto, UpdateAssetDto } from './dto/asset.dto';
+import { isUserBranchAdmin } from '../../common/utils/tenant-context.util';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class AssetsService {
@@ -18,15 +20,25 @@ export class AssetsService {
     },
   };
 
-  list(companyId?: string) {
+  list(companyId?: string, branchId?: string) {
+    let branchWhere: any = undefined;
+    if (branchId === 'HEAD_OFFICE' || branchId === 'NONE') {
+      branchWhere = { branchId: null };
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'ALL_BRANCHES') {
+      branchWhere = { branchId };
+    }
+
     return this.prisma.asset.findMany({
-      where: companyId && companyId !== 'ALL' ? { companyId } : undefined,
+      where: {
+        ...(companyId && companyId !== 'ALL' ? { companyId } : {}),
+        ...branchWhere,
+      },
       include: this.listInclude,
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findById(id: string) {
+  async findById(id: string, user?: CurrentUserPayload) {
     const asset = await this.prisma.asset.findUnique({
       where: { id },
       include: {
@@ -35,6 +47,14 @@ export class AssetsService {
       },
     });
     if (!asset) throw new NotFoundException('Asset not found');
+
+    if (user && isUserBranchAdmin(user)) {
+      const assignedBranchId = user.branchId || user.employee?.branchId;
+      if (asset.branchId !== assignedBranchId) {
+        throw new NotFoundException('Asset not found');
+      }
+    }
+
     return asset;
   }
 
@@ -44,7 +64,24 @@ export class AssetsService {
     return `AST-${nextNum}`;
   }
 
-  async create(dto: CreateAssetDto) {
+  async create(dto: CreateAssetDto, user?: CurrentUserPayload) {
+    if (user && isUserBranchAdmin(user)) {
+      const assignedBranchId = user.branchId || user.employee?.branchId;
+      if (!assignedBranchId || assignedBranchId === 'NO_BRANCH_ASSIGNED') {
+        throw new BadRequestException('Branch Admin must be assigned to a branch to create assets.');
+      }
+      dto.branchId = assignedBranchId;
+      if (user.companyId) {
+        dto.companyId = user.companyId;
+      }
+    }
+    if (!dto.companyId) {
+      if (user?.companyId) {
+        dto.companyId = user.companyId;
+      } else {
+        throw new BadRequestException('Company / Entity is required.');
+      }
+    }
     const assetTag = dto.assetTag || (await this.generateNextAssetTag(dto.companyId));
 
     const existing = await this.prisma.asset.findFirst({
@@ -123,8 +160,16 @@ export class AssetsService {
     });
   }
 
-  async update(id: string, dto: UpdateAssetDto) {
-    const existingAsset = await this.findById(id);
+  async update(id: string, dto: UpdateAssetDto, user?: CurrentUserPayload) {
+    const existingAsset = await this.findById(id, user);
+
+    if (user && isUserBranchAdmin(user)) {
+      const assignedBranchId = user.branchId || user.employee?.branchId;
+      dto.branchId = assignedBranchId || undefined;
+      if (user.companyId) {
+        dto.companyId = user.companyId;
+      }
+    }
 
     if (dto.purchaseDate) {
       const pDate = new Date(dto.purchaseDate);
@@ -201,14 +246,14 @@ export class AssetsService {
     });
   }
 
-  async remove(id: string) {
-    await this.findById(id);
+  async remove(id: string, user?: CurrentUserPayload) {
+    await this.findById(id, user);
     await this.prisma.asset.delete({ where: { id } });
     return { success: true };
   }
 
-  async allocate(id: string, dto: AllocateAssetDto) {
-    const asset = await this.findById(id);
+  async allocate(id: string, dto: AllocateAssetDto, user?: CurrentUserPayload) {
+    const asset = await this.findById(id, user);
     if (asset.status !== AssetStatus.IN_STOCK) {
       throw new ConflictException('This asset is not available for allocation.');
     }
@@ -222,6 +267,12 @@ export class AssetsService {
     }
     if (employee.companyId !== asset.companyId) {
       throw new BadRequestException('Selected employee and asset belong to different companies.');
+    }
+    if (user && isUserBranchAdmin(user)) {
+      const assignedBranchId = user.branchId || user.employee?.branchId;
+      if (employee.branchId !== assignedBranchId) {
+        throw new BadRequestException('Cannot allocate asset to an employee outside your branch.');
+      }
     }
 
     const allocatedAt = dto.allocationDate ? new Date(dto.allocationDate) : new Date();
@@ -248,8 +299,8 @@ export class AssetsService {
     return updated;
   }
 
-  async returnAsset(id: string, dto?: ReturnAssetDto) {
-    const asset = await this.findById(id);
+  async returnAsset(id: string, dto?: ReturnAssetDto, user?: CurrentUserPayload) {
+    const asset = await this.findById(id, user);
     if (asset.status !== AssetStatus.ALLOCATED) {
       throw new ConflictException('Only allocated assets can be returned');
     }

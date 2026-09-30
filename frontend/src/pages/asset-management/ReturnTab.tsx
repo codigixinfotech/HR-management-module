@@ -26,6 +26,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuthStore } from '@/stores/auth-store';
+import { isBranchAdminUser } from '@/lib/modules';
 import type { Asset } from '@/api/types';
 
 const RETURN_REASONS = [
@@ -41,8 +43,15 @@ const RETURN_REASONS = [
 
 const CONDITION_OPTIONS = ['Excellent', 'Good', 'Fair', 'Damaged', 'Lost'];
 
-export function ReturnTab({ companyId }: { companyId?: string }) {
+export function ReturnTab({ companyId, branchId: propBranchId }: { companyId?: string; branchId?: string }) {
   const queryClient = useQueryClient();
+
+  const user = useAuthStore((s) => s.user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const userAssignedBranchId = propBranchId || user?.branchId || user?.employee?.branchId;
+  const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
+  const effectiveCompanyId = (isBranchAdmin && userAssignedCompanyId) ? userAssignedCompanyId : companyId;
+  const effectiveBranchId = isBranchAdmin ? userAssignedBranchId : undefined;
 
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
@@ -61,12 +70,17 @@ export function ReturnTab({ companyId }: { companyId?: string }) {
 
   // Queries
   const { data: assets = [], isLoading } = useQuery({
-    queryKey: ['assets', companyId],
-    queryFn: () => assetsApi.list(companyId),
+    queryKey: ['assets', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => assetsApi.list(effectiveCompanyId, effectiveBranchId),
   });
 
   // Only assets allocated to employees appear in Employee Asset Return / Exit Clearance
-  const allocatedAssets = assets.filter((a) => a.status === 'ALLOCATED' && (a.currentEmployeeId || (a as any).currentEmployee));
+  const allocatedAssets = assets.filter(
+    (a) =>
+      (!isBranchAdmin || !userAssignedBranchId || a.branchId === userAssignedBranchId) &&
+      a.status === 'ALLOCATED' &&
+      (a.currentEmployeeId || (a as any).currentEmployee)
+  );
 
   const openReturnModal = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -74,7 +88,7 @@ export function ReturnTab({ companyId }: { companyId?: string }) {
     setReturnReason('Employee Resignation');
     setOtherReason('');
     setReturnedBy('HR / Admin User');
-    setReturnLocation(asset.physicalLocation || asset.branch?.name || 'IT Storage Room');
+    setReturnLocation(asset.physicalLocation || asset.branch?.name || (isBranchAdmin ? 'Branch Storage' : 'IT Storage Room'));
     setCondition('Good');
     setAccessoriesReturned('Power Adapter, Charging Cable');
     setRemarks('');

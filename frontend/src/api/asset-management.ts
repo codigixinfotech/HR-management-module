@@ -2,7 +2,8 @@ import { apiClient } from '@/lib/api-client';
 import type { Asset, AssetMaintenanceRecord } from './types';
 
 export const assetsApi = {
-  list: async (companyId?: string) => (await apiClient.get<Asset[]>('/asset-management/assets', { params: { companyId } })).data,
+  list: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<Asset[]>('/asset-management/assets', { params: { companyId, branchId } })).data,
   get: async (id: string) => (await apiClient.get<Asset>(`/asset-management/assets/${id}`)).data,
   create: async (payload: Partial<Asset>) => (await apiClient.post<Asset>('/asset-management/assets', payload)).data,
   update: async (id: string, payload: Partial<Asset>) =>
@@ -35,8 +36,8 @@ export const assetsApi = {
 };
 
 export const assetMaintenanceApi = {
-  list: async (assetId?: string, companyId?: string) =>
-    (await apiClient.get<AssetMaintenanceRecord[]>('/asset-management/maintenance', { params: { assetId, companyId } })).data,
+  list: async (assetId?: string, companyId?: string, branchId?: string) =>
+    (await apiClient.get<AssetMaintenanceRecord[]>('/asset-management/maintenance', { params: { assetId, companyId, branchId } })).data,
   create: async (payload: {
     assetId: string;
     issue: string;

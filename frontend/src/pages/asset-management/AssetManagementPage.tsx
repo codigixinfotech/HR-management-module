@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Boxes, Laptop, UserCheck, Wrench } from 'lucide-react';
 import { assetsApi } from '@/api/asset-management';
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isBranchAdminUser } from '@/lib/modules';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,13 +24,23 @@ export default function AssetManagementPage() {
   // Directly prioritize URL path param (/asset-management/:tab) -> query param ?tab=... -> default 'master'
   const activeTab = routeTab || searchParams.get('tab') || 'master';
 
+  const user = useAuthStore((s) => s.user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const userAssignedBranchId = user?.branchId || user?.employee?.branchId;
+  const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
+
   const { activeCompanyId, setActiveCompanyId, companies } = useCompany();
-  const currentCompany = companies.find((c) => c.id === activeCompanyId) || companies[0];
-  const companyId = activeCompanyId || currentCompany?.id;
+  const selectableCompanies =
+    isBranchAdmin && userAssignedCompanyId
+      ? companies.filter((c) => c.id === userAssignedCompanyId)
+      : companies;
+  const currentCompany = selectableCompanies.find((c) => c.id === activeCompanyId) || selectableCompanies[0];
+  const effectiveCompanyId = (isBranchAdmin && userAssignedCompanyId) ? userAssignedCompanyId : (activeCompanyId || currentCompany?.id);
+  const effectiveBranchId = isBranchAdmin ? userAssignedBranchId : undefined;
 
   const { data: assets } = useQuery({
-    queryKey: ['assets', companyId],
-    queryFn: () => assetsApi.list(companyId),
+    queryKey: ['assets', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => assetsApi.list(effectiveCompanyId, effectiveBranchId),
   });
 
   const totalValue = assets?.reduce((sum, a) => sum + (a.value ?? 0), 0) ?? 0;
@@ -56,14 +68,18 @@ export default function AssetManagementPage() {
         badge={`${assets?.length ?? 0} Total Asset Tags`}
         badgeVariant="info"
         actions={
-          companies && companies.length > 0 ? (
+          selectableCompanies && selectableCompanies.length > 0 ? (
             <div className="w-64">
-              <Select value={companyId} onValueChange={setActiveCompanyId}>
+              <Select
+                value={effectiveCompanyId}
+                onValueChange={setActiveCompanyId}
+                disabled={isBranchAdmin}
+              >
                 <SelectTrigger className="h-9 text-xs bg-background">
                   <SelectValue placeholder="Select Company" />
                 </SelectTrigger>
                 <SelectContent>
-                  {companies.map((c) => (
+                  {selectableCompanies.map((c) => (
                     <SelectItem key={c.id} value={c.id} className="text-xs">
                       {c.name} ({c.code})
                     </SelectItem>
@@ -154,19 +170,19 @@ export default function AssetManagementPage() {
           </Card>
         </TabsContent>
         <TabsContent value="master" className="mt-4">
-          <AssetsTab companyId={companyId} />
+          <AssetsTab companyId={effectiveCompanyId} branchId={effectiveBranchId} />
         </TabsContent>
         <TabsContent value="allocation" className="mt-4">
-          <AllocationTab companyId={companyId} />
+          <AllocationTab companyId={effectiveCompanyId} branchId={effectiveBranchId} />
         </TabsContent>
         <TabsContent value="return" className="mt-4">
-          <ReturnTab companyId={companyId} />
+          <ReturnTab companyId={effectiveCompanyId} branchId={effectiveBranchId} />
         </TabsContent>
         <TabsContent value="maintenance" className="mt-4">
-          <MaintenanceTab companyId={companyId} />
+          <MaintenanceTab companyId={effectiveCompanyId} branchId={effectiveBranchId} />
         </TabsContent>
         <TabsContent value="reports" className="mt-4">
-          <AssetReportsTab companyId={companyId} />
+          <AssetReportsTab companyId={effectiveCompanyId} branchId={effectiveBranchId} />
         </TabsContent>
       </Tabs>
     </div>

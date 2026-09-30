@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -16,6 +16,8 @@ import { assetsApi } from '@/api/asset-management';
 import { employeesApi } from '@/api/employees';
 import { branchesApi } from '@/api/organization';
 import { useCompany } from '@/context/CompanyContext';
+import { useAuthStore } from '@/stores/auth-store';
+import { isBranchAdminUser } from '@/lib/modules';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,9 +31,14 @@ import type { Asset } from '@/api/types';
 
 const ALLOCATION_TYPES = ['New Allocation', 'Replacement', 'Temporary Issue', 'Project Allocation'];
 
-export function AllocationTab({ companyId }: { companyId?: string }) {
+export function AllocationTab({ companyId, branchId: propBranchId }: { companyId?: string; branchId?: string }) {
   const queryClient = useQueryClient();
   const { activeCompanyId, companies } = useCompany();
+
+  const user = useAuthStore((s) => s.user);
+  const isBranchAdmin = isBranchAdminUser(user);
+  const userAssignedBranchId = propBranchId || user?.branchId || user?.employee?.branchId;
+  const userAssignedCompanyId = user?.companyId || (user?.employee as any)?.companyId;
 
   const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState('');
@@ -39,7 +46,9 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Form Fields
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'ALL'
+  );
   const [employeeId, setEmployeeId] = useState('');
   const [allocationDate, setAllocationDate] = useState(new Date().toISOString().split('T')[0]);
   const [allocationType, setAllocationType] = useState('New Allocation');
@@ -50,13 +59,22 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
   // Inline Form Errors
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  useEffect(() => {
+    if (isBranchAdmin && userAssignedBranchId) {
+      setSelectedBranchId(userAssignedBranchId);
+    }
+  }, [isBranchAdmin, userAssignedBranchId]);
+
   // Effective Company Context (Asset company > active company > first company)
-  const effectiveCompanyId = selectedAsset?.companyId || companyId || activeCompanyId || companies[0]?.id;
+  const effectiveCompanyId = (isBranchAdmin && userAssignedCompanyId)
+    ? userAssignedCompanyId
+    : (selectedAsset?.companyId || companyId || activeCompanyId || companies[0]?.id);
+  const effectiveBranchId = isBranchAdmin ? userAssignedBranchId : undefined;
 
   // Queries
   const { data: assets = [], isLoading: isLoadingAssets } = useQuery({
-    queryKey: ['assets', companyId],
-    queryFn: () => assetsApi.list(companyId),
+    queryKey: ['assets', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => assetsApi.list(effectiveCompanyId, effectiveBranchId),
   });
 
   const { data: branches = [] } = useQuery({
@@ -65,9 +83,22 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
     enabled: !!effectiveCompanyId,
   });
 
+  const selectableBranches = useMemo(() => {
+    if (isBranchAdmin && userAssignedBranchId) {
+      const match = branches.filter((b) => b.id === userAssignedBranchId);
+      return match.length > 0 ? match : branches;
+    }
+    return branches;
+  }, [branches, isBranchAdmin, userAssignedBranchId]);
+
   const { data: employeesPage } = useQuery({
-    queryKey: ['employees', 'asset-allocation-picker', effectiveCompanyId],
-    queryFn: () => employeesApi.list({ page: 1, pageSize: 300, companyId: effectiveCompanyId || undefined }),
+    queryKey: ['employees', 'asset-allocation-picker', effectiveCompanyId, effectiveBranchId],
+    queryFn: () => employeesApi.list({
+      page: 1,
+      pageSize: 300,
+      companyId: effectiveCompanyId || undefined,
+      branchId: effectiveBranchId,
+    }),
     enabled: !!effectiveCompanyId,
   });
 
@@ -87,6 +118,9 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
       if (!isActive) return false;
 
       // 3. Branch filter
+      if (isBranchAdmin && userAssignedBranchId) {
+        return e.branchId === userAssignedBranchId;
+      }
       if (selectedBranchId === 'ALL') {
         return true;
       }
@@ -95,7 +129,7 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
       }
       return e.branchId === selectedBranchId;
     });
-  }, [employees, selectedAsset, companyId, activeCompanyId, selectedBranchId]);
+  }, [employees, selectedAsset, companyId, activeCompanyId, selectedBranchId, isBranchAdmin, userAssignedBranchId]);
 
   // Selected Employee Details for Auto-Fill
   const selectedEmp = useMemo(() => {
@@ -128,18 +162,22 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
     return assets.filter(
       (a) =>
         (!companyId || a.companyId === companyId) &&
+        (!isBranchAdmin || !userAssignedBranchId || a.branchId === userAssignedBranchId) &&
         (a.status === 'IN_STOCK' || a.status === 'AVAILABLE') &&
         !isFixedOrLocationAsset(a) &&
         a.assignmentType !== 'LOCATION' &&
         a.assignmentType !== 'DEPARTMENT'
     );
-  }, [assets, companyId]);
+  }, [assets, companyId, isBranchAdmin, userAssignedBranchId]);
 
   const allocatedAssets = useMemo(() => {
     return assets.filter(
-      (a) => a.status === 'ALLOCATED' && (a.currentEmployeeId || (a as any).currentEmployee)
+      (a) =>
+        (!isBranchAdmin || !userAssignedBranchId || a.branchId === userAssignedBranchId) &&
+        a.status === 'ALLOCATED' &&
+        (a.currentEmployeeId || (a as any).currentEmployee)
     );
-  }, [assets]);
+  }, [assets, isBranchAdmin, userAssignedBranchId]);
 
   const filteredAllocations = useMemo(() => {
     if (!searchQuery.trim()) return allocatedAssets;
@@ -168,7 +206,11 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
     const assetToSelect = preselectedAsset || availableAssets[0];
     setSelectedAsset(assetToSelect);
     setSelectedAssetId(assetToSelect.id);
-    setSelectedBranchId(assetToSelect?.branchId || 'ALL');
+    setSelectedBranchId(
+      isBranchAdmin && userAssignedBranchId
+        ? userAssignedBranchId
+        : (assetToSelect?.branchId || 'ALL')
+    );
     setEmployeeId('');
     setAllocationDate(new Date().toISOString().split('T')[0]);
     setAllocationType('New Allocation');
@@ -185,7 +227,11 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
     setSelectedAsset(a);
     if (a) {
       setLocation(a.physicalLocation || a.branch?.name || '');
-      setSelectedBranchId(a.branchId || 'ALL');
+      setSelectedBranchId(
+        isBranchAdmin && userAssignedBranchId
+          ? userAssignedBranchId
+          : (a.branchId || 'ALL')
+      );
       setEmployeeId('');
     }
   };
@@ -244,7 +290,7 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
       setIsAllocateModalOpen(false);
       setSelectedAsset(null);
       setSelectedAssetId('');
-      setSelectedBranchId('ALL');
+      setSelectedBranchId(isBranchAdmin && userAssignedBranchId ? userAssignedBranchId : 'ALL');
       setEmployeeId('');
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to allocate asset'),
@@ -455,6 +501,7 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
                   </Label>
                   <Select
                     value={selectedBranchId}
+                    disabled={isBranchAdmin}
                     onValueChange={(val) => {
                       setSelectedBranchId(val);
                       // If current employee does not belong to the selected branch filter, reset employeeId
@@ -468,16 +515,20 @@ export function AllocationTab({ companyId }: { companyId?: string }) {
                     }}
                   >
                     <SelectTrigger className="h-8 text-xs bg-background">
-                      <SelectValue placeholder="All Branches" />
+                      <SelectValue placeholder={isBranchAdmin ? "Branch Locked" : "All Branches"} />
                     </SelectTrigger>
                     <SelectContent className="max-h-[220px]">
-                      <SelectItem value="ALL" className="text-xs font-medium">
-                        🏢 All Branches & Offices
-                      </SelectItem>
-                      <SelectItem value="NONE" className="text-xs font-medium">
-                        🏛️ Head Office / No Branch
-                      </SelectItem>
-                      {branches.map((b) => (
+                      {!isBranchAdmin && (
+                        <>
+                          <SelectItem value="ALL" className="text-xs font-medium">
+                            🏢 All Branches & Offices
+                          </SelectItem>
+                          <SelectItem value="NONE" className="text-xs font-medium">
+                            🏛️ Head Office / No Branch
+                          </SelectItem>
+                        </>
+                      )}
+                      {selectableBranches.map((b) => (
                         <SelectItem key={b.id} value={b.id} className="text-xs">
                           📍 {b.name} ({b.code})
                         </SelectItem>

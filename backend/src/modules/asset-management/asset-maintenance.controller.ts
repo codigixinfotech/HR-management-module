@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AssetMaintenanceService } from './asset-maintenance.service';
 import { CreateAssetMaintenanceDto, CompleteAssetMaintenanceDto } from './dto/asset-maintenance.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { getTenantCompanyId, getTenantBranchId } from '../../common/utils/tenant-context.util';
 
 @Controller('asset-management/maintenance')
 export class AssetMaintenanceController {
@@ -9,19 +11,34 @@ export class AssetMaintenanceController {
 
   @Get()
   @Permissions('asset_management.read')
-  list(@Query('assetId') assetId?: string, @Query('companyId') companyId?: string) {
-    return this.assetMaintenanceService.list(assetId, companyId);
+  list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('assetId') assetId?: string,
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    let tenantBranchId = getTenantBranchId(user, branchId);
+    if (!tenantBranchId && (branchId === 'HEAD_OFFICE' || branchId === 'NONE')) {
+      tenantBranchId = 'HEAD_OFFICE';
+    }
+    return this.assetMaintenanceService.list(assetId, tenantCompanyId, tenantBranchId);
   }
 
   @Post()
   @Permissions('asset_management.write')
-  create(@Body() dto: CreateAssetMaintenanceDto) {
-    return this.assetMaintenanceService.create(dto);
+  create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateAssetMaintenanceDto) {
+    return this.assetMaintenanceService.create(dto, user);
   }
 
   @Post(':id/complete')
   @Permissions('asset_management.write')
-  complete(@Param('id') id: string, @Body() dto?: CompleteAssetMaintenanceDto) {
-    return this.assetMaintenanceService.complete(id, dto);
+  complete(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto?: CompleteAssetMaintenanceDto,
+  ) {
+    return this.assetMaintenanceService.complete(id, dto, user);
   }
 }
+
