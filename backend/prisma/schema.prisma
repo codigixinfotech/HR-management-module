@@ -2346,6 +2346,12 @@ model EmployeeExit {
   clearanceStatus     String    @default("PENDING")
   fnfStatus           String    @default("PENDING")
   exitInterviewStatus String    @default("PENDING")
+  withdrawalReason    String?   @db.Text
+  withdrawalRequestedAt DateTime?
+  withdrawalRequestedBy String?
+  withdrawalApprovedAt DateTime?
+  withdrawalApprovedBy String?
+  withdrawalRemarks   String?   @db.Text
 
   createdById         String?
   updatedById         String?

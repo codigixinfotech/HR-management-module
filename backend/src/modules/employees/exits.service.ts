@@ -8,6 +8,8 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   AdjustLwdDto,
   CreateExitDto,
+  RequestExitWithdrawalDto,
+  ReviewExitWithdrawalDto,
   SaveExitInterviewDto,
   SaveFnfSettlementDto,
   UpdateClearanceItemDto,
@@ -818,6 +820,200 @@ export class ExitsService implements OnModuleInit {
     return updatedExit;
   }
 
+
+  async requestWithdrawal(id: string, dto: RequestExitWithdrawalDto) {
+    const exit = await this.findOne(id);
+
+    // Rule 1: Cannot withdraw if already EXITED or OFFBOARDING_COMPLETED
+    if (exit.status === 'EXITED' || exit.status === 'OFFBOARDING_COMPLETED') {
+      throw new BadRequestException(
+        'Withdrawal not allowed: The employee has already separated from the organization.',
+      );
+    }
+
+    if (exit.status === 'WITHDRAWN') {
+      throw new BadRequestException('This resignation has already been withdrawn.');
+    }
+
+    if (exit.status === 'WITHDRAWAL_REQUESTED') {
+      throw new BadRequestException('A withdrawal request is already pending HR review.');
+    }
+
+    // Rule 2: Cannot withdraw if LWD has already passed
+    const effectiveLwd = new Date(exit.adjustedLwd || exit.lastWorkingDay);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lwdDay = new Date(effectiveLwd);
+    lwdDay.setHours(23, 59, 59, 999);
+
+    if (lwdDay < today) {
+      throw new BadRequestException(
+        'Withdrawal not allowed: The last working date (LWD) has already passed.',
+      );
+    }
+
+    const previousStatus = exit.status;
+    const requestedBy =
+      dto.requestedBy ||
+      `${exit.employee?.firstName || ''} ${exit.employee?.lastName || ''}`.trim() ||
+      'Employee';
+
+    const updated = await this.prisma.employeeExit.update({
+      where: { id },
+      data: {
+        status: 'WITHDRAWAL_REQUESTED',
+        withdrawalReason: dto.reason,
+        withdrawalRequestedAt: new Date(),
+        withdrawalRequestedBy: requestedBy,
+        auditLogs: {
+          create: {
+            action: 'WITHDRAWAL_REQUESTED',
+            previousStatus,
+            newStatus: 'WITHDRAWAL_REQUESTED',
+            performedBy: requestedBy,
+            remarks: `Resignation withdrawal requested. Reason: ${dto.reason}`,
+          },
+        },
+      },
+      include: {
+        employee: {
+          include: {
+            department: true,
+            designation: true,
+            branch: true,
+          },
+        },
+        clearanceItems: true,
+        exitInterview: true,
+        fnfSettlement: true,
+        auditLogs: { orderBy: { createdAt: 'desc' } },
+      },
+    });
+
+    return updated;
+  }
+
+  async reviewWithdrawal(id: string, dto: ReviewExitWithdrawalDto) {
+    const exit = await this.findOne(id);
+
+    if (exit.status === 'EXITED' || exit.status === 'OFFBOARDING_COMPLETED') {
+      throw new BadRequestException(
+        'Action not allowed: The employee has already separated from the organization.',
+      );
+    }
+
+    const reviewer = dto.approvedBy || 'HR Admin';
+
+    if (dto.action === 'APPROVE') {
+      // 1. Cancel pending clearance items
+      await this.prisma.exitClearanceItem.updateMany({
+        where: { exitId: id, status: 'PENDING' },
+        data: {
+          status: 'WAIVED',
+          verifiedBy: reviewer,
+          verifiedAt: new Date(),
+          remarks: 'Cancelled due to resignation withdrawal approved by HR.',
+        },
+      });
+
+      // 2. Cancel F&F settlement if present and pending
+      if (exit.fnfSettlement && exit.fnfSettlement.status !== 'PAID') {
+        await this.prisma.exitFnfSettlement.update({
+          where: { exitId: id },
+          data: {
+            status: 'CANCELLED',
+            remarks: `Cancelled due to resignation withdrawal approved by HR. ${dto.remarks || ''}`.trim(),
+          },
+        });
+      }
+
+      // 3. Confirm and restore Employee status to ACTIVE and clear dateOfExit
+      await this.prisma.employee.update({
+        where: { id: exit.employeeId },
+        data: {
+          status: 'ACTIVE',
+          dateOfExit: null,
+        },
+      });
+
+      // 4. Update exit record to WITHDRAWN
+      const updated = await this.prisma.employeeExit.update({
+        where: { id },
+        data: {
+          status: 'WITHDRAWN',
+          clearanceStatus: 'CANCELLED',
+          fnfStatus: 'CANCELLED',
+          withdrawalApprovedAt: new Date(),
+          withdrawalApprovedBy: reviewer,
+          withdrawalRemarks:
+            dto.remarks || 'Resignation withdrawal approved by HR. Employee retained as ACTIVE.',
+          auditLogs: {
+            create: {
+              action: 'RESIGNATION_WITHDRAWAL_APPROVED',
+              previousStatus: exit.status,
+              newStatus: 'WITHDRAWN',
+              performedBy: reviewer,
+              remarks:
+                dto.remarks ||
+                'Resignation withdrawal approved by HR. Offboarding cancelled and employee retained as Active.',
+            },
+          },
+        },
+        include: {
+          employee: {
+            include: {
+              department: true,
+              designation: true,
+              branch: true,
+            },
+          },
+          clearanceItems: true,
+          exitInterview: true,
+          fnfSettlement: true,
+          auditLogs: { orderBy: { createdAt: 'desc' } },
+        },
+      });
+
+      return updated;
+    } else {
+      // REJECT: Revert back to previous working stage (e.g. CLEARANCE_PENDING or INITIATED)
+      const targetStatus = exit.clearanceItems?.some((i) => i.status === 'CLEARED')
+        ? 'CLEARANCE_PENDING'
+        : 'INITIATED';
+
+      const updated = await this.prisma.employeeExit.update({
+        where: { id },
+        data: {
+          status: targetStatus,
+          withdrawalRemarks: `Withdrawal rejected: ${dto.remarks || 'Rejected by HR/Manager'}`,
+          auditLogs: {
+            create: {
+              action: 'RESIGNATION_WITHDRAWAL_REJECTED',
+              previousStatus: exit.status,
+              newStatus: targetStatus,
+              performedBy: reviewer,
+              remarks: `Resignation withdrawal request was rejected by HR/Manager. Remarks: ${dto.remarks || 'Notice period continues as scheduled.'}`,
+            },
+          },
+        },
+        include: {
+          employee: {
+            include: {
+              department: true,
+              designation: true,
+              branch: true,
+            },
+          },
+          clearanceItems: true,
+          exitInterview: true,
+          fnfSettlement: true,
+          auditLogs: { orderBy: { createdAt: 'desc' } },
+        },
+      });
+
+      return updated;
+    }
+  }
 
   async remove(id: string) {
     await this.findOne(id);

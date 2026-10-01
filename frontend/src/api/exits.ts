@@ -89,11 +89,18 @@ export interface EmployeeExit {
     | 'EXITED'
     | 'OFFBOARDING_COMPLETED'
     | 'REJECTED'
+    | 'WITHDRAWAL_REQUESTED'
     | 'WITHDRAWN'
     | string;
-  clearanceStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | string;
-  fnfStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | string;
+  clearanceStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | string;
+  fnfStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | string;
   exitInterviewStatus: 'PENDING' | 'COMPLETED' | string;
+  withdrawalReason?: string;
+  withdrawalRequestedAt?: string;
+  withdrawalRequestedBy?: string;
+  withdrawalApprovedAt?: string;
+  withdrawalApprovedBy?: string;
+  withdrawalRemarks?: string;
   createdAt: string;
   updatedAt: string;
   employee?: {
@@ -200,6 +207,14 @@ export const exitsApi = {
 
   completeExit: async (id: string, performedBy?: string) =>
     (await apiClient.post<EmployeeExit>(`/employees/exits/${id}/complete-exit`, { performedBy })).data,
+
+  requestWithdrawal: async (id: string, payload: { reason: string; requestedBy?: string }) =>
+    (await apiClient.post<EmployeeExit>(`/employees/exits/${id}/withdraw/request`, payload)).data,
+
+  reviewWithdrawal: async (
+    id: string,
+    payload: { action: 'APPROVE' | 'REJECT'; remarks?: string; approvedBy?: string },
+  ) => (await apiClient.post<EmployeeExit>(`/employees/exits/${id}/withdraw/review`, payload)).data,
 
   remove: async (id: string) => (await apiClient.delete(`/employees/exits/${id}`)).data,
 };

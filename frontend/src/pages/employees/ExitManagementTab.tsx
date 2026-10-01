@@ -30,7 +30,20 @@ import {
   Settings2,
   Loader2,
   GitFork,
+  Undo2,
+  MoreVertical,
+  Eye,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -153,6 +166,14 @@ const getInitialStepForExit = (exit: EmployeeExit): number => {
   }
 };
 
+const NOTICE_PRESETS = [
+  { label: '30 Days', days: 30, hint: '1 Month' },
+  { label: '60 Days', days: 60, hint: '2 Months' },
+  { label: '90 Days', days: 90, hint: '3 Months (Standard)' },
+  { label: '180 Days', days: 180, hint: '6 Months' },
+  { label: 'Custom', days: 0, hint: 'Manual Days' },
+];
+
 export function ExitManagementTab() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
@@ -166,6 +187,16 @@ export function ExitManagementTab() {
   const [selectedExitFallback, setSelectedExitFallback] = useState<EmployeeExit | null>(null);
   const [wizardStep, setWizardStep] = useState<number>(1);
 
+  // Withdrawal Request Modal State
+  const [isWithdrawalRequestOpen, setIsWithdrawalRequestOpen] = useState(false);
+  const [withdrawalExit, setWithdrawalExit] = useState<EmployeeExit | null>(null);
+  const [withdrawalReason, setWithdrawalReason] = useState('');
+
+  // HR Review Withdrawal Modal State
+  const [isReviewWithdrawalOpen, setIsReviewWithdrawalOpen] = useState(false);
+  const [reviewWithdrawalExit, setReviewWithdrawalExit] = useState<EmployeeExit | null>(null);
+  const [reviewWithdrawalRemarks, setReviewWithdrawalRemarks] = useState('');
+
   // Document Viewer Modal State
   const [docModalType, setDocModalType] = useState<'relieving' | 'experience' | 'fnf' | null>(null);
 
@@ -174,6 +205,7 @@ export function ExitManagementTab() {
   const [formExitType, setFormExitType] = useState('RESIGNATION');
   const [formReason, setFormReason] = useState('Career Growth / Better Opportunity');
   const [formResignDate, setFormResignDate] = useState(new Date().toISOString().split('T')[0]);
+  const [noticePreset, setNoticePreset] = useState<'30' | '60' | '90' | '180' | 'custom'>('90');
   const [formNoticeDays, setFormNoticeDays] = useState(90);
   const [formRequestedLwd, setFormRequestedLwd] = useState('');
   const [formNoticeWaivedDays, setFormNoticeWaivedDays] = useState(0);
@@ -245,19 +277,21 @@ export function ExitManagementTab() {
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
     if (isBranchAdmin && assignedBranchId) return assignedBranchId;
-    return 'HEAD_OFFICE';
+    return isSuperOrCompanyAdmin ? 'HEAD_OFFICE' : 'ALL';
   });
 
   // Reset branch selection and details when active company changes
   useEffect(() => {
     if (isBranchAdmin && assignedBranchId) {
       setSelectedBranchId(assignedBranchId);
-    } else {
+    } else if (isSuperOrCompanyAdmin) {
       setSelectedBranchId('HEAD_OFFICE');
+    } else {
+      setSelectedBranchId('ALL');
     }
     setSelectedExitId(null);
     setSelectedExitFallback(null);
-  }, [activeCompanyId, isBranchAdmin, assignedBranchId]);
+  }, [activeCompanyId, isBranchAdmin, assignedBranchId, isSuperOrCompanyAdmin]);
 
   // Fetch branches for the active company
   const { data: rawBranches = [] } = useQuery({
@@ -273,7 +307,7 @@ export function ExitManagementTab() {
 
   const effectiveBranchId = isBranchAdmin && assignedBranchId
     ? assignedBranchId
-    : (selectedBranchId !== 'ALL' ? selectedBranchId : undefined);
+    : (isSuperOrCompanyAdmin && selectedBranchId !== 'ALL' ? selectedBranchId : undefined);
 
   // ── Queries ──
   const { data: employeesData } = useQuery({
@@ -353,20 +387,11 @@ export function ExitManagementTab() {
           (user.employee?.employeeCode && e.employeeCode === user.employee.employeeCode) ||
           (user.id && e.userId === user.id) ||
           (user.userId && e.userId === user.userId) ||
-          (user.email && (e.workEmail?.toLowerCase() === user.email.toLowerCase() || e.personalEmail?.toLowerCase() === user.email.toLowerCase())) ||
-          (user.name && `${e.firstName} ${e.lastName}`.toLowerCase() === user.name.toLowerCase()) ||
-          `${e.firstName} ${e.lastName}`.toLowerCase().includes('raj')
-      ) || (user.employee ? {
-        ...user.employee,
-        id: user.employee.id,
-        employeeCode: user.employee.employeeCode,
-        firstName: user.employee.firstName || 'raj',
-        lastName: user.employee.lastName || 'LTD.',
-        workEmail: user.email,
-        branch: { name: user.employee.branchName || user.branchName || '' },
-        department: { name: user.employee.departmentName || user.departmentName || '' },
-        designation: { title: user.employee.designationTitle || '' },
-      } : null)
+          (user.email &&
+            (e.workEmail?.toLowerCase() === user.email.toLowerCase() ||
+              e.personalEmail?.toLowerCase() === user.email.toLowerCase())) ||
+          (user.name && `${e.firstName} ${e.lastName}`.trim().toLowerCase() === user.name.trim().toLowerCase())
+      ) || user.employee || null
     );
   }, [employees, user]);
 
@@ -376,21 +401,7 @@ export function ExitManagementTab() {
   const displayEmployees = useMemo(() => {
     if (isHrOrAdmin) return employees;
     if (currentEmployee) return [currentEmployee];
-    if (user?.employee) {
-      return [{
-        ...user.employee,
-        id: user.employee.id,
-        employeeCode: user.employee.employeeCode,
-        firstName: user.employee.firstName || 'raj',
-        lastName: user.employee.lastName || 'LTD.',
-      } as any];
-    }
-    const match = employees.find(
-      (e) =>
-        (e.workEmail && user?.email && e.workEmail.toLowerCase() === user.email.toLowerCase()) ||
-        `${e.firstName} ${e.lastName}`.toLowerCase().includes('raj')
-    );
-    if (match) return [match];
+    if (user?.employee) return [user.employee];
     return [];
   }, [employees, isHrOrAdmin, currentEmployee, user]);
 
@@ -399,8 +410,24 @@ export function ExitManagementTab() {
     let list = exits;
     if (!isHrOrAdmin) {
       const empId = currentEmployeeId || user?.employee?.id;
-      if (!empId) return [];
-      list = list.filter((x: any) => x.employeeId === empId || x.employee?.id === empId);
+      const userEmail = user?.email?.toLowerCase();
+      const userName = (user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`).trim().toLowerCase();
+      if (!empId && !userEmail && !userName) return [];
+      list = list.filter((x: any) => {
+        if (empId && (x.employeeId === empId || x.employee?.id === empId)) return true;
+        if (
+          userEmail &&
+          (x.employee?.workEmail?.toLowerCase() === userEmail ||
+            x.employee?.personalEmail?.toLowerCase() === userEmail)
+        )
+          return true;
+        if (
+          userName &&
+          `${x.employee?.firstName} ${x.employee?.lastName}`.trim().toLowerCase() === userName
+        )
+          return true;
+        return false;
+      });
     }
     if (isSuperOrCompanyAdmin) {
       if (selectedBranchId === 'HEAD_OFFICE') {
@@ -422,7 +449,26 @@ export function ExitManagementTab() {
       }
     }
     return list;
-  }, [exits, isHrOrAdmin, currentEmployeeId, user?.employee?.id, isSuperOrCompanyAdmin, selectedBranchId, employees, filteredBranches]);
+  }, [exits, isHrOrAdmin, currentEmployeeId, user, isSuperOrCompanyAdmin, selectedBranchId, employees, filteredBranches]);
+
+  // Active Resignation for current employee (Self-Service View)
+  const myActiveExit = useMemo(() => {
+    const empId = currentEmployeeId || user?.employee?.id;
+    const userEmail = user?.email?.toLowerCase();
+    const userName = (user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`).trim().toLowerCase();
+    return (
+      exits.find((x: any) => {
+        const match =
+          (empId && (x.employeeId === empId || x.employee?.id === empId)) ||
+          (userEmail &&
+            (x.employee?.workEmail?.toLowerCase() === userEmail ||
+              x.employee?.personalEmail?.toLowerCase() === userEmail)) ||
+          (userName &&
+            `${x.employee?.firstName} ${x.employee?.lastName}`.trim().toLowerCase() === userName);
+        return match && x.status !== 'WITHDRAWN';
+      }) || null
+    );
+  }, [exits, currentEmployeeId, user]);
 
   // Auto-fit selected employee ID if logged in as employee
   useEffect(() => {
@@ -654,6 +700,92 @@ export function ExitManagementTab() {
     },
   });
 
+  const requestWithdrawalMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      exitsApi.requestWithdrawal(id, {
+        reason,
+        requestedBy: user?.employee
+          ? `${user.employee.firstName || ''} ${user.employee.lastName || ''}`.trim()
+          : user?.name || user?.email || 'Employee',
+      }),
+    onSuccess: () => {
+      toast.success('Resignation withdrawal request submitted to HR for review.');
+      setIsWithdrawalRequestOpen(false);
+      setWithdrawalExit(null);
+      setWithdrawalReason('');
+      queryClient.invalidateQueries({ queryKey: ['exits'] });
+      queryClient.invalidateQueries({ queryKey: ['exit-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['exits-kpis'] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to submit withdrawal request.');
+    },
+  });
+
+  const reviewWithdrawalMutation = useMutation({
+    mutationFn: ({
+      id,
+      action,
+      remarks,
+    }: {
+      id: string;
+      action: 'APPROVE' | 'REJECT';
+      remarks?: string;
+    }) =>
+      exitsApi.reviewWithdrawal(id, {
+        action,
+        remarks,
+        approvedBy: user?.employee
+          ? `${user.employee.firstName || ''} ${user.employee.lastName || ''}`.trim()
+          : user?.name || 'HR Admin',
+      }),
+    onSuccess: (_, vars) => {
+      if (vars.action === 'APPROVE') {
+        toast.success('Resignation withdrawal approved! Employee lifecycle restored to ACTIVE.');
+      } else {
+        toast.info('Resignation withdrawal rejected. Notice period continues as scheduled.');
+      }
+      setIsReviewWithdrawalOpen(false);
+      setReviewWithdrawalExit(null);
+      setReviewWithdrawalRemarks('');
+      queryClient.invalidateQueries({ queryKey: ['exits'] });
+      queryClient.invalidateQueries({ queryKey: ['exit-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['exits-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['employees-list-exit'] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to review withdrawal request.');
+    },
+  });
+
+  const canWithdrawExit = (exit: EmployeeExit) => {
+    if (!exit) return false;
+    // Cannot withdraw if already completed / separated or already withdrawn
+    if (['EXITED', 'OFFBOARDING_COMPLETED', 'WITHDRAWN', 'WITHDRAWAL_REQUESTED'].includes(exit.status)) {
+      return false;
+    }
+    // Cannot withdraw if LWD has already passed
+    const effectiveLwd = new Date(exit.adjustedLwd || exit.lastWorkingDay);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lwdDay = new Date(effectiveLwd);
+    lwdDay.setHours(23, 59, 59, 999);
+    if (lwdDay < today) return false;
+    return true;
+  };
+
+  const handleOpenWithdrawalRequest = (exit: EmployeeExit) => {
+    setWithdrawalExit(exit);
+    setWithdrawalReason('');
+    setIsWithdrawalRequestOpen(true);
+  };
+
+  const handleOpenReviewWithdrawal = (exit: EmployeeExit) => {
+    setReviewWithdrawalExit(exit);
+    setReviewWithdrawalRemarks('');
+    setIsReviewWithdrawalOpen(true);
+  };
+
   // Modal Open Handlers
   const openAddModal = () => {
     const defaultEmpId = !isHrOrAdmin ? (currentEmployeeId || user?.employee?.id || displayEmployees[0]?.id || '') : (employees[0]?.id || '');
@@ -661,6 +793,7 @@ export function ExitManagementTab() {
     setFormExitType('RESIGNATION');
     setFormReason(EXIT_REASONS_MAP['RESIGNATION'][0]);
     setFormResignDate(new Date().toISOString().split('T')[0]);
+    setNoticePreset('90');
     setFormNoticeDays(90);
     setFormRequestedLwd('');
     setFormNoticeWaivedDays(0);
@@ -670,10 +803,10 @@ export function ExitManagementTab() {
     setIsAddOpen(true);
   };
 
-  const openDetailModal = (exit: EmployeeExit) => {
+  const openDetailModal = (exit: EmployeeExit, targetStep?: number) => {
     setSelectedExitFallback(exit);
     setSelectedExitId(exit.id);
-    setWizardStep(getInitialStepForExit(exit));
+    setWizardStep(targetStep ?? getInitialStepForExit(exit));
     setSelectedDeptFilter('all');
 
     // Populate Interview state
@@ -879,6 +1012,78 @@ export function ExitManagementTab() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── 1.5. Employee Active Resignation Self-Service Card ── */}
+      {myActiveExit && (
+        <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/5 via-background to-amber-500/10 shadow-xs">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className="font-mono text-xs font-bold bg-background text-amber-700 border-amber-300">
+                    {myActiveExit.exitCode}
+                  </Badge>
+                  <h3 className="text-sm font-bold text-foreground">
+                    My Resignation & Notice Period Status
+                  </h3>
+                  <StatusBadge status={myActiveExit.status} />
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap pt-1">
+                  <span>
+                    Resignation Date:{' '}
+                    <strong className="text-foreground font-mono">
+                      {new Date(myActiveExit.resignationDate).toLocaleDateString()}
+                    </strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Notice Period:{' '}
+                    <strong className="text-foreground font-mono">
+                      {myActiveExit.noticePeriodDays} Days
+                    </strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Last Working Date:{' '}
+                    <strong className="text-primary font-mono font-semibold">
+                      {new Date(myActiveExit.adjustedLwd || myActiveExit.lastWorkingDay).toLocaleDateString()}
+                    </strong>
+                  </span>
+                </div>
+                {myActiveExit.status === 'WITHDRAWAL_REQUESTED' && (
+                  <p className="text-[11px] text-amber-800 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-md inline-block mt-2 font-medium">
+                    ⚠️ Resignation Withdrawal Request is currently under review by Department Manager & HR.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {myActiveExit.status === 'WITHDRAWAL_REQUESTED' ? (
+                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-xs py-1.5 px-3 font-semibold">
+                    Withdrawal Under Review
+                  </Badge>
+                ) : canWithdrawExit(myActiveExit) ? (
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs font-semibold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                    onClick={() => handleOpenWithdrawalRequest(myActiveExit)}
+                  >
+                    <Undo2 className="h-3.5 w-3.5" /> Request Withdrawal
+                  </Button>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1"
+                  onClick={() => openDetailModal(myActiveExit)}
+                >
+                  <Eye className="h-3.5 w-3.5" /> View Details
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── 2. Exit Offboarding Directory & Register Panel ── */}
       <Card className="shadow-xs border-border/80">
@@ -1095,14 +1300,74 @@ export function ExitManagementTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs gap-1 hover:text-primary"
-                            onClick={() => openDetailModal(exit)}
-                          >
-                            {canManage ? 'Manage Lifecycle' : 'View Details'} <ChevronRight className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {exit.status === 'WITHDRAWAL_REQUESTED' && canManage && (
+                              <Button
+                                size="sm"
+                                className="h-7 text-[11px] font-semibold gap-1 bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
+                                onClick={() => handleOpenReviewWithdrawal(exit)}
+                                title="Review Employee Withdrawal Request"
+                              >
+                                <AlertCircle className="h-3 w-3" /> Review Withdrawal
+                              </Button>
+                            )}
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs px-2 gap-1 font-medium hover:bg-muted/80 shadow-2xs"
+                                >
+                                  {canManage ? 'Manage Lifecycle' : 'View Details'}
+                                  <ChevronRight className="h-3 w-3 rotate-90" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56 text-xs shadow-lg">
+                                <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                                  Lifecycle Workflow Actions
+                                </DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => openDetailModal(exit, 1)} className="gap-2 cursor-pointer text-xs">
+                                  <FileText className="h-3.5 w-3.5 text-primary" /> View Resignation Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openDetailModal(exit, 2)} className="gap-2 cursor-pointer text-xs">
+                                  <Calendar className="h-3.5 w-3.5 text-blue-500" /> View Notice Period & LWD
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openDetailModal(exit, 5)} className="gap-2 cursor-pointer text-xs">
+                                  <CheckSquare className="h-3.5 w-3.5 text-emerald-500" /> View Clearance Tasks
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openDetailModal(exit, 7)} className="gap-2 cursor-pointer text-xs">
+                                  <DollarSign className="h-3.5 w-3.5 text-cyan-500" /> View F&F Settlement
+                                </DropdownMenuItem>
+
+                                <DropdownMenuSeparator />
+
+                                {exit.status === 'WITHDRAWAL_REQUESTED' && canManage && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenReviewWithdrawal(exit)}
+                                    className="gap-2 cursor-pointer font-semibold text-amber-700 bg-amber-500/10 focus:bg-amber-500/20 text-xs"
+                                  >
+                                    <AlertCircle className="h-3.5 w-3.5 text-amber-600" /> Review Withdrawal Request
+                                  </DropdownMenuItem>
+                                )}
+
+                                {canWithdrawExit(exit) && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenWithdrawalRequest(exit)}
+                                    className="gap-2 cursor-pointer font-medium text-amber-600 focus:text-amber-700 focus:bg-amber-50 text-xs"
+                                  >
+                                    <Undo2 className="h-3.5 w-3.5 text-amber-600" /> Request Resignation Withdrawal
+                                  </DropdownMenuItem>
+                                )}
+
+                                {exit.status === 'WITHDRAWN' && (
+                                  <div className="px-2 py-1.5 text-[11px] text-emerald-600 font-medium italic">
+                                    ✓ Resignation Withdrawn (Active)
+                                  </div>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -1214,28 +1479,74 @@ export function ExitManagementTab() {
                 <span className="text-[10px] text-muted-foreground">Auto-calculates Expected LWD</span>
               </div>
 
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[11px] font-medium">Notice Period Options *</Label>
+                  <span className="text-[11px] font-mono font-bold text-primary">
+                    {formNoticeDays} Days Notice
+                  </span>
+                </div>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {NOTICE_PRESETS.map((preset) => {
+                    const isSelected =
+                      preset.label === 'Custom'
+                        ? noticePreset === 'custom'
+                        : formNoticeDays === preset.days && noticePreset !== 'custom';
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          if (preset.label === 'Custom') {
+                            setNoticePreset('custom');
+                          } else {
+                            setNoticePreset(preset.days.toString() as any);
+                            setFormNoticeDays(preset.days);
+                            setFormLwd('');
+                          }
+                        }}
+                        className={`px-1.5 py-1.5 text-center rounded-lg border transition-all ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground border-primary font-bold shadow-2xs'
+                            : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70'
+                        }`}
+                      >
+                        <div className="text-[10.5px] leading-tight font-semibold">{preset.label}</div>
+                        <div className="text-[8.5px] opacity-75">{preset.hint}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {noticePreset === 'custom' && (
+                  <div className="pt-1">
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Enter custom notice days (e.g. 45, 120)..."
+                      value={formNoticeDays}
+                      onChange={(e) => {
+                        setFormNoticeDays(Number(e.target.value));
+                        setFormLwd('');
+                      }}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-medium">Notice Start / Resignation Date</Label>
                   <Input
                     type="date"
                     value={formResignDate}
-                    onChange={(e) => setFormResignDate(e.target.value)}
+                    onChange={(e) => {
+                      setFormResignDate(e.target.value);
+                      setFormLwd('');
+                    }}
                     className="h-8 text-xs font-mono"
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-medium">Contract Notice (Days)</Label>
-                  <Input
-                    type="number"
-                    value={formNoticeDays}
-                    onChange={(e) => setFormNoticeDays(Number(e.target.value))}
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-medium">Expected Last Working Day (Auto)</Label>
                   <Input
@@ -1245,8 +1556,11 @@ export function ExitManagementTab() {
                     className="h-8 text-xs font-mono font-semibold text-primary bg-primary/5"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 pt-1">
                 <div className="space-y-1">
-                  <Label className="text-[11px] font-medium">Requested LWD (Early Release)</Label>
+                  <Label className="text-[11px] font-medium">Requested LWD (Early)</Label>
                   <Input
                     type="date"
                     value={formRequestedLwd}
@@ -1254,9 +1568,6 @@ export function ExitManagementTab() {
                     className="h-8 text-xs font-mono"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-medium">Notice Waived (Days)</Label>
                   <Input
@@ -1356,17 +1667,25 @@ export function ExitManagementTab() {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          size="sm"
-                          variant={isAlreadySeparated ? 'default' : 'outline'}
-                          className={`text-xs gap-1.5 ${isAlreadySeparated ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                          onClick={() => setWizardStep(8)}
-                        >
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          {isAlreadySeparated ? 'Separation Completed' : 'Final Exit Approval Gate'}
-                        </Button>
-                      </div>
+                      {canManage ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant={isAlreadySeparated ? 'default' : 'outline'}
+                            className={`text-xs gap-1.5 ${isAlreadySeparated ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                            onClick={() => setWizardStep(8)}
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            {isAlreadySeparated ? 'Separation Completed' : 'Final Exit Approval Gate'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/40 font-normal">
+                            View Only Mode
+                          </Badge>
+                        </div>
+                      )}
                     </div>
 
                     {/* ── Enterprise 8-Step Unified Workflow Wizard Stepper ── */}
@@ -1535,7 +1854,7 @@ export function ExitManagementTab() {
                             Case initiated. Advance to HR Review to verify contractual terms and service obligations.
                           </span>
                           <div className="flex items-center gap-2">
-                            {currentExit.status === 'INITIATED' && (
+                            {canManage && currentExit.status === 'INITIATED' && (
                               <Button
                                 size="sm"
                                 className="text-xs"
@@ -1599,10 +1918,16 @@ export function ExitManagementTab() {
 
                         <div className="p-3.5 bg-muted/40 rounded-xl border space-y-2">
                           <Label className="text-xs font-semibold">HR Verification Notes & Policy Compliance Remarks</Label>
-                          <Input
-                            placeholder="e.g. Resignation acknowledged by HR. Notice period terms and standard handover requirements confirmed."
-                            className="h-9 text-xs"
-                          />
+                          {canManage ? (
+                            <Input
+                              placeholder="e.g. Resignation acknowledged by HR. Notice period terms and standard handover requirements confirmed."
+                              className="h-9 text-xs"
+                            />
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic bg-background p-2.5 rounded-lg border">
+                              Resignation acknowledged by HR. Contractual notice terms and standard separation policies active.
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex items-center justify-between pt-3 border-t">
@@ -1615,16 +1940,18 @@ export function ExitManagementTab() {
                             ← Back to Initiated
                           </Button>
                           <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              className="text-xs"
-                              onClick={() => {
-                                updateStatusMutation.mutate({ id: currentExit.id, status: 'MANAGER_APPROVAL' });
-                                setWizardStep(3);
-                              }}
-                            >
-                              Approve HR Review & Advance →
-                            </Button>
+                            {canManage && (
+                              <Button
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => {
+                                  updateStatusMutation.mutate({ id: currentExit.id, status: 'MANAGER_APPROVAL' });
+                                  setWizardStep(3);
+                                }}
+                              >
+                                Approve HR Review & Advance →
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="outline"
@@ -1671,16 +1998,16 @@ export function ExitManagementTab() {
                           <div className="space-y-2 pt-2 border-t text-xs">
                             <span className="text-[11px] font-semibold text-foreground block">Transition & Handover Checklist:</span>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                              <label className="flex items-center gap-2 p-2.5 rounded-lg border bg-background text-[11px] cursor-pointer">
-                                <input type="checkbox" defaultChecked className="rounded border-muted-foreground/40 text-primary" />
+                              <label className={`flex items-center gap-2 p-2.5 rounded-lg border bg-background text-[11px] ${canManage ? 'cursor-pointer' : 'cursor-default'}`}>
+                                <input type="checkbox" defaultChecked disabled={!canManage} className="rounded border-muted-foreground/40 text-primary" />
                                 <span>Knowledge Transfer (KT) Documents</span>
                               </label>
-                              <label className="flex items-center gap-2 p-2.5 rounded-lg border bg-background text-[11px] cursor-pointer">
-                                <input type="checkbox" defaultChecked className="rounded border-muted-foreground/40 text-primary" />
+                              <label className={`flex items-center gap-2 p-2.5 rounded-lg border bg-background text-[11px] ${canManage ? 'cursor-pointer' : 'cursor-default'}`}>
+                                <input type="checkbox" defaultChecked disabled={!canManage} className="rounded border-muted-foreground/40 text-primary" />
                                 <span>Ongoing Deliverables Handed Over</span>
                               </label>
-                              <label className="flex items-center gap-2 p-2.5 rounded-lg border bg-background text-[11px] cursor-pointer">
-                                <input type="checkbox" defaultChecked className="rounded border-muted-foreground/40 text-primary" />
+                              <label className={`flex items-center gap-2 p-2.5 rounded-lg border bg-background text-[11px] ${canManage ? 'cursor-pointer' : 'cursor-default'}`}>
+                                <input type="checkbox" defaultChecked disabled={!canManage} className="rounded border-muted-foreground/40 text-primary" />
                                 <span>Workstation & Tools Cleared</span>
                               </label>
                             </div>
@@ -1688,10 +2015,16 @@ export function ExitManagementTab() {
 
                           <div className="space-y-1.5 pt-2">
                             <Label className="text-[11px] font-medium">Manager Handover Comments</Label>
-                            <Input
-                              placeholder="e.g. Responsibilities successfully reassigned to senior team members. Clearance approved."
-                              className="h-8 text-xs"
-                            />
+                            {canManage ? (
+                              <Input
+                                placeholder="e.g. Responsibilities successfully reassigned to senior team members. Clearance approved."
+                                className="h-8 text-xs"
+                              />
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic bg-background p-2 rounded-lg border">
+                                Responsibilities and deliverables transitioning in accordance with departmental guidelines.
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -1705,16 +2038,18 @@ export function ExitManagementTab() {
                             ← Back to HR Review
                           </Button>
                           <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              className="text-xs"
-                              onClick={() => {
-                                updateStatusMutation.mutate({ id: currentExit.id, status: 'NOTICE_PERIOD' });
-                                setWizardStep(4);
-                              }}
-                            >
-                              Sign off Manager Approval →
-                            </Button>
+                            {canManage && (
+                              <Button
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => {
+                                  updateStatusMutation.mutate({ id: currentExit.id, status: 'NOTICE_PERIOD' });
+                                  setWizardStep(4);
+                                }}
+                              >
+                                Sign off Manager Approval →
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="outline"
@@ -1768,42 +2103,44 @@ export function ExitManagementTab() {
                           </div>
                         </div>
 
-                        {/* Confirm / Adjust LWD Card */}
-                        <div className="p-3.5 bg-muted/40 rounded-xl border border-border/80 space-y-3">
-                          <h3 className="font-semibold text-foreground text-xs">Confirm / Adjust Last Working Day (LWD)</h3>
-                          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-                            <div className="space-y-1">
-                              <Label className="text-[11px]">Adjusted LWD</Label>
-                              <Input
-                                type="date"
-                                value={adjustLwdDate || (currentExit.lastWorkingDay ? currentExit.lastWorkingDay.split('T')[0] : '')}
-                                onChange={(e) => setAdjustLwdDate(e.target.value)}
-                                className="h-8 text-xs font-mono"
-                              />
+                        {/* Confirm / Adjust LWD Card (Admin Only) */}
+                        {canManage && (
+                          <div className="p-3.5 bg-muted/40 rounded-xl border border-border/80 space-y-3">
+                            <h3 className="font-semibold text-foreground text-xs">Confirm / Adjust Last Working Day (LWD)</h3>
+                            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                              <div className="space-y-1">
+                                <Label className="text-[11px]">Adjusted LWD</Label>
+                                <Input
+                                  type="date"
+                                  value={adjustLwdDate || (currentExit.lastWorkingDay ? currentExit.lastWorkingDay.split('T')[0] : '')}
+                                  onChange={(e) => setAdjustLwdDate(e.target.value)}
+                                  className="h-8 text-xs font-mono"
+                                />
+                              </div>
+                              <div className="space-y-1 flex-1 min-w-[200px]">
+                                <Label className="text-[11px]">Reason for Early Release / Waiver</Label>
+                                <Input
+                                  placeholder="e.g. Notice buyout approved by management..."
+                                  value={adjustLwdReason}
+                                  onChange={(e) => setAdjustLwdReason(e.target.value)}
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs mt-4"
+                                onClick={() =>
+                                  adjustLwdMutation.mutate({
+                                    adjustedLwd: adjustLwdDate || (currentExit.lastWorkingDay ? currentExit.lastWorkingDay.split('T')[0] : ''),
+                                    reason: adjustLwdReason || 'Adjusted by HR',
+                                  })
+                                }
+                              >
+                                Update LWD
+                              </Button>
                             </div>
-                            <div className="space-y-1 flex-1 min-w-[200px]">
-                              <Label className="text-[11px]">Reason for Early Release / Waiver</Label>
-                              <Input
-                                placeholder="e.g. Notice buyout approved by management..."
-                                value={adjustLwdReason}
-                                onChange={(e) => setAdjustLwdReason(e.target.value)}
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                            <Button
-                              size="sm"
-                              className="h-8 text-xs mt-4"
-                              onClick={() =>
-                                adjustLwdMutation.mutate({
-                                  adjustedLwd: adjustLwdDate || (currentExit.lastWorkingDay ? currentExit.lastWorkingDay.split('T')[0] : ''),
-                                  reason: adjustLwdReason || 'Adjusted by HR',
-                                })
-                              }
-                            >
-                              Update LWD
-                            </Button>
                           </div>
-                        </div>
+                        )}
 
                         {/* Chronological Audit Log */}
                         <div className="space-y-2">
@@ -1836,16 +2173,18 @@ export function ExitManagementTab() {
                             ← Back to Manager
                           </Button>
                           <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              className="text-xs"
-                              onClick={() => {
-                                updateStatusMutation.mutate({ id: currentExit.id, status: 'CLEARANCE_PENDING' });
-                                setWizardStep(5);
-                              }}
-                            >
-                              Advance to Clearance & Assets →
-                            </Button>
+                            {canManage && (
+                              <Button
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => {
+                                  updateStatusMutation.mutate({ id: currentExit.id, status: 'CLEARANCE_PENDING' });
+                                  setWizardStep(5);
+                                }}
+                              >
+                                Advance to Clearance & Assets →
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="outline"
@@ -2034,7 +2373,7 @@ export function ExitManagementTab() {
                                   Assets allocated in Employee Master for {currentExit.employee?.firstName} {currentExit.employee?.lastName}
                                 </p>
                               </div>
-                              {totalAssetRecovery > 0 && (
+                              {canManage && totalAssetRecovery > 0 && (
                                 <Button size="sm" variant="outline" className="text-xs gap-1 h-7" onClick={syncAssetRecoveryToFnf}>
                                   <DollarSign className="h-3.5 w-3.5 text-rose-600" /> Sync ₹{totalAssetRecovery.toLocaleString('en-IN')} to F&F
                                 </Button>
@@ -2129,25 +2468,31 @@ export function ExitManagementTab() {
                                         {/* Action: Mark as Returned or Returned Info */}
                                         <div className="shrink-0 flex items-center sm:self-center">
                                           {!isReturned ? (
-                                            <Button
-                                              size="sm"
-                                              className="text-xs gap-1.5 bg-primary hover:bg-primary/90 shadow-2xs font-semibold"
-                                              onClick={() => {
-                                                setReturnModalAsset(asset);
-                                                setReturnModalDate(new Date().toISOString().split('T')[0]);
-                                                setReturnModalCondition(asset.condition || 'Good');
-                                                setReturnModalReturnedBy(
-                                                  user
-                                                    ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'HR Admin'
-                                                    : 'HR Admin',
-                                                );
-                                                setReturnModalRemarks('');
-                                                setReturnModalRecoveryCost(0);
-                                              }}
-                                              disabled={returnAssetMutation.isPending}
-                                            >
-                                              <CheckCircle2 className="h-3.5 w-3.5" /> Mark as Returned
-                                            </Button>
+                                            canManage ? (
+                                              <Button
+                                                size="sm"
+                                                className="text-xs gap-1.5 bg-primary hover:bg-primary/90 shadow-2xs font-semibold"
+                                                onClick={() => {
+                                                  setReturnModalAsset(asset);
+                                                  setReturnModalDate(new Date().toISOString().split('T')[0]);
+                                                  setReturnModalCondition(asset.condition || 'Good');
+                                                  setReturnModalReturnedBy(
+                                                    user
+                                                      ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'HR Admin'
+                                                      : 'HR Admin',
+                                                  );
+                                                  setReturnModalRemarks('');
+                                                  setReturnModalRecoveryCost(0);
+                                                }}
+                                                disabled={returnAssetMutation.isPending}
+                                              >
+                                                <CheckCircle2 className="h-3.5 w-3.5" /> Mark as Returned
+                                              </Button>
+                                            ) : (
+                                              <Badge variant="outline" className="text-[10px] text-amber-700 bg-amber-500/10 border-amber-300 font-semibold py-1 px-2.5">
+                                                Pending Handover
+                                              </Badge>
+                                            )
                                           ) : (
                                             <div className="text-right text-[10.5px] p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                                               <p className="font-semibold text-emerald-800 dark:text-emerald-300">
@@ -2227,18 +2572,20 @@ export function ExitManagementTab() {
                     Conditional questionnaire. Can be waived for absconding, demise, or summary terminations.
                   </p>
                 </div>
-                {/* Waiver Toggle */}
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={!interviewRequired}
-                      onChange={(e) => setInterviewRequired(!e.target.checked)}
-                      className="rounded"
-                    />
-                    <span>Waive Exit Interview</span>
-                  </label>
-                </div>
+                {/* Waiver Toggle (Only HR/Admin) */}
+                {canManage && (
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={!interviewRequired}
+                        onChange={(e) => setInterviewRequired(!e.target.checked)}
+                        className="rounded"
+                      />
+                      <span>Waive Exit Interview</span>
+                    </label>
+                  </div>
+                )}
               </div>
 
               {!interviewRequired ? (
@@ -2250,29 +2597,37 @@ export function ExitManagementTab() {
                   <p className="text-[11px] text-amber-800">
                     This separation type or corporate policy has waived the exit questionnaire. This formality will not block the Final Exit Signoff.
                   </p>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Reason for Waiver</Label>
-                    <Input
-                      placeholder="e.g. Absconding employee untraceable / Mutual separation agreement..."
-                      value={interviewWaiverReason}
-                      onChange={(e) => setInterviewWaiverReason(e.target.value)}
-                      className="h-8 text-xs bg-background"
-                    />
-                  </div>
-                  <Button
-                    size="sm"
-                    className="text-xs bg-amber-600 hover:bg-amber-700 text-white"
-                    onClick={() =>
-                      saveInterviewMutation.mutate({
-                        isWaived: true,
-                        waiverReason: interviewWaiverReason || 'Waived by corporate policy',
-                        primaryReason: 'WAIVED',
-                      })
-                    }
-                    disabled={saveInterviewMutation.isPending}
-                  >
-                    Confirm Interview Waiver
-                  </Button>
+                  {canManage ? (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Reason for Waiver</Label>
+                        <Input
+                          placeholder="e.g. Absconding employee untraceable / Mutual separation agreement..."
+                          value={interviewWaiverReason}
+                          onChange={(e) => setInterviewWaiverReason(e.target.value)}
+                          className="h-8 text-xs bg-background"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        className="text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                        onClick={() =>
+                          saveInterviewMutation.mutate({
+                            isWaived: true,
+                            waiverReason: interviewWaiverReason || 'Waived by corporate policy',
+                            primaryReason: 'WAIVED',
+                          })
+                        }
+                        disabled={saveInterviewMutation.isPending}
+                      >
+                        Confirm Interview Waiver
+                      </Button>
+                    </>
+                  ) : (
+                    interviewWaiverReason && (
+                      <p className="text-xs text-muted-foreground italic">Reason: {interviewWaiverReason}</p>
+                    )
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -2282,6 +2637,7 @@ export function ExitManagementTab() {
                       <Input
                         value={interviewPrimaryReason}
                         onChange={(e) => setInterviewPrimaryReason(e.target.value)}
+                        disabled={!canManage}
                         className="h-9 text-xs"
                       />
                     </div>
@@ -2290,6 +2646,7 @@ export function ExitManagementTab() {
                       <Input
                         value={interviewSecondaryReason}
                         onChange={(e) => setInterviewSecondaryReason(e.target.value)}
+                        disabled={!canManage}
                         className="h-9 text-xs"
                       />
                     </div>
@@ -2301,6 +2658,7 @@ export function ExitManagementTab() {
                       <Textarea
                         value={interviewEmpFeedback}
                         onChange={(e) => setInterviewEmpFeedback(e.target.value)}
+                        disabled={!canManage}
                         className="text-xs resize-none"
                         rows={3}
                         placeholder="Employee's perspective on team, management, working culture..."
@@ -2311,6 +2669,7 @@ export function ExitManagementTab() {
                       <Textarea
                         value={interviewMgrFeedback}
                         onChange={(e) => setInterviewMgrFeedback(e.target.value)}
+                        disabled={!canManage}
                         className="text-xs resize-none"
                         rows={3}
                         placeholder="Manager's notes on performance, conduct, transition..."
@@ -2324,6 +2683,7 @@ export function ExitManagementTab() {
                       <Select
                         value={String(interviewWorkRating)}
                         onValueChange={(v) => setInterviewWorkRating(Number(v))}
+                        disabled={!canManage}
                       >
                         <SelectTrigger className="h-8 text-xs">
                           <SelectValue />
@@ -2343,6 +2703,7 @@ export function ExitManagementTab() {
                       <Select
                         value={String(interviewCompRating)}
                         onValueChange={(v) => setInterviewCompRating(Number(v))}
+                        disabled={!canManage}
                       >
                         <SelectTrigger className="h-8 text-xs">
                           <SelectValue />
@@ -2359,21 +2720,23 @@ export function ExitManagementTab() {
                   </div>
 
                   <div className="flex items-center gap-6 pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className={`flex items-center gap-2 ${canManage ? 'cursor-pointer' : 'cursor-default'}`}>
                       <input
                         type="checkbox"
                         checked={interviewRecommend}
                         onChange={(e) => setInterviewRecommend(e.target.checked)}
+                        disabled={!canManage}
                         className="rounded"
                       />
                       <span className="text-xs font-medium">Would recommend company to others</span>
                     </label>
 
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className={`flex items-center gap-2 ${canManage ? 'cursor-pointer' : 'cursor-default'}`}>
                       <input
                         type="checkbox"
                         checked={interviewRehire}
                         onChange={(e) => setInterviewRehire(e.target.checked)}
+                        disabled={!canManage}
                         className="rounded"
                       />
                       <span className="text-xs font-medium text-emerald-600 font-semibold">
@@ -2387,32 +2750,35 @@ export function ExitManagementTab() {
                     <Input
                       value={interviewHrRemarks}
                       onChange={(e) => setInterviewHrRemarks(e.target.value)}
+                      disabled={!canManage}
                       className="h-9 text-xs"
                       placeholder="Final HR observations..."
                     />
                   </div>
 
-                  <Button
-                    size="sm"
-                    className="text-xs gap-1"
-                    onClick={() =>
-                      saveInterviewMutation.mutate({
-                        isWaived: false,
-                        primaryReason: interviewPrimaryReason,
-                        secondaryReason: interviewSecondaryReason,
-                        employeeFeedback: interviewEmpFeedback,
-                        managerFeedback: interviewMgrFeedback,
-                        workEnvironmentRating: interviewWorkRating,
-                        compensationRating: interviewCompRating,
-                        recommendCompany: interviewRecommend,
-                        rehireEligible: interviewRehire,
-                        hrRemarks: interviewHrRemarks,
-                      })
-                    }
-                    disabled={saveInterviewMutation.isPending}
-                  >
-                    <Check className="h-3.5 w-3.5" /> Save Exit Interview Feedback
-                  </Button>
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      className="text-xs gap-1"
+                      onClick={() =>
+                        saveInterviewMutation.mutate({
+                          isWaived: false,
+                          primaryReason: interviewPrimaryReason,
+                          secondaryReason: interviewSecondaryReason,
+                          employeeFeedback: interviewEmpFeedback,
+                          managerFeedback: interviewMgrFeedback,
+                          workEnvironmentRating: interviewWorkRating,
+                          compensationRating: interviewCompRating,
+                          recommendCompany: interviewRecommend,
+                          rehireEligible: interviewRehire,
+                          hrRemarks: interviewHrRemarks,
+                        })
+                      }
+                      disabled={saveInterviewMutation.isPending}
+                    >
+                      <Check className="h-3.5 w-3.5" /> Save Exit Interview Feedback
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -2469,27 +2835,30 @@ export function ExitManagementTab() {
                     <span className="text-muted-foreground block text-[11px]">Unavailed Leave Balance:</span>
                     <div className="flex items-center gap-2 mt-0.5">
                       <strong className="text-primary text-sm font-mono">{unavailedLeaveDays} Days</strong>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 text-[10px] text-primary px-1.5"
-                        onClick={() => {
-                          const calc = Math.round((50000 / 30) * unavailedLeaveDays);
-                          setFnfLeaveEncashment(calc);
-                          toast.success(`Leave encashment ₹${calc.toLocaleString('en-IN')} synced to F&F!`);
-                        }}
-                      >
-                        Sync to F&F
-                      </Button>
+                      {canManage && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] text-primary px-1.5"
+                          onClick={() => {
+                            const calc = Math.round((50000 / 30) * unavailedLeaveDays);
+                            setFnfLeaveEncashment(calc);
+                            toast.success(`Leave encashment ₹${calc.toLocaleString('en-IN')} synced to F&F!`);
+                          }}
+                        >
+                          Sync to F&F
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                <label className={`flex items-center gap-2 pt-1 ${canManage ? 'cursor-pointer' : 'cursor-default'}`}>
                   <input
                     type="checkbox"
                     checked={attendanceClosed}
                     onChange={(e) => setAttendanceClosed(e.target.checked)}
+                    disabled={!canManage}
                     className="rounded"
                   />
                   <span className="text-xs font-semibold text-foreground">
@@ -2521,48 +2890,68 @@ export function ExitManagementTab() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <span>Earned Salary Dues</span>
-                        <Input
-                          type="number"
-                          value={fnfSalaryPayable}
-                          onChange={(e) => setFnfSalaryPayable(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfSalaryPayable}
+                            onChange={(e) => setFnfSalaryPayable(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-foreground">₹{fnfSalaryPayable.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span>Leave Encashment Dues</span>
-                        <Input
-                          type="number"
-                          value={fnfLeaveEncashment}
-                          onChange={(e) => setFnfLeaveEncashment(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfLeaveEncashment}
+                            onChange={(e) => setFnfLeaveEncashment(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-foreground">₹{fnfLeaveEncashment.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span>Pending Performance Incentives</span>
-                        <Input
-                          type="number"
-                          value={fnfIncentives}
-                          onChange={(e) => setFnfIncentives(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfIncentives}
+                            onChange={(e) => setFnfIncentives(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-foreground">₹{fnfIncentives.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span>Expense Reimbursements</span>
-                        <Input
-                          type="number"
-                          value={fnfReimbursements}
-                          onChange={(e) => setFnfReimbursements(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfReimbursements}
+                            onChange={(e) => setFnfReimbursements(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-foreground">₹{fnfReimbursements.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span>Gratuity (Tenure {'>='} 5 Yrs)</span>
-                        <Input
-                          type="number"
-                          value={fnfGratuity}
-                          onChange={(e) => setFnfGratuity(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfGratuity}
+                            onChange={(e) => setFnfGratuity(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-foreground">₹{fnfGratuity.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t font-semibold text-xs">
                         <span>Gross Total Earnings</span>
@@ -2577,21 +2966,29 @@ export function ExitManagementTab() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <span>Notice Shortfall / Buyout</span>
-                        <Input
-                          type="number"
-                          value={fnfNoticeRecovery}
-                          onChange={(e) => setFnfNoticeRecovery(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfNoticeRecovery}
+                            onChange={(e) => setFnfNoticeRecovery(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-rose-600">₹{fnfNoticeRecovery.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span>Loan / Advance Balance</span>
-                        <Input
-                          type="number"
-                          value={fnfLoanRecovery}
-                          onChange={(e) => setFnfLoanRecovery(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfLoanRecovery}
+                            onChange={(e) => setFnfLoanRecovery(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-rose-600">₹{fnfLoanRecovery.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-1">
@@ -2602,21 +2999,29 @@ export function ExitManagementTab() {
                             </Badge>
                           )}
                         </span>
-                        <Input
-                          type="number"
-                          value={fnfAssetRecovery}
-                          onChange={(e) => setFnfAssetRecovery(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfAssetRecovery}
+                            onChange={(e) => setFnfAssetRecovery(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-rose-600">₹{fnfAssetRecovery.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span>Other Misc Deductions</span>
-                        <Input
-                          type="number"
-                          value={fnfOtherDeductions}
-                          onChange={(e) => setFnfOtherDeductions(Number(e.target.value))}
-                          className="h-7 w-28 text-xs font-mono text-right"
-                        />
+                        {canManage ? (
+                          <Input
+                            type="number"
+                            value={fnfOtherDeductions}
+                            onChange={(e) => setFnfOtherDeductions(Number(e.target.value))}
+                            className="h-7 w-28 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs font-semibold text-rose-600">₹{fnfOtherDeductions.toLocaleString('en-IN')}</span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t font-semibold text-xs">
                         <span>Total Deductions</span>
@@ -2637,50 +3042,56 @@ export function ExitManagementTab() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs"
-                      onClick={() =>
-                        saveFnfMutation.mutate({
-                          salaryPayable: fnfSalaryPayable,
-                          leaveEncashment: fnfLeaveEncashment,
-                          incentives: fnfIncentives,
-                          reimbursements: fnfReimbursements,
-                          gratuity: fnfGratuity,
-                          noticeRecovery: fnfNoticeRecovery,
-                          loanAdvanceRecovery: fnfLoanRecovery,
-                          assetRecovery: fnfAssetRecovery,
-                          otherDeductions: fnfOtherDeductions,
-                          status: 'REVIEWED',
-                        })
-                      }
-                    >
-                      Save Draft F&F (HR)
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={() =>
-                        saveFnfMutation.mutate({
-                          salaryPayable: fnfSalaryPayable,
-                          leaveEncashment: fnfLeaveEncashment,
-                          incentives: fnfIncentives,
-                          reimbursements: fnfReimbursements,
-                          gratuity: fnfGratuity,
-                          noticeRecovery: fnfNoticeRecovery,
-                          loanAdvanceRecovery: fnfLoanRecovery,
-                          assetRecovery: fnfAssetRecovery,
-                          otherDeductions: fnfOtherDeductions,
-                          status: 'APPROVED',
-                          approvedBy: 'Finance Head',
-                        })
-                      }
-                    >
-                      <Check className="h-3.5 w-3.5 mr-1" /> Approve F&F (Finance Head)
-                    </Button>
-                  </div>
+                  {canManage ? (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() =>
+                          saveFnfMutation.mutate({
+                            salaryPayable: fnfSalaryPayable,
+                            leaveEncashment: fnfLeaveEncashment,
+                            incentives: fnfIncentives,
+                            reimbursements: fnfReimbursements,
+                            gratuity: fnfGratuity,
+                            noticeRecovery: fnfNoticeRecovery,
+                            loanAdvanceRecovery: fnfLoanRecovery,
+                            assetRecovery: fnfAssetRecovery,
+                            otherDeductions: fnfOtherDeductions,
+                            status: 'REVIEWED',
+                          })
+                        }
+                      >
+                        Save Draft F&F (HR)
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() =>
+                          saveFnfMutation.mutate({
+                            salaryPayable: fnfSalaryPayable,
+                            leaveEncashment: fnfLeaveEncashment,
+                            incentives: fnfIncentives,
+                            reimbursements: fnfReimbursements,
+                            gratuity: fnfGratuity,
+                            noticeRecovery: fnfNoticeRecovery,
+                            loanAdvanceRecovery: fnfLoanRecovery,
+                            assetRecovery: fnfAssetRecovery,
+                            otherDeductions: fnfOtherDeductions,
+                            status: 'APPROVED',
+                            approvedBy: 'Finance Head',
+                          })
+                        }
+                      >
+                        <Check className="h-3.5 w-3.5 mr-1" /> Approve F&F (Finance Head)
+                      </Button>
+                    </div>
+                  ) : (
+                    <Badge variant="outline" className="text-xs font-semibold py-1.5 px-3 bg-background">
+                      {fnfStatus === 'APPROVED' ? '✓ F&F Finance Approved' : 'F&F Settlement Pending Approval'}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -2859,19 +3270,36 @@ export function ExitManagementTab() {
                 </div>
               )}
 
-              <Button
-                size="sm"
-                className="w-full h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={() => completeExitMutation.mutate(currentExit.id)}
-                disabled={completeExitMutation.isPending || isAlreadySeparated || !isEligibleForFinalSignoff}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                {isAlreadySeparated
-                  ? 'Employee Status: SEPARATED (Offboarding Completed)'
-                  : !isEligibleForFinalSignoff
-                  ? 'Final Exit Approval Disabled (Prerequisites Pending)'
-                  : 'Grant Final Exit Approval & Transition to SEPARATED'}
-              </Button>
+              {canManage ? (
+                <Button
+                  size="sm"
+                  className="w-full h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => completeExitMutation.mutate(currentExit.id)}
+                  disabled={completeExitMutation.isPending || isAlreadySeparated || !isEligibleForFinalSignoff}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {isAlreadySeparated
+                    ? 'Employee Status: SEPARATED (Offboarding Completed)'
+                    : !isEligibleForFinalSignoff
+                    ? 'Final Exit Approval Disabled (Prerequisites Pending)'
+                    : 'Grant Final Exit Approval & Transition to SEPARATED'}
+                </Button>
+              ) : (
+                <div className={`p-3 rounded-xl border text-xs font-medium text-center ${
+                  isAlreadySeparated
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 font-semibold flex items-center justify-center gap-1.5'
+                    : 'bg-muted/40 border-border text-muted-foreground'
+                }`}>
+                  {isAlreadySeparated ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      Formal Offboarding & Separation Completed
+                    </>
+                  ) : (
+                    'Final exit separation signoff is managed by HR & Company Administration.'
+                  )}
+                </div>
+              )}
 
               {/* ── Exit Documents & Relieving Records ── */}
               <div className="pt-3 border-t space-y-2">
@@ -3256,6 +3684,199 @@ export function ExitManagementTab() {
                   )}
                   Confirm Asset Return
                 </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 5.5. Request Resignation Withdrawal Modal ── */}
+      <Dialog open={isWithdrawalRequestOpen} onOpenChange={setIsWithdrawalRequestOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <Undo2 className="h-4 w-4 text-amber-600" /> Withdraw Resignation
+            </DialogTitle>
+          </DialogHeader>
+
+          {withdrawalExit && (
+            <div className="space-y-3.5 text-xs">
+              <div className="bg-muted/40 p-3 rounded-xl border border-border/80 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Employee:</span>
+                  <span className="font-semibold text-foreground">
+                    {withdrawalExit.employee?.firstName} {withdrawalExit.employee?.lastName} ({withdrawalExit.employee?.employeeCode})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Resignation Case:</span>
+                  <span className="font-mono font-bold text-primary">{withdrawalExit.exitCode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Notice Period & LWD:</span>
+                  <span className="font-mono text-foreground font-semibold">
+                    {withdrawalExit.noticePeriodDays} Days • LWD: {new Date(withdrawalExit.adjustedLwd || withdrawalExit.lastWorkingDay).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 text-[11px] leading-relaxed">
+                ℹ️ <strong>Standard Enterprise Policy:</strong> Submitting this request will pause the active exit workflow and send a formal withdrawal notice to your Department Manager and HR. The resignation is officially withdrawn only upon HR approval.
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Reason for Resignation Withdrawal *</Label>
+                <Textarea
+                  placeholder="Explain why you wish to withdraw your resignation (e.g. internal role alignment, resolution of concerns, personal circumstances changed)..."
+                  value={withdrawalReason}
+                  onChange={(e) => setWithdrawalReason(e.target.value)}
+                  className="min-h-[85px] text-xs"
+                />
+              </div>
+
+              <DialogFooter className="gap-2 pt-2 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsWithdrawalRequestOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!withdrawalReason.trim() || requestWithdrawalMutation.isPending}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5"
+                  onClick={() => {
+                    if (!withdrawalReason.trim()) {
+                      toast.error('Please provide a reason for the withdrawal.');
+                      return;
+                    }
+                    requestWithdrawalMutation.mutate({
+                      id: withdrawalExit.id,
+                      reason: withdrawalReason.trim(),
+                    });
+                  }}
+                >
+                  {requestWithdrawalMutation.isPending ? 'Submitting...' : 'Submit Withdrawal Request'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 5.6. HR Review Resignation Withdrawal Modal ── */}
+      <Dialog open={isReviewWithdrawalOpen} onOpenChange={setIsReviewWithdrawalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <AlertCircle className="h-4 w-4 text-amber-600" /> Review Resignation Withdrawal Request
+            </DialogTitle>
+          </DialogHeader>
+
+          {reviewWithdrawalExit && (
+            <div className="space-y-3.5 text-xs">
+              <div className="bg-muted/40 p-3 rounded-xl border border-border/80 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Employee:</span>
+                  <span className="font-semibold text-foreground">
+                    {reviewWithdrawalExit.employee?.firstName} {reviewWithdrawalExit.employee?.lastName} ({reviewWithdrawalExit.employee?.employeeCode})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Resignation Case:</span>
+                  <span className="font-mono font-bold text-primary">{reviewWithdrawalExit.exitCode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Department / Title:</span>
+                  <span className="text-foreground">
+                    {reviewWithdrawalExit.employee?.department?.name || 'General'} • {reviewWithdrawalExit.employee?.designation?.title || 'Staff'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Contract Notice & LWD:</span>
+                  <span className="font-mono text-foreground font-semibold">
+                    {reviewWithdrawalExit.noticePeriodDays} Days • LWD: {new Date(reviewWithdrawalExit.adjustedLwd || reviewWithdrawalExit.lastWorkingDay).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Employee's Submitted Reason */}
+              <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/20 space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
+                    Employee Reason for Withdrawal
+                  </span>
+                  {reviewWithdrawalExit.withdrawalRequestedAt && (
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {new Date(reviewWithdrawalExit.withdrawalRequestedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-foreground italic bg-background p-2 rounded-lg border border-border/60">
+                  "{reviewWithdrawalExit.withdrawalReason || 'No reason provided'}"
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 text-[11px] leading-relaxed">
+                ✓ <strong>If Approved:</strong> The exit workflow will be safely cancelled, pending clearances aborted, F&F voided, and employee will remain <strong>ACTIVE</strong> in the company with full lifecycle history recorded.
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">HR / Manager Remarks & Approval Notes</Label>
+                <Textarea
+                  placeholder="Enter remarks regarding retention, management alignment, or reason for decision..."
+                  value={reviewWithdrawalRemarks}
+                  onChange={(e) => setReviewWithdrawalRemarks(e.target.value)}
+                  className="min-h-[70px] text-xs"
+                />
+              </div>
+
+              <DialogFooter className="gap-2 pt-2 border-t flex items-center justify-between sm:justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsReviewWithdrawalOpen(false)}
+                >
+                  Close
+                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={reviewWithdrawalMutation.isPending}
+                    className="text-rose-600 border-rose-300 hover:bg-rose-50 font-semibold gap-1"
+                    onClick={() => {
+                      reviewWithdrawalMutation.mutate({
+                        id: reviewWithdrawalExit.id,
+                        action: 'REJECT',
+                        remarks: reviewWithdrawalRemarks.trim() || undefined,
+                      });
+                    }}
+                  >
+                    <XCircle className="h-3.5 w-3.5 text-rose-600" /> Reject Request
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={reviewWithdrawalMutation.isPending}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5"
+                    onClick={() => {
+                      reviewWithdrawalMutation.mutate({
+                        id: reviewWithdrawalExit.id,
+                        action: 'APPROVE',
+                        remarks: reviewWithdrawalRemarks.trim() || undefined,
+                      });
+                    }}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    {reviewWithdrawalMutation.isPending ? 'Processing...' : 'Approve Withdrawal'}
+                  </Button>
+                </div>
               </DialogFooter>
             </div>
           )}

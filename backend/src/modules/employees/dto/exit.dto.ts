@@ -176,3 +176,26 @@ export class SaveFnfSettlementDto {
   @IsString()
   approvedBy?: string;
 }
+
+export class RequestExitWithdrawalDto {
+  @IsString()
+  reason: string;
+
+  @IsOptional()
+  @IsString()
+  requestedBy?: string;
+}
+
+export class ReviewExitWithdrawalDto {
+  @IsString()
+  action: 'APPROVE' | 'REJECT';
+
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+
+  @IsOptional()
+  @IsString()
+  approvedBy?: string;
+}
+

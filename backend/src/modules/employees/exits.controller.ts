@@ -15,6 +15,8 @@ import { ExitClearanceMasterService } from './exit-clearance-master.service';
 import {
   AdjustLwdDto,
   CreateExitDto,
+  RequestExitWithdrawalDto,
+  ReviewExitWithdrawalDto,
   SaveExitInterviewDto,
   SaveFnfSettlementDto,
   UpdateClearanceItemDto,
@@ -197,6 +199,37 @@ export class ExitsController {
   ) {
     this.assertApprover(user);
     return this.service.completeExit(id, performedBy);
+  }
+
+  @Post(':id/withdraw/request')
+  requestWithdrawal(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: RequestExitWithdrawalDto,
+  ) {
+    const requesterName =
+      dto.requestedBy ||
+      (user?.employee
+        ? `${user.employee.firstName || ''} ${user.employee.lastName || ''}`.trim()
+        : user?.email) ||
+      'Employee';
+    return this.service.requestWithdrawal(id, { ...dto, requestedBy: requesterName });
+  }
+
+  @Post(':id/withdraw/review')
+  reviewWithdrawal(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: ReviewExitWithdrawalDto,
+  ) {
+    this.assertApprover(user);
+    const reviewerName =
+      dto.approvedBy ||
+      (user?.employee
+        ? `${user.employee.firstName || ''} ${user.employee.lastName || ''}`.trim()
+        : user?.email) ||
+      'HR Admin';
+    return this.service.reviewWithdrawal(id, { ...dto, approvedBy: reviewerName });
   }
 
   @Delete(':id')

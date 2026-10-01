@@ -25,6 +25,7 @@ const POSITIVE = [
   'PRESENT',
   'VERIFIED',
   'FILED',
+  'WITHDRAWN',
 ];
 
 const WARNING = [
@@ -41,6 +42,7 @@ const WARNING = [
   'PARTIAL',
   'AWAITING',
   'UNDER_REVIEW',
+  'WITHDRAWAL_REQUESTED',
   'DRAFT',
   'ISSUED',
   'LOW_STOCK',
