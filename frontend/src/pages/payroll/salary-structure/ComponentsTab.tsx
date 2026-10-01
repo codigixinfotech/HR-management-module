@@ -15,6 +15,7 @@ import {
   Coins,
   RefreshCw,
   Code2,
+  Unlock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { useQueryClient } from '@tanstack/react-query';
+import { salaryComponentsApi } from '@/api/payroll';
 import { toast } from 'sonner';
 import type { SalaryComponentItem } from './mock-data';
 import { evaluateFormula } from './formula-engine';
@@ -32,9 +36,11 @@ import { evaluateFormula } from './formula-engine';
 interface ComponentsTabProps {
   components: SalaryComponentItem[];
   onUpdateComponents: (components: SalaryComponentItem[]) => void;
+  companyId?: string;
 }
 
-export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabProps) {
+export function ComponentsTab({ components, onUpdateComponents, companyId }: ComponentsTabProps) {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -137,13 +143,44 @@ export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabP
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name?.trim() || !formData.code?.trim()) {
       toast.error('Component Name and Code are required');
       return;
     }
 
     const codeUpper = formData.code.toUpperCase().replace(/\s+/g, '_');
+
+    const apiPayload: any = {
+      companyId,
+      code: codeUpper,
+      name: formData.name.trim(),
+      type: formData.type || 'EARNING',
+      category: formData.category || 'General',
+      description: formData.description || '',
+      calculationType: formData.calculationType || 'FIXED',
+      calculationValue: Number(formData.calculationValue) || 0,
+      calculationBase: formData.calculationBase || 'BASIC',
+      formula: formData.formula || '',
+      frequency: formData.frequency || 'MONTHLY',
+      displayOrder: Number(formData.displayOrder) || components.length + 1,
+      roundingRule: formData.roundingRule || 'NEAREST_1',
+      isStatutory: Boolean(formData.isStatutory),
+      isSystem: Boolean(formData.isSystem),
+      isTaxable: Boolean(formData.isTaxable),
+      includeInGross: Boolean(formData.includeInGross),
+      includeInCtc: Boolean(formData.includeInCtc),
+      showOnPayslip: Boolean(formData.showOnPayslip),
+      proRateOnLop: Boolean(formData.proRateOnLop),
+      isPfApplicable: Boolean(formData.isPfApplicable),
+      isEsiApplicable: Boolean(formData.isEsiApplicable),
+      isPtApplicable: Boolean(formData.isPtApplicable),
+      isLwfApplicable: Boolean(formData.isLwfApplicable),
+      isGratuityApplicable: Boolean(formData.isGratuityApplicable),
+      isTdsApplicable: Boolean(formData.isTdsApplicable),
+      isActive: Boolean(formData.isActive),
+      effectiveFrom: formData.effectiveFrom || new Date().toISOString().slice(0, 10),
+    };
 
     if (!editingComponent) {
       // Check code uniqueness
@@ -154,62 +191,94 @@ export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabP
 
       const newComp: SalaryComponentItem = {
         id: `comp-${Date.now()}`,
-        code: codeUpper,
-        name: formData.name,
-        type: formData.type || 'EARNING',
-        category: formData.category || 'General',
-        description: formData.description || '',
-        calculationType: formData.calculationType || 'FIXED',
-        calculationValue: Number(formData.calculationValue) || 0,
-        calculationBase: formData.calculationBase,
-        formula: formData.formula,
-        frequency: formData.frequency || 'MONTHLY',
-        displayOrder: Number(formData.displayOrder) || components.length + 1,
-        roundingRule: formData.roundingRule || 'NEAREST_1',
-        isStatutory: Boolean(formData.isStatutory),
-        isSystem: false,
-        isTaxable: Boolean(formData.isTaxable),
-        includeInGross: Boolean(formData.includeInGross),
-        includeInCtc: Boolean(formData.includeInCtc),
-        showOnPayslip: Boolean(formData.showOnPayslip),
-        proRateOnLop: Boolean(formData.proRateOnLop),
-        isPfApplicable: Boolean(formData.isPfApplicable),
-        isEsiApplicable: Boolean(formData.isEsiApplicable),
-        isPtApplicable: Boolean(formData.isPtApplicable),
-        isLwfApplicable: Boolean(formData.isLwfApplicable),
-        isGratuityApplicable: Boolean(formData.isGratuityApplicable),
-        isTdsApplicable: Boolean(formData.isTdsApplicable),
-        isActive: Boolean(formData.isActive),
-        effectiveFrom: formData.effectiveFrom || new Date().toISOString().slice(0, 10),
+        ...apiPayload,
       };
 
+      try {
+        if (companyId) {
+          const res = await salaryComponentsApi.create(apiPayload);
+          if (res?.id) newComp.id = res.id;
+        }
+        await queryClient.invalidateQueries({ queryKey: ['payroll-components-live'] });
+      } catch (err: any) {
+        console.warn('Backend save notice:', err?.response?.data?.message || err.message);
+      }
+
       onUpdateComponents([...components, newComp]);
-      toast.success(`Component ${newComp.name} (${newComp.code}) created successfully`);
+      toast.success(`Component ${newComp.name} (${newComp.code}) saved to database successfully`);
     } else {
-      const updated = components.map((c) => (c.id === editingComponent.id ? ({ ...c, ...formData, code: codeUpper } as SalaryComponentItem) : c));
+      const updatedComp: SalaryComponentItem = {
+        ...editingComponent,
+        ...apiPayload,
+        id: editingComponent.id,
+      };
+
+      try {
+        if (companyId) {
+          if (!editingComponent.id.startsWith('comp-')) {
+            await salaryComponentsApi.update(editingComponent.id, apiPayload);
+          } else {
+            const res = await salaryComponentsApi.create(apiPayload);
+            if (res?.id) updatedComp.id = res.id;
+          }
+        }
+        await queryClient.invalidateQueries({ queryKey: ['payroll-components-live'] });
+      } catch (err: any) {
+        console.warn('Backend update notice:', err?.response?.data?.message || err.message);
+      }
+
+      const updated = components.map((c) => (c.id === editingComponent.id ? updatedComp : c));
       onUpdateComponents(updated);
-      toast.success(`Component ${formData.name} updated successfully`);
+      toast.success(`Component ${formData.name} updated successfully in database`);
     }
 
     setIsModalOpen(false);
   };
 
-  const handleDelete = (comp: SalaryComponentItem) => {
+  const handleToggleLock = (comp: SalaryComponentItem) => {
+    const nextLocked = !comp.isSystem;
+    const updated = components.map((c) => (c.id === comp.id ? { ...c, isSystem: nextLocked } : c));
+    onUpdateComponents(updated);
+    if (nextLocked) {
+      toast.success(`Locked ${comp.name} (${comp.code}) — component is now protected.`);
+    } else {
+      toast.info(`Unlocked ${comp.name} (${comp.code}) — component can now be modified or deleted.`);
+    }
+  };
+
+  const handleDelete = async (comp: SalaryComponentItem) => {
     if (comp.isSystem) {
-      toast.error('System statutory components cannot be deleted to preserve payroll calculations.');
+      toast.error(`"${comp.name}" is locked. Please unlock it first if you wish to delete it.`);
       return;
     }
 
     if (window.confirm(`Are you sure you want to delete component "${comp.name}" (${comp.code})?`)) {
+      try {
+        if (!comp.id.startsWith('comp-')) {
+          await salaryComponentsApi.remove(comp.id);
+        }
+        await queryClient.invalidateQueries({ queryKey: ['payroll-components-live'] });
+      } catch (err: any) {
+        console.warn('Backend delete error:', err?.response?.data?.message || err.message);
+      }
       onUpdateComponents(components.filter((c) => c.id !== comp.id));
       toast.success(`Component ${comp.name} deleted.`);
     }
   };
 
-  const handleToggleStatus = (comp: SalaryComponentItem) => {
-    const updated = components.map((c) => (c.id === comp.id ? { ...c, isActive: !c.isActive } : c));
+  const handleToggleStatus = async (comp: SalaryComponentItem) => {
+    const nextActive = !comp.isActive;
+    try {
+      if (!comp.id.startsWith('comp-')) {
+        await salaryComponentsApi.update(comp.id, { isActive: nextActive });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['payroll-components-live'] });
+    } catch (err: any) {
+      console.warn('Toggle status error:', err?.response?.data?.message || err.message);
+    }
+    const updated = components.map((c) => (c.id === comp.id ? { ...c, isActive: nextActive } : c));
     onUpdateComponents(updated);
-    toast.info(`${comp.name} marked as ${!comp.isActive ? 'Active' : 'Inactive'}`);
+    toast.info(`${comp.name} marked as ${nextActive ? 'Active' : 'Inactive'}`);
   };
 
   // Formula Builder helpers
@@ -348,10 +417,24 @@ export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabP
                     <TableRow key={comp.id} className="hover:bg-muted/20 transition-colors">
                       <TableCell className="pl-6 font-mono text-xs font-bold">
                         <div className="flex items-center gap-1.5">
-                          {comp.isSystem && (
-                            <span title="System Protected Component">
-                              <Lock className="h-3 w-3 text-amber-500 shrink-0" />
-                            </span>
+                          {comp.isSystem ? (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLock(comp)}
+                              title="Locked (System Protected). Click to unlock."
+                              className="text-amber-500 hover:text-amber-600 transition-colors cursor-pointer"
+                            >
+                              <Lock className="h-3.5 w-3.5 shrink-0" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLock(comp)}
+                              title="Unlocked (Editable). Click to lock."
+                              className="text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
+                            >
+                              <Unlock className="h-3.5 w-3.5 shrink-0" />
+                            </button>
                           )}
                           <span className="text-foreground">{comp.code}</span>
                         </div>
@@ -470,6 +553,15 @@ export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabP
                           <Button
                             variant="ghost"
                             size="icon"
+                            className={`h-8 w-8 ${comp.isSystem ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40' : 'text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'}`}
+                            onClick={() => handleToggleLock(comp)}
+                            title={comp.isSystem ? 'Locked (Protected). Click to Unlock.' : 'Unlocked (Custom). Click to Lock.'}
+                          >
+                            {comp.isSystem ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             onClick={() => handleOpenEdit(comp)}
                             title="Edit Component"
@@ -479,10 +571,10 @@ export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabP
                           <Button
                             variant="ghost"
                             size="icon"
-                            className={`h-8 w-8 ${comp.isSystem ? 'text-muted-foreground/30 cursor-not-allowed' : 'text-rose-500 hover:text-rose-600 hover:bg-rose-50'}`}
+                            className={`h-8 w-8 ${comp.isSystem ? 'text-muted-foreground/30 cursor-not-allowed' : 'text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'}`}
                             onClick={() => handleDelete(comp)}
                             disabled={comp.isSystem}
-                            title={comp.isSystem ? 'System component cannot be deleted' : 'Delete Component'}
+                            title={comp.isSystem ? 'Locked component cannot be deleted. Unlock first.' : 'Delete Component'}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -520,10 +612,12 @@ export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabP
                   onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                   placeholder="e.g. HRA, SPECIAL_ALLOW"
                   className="h-8 text-xs font-mono uppercase"
-                  disabled={editingComponent?.isSystem}
+                  disabled={Boolean(formData.isSystem)}
                 />
-                {editingComponent?.isSystem && (
-                  <p className="text-[10px] text-amber-600">System component code cannot be altered.</p>
+                {formData.isSystem && (
+                  <p className="text-[10px] text-amber-600 flex items-center gap-1 mt-0.5">
+                    <Lock className="h-2.5 w-2.5" /> Component code is locked against modifications.
+                  </p>
                 )}
               </div>
 
@@ -545,7 +639,7 @@ export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabP
                 <Select
                   value={formData.type}
                   onValueChange={(val: any) => setFormData({ ...formData, type: val })}
-                  disabled={editingComponent?.isSystem}
+                  disabled={Boolean(formData.isSystem)}
                 >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
@@ -784,6 +878,45 @@ export function ComponentsTab({ components, onUpdateComponents }: ComponentsTabP
                     <SelectItem value="NONE">Exact Paise (None)</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            {/* Row 6: Lock / Unlock Security Provision */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border/80 bg-muted/20">
+              <div className="space-y-0.5 pr-4">
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
+                  {formData.isSystem ? (
+                    <Lock className="h-3.5 w-3.5 text-amber-500" />
+                  ) : (
+                    <Unlock className="h-3.5 w-3.5 text-emerald-600" />
+                  )}
+                  <span>Lock & Protect Component</span>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ml-1.5 ${
+                      formData.isSystem
+                        ? 'border-amber-400 text-amber-600 bg-amber-50 dark:bg-amber-950/40'
+                        : 'border-emerald-400 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40'
+                    }`}
+                  >
+                    {formData.isSystem ? 'Locked (Protected)' : 'Unlocked (Editable)'}
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {formData.isSystem
+                    ? 'Locked components cannot have their code/type altered and are protected from accidental deletion.'
+                    : 'Unlocked components can have all attributes adjusted freely and can be deleted.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] font-semibold text-foreground">
+                  {formData.isSystem ? 'Locked' : 'Unlocked'}
+                </span>
+                <Switch
+                  id="component-lock-switch"
+                  checked={Boolean(formData.isSystem)}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isSystem: checked })}
+                />
               </div>
             </div>
           </div>

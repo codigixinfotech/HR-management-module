@@ -20,10 +20,10 @@ export class SalaryComponentsService {
       name: 'Basic Salary',
       type: 'EARNING',
       category: 'Basic',
-      description: 'Core basic salary component',
-      calculationType: 'FIXED',
-      calculationValue: 0,
-      calculationBase: 'MANUAL',
+      description: 'Core basic salary component (50% of CTC Wage Compliance)',
+      calculationType: 'PERCENTAGE',
+      calculationValue: 50,
+      calculationBase: 'CTC',
       isStatutory: false,
       isTaxable: true,
       includeInGross: true,
@@ -84,8 +84,8 @@ export class SalaryComponentsService {
       type: 'EARNING',
       category: 'Allowance',
       description: 'Special balancing allowance',
-      calculationType: 'FIXED',
-      calculationValue: 120,
+      calculationType: 'BALANCING',
+      calculationValue: 0,
       calculationBase: 'NONE',
       isStatutory: false,
       isTaxable: true,
@@ -278,6 +278,23 @@ export class SalaryComponentsService {
       showOnPayslip: true,
       isActive: true,
     },
+    {
+      id: 'comp-pf-er',
+      code: 'PF_ER',
+      name: 'Provident Fund (Employer)',
+      type: 'DEDUCTION',
+      category: 'Employer Contribution',
+      description: 'Employer PF (3.67% EPF + 8.33% EPS = 12% of Basic)',
+      calculationType: 'PERCENTAGE',
+      calculationValue: 12,
+      calculationBase: 'BASIC',
+      isStatutory: true,
+      isTaxable: false,
+      includeInGross: false,
+      includeInCtc: true,
+      showOnPayslip: true,
+      isActive: true,
+    },
   ];
 
   async list(companyId?: string, search?: string, type?: string) {
@@ -295,13 +312,16 @@ export class SalaryComponentsService {
           const { id, ...data } = m;
           await this.prisma.salaryComponent
             .create({
-              data: {
+              data: this.sanitizeComponentData({
                 ...data,
                 type: data.type as any,
                 companyId,
-              } as any,
+              }),
             })
-            .catch(() => null);
+            .catch((err) => {
+              console.error(`Failed to auto-seed component ${m.code}:`, err?.message);
+              return null;
+            });
         }
       }
     }
@@ -331,6 +351,23 @@ export class SalaryComponentsService {
     return component;
   }
 
+  private sanitizeComponentData(dto: any) {
+    const allowed = [
+      'companyId', 'code', 'name', 'type', 'category', 'description',
+      'calculationType', 'calculationValue', 'calculationBase',
+      'isStatutory', 'isTaxable', 'includeInGross', 'includeInCtc',
+      'isPfApplicable', 'isEsiApplicable', 'isPtApplicable', 'isTdsApplicable',
+      'showOnPayslip', 'isActive',
+    ];
+    const data: any = {};
+    for (const key of allowed) {
+      if (dto[key] !== undefined) {
+        data[key] = dto[key];
+      }
+    }
+    return data;
+  }
+
   async create(dto: CreateSalaryComponentDto) {
     const existing = await this.prisma.salaryComponent.findFirst({
       where: { companyId: dto.companyId, code: dto.code },
@@ -339,12 +376,12 @@ export class SalaryComponentsService {
       throw new ConflictException(
         `A salary component with code "${dto.code}" already exists for this company`,
       );
-    return this.prisma.salaryComponent.create({ data: dto });
+    return this.prisma.salaryComponent.create({ data: this.sanitizeComponentData(dto) });
   }
 
   async update(id: string, dto: UpdateSalaryComponentDto) {
     await this.findById(id);
-    return this.prisma.salaryComponent.update({ where: { id }, data: dto });
+    return this.prisma.salaryComponent.update({ where: { id }, data: this.sanitizeComponentData(dto) });
   }
 
   async remove(id: string) {

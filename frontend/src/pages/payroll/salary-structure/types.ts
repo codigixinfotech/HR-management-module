@@ -39,8 +39,17 @@ export interface StructureTemplate {
   code: string;
   gradeCode: string;
   gradeName: string;
-  category: string; // Workforce section: e.g. "Corporate & Tech", "Plant & Factory Floor", "Retail & Frontline", "Clinical / Healthcare", "Contract / Daily Wage"
-  industry?: string; // Optional reference tag
+  gradeId?: string;
+  level?: string;
+  designationId?: string;
+  designationTitle?: string;
+  branchId?: string;
+  branchName?: string;
+  departmentId?: string;
+  departmentName?: string;
+  employmentType?: 'PERMANENT' | 'CONTRACT' | 'INTERN' | 'ALL';
+  category: string;
+  industry: 'IT' | 'MANUFACTURING' | 'RETAIL' | 'HEALTHCARE';
   description: string;
   balancingComponentCode: string;
   version: number;

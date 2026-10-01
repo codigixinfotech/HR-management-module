@@ -7,6 +7,8 @@ import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EmptyState } from '@/components/ui/empty-state';
 
+import { useCompany } from '@/context/CompanyContext';
+
 // Import subpages
 import { SalaryStructureTab } from './SalaryStructureTab';
 import { PayrollProcessingTab } from './PayrollProcessingTab';
@@ -33,8 +35,9 @@ export default function PayrollPage() {
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'dashboard';
 
+  const { activeCompanyId } = useCompany();
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const companyId = companies?.[0]?.id;
+  const companyId = activeCompanyId || companies?.[0]?.id;
 
   const { data: runs } = useQuery({
     queryKey: ['payroll-runs', companyId],

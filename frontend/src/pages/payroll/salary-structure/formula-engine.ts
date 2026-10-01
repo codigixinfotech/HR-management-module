@@ -74,6 +74,43 @@ export function calculateSalaryBreakdown({
   ptState?: string;
   restrictPfToCeiling?: boolean;
 }) {
+  if (!annualCtc || annualCtc <= 0) {
+    return {
+      annualCtc: 0,
+      monthlyCtc: 0,
+      grossEarnings: 0,
+      annualGross: 0,
+      employeeDeductions: 0,
+      totalDeductions: 0,
+      annualDeductions: 0,
+      netTakeHome: 0,
+      annualNet: 0,
+      employerCost: 0,
+      employerContributions: 0,
+      items: (templateItems || []).map((item) => ({
+        id: item.componentId || item.id,
+        componentId: item.componentId || item.id,
+        componentCode: item.componentCode,
+        componentName: item.componentName,
+        type: item.type,
+        category: item.category || 'General',
+        calculationType: item.calculationType,
+        calculationValue: item.calculationValue,
+        monthlyAmount: 0,
+        annualAmount: 0,
+        isBalancing: !!item.isBalancing,
+      })),
+      compliance: {
+        is50PercentWageRuleCompliant: true,
+        actualWagePercentage: 50,
+        wageRuleRatio: 50,
+        isMinimumWageCompliant: true,
+        isBalancingNegative: false,
+        balancingAmount: 0,
+      },
+    };
+  }
+
   const monthlyCtc = Math.round(annualCtc / 12);
   let basicMonthly = 0;
   let daMonthly = 0;
@@ -130,7 +167,12 @@ export function calculateSalaryBreakdown({
 
   // Second pass: Calculate non-balancing items
   for (const item of templateItems) {
-    if (item.isBalancing || item.calculationType === 'BALANCING' || item.componentCode === 'SPECIAL_ALLOW') {
+    if (
+      item.isBalancing ||
+      item.calculationType === 'BALANCING' ||
+      item.componentCode === 'SPECIAL_ALLOW' ||
+      item.componentCode === 'SPECIAL'
+    ) {
       balancingItem = item;
       continue;
     }
@@ -154,6 +196,8 @@ export function calculateSalaryBreakdown({
     } else if (item.calculationType === 'FORMULA' && item.formula) {
       const evalRes = evaluateFormula(item.formula, context);
       monthly = Math.round(evalRes.result);
+    } else if (item.calculationType === 'FIXED') {
+      monthly = Number(item.calculationValue ?? item.monthlyAmount ?? 0);
     } else if (item.componentCode === 'PF_EE' || item.componentCode === 'PF') {
       // Employee PF (12% of basic+da, optionally capped at ₹15,000 ceiling = ₹1,800)
       const pfWage = basicMonthly + daMonthly;
@@ -164,20 +208,20 @@ export function calculateSalaryBreakdown({
       const pfWage = basicMonthly + daMonthly;
       const effectiveWage = restrictPfToCeiling ? Math.min(pfWage, 15000) : pfWage;
       monthly = Math.round(effectiveWage * 0.12);
-    } else if (item.componentCode === 'ESI_EE') {
+    } else if (item.componentCode === 'ESI_EE' || item.componentCode === 'ESI') {
       // 0.75% of Gross if Gross <= 21,000
       monthly = 0; // Updated in third pass once gross is estimated
     } else if (item.componentCode === 'ESI_ER') {
       // 3.25% of Gross if Gross <= 21,000
       monthly = 0;
-    } else if (item.componentCode === 'PT') {
+    } else if (item.componentCode === 'PT' || item.componentCode === 'PROF_TAX') {
       // Professional Tax (Standard Maharashtra: ₹200/mo, ₹300 Feb)
-      monthly = 200;
+      monthly = Number(item.calculationValue || 200);
     } else if (item.componentCode === 'GRATUITY') {
       // 4.81% of Basic ((15/26)/12 = 0.048076)
       monthly = Math.round((basicMonthly * 15) / 26 / 12);
     } else {
-      monthly = item.monthlyAmount || 0;
+      monthly = Number(item.calculationValue || item.monthlyAmount || 0);
     }
 
     if (item.type === 'EARNING') {
@@ -229,7 +273,7 @@ export function calculateSalaryBreakdown({
 
   // Re-check ESIC applicability (Gross <= 21,000)
   for (const item of calculatedItems) {
-    if (item.componentCode === 'ESI_EE') {
+    if (item.componentCode === 'ESI_EE' || item.componentCode === 'ESI') {
       item.monthlyAmount = grossEarnings <= 21000 ? Math.round(grossEarnings * 0.0075) : 0;
       item.annualAmount = item.monthlyAmount * 12;
     } else if (item.componentCode === 'ESI_ER') {
@@ -259,10 +303,12 @@ export function calculateSalaryBreakdown({
     grossEarnings,
     annualGross: grossEarnings * 12,
     employeeDeductions,
+    totalDeductions: employeeDeductions,
     annualDeductions: employeeDeductions * 12,
     netTakeHome,
     annualNet: netTakeHome * 12,
     employerCost: totalEmployerCost,
+    employerContributions: totalEmployerCost,
     items: calculatedItems,
     compliance: {
       is50PercentWageRuleCompliant,
