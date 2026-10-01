@@ -190,8 +190,10 @@ export class AssetRequestsService {
 
     return this.prisma.asset.findMany({
       where: {
-        currentEmployeeId: employee.id,
-        status: AssetStatus.ALLOCATED,
+        OR: [
+          { currentEmployeeId: employee.id, status: { in: [AssetStatus.ALLOCATED, AssetStatus.UNDER_MAINTENANCE] } },
+          { allocations: { some: { employeeId: employee.id, returnedAt: null } } },
+        ],
       },
       include: {
         branch: { select: { id: true, name: true } },

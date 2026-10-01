@@ -1168,6 +1168,21 @@ export interface AssetMaintenanceRecord {
   partsUsed?: string | null;
   qcStatus?: 'PENDING' | 'PASS' | 'FAIL' | string | null;
   notes?: string | null;
+  costResponsibility?: 'COMPANY_EXPENSE' | 'EMPLOYEE_RECOVERY' | string | null;
+  recoveryEmployeeId?: string | null;
+  recoveryAmount?: number | null;
+  deductionMethod?: 'FULL_DEDUCTION' | 'INSTALLMENT_DEDUCTION' | string | null;
+  numberOfInstallments?: number | null;
+  monthlyDeduction?: number | null;
+  payrollStartMonth?: string | null;
+  recoveryStatus?: 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETED' | string | null;
+  recoveryEmployee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+  } | null;
+  recoveryRecord?: AssetRecoveryRecord | null;
   asset?: {
     id: string;
     assetTag: string;
@@ -1179,6 +1194,43 @@ export interface AssetMaintenanceRecord {
     department?: { id: string; name: string } | null;
     currentEmployee?: { id: string; firstName: string; lastName: string; employeeCode: string } | null;
   };
+}
+
+export interface AssetRecoveryRecord {
+  id: string;
+  recoveryNumber: string;
+  companyId: string;
+  branchId?: string | null;
+  employeeId: string;
+  assetId: string;
+  maintenanceRecordId?: string | null;
+  totalAmount: number;
+  deductionMethod: 'FULL_DEDUCTION' | 'INSTALLMENT_DEDUCTION' | string;
+  numberOfInstallments: number;
+  monthlyDeduction: number;
+  remainingAmount: number;
+  payrollStartMonth: string;
+  status: 'APPROVED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | string;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+  } | null;
+  asset?: {
+    id: string;
+    assetTag: string;
+    name: string;
+    category?: string;
+  } | null;
+  maintenanceRecord?: {
+    id: string;
+    workOrderNumber?: string | null;
+    issue?: string | null;
+  } | null;
 }
 
 export type AssetRequestStatus =
@@ -1245,6 +1297,77 @@ export interface AssetRequest {
     category?: string;
     status?: string;
     physicalLocation?: string | null;
+  } | null;
+}
+
+export type MaintenanceRequestStatus =
+  | 'PENDING'
+  | 'IN_INSPECTION'
+  | 'IN_REPAIR'
+  | 'COMPLETED'
+  | 'REJECTED'
+  | 'SENT_BACK';
+
+export type MaintenanceRequestPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface AssetMaintenanceRequest {
+  id: string;
+  requestNumber: string;
+  companyId: string;
+  branchId?: string | null;
+  assetId: string;
+  requestedByEmployeeId: string;
+  issueTitle: string;
+  issueDescription?: string | null;
+  priority: MaintenanceRequestPriority | string;
+  status: MaintenanceRequestStatus | string;
+  inspectionRemarks?: string | null;
+  inspectedById?: string | null;
+  inspectedAt?: string | null;
+  workOrderId?: string | null;
+  adminRemarks?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  company?: { id: string; name: string; code?: string } | null;
+  branch?: { id: string; name: string; code?: string } | null;
+  asset?: {
+    id: string;
+    assetTag: string;
+    name: string;
+    category?: string;
+    serialNumber?: string | null;
+    modelNumber?: string | null;
+    manufacturer?: string | null;
+    status?: string;
+    physicalLocation?: string | null;
+  } | null;
+  requestedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+    workEmail?: string | null;
+    departmentId?: string | null;
+    branchId?: string | null;
+    department?: { id: string; name: string } | null;
+  } | null;
+  inspectedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+  } | null;
+  workOrder?: {
+    id: string;
+    workOrderNumber?: string | null;
+    issue: string;
+    priority?: string | null;
+    maintenanceType?: string | null;
+    vendor?: string | null;
+    startDate: string;
+    endDate?: string | null;
+    cost?: number | null;
+    qcStatus?: string | null;
   } | null;
 }
 

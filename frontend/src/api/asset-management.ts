@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { Asset, AssetMaintenanceRecord, AssetRequest } from './types';
+import type { Asset, AssetMaintenanceRecord, AssetRequest, AssetMaintenanceRequest, AssetRecoveryRecord } from './types';
 
 export const assetsApi = {
   list: async (companyId?: string, branchId?: string) =>
@@ -38,15 +38,25 @@ export const assetsApi = {
 export const assetMaintenanceApi = {
   list: async (assetId?: string, companyId?: string, branchId?: string) =>
     (await apiClient.get<AssetMaintenanceRecord[]>('/asset-management/maintenance', { params: { assetId, companyId, branchId } })).data,
+  listRecoveries: async (params?: { companyId?: string; branchId?: string; employeeId?: string }) =>
+    (await apiClient.get<AssetRecoveryRecord[]>('/asset-management/maintenance/recoveries', { params })).data,
   create: async (payload: {
     assetId: string;
     issue: string;
+    priority?: string;
     maintenanceType?: string;
     vendor?: string;
     warrantyClaim?: boolean;
     startDate: string;
     cost?: number;
     notes?: string;
+    costResponsibility?: string;
+    recoveryEmployeeId?: string;
+    recoveryAmount?: number;
+    deductionMethod?: string;
+    numberOfInstallments?: number;
+    monthlyDeduction?: number;
+    payrollStartMonth?: string;
   }) => (await apiClient.post<AssetMaintenanceRecord>('/asset-management/maintenance', payload)).data,
   complete: async (
     id: string,
@@ -55,7 +65,11 @@ export const assetMaintenanceApi = {
       finalCondition?: string;
       actualCost?: number;
       vendor?: string;
+      workPerformed?: string;
+      partsUsed?: string;
+      qcStatus?: string;
       repairNotes?: string;
+      returnDestination?: 'EMPLOYEE' | 'STOCK';
     }
   ) => (await apiClient.post<AssetMaintenanceRecord>(`/asset-management/maintenance/${id}/complete`, payload)).data,
 };
@@ -98,4 +112,62 @@ export const assetRequestsApi = {
       allocationNotes?: string;
     }
   ) => (await apiClient.post<AssetRequest>(`/asset-management/requests/${id}/allocate`, payload)).data,
+};
+
+export const assetMaintenanceRequestsApi = {
+  create: async (payload: {
+    assetId: string;
+    issueTitle: string;
+    issueDescription?: string;
+    priority?: string;
+  }) =>
+    (await apiClient.post<AssetMaintenanceRequest>('/asset-management/maintenance-requests', payload)).data,
+
+  listMyRequests: async () =>
+    (await apiClient.get<AssetMaintenanceRequest[]>('/asset-management/maintenance-requests/my')).data,
+
+  list: async (params?: {
+    companyId?: string;
+    branchId?: string;
+    status?: string;
+    priority?: string;
+    assetId?: string;
+  }) =>
+    (await apiClient.get<AssetMaintenanceRequest[]>('/asset-management/maintenance-requests', { params })).data,
+
+  get: async (id: string) =>
+    (await apiClient.get<AssetMaintenanceRequest>(`/asset-management/maintenance-requests/${id}`)).data,
+
+  inspect: async (
+    id: string,
+    payload: {
+      inspectionRemarks?: string;
+      status?: 'IN_INSPECTION' | 'PENDING';
+    }
+  ) =>
+    (await apiClient.patch<AssetMaintenanceRequest>(`/asset-management/maintenance-requests/${id}/inspect`, payload)).data,
+
+  updateStatus: async (
+    id: string,
+    payload: {
+      status: string;
+      adminRemarks?: string;
+    }
+  ) =>
+    (await apiClient.patch<AssetMaintenanceRequest>(`/asset-management/maintenance-requests/${id}/status`, payload)).data,
+
+  createWorkOrder: async (
+    id: string,
+    payload: {
+      workOrderId?: string;
+      vendor?: string;
+      startDate?: string;
+      cost?: number;
+      notes?: string;
+    }
+  ) =>
+    (await apiClient.post<{ request: AssetMaintenanceRequest; workOrder: any }>(
+      `/asset-management/maintenance-requests/${id}/create-work-order`,
+      payload
+    )).data,
 };

@@ -34,6 +34,34 @@ export class CreateAssetMaintenanceDto {
   @IsString()
   @MaxLength(500, { message: 'Remarks cannot exceed 500 characters.' })
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  costResponsibility?: string;
+
+  @IsOptional()
+  @IsString()
+  recoveryEmployeeId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  recoveryAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  deductionMethod?: string;
+
+  @IsOptional()
+  @IsNumber()
+  numberOfInstallments?: number;
+
+  @IsOptional()
+  @IsNumber()
+  monthlyDeduction?: number;
+
+  @IsOptional()
+  @IsString()
+  payrollStartMonth?: string;
 }
 
 export class CompleteAssetMaintenanceDto {
@@ -69,4 +97,8 @@ export class CompleteAssetMaintenanceDto {
   @IsString()
   @MaxLength(500, { message: 'Repair notes cannot exceed 500 characters.' })
   repairNotes?: string;
+
+  @IsOptional()
+  @IsString()
+  returnDestination?: string; // 'EMPLOYEE' | 'STOCK'
 }

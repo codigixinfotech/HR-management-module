@@ -25,6 +25,19 @@ export class AssetMaintenanceController {
     return this.assetMaintenanceService.list(assetId, tenantCompanyId, tenantBranchId);
   }
 
+  @Get('recoveries')
+  @Permissions('asset_management.read')
+  listRecoveries(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
+    const tenantCompanyId = getTenantCompanyId(user, companyId);
+    const tenantBranchId = getTenantBranchId(user, branchId);
+    return this.assetMaintenanceService.listRecoveries(tenantCompanyId, tenantBranchId, employeeId);
+  }
+
   @Post()
   @Permissions('asset_management.write')
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateAssetMaintenanceDto) {

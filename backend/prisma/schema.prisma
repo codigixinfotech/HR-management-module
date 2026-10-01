@@ -326,6 +326,8 @@ model Company {
 
   assets          Asset[]
   assetRequests   AssetRequest[]
+  maintenanceRequests AssetMaintenanceRequest[]
+  assetRecoveries AssetRecoveryRecord[]
   safetyIncidents SafetyIncident[]
   ppeItems        PpeItem[]
   safetyAudits    SafetyAudit[]
@@ -380,6 +382,8 @@ model Branch {
   travelBookings TravelBooking[]
   assets Asset[]
   assetRequests AssetRequest[]
+  maintenanceRequests AssetMaintenanceRequest[]
+  assetRecoveries AssetRecoveryRecord[]
   manpowerPlans ManpowerPlan[]
   manpowerRequisitions ManpowerRequisition[]
 
@@ -739,6 +743,10 @@ model Employee {
   assetAllocations      AssetAllocation[]
   assetRequests         AssetRequest[] @relation("EmployeeAssetRequests")
   assetRequestsApproved AssetRequest[] @relation("ManagerAssetApprovals")
+  myMaintenanceRequests    AssetMaintenanceRequest[] @relation("EmployeeMaintenanceRequests")
+  inspectedMaintenanceReqs AssetMaintenanceRequest[] @relation("InspectedMaintenanceRequests")
+  maintenanceRecoveries    AssetMaintenanceRecord[]  @relation("EmployeeMaintenanceRecovery")
+  assetRecoveries          AssetRecoveryRecord[]     @relation("EmployeeAssetRecoveries")
   reportedIncidents     SafetyIncident[]
   ppeIssuances      PpeIssuance[]
   employeeTransfers EmployeeTransfer[]
@@ -1425,6 +1433,7 @@ model ManpowerRequisition {
 model ShiftType {
   id                    String   @id @default(cuid())
   companyId             String
+  branchId              String?
   code                  String
   name                  String
   startTime             String
@@ -1975,6 +1984,8 @@ model Asset {
   allocations     AssetAllocation[]
   maintenanceLogs AssetMaintenanceRecord[]
   assetRequests   AssetRequest[]
+  maintenanceRequests AssetMaintenanceRequest[] @relation("AssetMaintenanceRequests")
+  recoveries      AssetRecoveryRecord[]    @relation("AssetRecoveries")
 
   @@unique([companyId, assetTag])
   @@map("assets")
@@ -2023,10 +2034,55 @@ model AssetMaintenanceRecord {
   notes           String?   @db.Text
   createdAt       DateTime  @default(now())
 
-  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  // Cost Responsibility & Employee Recovery
+  costResponsibility   String?   @default("COMPANY_EXPENSE") // COMPANY_EXPENSE | EMPLOYEE_RECOVERY
+  recoveryEmployeeId   String?
+  recoveryAmount       Float?
+  deductionMethod      String?   // FULL_DEDUCTION | INSTALLMENT_DEDUCTION
+  numberOfInstallments Int?
+  monthlyDeduction     Float?
+  payrollStartMonth    String?   // e.g. "October 2026"
+  recoveryStatus       String?   @default("PENDING") // PENDING | APPROVED | DEDUCTED | COMPLETED
+
+  asset                Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  recoveryEmployee     Employee? @relation("EmployeeMaintenanceRecovery", fields: [recoveryEmployeeId], references: [id], onDelete: SetNull)
+  maintenanceRequests  AssetMaintenanceRequest[]
+  recoveryRecord       AssetRecoveryRecord?
 
   @@index([assetId])
+  @@index([recoveryEmployeeId])
   @@map("asset_maintenance_records")
+}
+
+model AssetRecoveryRecord {
+  id                   String    @id @default(cuid())
+  recoveryNumber       String    @unique
+  companyId            String
+  branchId             String?
+  employeeId           String
+  assetId              String
+  maintenanceRecordId  String?   @unique
+  totalAmount          Float
+  deductionMethod      String    @default("FULL_DEDUCTION") // FULL_DEDUCTION | INSTALLMENT_DEDUCTION
+  numberOfInstallments Int       @default(1)
+  monthlyDeduction     Float
+  remainingAmount      Float
+  payrollStartMonth    String    // e.g. "October 2026"
+  status               String    @default("APPROVED") // APPROVED | IN_PROGRESS | COMPLETED | CANCELLED
+  notes                String?   @db.Text
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  company              Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch               Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  employee             Employee                @relation("EmployeeAssetRecoveries", fields: [employeeId], references: [id], onDelete: Cascade)
+  asset                Asset                   @relation("AssetRecoveries", fields: [assetId], references: [id], onDelete: Cascade)
+  maintenanceRecord    AssetMaintenanceRecord? @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("asset_recovery_records")
 }
 
 model AssetRequest {
@@ -2069,6 +2125,44 @@ model AssetRequest {
   @@index([employeeId])
   @@index([status])
   @@map("asset_requests")
+}
+
+model AssetMaintenanceRequest {
+  id                    String    @id @default(cuid())
+  requestNumber         String
+  companyId             String
+  branchId              String?
+
+  assetId               String
+  requestedByEmployeeId String
+
+  issueTitle            String
+  issueDescription      String?   @db.Text
+  priority              String    @default("MEDIUM")
+  status                String    @default("PENDING")
+
+  inspectionRemarks     String?   @db.Text
+  inspectedById         String?
+  inspectedAt           DateTime?
+
+  workOrderId           String?
+  adminRemarks          String?   @db.Text
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  company               Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  asset                 Asset     @relation("AssetMaintenanceRequests", fields: [assetId], references: [id], onDelete: Cascade)
+  requestedBy           Employee  @relation("EmployeeMaintenanceRequests", fields: [requestedByEmployeeId], references: [id], onDelete: Cascade)
+  inspectedBy           Employee? @relation("InspectedMaintenanceRequests", fields: [inspectedById], references: [id], onDelete: SetNull)
+  workOrder             AssetMaintenanceRecord? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([requestedByEmployeeId])
+  @@index([assetId])
+  @@index([status])
+  @@map("asset_maintenance_requests")
 }
 
 // ---------------------------------------------------------------------------

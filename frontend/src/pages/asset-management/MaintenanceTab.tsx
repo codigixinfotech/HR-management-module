@@ -29,8 +29,14 @@ import {
   GitFork,
   Search,
   RotateCcw,
+  Eye,
+  Undo2,
+  UserCheck,
+  Coins,
+  Check,
 } from 'lucide-react';
-import { assetMaintenanceApi, assetsApi } from '@/api/asset-management';
+import { assetMaintenanceApi, assetsApi, assetMaintenanceRequestsApi } from '@/api/asset-management';
+import { employeesApi } from '@/api/employees';
 import { branchesApi } from '@/api/organization';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,11 +51,25 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useAuthStore } from '@/stores/auth-store';
 import { isBranchAdminUser, isSuperAdminUser, isCompanyAdminUser } from '@/lib/modules';
 import { AssetBranchFilter, matchAssetBranch } from './AssetBranchFilter';
-import type { Asset, AssetMaintenanceRecord } from '@/api/types';
+import type { Asset, AssetMaintenanceRecord, AssetMaintenanceRequest } from '@/api/types';
 
 const MAINTENANCE_TYPES = ['Repair', 'Preventive Maintenance', 'Warranty Claim', 'Inspection'];
 const PRIORITY_OPTIONS = ['HIGH', 'MEDIUM', 'LOW'];
 const CONDITION_OPTIONS = ['GOOD', 'EXCELLENT', 'FAIR', 'DAMAGED'];
+const PAYROLL_MONTH_OPTIONS = [
+  'October 2026',
+  'November 2026',
+  'December 2026',
+  'January 2027',
+  'February 2027',
+  'March 2027',
+  'April 2027',
+  'May 2027',
+  'June 2027',
+  'July 2027',
+  'August 2027',
+  'September 2027',
+];
 
 export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyId?: string; branchId?: string }) {
   const queryClient = useQueryClient();
@@ -78,6 +98,13 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
   // Navigation Sub-Tab State inside Maintenance Page
   const [activeSubTab, setActiveSubTab] = useState<'work-orders' | 'requests' | 'history'>('work-orders');
 
+  // Maintenance Requests & Inspection States
+  const [selectedMaintenanceReq, setSelectedMaintenanceReq] = useState<AssetMaintenanceRequest | null>(null);
+  const [isInspectModalOpen, setIsInspectModalOpen] = useState(false);
+  const [inspectionRemarks, setInspectionRemarks] = useState('');
+  const [adminRemarks, setAdminRemarks] = useState('');
+  const [originatingRequestId, setOriginatingRequestId] = useState<string | null>(null);
+
   // Create Work Order Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -96,6 +123,14 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
   const [cost, setCost] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Cost Responsibility & Payroll Recovery Form Fields
+  const [costResponsibility, setCostResponsibility] = useState<'COMPANY_EXPENSE' | 'EMPLOYEE_RECOVERY'>('COMPANY_EXPENSE');
+  const [recoveryAmount, setRecoveryAmount] = useState('');
+  const [deductionMethod, setDeductionMethod] = useState<'FULL_DEDUCTION' | 'INSTALLMENT_DEDUCTION'>('FULL_DEDUCTION');
+  const [numberOfInstallments, setNumberOfInstallments] = useState('5');
+  const [payrollStartMonth, setPayrollStartMonth] = useState('October 2026');
+  const [recoveryEmployeeId, setRecoveryEmployeeId] = useState('');
+
   // Complete Maintenance & QC Form Fields
   const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
   const [finalCondition, setFinalCondition] = useState('GOOD');
@@ -105,6 +140,7 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
   const [partsUsed, setPartsUsed] = useState('');
   const [qcStatus, setQcStatus] = useState('PASS');
   const [repairNotes, setRepairNotes] = useState('');
+  const [returnDestination, setReturnDestination] = useState<'EMPLOYEE' | 'STOCK'>('EMPLOYEE');
 
   // Invoice Attachment State for Repair Completion
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -129,6 +165,38 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
     queryKey: ['asset-maintenance', effectiveCompanyId, effectiveBranchId],
     queryFn: () => assetMaintenanceApi.list(undefined, effectiveCompanyId, effectiveBranchId),
   });
+
+  const { data: rawMaintenanceRequests = [], isLoading: isLoadingMaintenanceRequests } = useQuery({
+    queryKey: ['asset-maintenance-requests', effectiveCompanyId, effectiveBranchId],
+    queryFn: () =>
+      assetMaintenanceRequestsApi.list({
+        companyId: effectiveCompanyId,
+        branchId: effectiveBranchId,
+      }),
+  });
+
+  const maintenanceRequests = useMemo(() => {
+    const seen = new Set<string>();
+    return rawMaintenanceRequests.filter((r: any) => {
+      const key = r.id || r.requestNumber;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [rawMaintenanceRequests]);
+
+  // Query employees for recovery allocation
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees-for-recovery', effectiveCompanyId],
+    queryFn: () => employeesApi.list({ page: 1, pageSize: 300, companyId: effectiveCompanyId || undefined }),
+    enabled: isCreateOpen,
+  });
+  const employeeList = Array.isArray(employeesData) ? employeesData : (employeesData as any)?.data || [];
+
+  // Computed recovery amounts
+  const parsedRecoveryAmount = Number(recoveryAmount || cost) || 0;
+  const parsedInstallments = Math.max(1, parseInt(numberOfInstallments, 10) || 1);
+  const calculatedMonthlyDeduction = (parsedRecoveryAmount / parsedInstallments).toFixed(2);
 
   // Strict tenant boundary: only records whose asset belongs to this active company and branch
   const records = useMemo(() => {
@@ -206,33 +274,167 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
 
   // KPI Metrics Calculation
   const metrics = useMemo(() => {
-    const pendingRequestsCount = activeRecords.filter((r) => r.qcStatus === 'PENDING' || !r.qcStatus).length;
+    const pendingRequestsCount = maintenanceRequests.filter((r) => r.status === 'PENDING').length;
+    const underInspectionCount = maintenanceRequests.filter((r) => r.status === 'IN_INSPECTION').length;
+    const inRepairCount = maintenanceRequests.filter((r) => r.status === 'IN_REPAIR').length;
     const activeWorkOrdersCount = assetsUnderMaintenance.length;
-    const underInspectionCount = activeRecords.filter((r) => r.maintenanceType === 'Inspection' || r.qcStatus === 'PENDING').length;
-    const completedCount = completedRecords.length;
+    const completedCount = maintenanceRequests.filter((r) => r.status === 'COMPLETED').length + completedRecords.length;
     const totalCostSum = records.reduce((sum, r) => sum + (r.cost || 0), 0);
 
     return {
       pendingRequests: pendingRequestsCount,
-      activeWorkOrders: activeWorkOrdersCount,
       underInspection: underInspectionCount,
+      inRepair: inRepairCount,
+      activeWorkOrders: activeWorkOrdersCount,
       completed: completedCount,
       totalCost: totalCostSum,
     };
-  }, [activeRecords, assetsUnderMaintenance, completedRecords, records]);
+  }, [maintenanceRequests, activeRecords, assetsUnderMaintenance, completedRecords, records]);
 
   // Create Maintenance Record Mutation
   const createMutation = useMutation({
     mutationFn: (payload: any) => assetMaintenanceApi.create(payload),
-    onSuccess: () => {
+    onSuccess: async (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['asset-maintenance'] });
       queryClient.invalidateQueries({ queryKey: ['assets'] });
-      toast.success('Work order created & asset sent to maintenance.');
+
+      if (originatingRequestId && data?.id) {
+        try {
+          await assetMaintenanceRequestsApi.createWorkOrder(originatingRequestId, { workOrderId: data.id });
+          queryClient.invalidateQueries({ queryKey: ['asset-maintenance-requests'] });
+          toast.success('Work order created & linked to maintenance request.');
+        } catch {
+          toast.success('Work order created & asset sent to maintenance.');
+        }
+        setOriginatingRequestId(null);
+      } else {
+        toast.success('Work order created & asset sent to maintenance.');
+      }
+
       setIsCreateOpen(false);
       resetCreateForm();
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to create work order'),
   });
+
+  const inspectMutation = useMutation({
+    mutationFn: ({ id, remarks, status }: { id: string; remarks?: string; status?: 'IN_INSPECTION' | 'PENDING' }) =>
+      assetMaintenanceRequestsApi.inspect(id, { inspectionRemarks: remarks, status }),
+    onSuccess: () => {
+      toast.success('Inspection record updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['asset-maintenance-requests'] });
+      setIsInspectModalOpen(false);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to update inspection.'),
+  });
+
+  const updateRequestStatusMutation = useMutation({
+    mutationFn: ({ id, status, remarks }: { id: string; status: string; remarks?: string }) =>
+      assetMaintenanceRequestsApi.updateStatus(id, { status, adminRemarks: remarks }),
+    onSuccess: (_, vars) => {
+      toast.success(`Request status updated to ${vars.status}.`);
+      queryClient.invalidateQueries({ queryKey: ['asset-maintenance-requests'] });
+      setIsInspectModalOpen(false);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to update status.'),
+  });
+
+  const handleOpenInspectModal = (req: AssetMaintenanceRequest) => {
+    setSelectedMaintenanceReq(req);
+    setInspectionRemarks(req.inspectionRemarks || '');
+    setAdminRemarks(req.adminRemarks || '');
+    setIsInspectModalOpen(true);
+  };
+
+  const handleCreateWorkOrderFromRequest = (req: AssetMaintenanceRequest) => {
+    setOriginatingRequestId(req.id);
+    setTargetAssetId(req.assetId);
+    setIssue(req.issueTitle);
+    setPriority(req.priority || 'MEDIUM');
+    setMaintenanceType('Repair');
+    setNotes(req.issueDescription || '');
+    setStartDate(new Date().toISOString().split('T')[0]);
+    setIsInspectModalOpen(false);
+    setIsCreateOpen(true);
+  };
+
+  const renderMaintenanceRequestStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return (
+          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] font-semibold gap-1">
+            <Clock className="h-3 w-3" /> Pending
+          </Badge>
+        );
+      case 'IN_INSPECTION':
+        return (
+          <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] font-semibold gap-1">
+            <Search className="h-3 w-3" /> In Inspection
+          </Badge>
+        );
+      case 'IN_REPAIR':
+        return (
+          <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20 text-[10px] font-semibold gap-1">
+            <Wrench className="h-3 w-3" /> In Repair
+          </Badge>
+        );
+      case 'COMPLETED':
+        return (
+          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-semibold gap-1">
+            <CheckCircle2 className="h-3 w-3" /> Completed
+          </Badge>
+        );
+      case 'REJECTED':
+        return (
+          <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px] font-semibold gap-1">
+            <XCircle className="h-3 w-3" /> Rejected
+          </Badge>
+        );
+      case 'SENT_BACK':
+        return (
+          <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20 text-[10px] font-semibold gap-1">
+            <Undo2 className="h-3 w-3" /> Sent Back
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
+    }
+  };
+
+  const filteredMaintenanceRequests = useMemo(() => {
+    return maintenanceRequests.filter((req) => {
+      if (selectedBranchFilter && selectedBranchFilter !== 'ALL' && selectedBranchFilter !== 'ALL_BRANCHES') {
+        const reqBranchId = req.branchId || req.asset?.branchId;
+        if (selectedBranchFilter === 'HEAD_OFFICE' || selectedBranchFilter === 'NONE') {
+          if (reqBranchId) return false;
+        } else if (reqBranchId !== selectedBranchFilter) {
+          return false;
+        }
+      }
+      if (selectedPriority !== 'ALL' && req.priority !== selectedPriority) return false;
+      if (selectedCategory !== 'ALL' && req.asset?.category !== selectedCategory) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const num = req.requestNumber?.toLowerCase() || '';
+        const tag = req.asset?.assetTag?.toLowerCase() || '';
+        const name = req.asset?.name?.toLowerCase() || '';
+        const issueText = req.issueTitle?.toLowerCase() || '';
+        const empName = `${req.requestedBy?.firstName || ''} ${req.requestedBy?.lastName || ''}`.toLowerCase();
+        const empCode = req.requestedBy?.employeeCode?.toLowerCase() || '';
+        if (
+          !num.includes(q) &&
+          !tag.includes(q) &&
+          !name.includes(q) &&
+          !issueText.includes(q) &&
+          !empName.includes(q) &&
+          !empCode.includes(q)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [maintenanceRequests, selectedBranchFilter, selectedPriority, selectedCategory, searchQuery]);
 
   // Complete Maintenance Mutation
   const completeMutation = useMutation({
@@ -252,9 +454,15 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['asset-maintenance'] });
       queryClient.invalidateQueries({ queryKey: ['assets'] });
+      queryClient.invalidateQueries({ queryKey: ['asset-maintenance-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['my-assets'] });
 
       if (variables.qcStatus === 'PASS') {
-        toast.success('Quality Check PASSED — Asset is now back in Available Stock (IN STOCK).');
+        if (variables.returnDestination === 'EMPLOYEE') {
+          toast.success('Quality Check PASSED — Asset successfully restored to Employee Custody (In Use).');
+        } else {
+          toast.success('Quality Check PASSED — Asset returned to Available Stock (IN STOCK).');
+        }
         setActiveSubTab('history');
       } else {
         toast.warning('Quality Check FAILED — Asset remains Under Maintenance for rework.');
@@ -276,12 +484,20 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
     setStartDate(new Date().toISOString().split('T')[0]);
     setCost('');
     setNotes('');
+    setCostResponsibility('COMPANY_EXPENSE');
+    setRecoveryAmount('');
+    setDeductionMethod('FULL_DEDUCTION');
+    setNumberOfInstallments('5');
+    setPayrollStartMonth('October 2026');
+    setRecoveryEmployeeId('');
   };
 
   const handleOpenCompletionModal = (asset: Asset) => {
     const activeRec = records.find((r) => r.assetId === asset.id && !r.endDate) || null;
     setSelectedAssetForCompletion(asset);
     setActiveRecordForCompletion(activeRec);
+    const hasEmployee = !!(asset.currentEmployeeId || asset.currentEmployee || activeRec?.recoveryEmployeeId);
+    setReturnDestination(hasEmployee ? 'EMPLOYEE' : 'STOCK');
     setCompletionDate(new Date().toISOString().split('T')[0]);
     setFinalCondition('GOOD');
     setActualCost(activeRec?.cost !== undefined && activeRec?.cost !== null ? String(activeRec.cost) : '4500');
@@ -350,6 +566,11 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
       return;
     }
 
+    const isRecovery = costResponsibility === 'EMPLOYEE_RECOVERY';
+    const recAmt = recoveryAmount ? Number(recoveryAmount) : (cost ? Number(cost) : undefined);
+    const instCount = deductionMethod === 'INSTALLMENT_DEDUCTION' ? (Number(numberOfInstallments) || 1) : 1;
+    const monthlyAmt = isRecovery && recAmt ? Number((recAmt / instCount).toFixed(2)) : undefined;
+
     createMutation.mutate({
       assetId: targetAssetId,
       issue: issue.trim(),
@@ -360,6 +581,13 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
       startDate,
       cost: cost ? Number(cost) : undefined,
       notes: notes.trim() || undefined,
+      costResponsibility,
+      recoveryEmployeeId: isRecovery ? (recoveryEmployeeId || selectedTargetAsset?.currentEmployeeId || undefined) : undefined,
+      recoveryAmount: isRecovery ? recAmt : undefined,
+      deductionMethod: isRecovery ? deductionMethod : undefined,
+      numberOfInstallments: isRecovery && deductionMethod === 'INSTALLMENT_DEDUCTION' ? instCount : undefined,
+      monthlyDeduction: isRecovery && deductionMethod === 'INSTALLMENT_DEDUCTION' ? monthlyAmt : undefined,
+      payrollStartMonth: isRecovery ? payrollStartMonth : undefined,
     });
   };
 
@@ -386,6 +614,7 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
       workPerformed: workPerformed.trim() || undefined,
       partsUsed: partsUsed.trim() || undefined,
       qcStatus,
+      returnDestination,
       repairNotes: combinedRepairNotes ? combinedRepairNotes.slice(0, 500) : undefined,
     });
   };
@@ -476,7 +705,7 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
               >
                 <ClipboardList className="h-3.5 w-3.5" /> Requests & Inspection
                 <Badge variant="secondary" className="ml-1 text-[10px] font-mono">
-                  {metrics.pendingRequests}
+                  {metrics.pendingRequests + metrics.underInspection}
                 </Badge>
               </Button>
 
@@ -644,7 +873,16 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
                           {activeRecord?.startDate ? new Date(activeRecord.startDate).toLocaleDateString() : 'Active'}
                         </TableCell>
                         <TableCell className="font-mono text-xs font-semibold text-foreground">
-                          {activeRecord?.cost !== undefined && activeRecord?.cost !== null ? `₹${activeRecord.cost.toLocaleString('en-IN')}` : '-'}
+                          <div>{activeRecord?.cost !== undefined && activeRecord?.cost !== null ? `₹${activeRecord.cost.toLocaleString('en-IN')}` : '-'}</div>
+                          {activeRecord?.costResponsibility === 'EMPLOYEE_RECOVERY' ? (
+                            <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20 text-[9px] font-semibold mt-0.5">
+                              👤 Employee Recovery
+                            </Badge>
+                          ) : activeRecord?.cost !== undefined && activeRecord?.cost !== null ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[9px] font-semibold mt-0.5">
+                              🏢 Company
+                            </Badge>
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-xs">
                           <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] font-semibold">
@@ -671,58 +909,166 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
 
           {/* SUB-TAB 2 — MAINTENANCE REQUESTS & INSPECTION */}
           {activeSubTab === 'requests' && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Request ID</TableHead>
-                  <TableHead className="text-xs">Asset Tag & Name</TableHead>
-                  <TableHead className="text-xs">Reported Issue</TableHead>
-                  <TableHead className="text-xs">Priority</TableHead>
-                  <TableHead className="text-xs">Type</TableHead>
-                  <TableHead className="text-xs">Inspection Status</TableHead>
-                  <TableHead className="text-right text-xs">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeRecords.length === 0 ? (
+            <div className="space-y-4">
+              {/* Counts row for Requests */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-2.5 rounded-lg border bg-amber-500/5 border-amber-500/20 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Pending</span>
+                    <p className="text-lg font-bold text-amber-600">
+                      {maintenanceRequests.filter((r) => r.status === 'PENDING').length}
+                    </p>
+                  </div>
+                  <Clock className="h-4 w-4 text-amber-600" />
+                </div>
+                <div className="p-2.5 rounded-lg border bg-blue-500/5 border-blue-500/20 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">In Inspection</span>
+                    <p className="text-lg font-bold text-blue-600">
+                      {maintenanceRequests.filter((r) => r.status === 'IN_INSPECTION').length}
+                    </p>
+                  </div>
+                  <Search className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="p-2.5 rounded-lg border bg-orange-500/5 border-orange-500/20 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">In Repair</span>
+                    <p className="text-lg font-bold text-orange-600">
+                      {maintenanceRequests.filter((r) => r.status === 'IN_REPAIR').length}
+                    </p>
+                  </div>
+                  <Wrench className="h-4 w-4 text-orange-600" />
+                </div>
+                <div className="p-2.5 rounded-lg border bg-emerald-500/5 border-emerald-500/20 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Completed</span>
+                    <p className="text-lg font-bold text-emerald-600">
+                      {maintenanceRequests.filter((r) => r.status === 'COMPLETED').length}
+                    </p>
+                  </div>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">
-                      No pending inspection requests.
-                    </TableCell>
+                    <TableHead className="text-xs">Request #</TableHead>
+                    <TableHead className="text-xs">Employee</TableHead>
+                    <TableHead className="text-xs">Asset Tag & Name</TableHead>
+                    <TableHead className="text-xs">Issue / Problem</TableHead>
+                    <TableHead className="text-xs">Priority</TableHead>
+                    <TableHead className="text-xs">Submitted Date</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-right text-xs">Action</TableHead>
                   </TableRow>
-                ) : (
-                  activeRecords.map((r) => (
-                    <TableRow key={r.id} className="hover:bg-muted/40 transition-colors">
-                      <TableCell className="font-mono text-xs font-bold text-primary">{r.workOrderNumber || 'REQ-TICKET'}</TableCell>
-                      <TableCell className="text-xs font-semibold text-foreground">{r.asset?.assetTag} — {r.asset?.name}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.issue}</TableCell>
-                      <TableCell className="text-xs font-semibold">
-                        <Badge variant="outline" className="text-[10px] font-bold">{r.priority || 'MEDIUM'}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.maintenanceType || 'Repair'}</TableCell>
-                      <TableCell className="text-xs">
-                        <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] font-semibold">
-                          Under Inspection
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs font-semibold gap-1"
-                          onClick={() => {
-                            const ast = assets.find((a) => a.id === r.assetId);
-                            if (ast) handleOpenCompletionModal(ast);
-                          }}
-                        >
-                          Process Ticket & QC
-                        </Button>
+                </TableHeader>
+                <TableBody>
+                  {isLoadingMaintenanceRequests ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
+                        Loading maintenance requests...
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : filteredMaintenanceRequests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
+                        No maintenance requests matching filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredMaintenanceRequests.map((req) => (
+                      <TableRow key={req.id} className="hover:bg-muted/40 transition-colors">
+                        <TableCell className="font-mono text-xs font-bold text-primary">
+                          {req.requestNumber}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <span className="font-semibold text-foreground block">
+                            {req.requestedBy?.firstName} {req.requestedBy?.lastName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {req.requestedBy?.employeeCode || 'N/A'} {req.requestedBy?.department?.name ? `• ${req.requestedBy.department.name}` : ''}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <span className="font-semibold text-foreground block">
+                            {req.asset?.name || 'Asset'}
+                          </span>
+                          <span className="font-mono text-[10px] text-muted-foreground">
+                            {req.asset?.assetTag || 'N/A'} {req.asset?.category ? `• ${req.asset.category}` : ''}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs max-w-[200px]">
+                          <span className="font-medium text-foreground block truncate" title={req.issueTitle}>
+                            {req.issueTitle}
+                          </span>
+                          {req.issueDescription && (
+                            <span className="text-[10px] text-muted-foreground block truncate" title={req.issueDescription}>
+                              {req.issueDescription}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {req.priority === 'CRITICAL' ? (
+                            <Badge className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px] font-bold">
+                              CRITICAL
+                            </Badge>
+                          ) : req.priority === 'HIGH' ? (
+                            <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px] font-bold">
+                              HIGH
+                            </Badge>
+                          ) : req.priority === 'LOW' ? (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                              LOW
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">
+                              MEDIUM
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">
+                          {new Date(req.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {renderMaintenanceRequestStatusBadge(req.status)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {req.status === 'COMPLETED' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs font-semibold gap-1 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
+                              onClick={() => handleOpenInspectModal(req)}
+                            >
+                              <Eye className="h-3 w-3" /> View Details
+                            </Button>
+                          ) : req.status === 'REJECTED' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs font-semibold gap-1 border-rose-500/30 text-rose-700 hover:bg-rose-500/10"
+                              onClick={() => handleOpenInspectModal(req)}
+                            >
+                              <Eye className="h-3 w-3" /> View Details
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs font-semibold gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                              onClick={() => handleOpenInspectModal(req)}
+                            >
+                              <ClipboardList className="h-3 w-3" /> Inspect & Action
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
 
           {/* SUB-TAB 3 — MAINTENANCE HISTORY & AUDIT LOG */}
@@ -764,7 +1110,16 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono">{r.partsUsed || 'N/A'}</TableCell>
                       <TableCell className="font-mono text-xs font-bold text-foreground">
-                        {r.cost ? `₹${r.cost.toLocaleString('en-IN')}` : '-'}
+                        <div>{r.cost ? `₹${r.cost.toLocaleString('en-IN')}` : '-'}</div>
+                        {r.costResponsibility === 'EMPLOYEE_RECOVERY' ? (
+                          <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20 text-[9px] font-semibold mt-0.5">
+                            👤 Recovery
+                          </Badge>
+                        ) : r.cost ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[9px] font-semibold mt-0.5">
+                            🏢 Company
+                          </Badge>
+                        ) : null}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{r.vendor || 'Service Vendor'}</TableCell>
                       <TableCell className="text-xs">
@@ -796,7 +1151,16 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
           <form onSubmit={handleSendToMaintenance} className="space-y-4 text-xs pt-2">
             <div className="space-y-1">
               <Label className="font-semibold">Target Asset *</Label>
-              <Select value={targetAssetId} onValueChange={setTargetAssetId}>
+              <Select
+                value={targetAssetId}
+                onValueChange={(val) => {
+                  setTargetAssetId(val);
+                  const found = assets.find((a) => a.id === val);
+                  if (found?.currentEmployeeId) {
+                    setRecoveryEmployeeId(found.currentEmployeeId);
+                  }
+                }}
+              >
                 <SelectTrigger className="h-8 text-xs bg-background">
                   <SelectValue placeholder="Select asset to repair..." />
                 </SelectTrigger>
@@ -924,9 +1288,15 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
                   <Input
                     type="number"
                     step="0.01"
-                    placeholder="e.g. 4500"
+                    placeholder="e.g. 23000"
                     value={cost}
-                    onChange={(e) => setCost(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCost(val);
+                      if (!recoveryAmount || recoveryAmount === cost) {
+                        setRecoveryAmount(val);
+                      }
+                    }}
                     className="h-8 text-xs font-mono bg-background"
                   />
                 </div>
@@ -941,6 +1311,290 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
                     Covered under official manufacturer warranty claim
                   </label>
                 </div>
+              </div>
+
+              {/* ── COST RESPONSIBILITY SECTION ── */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between border-t border-border/70 pt-3">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-amber-600" />
+                    <div>
+                      <Label className="text-xs font-bold text-foreground">Cost Responsibility</Label>
+                      <p className="text-[10.5px] text-muted-foreground">Select whether maintenance cost is paid by the company or recovered from employee</p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">
+                    Expense Allocation
+                  </Badge>
+                </div>
+
+                {/* Responsibility Selector Toggle Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCostResponsibility('COMPANY_EXPENSE')}
+                    className={`relative p-3 rounded-lg border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                      costResponsibility === 'COMPANY_EXPENSE'
+                        ? 'border-emerald-500/80 bg-emerald-500/5 shadow-xs ring-1 ring-emerald-500/30'
+                        : 'border-border/70 hover:border-border hover:bg-muted/30'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2 rounded-md ${costResponsibility === 'COMPANY_EXPENSE' ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}>
+                          <Building2 className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="font-semibold text-xs text-foreground block">Company Expense</span>
+                          <span className="text-[10.5px] text-muted-foreground">Default company maintenance cost</span>
+                        </div>
+                      </div>
+                      {costResponsibility === 'COMPANY_EXPENSE' && (
+                        <div className="h-4 w-4 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                          <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                      &bull; No payroll deduction
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCostResponsibility('EMPLOYEE_RECOVERY');
+                      if (!recoveryAmount && cost) {
+                        setRecoveryAmount(cost);
+                      }
+                      if (!recoveryEmployeeId && selectedTargetAsset?.currentEmployeeId) {
+                        setRecoveryEmployeeId(selectedTargetAsset.currentEmployeeId);
+                      }
+                    }}
+                    className={`relative p-3 rounded-lg border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                      costResponsibility === 'EMPLOYEE_RECOVERY'
+                        ? 'border-amber-500/80 bg-amber-500/5 shadow-xs ring-1 ring-amber-500/30'
+                        : 'border-border/70 hover:border-border hover:bg-muted/30'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2 rounded-md ${costResponsibility === 'EMPLOYEE_RECOVERY' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-muted text-muted-foreground'}`}>
+                          <UserCheck className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="font-semibold text-xs text-foreground block">Employee Recovery</span>
+                          <span className="text-[10.5px] text-muted-foreground">Recovered via payroll deduction</span>
+                        </div>
+                      </div>
+                      {costResponsibility === 'EMPLOYEE_RECOVERY' && (
+                        <div className="h-4 w-4 rounded-full bg-amber-600 text-white flex items-center justify-center">
+                          <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                      &bull; Generates approved recovery record
+                    </div>
+                  </button>
+                </div>
+
+                {/* Sub-view: Company Expense selected */}
+                {costResponsibility === 'COMPANY_EXPENSE' ? (
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground font-medium">Estimated Cost:</span>
+                      <span className="font-mono font-bold text-foreground">
+                        {cost ? `₹${Number(cost).toLocaleString('en-IN')}` : '₹0'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground font-medium">Cost Responsibility:</span>
+                      <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[10px] font-semibold">
+                        Company Expense
+                      </Badge>
+                    </div>
+                    <div className="pt-2 border-t border-emerald-500/20 flex items-center gap-2 text-[11px] text-emerald-800 dark:text-emerald-300">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <span>
+                        <strong>₹{cost ? Number(cost).toLocaleString('en-IN') : '0'}</strong> remains an organizational company maintenance expense &mdash; <strong>No payroll deduction</strong>.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Sub-view: Employee Recovery selected */
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-3.5 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
+                      <div className="flex items-center gap-2">
+                        <Coins className="h-4 w-4 text-amber-600" />
+                        <span className="font-bold text-xs text-foreground">Payroll Recovery Configuration</span>
+                      </div>
+                      <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/30 text-[10px] font-semibold">
+                        Approved Recovery Record
+                      </Badge>
+                    </div>
+
+                    {/* Target Employee Selection */}
+                    <div className="space-y-1">
+                      <Label className="font-semibold text-xs flex items-center justify-between">
+                        <span>Recover from Employee *</span>
+                        {selectedTargetAsset?.currentEmployee && (
+                          <span className="text-[10px] font-normal text-muted-foreground">
+                            (Auto-assigned to current custodian)
+                          </span>
+                        )}
+                      </Label>
+                      <Select
+                        value={recoveryEmployeeId || (selectedTargetAsset?.currentEmployeeId || '')}
+                        onValueChange={setRecoveryEmployeeId}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Select employee for recovery..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[220px]">
+                          {selectedTargetAsset?.currentEmployee && (
+                            <SelectItem
+                              key={`current-${selectedTargetAsset.currentEmployee.id}`}
+                              value={selectedTargetAsset.currentEmployee.id}
+                              className="text-xs font-semibold text-primary"
+                            >
+                              ⭐ {selectedTargetAsset.currentEmployee.firstName} {selectedTargetAsset.currentEmployee.lastName} ({selectedTargetAsset.currentEmployee.employeeCode || 'Current Holder'})
+                            </SelectItem>
+                          )}
+                          {employeeList
+                            .filter((emp: any) => emp.id !== selectedTargetAsset?.currentEmployeeId)
+                            .map((emp: any) => (
+                              <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                                {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.id})
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Summary row */}
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-background/60 p-2 rounded border border-border/50">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px]">Estimated Cost:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {cost ? `₹${Number(cost).toLocaleString('en-IN')}` : '₹0'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px]">Cost Responsibility:</span>
+                        <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20 text-[10px] font-semibold">
+                          Employee Recovery
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Recovery Amount & Deduction Method */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="font-semibold text-xs">Recovery Amount (₹) *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder={cost || 'e.g. 23000'}
+                          value={recoveryAmount}
+                          onChange={(e) => setRecoveryAmount(e.target.value)}
+                          className="h-8 text-xs font-mono bg-background font-semibold"
+                        />
+                        <span className="text-[10px] text-muted-foreground block">
+                          Defaults to Estimated Cost: ₹{cost ? Number(cost).toLocaleString('en-IN') : '0'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="font-semibold text-xs">Deduction Method *</Label>
+                        <Select
+                          value={deductionMethod}
+                          onValueChange={(val: 'FULL_DEDUCTION' | 'INSTALLMENT_DEDUCTION') => setDeductionMethod(val)}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                            <SelectValue placeholder="Select method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="FULL_DEDUCTION" className="text-xs font-semibold">
+                              Full Deduction
+                            </SelectItem>
+                            <SelectItem value="INSTALLMENT_DEDUCTION" className="text-xs font-semibold">
+                              Installment Deduction
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[10px] text-muted-foreground block">
+                          {deductionMethod === 'FULL_DEDUCTION'
+                            ? 'One-time full payroll deduction'
+                            : 'Spread across monthly salary installments'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* If Installment Deduction */}
+                    {deductionMethod === 'INSTALLMENT_DEDUCTION' && (
+                      <div className="p-3 bg-background/80 rounded-md border border-border/70 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <Label className="font-semibold text-xs">Number of Installments *</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="60"
+                              value={numberOfInstallments}
+                              onChange={(e) => setNumberOfInstallments(e.target.value)}
+                              className="h-8 text-xs font-mono bg-background"
+                            />
+                            <span className="text-[10px] text-muted-foreground block">e.g. 5</span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="font-semibold text-xs">Monthly Deduction</Label>
+                            <div className="h-8 px-2.5 rounded-md border border-amber-500/30 bg-amber-500/10 flex items-center font-mono font-bold text-amber-800 dark:text-amber-300 text-xs">
+                              ₹{calculatedMonthlyDeduction ? Number(calculatedMonthlyDeduction).toLocaleString('en-IN') : '0'}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground block">
+                              Monthly deduction
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="font-semibold text-xs">Payroll Start Month *</Label>
+                            <Select value={payrollStartMonth} onValueChange={setPayrollStartMonth}>
+                              <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                                <SelectValue placeholder="Select month" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PAYROLL_MONTH_OPTIONS.map((m) => (
+                                  <SelectItem key={m} value={m} className="text-xs">
+                                    {m}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="text-[10px] text-muted-foreground block">First deduction cycle</span>
+                          </div>
+                        </div>
+
+                        {/* Breakdown summary */}
+                        <div className="flex items-center justify-between text-[11px] px-2 py-1.5 rounded bg-muted/40 font-medium">
+                          <span className="text-muted-foreground">Installment Schedule:</span>
+                          <span className="text-foreground">
+                            {numberOfInstallments} payments of <strong className="font-mono text-primary">₹{calculatedMonthlyDeduction ? Number(calculatedMonthlyDeduction).toLocaleString('en-IN') : '0'}</strong> starting <strong className="text-foreground">{payrollStartMonth}</strong>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Important Payroll Notice Box */}
+                    <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-2.5 flex items-start gap-2 text-[11px] text-amber-900 dark:text-amber-200">
+                      <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong>Important:</strong> Selecting <strong>Employee Recovery</strong> should not immediately deduct salary. It creates an <strong>approved recovery record</strong> that Payroll uses for the deduction. This keeps the Work Order for maintenance and the Payroll module responsible for the actual salary deduction.
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -1096,7 +1750,7 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="PASS" className="text-xs font-bold text-emerald-600">
-                        PASS — Quality Inspection Approved (Return to Stock)
+                        PASS — Quality Inspection Approved
                       </SelectItem>
                       <SelectItem value="FAIL" className="text-xs font-bold text-rose-600">
                         FAIL — Needs Rework / Continue Maintenance
@@ -1104,6 +1758,40 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Post-Maintenance Asset Destination if PASS */}
+                {qcStatus === 'PASS' && (
+                  <div className="space-y-1.5 border-t pt-2">
+                    <Label className="font-semibold flex items-center justify-between">
+                      <span>Post-Maintenance Asset Destination *</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        Where should this asset be moved upon repair completion?
+                      </span>
+                    </Label>
+                    <Select
+                      value={returnDestination}
+                      onValueChange={(val: 'EMPLOYEE' | 'STOCK') => setReturnDestination(val)}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background font-semibold">
+                        <SelectValue placeholder="Select destination" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedAssetForCompletion?.currentEmployee ? (
+                          <SelectItem value="EMPLOYEE" className="text-xs font-semibold text-emerald-700">
+                            👤 Return to Assigned Employee ({selectedAssetForCompletion.currentEmployee.firstName} {selectedAssetForCompletion.currentEmployee.lastName}) — Active Custody
+                          </SelectItem>
+                        ) : activeRecordForCompletion?.recoveryEmployee ? (
+                          <SelectItem value="EMPLOYEE" className="text-xs font-semibold text-emerald-700">
+                            👤 Return to Requester ({activeRecordForCompletion.recoveryEmployee.firstName} {activeRecordForCompletion.recoveryEmployee.lastName}) — Active Custody
+                          </SelectItem>
+                        ) : null}
+                        <SelectItem value="STOCK" className="text-xs font-semibold text-foreground">
+                          🏢 Return to Available General Stock (IN_STOCK)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               {/* Attach Repair Invoice Section */}
@@ -1218,8 +1906,12 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
                   {qcStatus === 'PASS' ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
                   Target Lifecycle Impact:
                 </span>
-                <Badge className={qcStatus === 'PASS' ? 'bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs font-bold' : 'bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs font-bold'}>
-                  {qcStatus === 'PASS' ? 'IN STOCK (Available Stock +1)' : 'REWORK (Under Maintenance)'}
+                <Badge className={qcStatus === 'PASS' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-xs font-bold' : 'bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs font-bold'}>
+                  {qcStatus === 'PASS'
+                    ? (returnDestination === 'EMPLOYEE'
+                        ? 'RESTORED TO EMPLOYEE CUSTODY (In Use)'
+                        : 'IN STOCK (Available Stock +1)')
+                    : 'REWORK (Under Maintenance)'}
                 </Badge>
               </div>
 
@@ -1228,10 +1920,301 @@ export function MaintenanceTab({ companyId, branchId: propBranchId }: { companyI
                   Cancel
                 </Button>
                 <Button type="submit" size="sm" className="text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={completeMutation.isPending}>
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Submit QC & Complete
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {returnDestination === 'EMPLOYEE' ? 'Complete Repair & Return to Employee' : 'Complete Repair & Return to Stock'}
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Inspect & Action Modal for Maintenance Request */}
+      {selectedMaintenanceReq && (
+        <Dialog open={isInspectModalOpen} onOpenChange={setIsInspectModalOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold flex items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-primary" /> Inspect Maintenance Request #{selectedMaintenanceReq.requestNumber}
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Review employee reported problem, record inspection remarks, generate a work order, or complete/reject the request.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3.5 text-xs">
+              {/* Request & Asset Details */}
+              <div className="bg-muted/40 p-3 rounded-lg border space-y-1.5">
+                <div className="flex justify-between items-center pb-1 border-b border-border/60">
+                  <span className="text-muted-foreground">Requester:</span>
+                  <span className="font-semibold text-foreground">
+                    {selectedMaintenanceReq.requestedBy?.firstName} {selectedMaintenanceReq.requestedBy?.lastName} ({selectedMaintenanceReq.requestedBy?.employeeCode || 'N/A'})
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-1 border-b border-border/60">
+                  <span className="text-muted-foreground">Asset:</span>
+                  <span className="font-medium text-foreground">
+                    {selectedMaintenanceReq.asset?.name} ({selectedMaintenanceReq.asset?.assetTag})
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-1 border-b border-border/60">
+                  <span className="text-muted-foreground">Category & S/N:</span>
+                  <span className="font-mono text-foreground">
+                    {selectedMaintenanceReq.asset?.category} • {selectedMaintenanceReq.asset?.serialNumber || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-1 border-b border-border/60">
+                  <span className="text-muted-foreground">Issue Title:</span>
+                  <span className="font-semibold text-foreground">{selectedMaintenanceReq.issueTitle}</span>
+                </div>
+                {selectedMaintenanceReq.issueDescription && (
+                  <div className="pb-1 border-b border-border/60">
+                    <span className="text-muted-foreground block mb-0.5">Description:</span>
+                    <p className="text-foreground bg-background/50 p-1.5 rounded border text-[11px]">
+                      {selectedMaintenanceReq.issueDescription}
+                    </p>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-0.5">
+                  <span className="text-muted-foreground">Priority & Status:</span>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="text-[10px] font-mono">{selectedMaintenanceReq.priority}</Badge>
+                    {renderMaintenanceRequestStatusBadge(selectedMaintenanceReq.status)}
+                  </div>
+                </div>
+              </div>
+
+            {(() => {
+              const isReqCompleted = selectedMaintenanceReq.status === 'COMPLETED';
+              const isReqRejected = selectedMaintenanceReq.status === 'REJECTED';
+              const isReqSentBack = selectedMaintenanceReq.status === 'SENT_BACK';
+              const isReqInRepair = selectedMaintenanceReq.status === 'IN_REPAIR';
+              const isReqInInspection = selectedMaintenanceReq.status === 'IN_INSPECTION';
+              const isReqPending = selectedMaintenanceReq.status === 'PENDING';
+              const isReqTerminal = isReqCompleted || isReqRejected;
+
+              return (
+                <>
+                  {/* Inspection Remarks */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Inspection Remarks / Assessment</Label>
+                    <Textarea
+                      placeholder="Record technician observations, diagnostic results, or required parts..."
+                      value={inspectionRemarks}
+                      disabled={isReqTerminal}
+                      onChange={(e) => setInspectionRemarks(e.target.value)}
+                      className={`text-xs min-h-[70px] ${isReqTerminal ? 'bg-muted/40 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+
+                  {/* Admin Remarks for Rejection / Send Back */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Feedback / Admin Remarks {isReqTerminal ? '' : '(Required if rejecting or sending back)'}</Label>
+                    <Textarea
+                      placeholder="Reason for rejection or instructions to employee..."
+                      value={adminRemarks}
+                      disabled={isReqTerminal}
+                      onChange={(e) => setAdminRemarks(e.target.value)}
+                      className={`text-xs min-h-[60px] ${isReqTerminal ? 'bg-muted/40 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+
+                  {/* If Request is COMPLETED: Hide all workflow action buttons! */}
+                  {isReqCompleted ? (
+                    <div className="pt-2 border-t space-y-3">
+                      <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/25 p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <strong className="font-semibold text-xs">Maintenance Completed & Verified</strong>
+                          </div>
+                          <Badge className="bg-emerald-500/20 text-emerald-700 border-emerald-500/30 text-[10px] font-semibold">
+                            Completed
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          This maintenance request has been successfully serviced and finalized. All administrative workflow actions are complete.
+                        </p>
+                      </div>
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs font-semibold"
+                          onClick={() => setIsInspectModalOpen(false)}
+                        >
+                          Close
+                        </Button>
+                      </div>
+                    </div>
+                  ) : isReqRejected ? (
+                    <div className="pt-2 border-t space-y-3">
+                      <div className="rounded-lg bg-rose-500/10 border border-rose-500/25 p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300">
+                            <XCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                            <strong className="font-semibold text-xs">Maintenance Request Rejected</strong>
+                          </div>
+                          <Badge className="bg-rose-500/20 text-rose-700 border-rose-500/30 text-[10px] font-semibold">
+                            Rejected
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {adminRemarks || 'This request has been rejected by administration.'}
+                        </p>
+                      </div>
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs font-semibold"
+                          onClick={() => setIsInspectModalOpen(false)}
+                        >
+                          Close
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Active Request: Workflow Action Buttons show according to lifecycle */
+                    <div className="pt-2 border-t space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[11px] text-muted-foreground font-semibold uppercase">Workflow Actions</Label>
+                        <span className="text-[10px] text-muted-foreground">
+                          Current Stage: <strong className="text-foreground">{selectedMaintenanceReq.status}</strong>
+                        </span>
+                      </div>
+
+                      {/* In Repair Notice Banner: Work Order already created */}
+                      {isReqInRepair && (
+                        <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-2.5 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+                          <div className="flex items-center gap-2">
+                            <Wrench className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                            <span>Work Order is active in repair. Once repair is finished, click <strong>Complete</strong>.</span>
+                          </div>
+                          <Badge className="bg-amber-500/20 text-amber-700 border-amber-500/30 text-[10px] font-semibold">
+                            In Repair
+                          </Badge>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        {/* 1. Mark In Inspection: Only if PENDING or SENT_BACK (disappears once in inspection) */}
+                        {(isReqPending || isReqSentBack) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-xs font-semibold gap-1 text-blue-600 border-blue-500/30 hover:bg-blue-500/10"
+                            disabled={inspectMutation.isPending}
+                            onClick={() =>
+                              inspectMutation.mutate({
+                                id: selectedMaintenanceReq.id,
+                                remarks: inspectionRemarks,
+                                status: 'IN_INSPECTION',
+                              })
+                            }
+                          >
+                            <Search className="h-3.5 w-3.5" /> Mark In Inspection
+                          </Button>
+                        )}
+
+                        {/* 2. Create Work Order: Visible in PENDING or IN_INSPECTION (disappears once IN_REPAIR) */}
+                        {(isReqPending || isReqInInspection) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="text-xs font-semibold gap-1 bg-amber-600 hover:bg-amber-700 text-white"
+                            onClick={() => handleCreateWorkOrderFromRequest(selectedMaintenanceReq)}
+                          >
+                            <Wrench className="h-3.5 w-3.5" /> Create Work Order
+                          </Button>
+                        )}
+
+                        {/* 3. Complete: Visible in IN_INSPECTION or IN_REPAIR */}
+                        {(isReqInInspection || isReqInRepair) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="text-xs font-semibold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            disabled={updateRequestStatusMutation.isPending}
+                            onClick={() =>
+                              updateRequestStatusMutation.mutate({
+                                id: selectedMaintenanceReq.id,
+                                status: 'COMPLETED',
+                                remarks: inspectionRemarks || adminRemarks,
+                              })
+                            }
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Complete
+                          </Button>
+                        )}
+
+                        {/* 4. Send Back: Available for PENDING or IN_INSPECTION */}
+                        {(isReqPending || isReqInInspection) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-xs font-semibold gap-1 text-purple-600 border-purple-500/30 hover:bg-purple-500/10"
+                            disabled={updateRequestStatusMutation.isPending}
+                            onClick={() => {
+                              if (!adminRemarks.trim()) {
+                                toast.error('Please enter feedback/remarks before sending back.');
+                                return;
+                              }
+                              updateRequestStatusMutation.mutate({
+                                id: selectedMaintenanceReq.id,
+                                status: 'SENT_BACK',
+                                remarks: adminRemarks.trim(),
+                              });
+                            }}
+                          >
+                            <Undo2 className="h-3.5 w-3.5" /> Send Back
+                          </Button>
+                        )}
+
+                        {/* 5. Reject: Available for PENDING or IN_INSPECTION */}
+                        {(isReqPending || isReqInInspection) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-xs font-semibold gap-1 text-rose-600 border-rose-500/30 hover:bg-rose-500/10"
+                            disabled={updateRequestStatusMutation.isPending}
+                            onClick={() => {
+                              if (!adminRemarks.trim()) {
+                                toast.error('Please enter rejection remarks before rejecting.');
+                                return;
+                              }
+                              updateRequestStatusMutation.mutate({
+                                id: selectedMaintenanceReq.id,
+                                status: 'REJECTED',
+                                remarks: adminRemarks.trim(),
+                              });
+                            }}
+                          >
+                            <XCircle className="h-3.5 w-3.5" /> Reject
+                          </Button>
+                        )}
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => setIsInspectModalOpen(false)}
+                        >
+                          Close
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+            </div>
           </DialogContent>
         </Dialog>
       )}

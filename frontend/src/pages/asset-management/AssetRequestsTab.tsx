@@ -25,8 +25,9 @@ import {
   Sparkles,
   User,
   Info,
+  Wrench,
 } from 'lucide-react';
-import { assetRequestsApi, assetsApi } from '@/api/asset-management';
+import { assetRequestsApi, assetsApi, assetMaintenanceRequestsApi } from '@/api/asset-management';
 import { branchesApi } from '@/api/organization';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
@@ -44,7 +45,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatCard } from '@/components/ui/stat-card';
-import type { Asset, AssetRequest, AssetRequestPriority, AssetRequestStatus } from '@/api/types';
+import type { Asset, AssetRequest, AssetRequestPriority, AssetRequestStatus, AssetMaintenanceRequest } from '@/api/types';
 
 export function AssetRequestsTab({ companyId, branchId: propBranchId }: { companyId?: string; branchId?: string }) {
   const queryClient = useQueryClient();
@@ -68,8 +69,13 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedPriority, setSelectedPriority] = useState<string>('ALL');
 
-  // Employee View Tab (My Requests vs My Assets)
-  const [employeeSubTab, setEmployeeSubTab] = useState<'requests' | 'my-assets'>('requests');
+  // Employee View Tab (My Requests vs My Assets vs Maintenance)
+  const [employeeSubTab, setEmployeeSubTab] = useState<'requests' | 'my-assets' | 'maintenance'>('requests');
+  const [isNewMaintenanceOpen, setIsNewMaintenanceOpen] = useState(false);
+  const [maintenanceAssetId, setMaintenanceAssetId] = useState('');
+  const [maintenanceIssueTitle, setMaintenanceIssueTitle] = useState('');
+  const [maintenanceDescription, setMaintenanceDescription] = useState('');
+  const [maintenancePriority, setMaintenancePriority] = useState<string>('MEDIUM');
 
   // Modals State
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
@@ -130,6 +136,24 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
     queryFn: () => assetRequestsApi.getMyAssets(),
     enabled: !isHrOrAdmin,
   });
+
+  // Employee: List own maintenance requests
+  const { data: rawMyMaintenanceRequests = [], isLoading: isLoadingMyMaintenance } = useQuery({
+    queryKey: ['my-asset-maintenance-requests'],
+    queryFn: () => assetMaintenanceRequestsApi.listMyRequests(),
+    enabled: !isHrOrAdmin,
+  });
+
+  // Deduplicate maintenance requests by unique id and requestNumber to guarantee clean rows
+  const myMaintenanceRequests = useMemo(() => {
+    const seen = new Set<string>();
+    return rawMyMaintenanceRequests.filter((item: any) => {
+      const key = item.id || item.requestNumber;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [rawMyMaintenanceRequests]);
 
   // Available assets for allocation modal (only when modal is open)
   const { data: availableStock = [] } = useQuery({
@@ -347,6 +371,90 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
     setNewRemarks('');
   };
 
+  const resetNewMaintenanceForm = (defaultAssetId?: string) => {
+    setMaintenanceAssetId(defaultAssetId || (myAssets.length > 0 ? myAssets[0].id : ''));
+    setMaintenanceIssueTitle('');
+    setMaintenanceDescription('');
+    setMaintenancePriority('MEDIUM');
+  };
+
+  const createMaintenanceMutation = useMutation({
+    mutationFn: (payload: { assetId: string; issueTitle: string; issueDescription?: string; priority?: string }) =>
+      assetMaintenanceRequestsApi.create(payload),
+    onSuccess: (data) => {
+      toast.success(`Maintenance request #${data.requestNumber} submitted successfully!`);
+      setIsNewMaintenanceOpen(false);
+      resetNewMaintenanceForm();
+      queryClient.invalidateQueries({ queryKey: ['my-asset-maintenance-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['asset-maintenance-requests'] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to submit maintenance request.');
+    },
+  });
+
+  const handleNewMaintenanceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (createMaintenanceMutation.isPending) return;
+    if (!maintenanceAssetId) {
+      toast.error('Please select an allocated asset.');
+      return;
+    }
+    if (!maintenanceIssueTitle.trim()) {
+      toast.error('Please enter the issue title.');
+      return;
+    }
+    createMaintenanceMutation.mutate({
+      assetId: maintenanceAssetId,
+      issueTitle: maintenanceIssueTitle.trim(),
+      issueDescription: maintenanceDescription.trim() || undefined,
+      priority: maintenancePriority,
+    });
+  };
+
+  const renderMaintenanceStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return (
+          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] font-semibold gap-1">
+            <Clock className="h-3 w-3" /> Awaiting Inspection
+          </Badge>
+        );
+      case 'IN_INSPECTION':
+        return (
+          <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] font-semibold gap-1">
+            <Search className="h-3 w-3" /> In Inspection
+          </Badge>
+        );
+      case 'IN_REPAIR':
+        return (
+          <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20 text-[10px] font-semibold gap-1">
+            <Wrench className="h-3 w-3" /> In Repair
+          </Badge>
+        );
+      case 'COMPLETED':
+        return (
+          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-semibold gap-1">
+            <CheckCircle2 className="h-3 w-3" /> Completed
+          </Badge>
+        );
+      case 'REJECTED':
+        return (
+          <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px] font-semibold gap-1">
+            <XCircle className="h-3 w-3" /> Rejected
+          </Badge>
+        );
+      case 'SENT_BACK':
+        return (
+          <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20 text-[10px] font-semibold gap-1">
+            <Undo2 className="h-3 w-3" /> Sent Back
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
+    }
+  };
+
   const handleOpenReview = (req: AssetRequest) => {
     setSelectedRequest(req);
     setReviewAction('APPROVE');
@@ -364,6 +472,7 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
 
   const handleNewRequestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (createMutation.isPending) return;
     if (!newReason.trim()) {
       toast.error('Please provide a reason for the asset request.');
       return;
@@ -984,6 +1093,106 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* 4. New Maintenance Request Dialog for Employee */}
+        <Dialog open={isNewMaintenanceOpen} onOpenChange={setIsNewMaintenanceOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold flex items-center gap-2">
+                <Wrench className="h-4 w-4 text-amber-600" /> Report Asset Issue / Maintenance
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Submit an issue for an asset currently allocated to you. Our maintenance and IT team will inspect it.
+              </DialogDescription>
+            </DialogHeader>
+
+            {myAssets.length === 0 ? (
+              <div className="py-6 text-center space-y-3">
+                <Laptop className="h-10 w-10 text-muted-foreground mx-auto opacity-50" />
+                <p className="text-xs text-muted-foreground">
+                  You do not have any company assets currently allocated to your profile. Maintenance requests can only be raised for assigned assets.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => setIsNewMaintenanceOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleNewMaintenanceSubmit} className="space-y-3.5 text-xs">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Select Allocated Asset (Required)</Label>
+                  <Select value={maintenanceAssetId} onValueChange={setMaintenanceAssetId}>
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Choose an asset in your custody" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {myAssets.map((asset) => (
+                        <SelectItem key={asset.id} value={asset.id} className="text-xs">
+                          {asset.name} ({asset.assetTag}) - {asset.category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Issue Title / Problem Summary (Required)</Label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Battery not charging, Screen flickering, Keypad defect"
+                    value={maintenanceIssueTitle}
+                    onChange={(e) => setMaintenanceIssueTitle(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Priority</Label>
+                  <Select value={maintenancePriority} onValueChange={setMaintenancePriority}>
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LOW">Low - Minor cosmetic / non-blocking</SelectItem>
+                      <SelectItem value="MEDIUM">Medium - Normal operational glitch</SelectItem>
+                      <SelectItem value="HIGH">High - Significantly impacting work</SelectItem>
+                      <SelectItem value="CRITICAL">Critical - Complete breakdown / safety hazard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Detailed Description</Label>
+                  <Textarea
+                    placeholder="Describe what occurred, any error codes, or when the issue started..."
+                    value={maintenanceDescription}
+                    onChange={(e) => setMaintenanceDescription(e.target.value)}
+                    className="text-xs min-h-[80px]"
+                  />
+                </div>
+
+                <DialogFooter className="gap-2 pt-2 border-t">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setIsNewMaintenanceOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={createMaintenanceMutation.isPending}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5"
+                  >
+                    <Wrench className="h-3.5 w-3.5" />
+                    {createMaintenanceMutation.isPending ? 'Submitting...' : 'Submit Maintenance Request'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -1000,16 +1209,31 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
             Request organizational hardware and equipment, track approvals, and view your active asset custody.
           </p>
         </div>
-        <Button
-          size="sm"
-          className="h-8 text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
-          onClick={() => {
-            resetNewRequestForm();
-            setIsNewRequestOpen(true);
-          }}
-        >
-          <Plus className="h-3.5 w-3.5" /> New Asset Request
-        </Button>
+        <div className="flex items-center gap-2">
+          {employeeSubTab === 'maintenance' ? (
+            <Button
+              size="sm"
+              className="h-8 text-xs font-semibold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+              onClick={() => {
+                resetNewMaintenanceForm();
+                setIsNewMaintenanceOpen(true);
+              }}
+            >
+              <Wrench className="h-3.5 w-3.5" /> Report Issue / Maintenance
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="h-8 text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
+              onClick={() => {
+                resetNewRequestForm();
+                setIsNewRequestOpen(true);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" /> New Asset Request
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs value={employeeSubTab} onValueChange={(val: any) => setEmployeeSubTab(val)} className="space-y-4">
@@ -1019,6 +1243,9 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
           </TabsTrigger>
           <TabsTrigger value="my-assets" className="text-xs font-medium gap-1.5">
             <Laptop className="h-3.5 w-3.5" /> My Assets in Custody ({myAssets.length})
+          </TabsTrigger>
+          <TabsTrigger value="maintenance" className="text-xs font-medium gap-1.5">
+            <Wrench className="h-3.5 w-3.5" /> My Maintenance Requests ({myMaintenanceRequests.length})
           </TabsTrigger>
         </TabsList>
 
@@ -1125,9 +1352,15 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
                             <span className="font-mono text-[10px] text-primary font-bold">{asset.assetTag}</span>
                           </div>
                         </div>
-                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-semibold">
-                          In Use
-                        </Badge>
+                        {asset.status === 'UNDER_MAINTENANCE' ? (
+                          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] font-semibold gap-1">
+                            <Wrench className="h-3 w-3" /> In Repair
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-semibold gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> In Custody
+                          </Badge>
+                        )}
                       </div>
                     </CardHeader>
                     <CardContent className="p-4 pt-2 text-xs space-y-2">
@@ -1149,12 +1382,154 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
                         <span className="text-muted-foreground">Location:</span>
                         <span className="font-medium text-foreground">{asset.physicalLocation || asset.branch?.name || 'Assigned'}</span>
                       </div>
+                      <div className="pt-2 border-t border-border/60 flex justify-end">
+                        {asset.status === 'UNDER_MAINTENANCE' ? (
+                          <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30 bg-amber-500/5 font-medium gap-1 py-1">
+                            <Clock className="h-3 w-3" /> Maintenance in Progress
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                            onClick={() => {
+                              resetNewMaintenanceForm(asset.id);
+                              setIsNewMaintenanceOpen(true);
+                            }}
+                          >
+                            <Wrench className="h-3 w-3" /> Report Issue
+                          </Button>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 );
               })}
             </div>
           )}
+        </TabsContent>
+
+        {/* SUBTAB 3: MY MAINTENANCE REQUESTS */}
+        <TabsContent value="maintenance" className="space-y-4">
+          <Card className="shadow-xs border-border/80">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Request #</TableHead>
+                    <TableHead className="text-xs">Asset</TableHead>
+                    <TableHead className="text-xs">Issue Title</TableHead>
+                    <TableHead className="text-xs">Priority</TableHead>
+                    <TableHead className="text-xs">Submitted Date</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Admin / Inspection Remarks</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoadingMyMaintenance ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
+                        Loading your maintenance requests...
+                      </TableCell>
+                    </TableRow>
+                  ) : myMaintenanceRequests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-10">
+                        <Wrench className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                        <p className="text-xs text-muted-foreground font-medium">No maintenance requests found.</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          If any of your allocated assets are malfunctioning or need repair, submit a maintenance request.
+                        </p>
+                        <Button
+                          size="sm"
+                          className="mt-3 text-xs font-semibold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                          onClick={() => {
+                            resetNewMaintenanceForm();
+                            setIsNewMaintenanceOpen(true);
+                          }}
+                        >
+                          <Wrench className="h-3.5 w-3.5" /> Report Issue / Maintenance
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    myMaintenanceRequests.map((req: AssetMaintenanceRequest) => (
+                      <TableRow key={req.id} className="hover:bg-muted/40 transition-colors">
+                        <TableCell className="font-mono text-xs font-bold text-primary">
+                          {req.requestNumber}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <span className="font-semibold text-foreground block">
+                            {req.asset?.name || 'Allocated Asset'}
+                          </span>
+                          <span className="font-mono text-[10px] text-muted-foreground">
+                            {req.asset?.assetTag || 'N/A'} {req.asset?.category ? `• ${req.asset.category}` : ''}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <span className="font-medium text-foreground block">{req.issueTitle}</span>
+                          {req.issueDescription && (
+                            <span className="text-[10px] text-muted-foreground line-clamp-1" title={req.issueDescription}>
+                              {req.issueDescription}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {req.priority === 'CRITICAL' ? (
+                            <Badge className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px] font-bold">
+                              CRITICAL
+                            </Badge>
+                          ) : req.priority === 'HIGH' ? (
+                            <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px] font-bold">
+                              HIGH
+                            </Badge>
+                          ) : req.priority === 'LOW' ? (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                              LOW
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">
+                              MEDIUM
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">
+                          {new Date(req.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {renderMaintenanceStatusBadge(req.status)}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {req.adminRemarks || req.inspectionRemarks ? (
+                            <div className="space-y-0.5">
+                              {req.inspectionRemarks && (
+                                <p className="text-[11px] text-foreground">
+                                  <span className="text-muted-foreground font-medium">Inspection: </span>
+                                  {req.inspectionRemarks}
+                                </p>
+                              )}
+                              {req.adminRemarks && (
+                                <p className="text-[11px] text-foreground font-medium">
+                                  <span className="text-muted-foreground">Remarks: </span>
+                                  {req.adminRemarks}
+                                </p>
+                              )}
+                            </div>
+                          ) : req.workOrder ? (
+                            <span className="text-[10px] font-mono text-primary font-medium">
+                              WO: {req.workOrder.workOrderNumber || 'Active'}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground italic">None</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -1266,6 +1641,106 @@ export function AssetRequestsTab({ companyId, branchId: propBranchId }: { compan
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Maintenance Request Dialog for Employee */}
+      <Dialog open={isNewMaintenanceOpen} onOpenChange={setIsNewMaintenanceOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold flex items-center gap-2">
+              <Wrench className="h-4 w-4 text-amber-600" /> Report Asset Issue / Maintenance
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Submit an issue for an asset currently allocated to you. Our maintenance and IT team will inspect it.
+            </DialogDescription>
+          </DialogHeader>
+
+          {myAssets.length === 0 ? (
+            <div className="py-6 text-center space-y-3">
+              <Laptop className="h-10 w-10 text-muted-foreground mx-auto opacity-50" />
+              <p className="text-xs text-muted-foreground">
+                You do not have any company assets currently allocated to your profile. Maintenance requests can only be raised for assigned assets.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => setIsNewMaintenanceOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleNewMaintenanceSubmit} className="space-y-3.5 text-xs">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Select Allocated Asset (Required)</Label>
+                <Select value={maintenanceAssetId} onValueChange={setMaintenanceAssetId}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue placeholder="Choose an asset in your custody" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {myAssets.map((asset) => (
+                      <SelectItem key={asset.id} value={asset.id} className="text-xs">
+                        {asset.name} ({asset.assetTag}) - {asset.category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Issue Title / Problem Summary (Required)</Label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Battery not charging, Screen flickering, Keypad defect"
+                  value={maintenanceIssueTitle}
+                  onChange={(e) => setMaintenanceIssueTitle(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Priority</Label>
+                <Select value={maintenancePriority} onValueChange={setMaintenancePriority}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">Low - Minor cosmetic / non-blocking</SelectItem>
+                    <SelectItem value="MEDIUM">Medium - Normal operational glitch</SelectItem>
+                    <SelectItem value="HIGH">High - Significantly impacting work</SelectItem>
+                    <SelectItem value="CRITICAL">Critical - Complete breakdown / safety hazard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Detailed Description</Label>
+                <Textarea
+                  placeholder="Describe what occurred, any error codes, or when the issue started..."
+                  value={maintenanceDescription}
+                  onChange={(e) => setMaintenanceDescription(e.target.value)}
+                  className="text-xs min-h-[80px]"
+                />
+              </div>
+
+              <DialogFooter className="gap-2 pt-2 border-t">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsNewMaintenanceOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={createMaintenanceMutation.isPending}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5"
+                >
+                  <Wrench className="h-3.5 w-3.5" />
+                  {createMaintenanceMutation.isPending ? 'Submitting...' : 'Submit Maintenance Request'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>
