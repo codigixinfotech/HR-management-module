@@ -98,7 +98,9 @@ export function LandingPage() {
     if (accessToken && user) {
       navigate('/dashboard');
     } else {
-      navigate('/login', { state: { from: { pathname: '/dashboard' } } });
+      // Use hard navigation to /login to avoid React Router client-side render loop
+      // caused by FaceAttendanceModal effects firing during LandingPage unmount
+      window.location.href = '/login';
     }
   };
 
@@ -254,13 +256,12 @@ export function LandingPage() {
                 </button>
 
                 {/* Direct Sign In to /login */}
-                <button
-                  type="button"
-                  onClick={() => navigate('/login')}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-900/90 hover:bg-slate-950 text-white font-extrabold text-xs shadow-lg transition-all cursor-pointer border border-white/20"
+                <a
+                  href="/login"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-900/90 hover:bg-slate-950 text-white font-extrabold text-xs shadow-lg transition-all cursor-pointer border border-white/20 no-underline"
                 >
                   <Lock className="h-3.5 w-3.5 text-purple-300" /> Sign In
-                </button>
+                </a>
               </div>
 
               {/* OVERLAID CONTENT CONTAINER (Positioned directly over the background banner image) */}

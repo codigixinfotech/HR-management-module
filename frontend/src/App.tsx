@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -82,37 +82,60 @@ function UploadsRedirectHandler() {
   );
 }
 
+/**
+ * AuthenticatedLayout wraps CompanyProvider + ProtectedRoute + AppLayout.
+ * CompanyProvider MUST only mount for authenticated sessions — placing it here
+ * (inside the route tree, not above <Routes>) ensures React Router can freely
+ * swap the route matched at /login vs /dashboard without CompanyProvider
+ * blocking the re-render propagation.
+ */
+function AuthenticatedLayout() {
+  return (
+    <CompanyProvider>
+      <ProtectedRoute />
+    </CompanyProvider>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <CompanyProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/careers" element={<CareersPage />} />
-            <Route path="/careers/*" element={<CareersPage />} />
-            <Route path="/careers/job/:id" element={<CareersJobDetailPage />} />
-            <Route path="/candidate-assessment/:token" element={<CandidateAssessmentPage />} />
+        <Routes>
+          {/* ── PUBLIC ROUTES ─────────────────────────────────────────── */}
+          {/* These render immediately with no auth or CompanyProvider dependency */}
 
-            {/* Public Auth & Password Setup Routes — No login session required */}
-            <Route path="/auth/set-password" element={<SetPasswordPage />} />
-            <Route path="/auth/verify-invitation" element={<SetPasswordPage />} />
+          {/* Root & Landing Page */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/landing" element={<LandingPage />} />
+          <Route path="/landing/:tab" element={<LandingPage />} />
 
-            {/* Uploads & Resume Direct Download Interceptor — Prevents SPA fallback redirect to /dashboard */}
-            <Route path="/uploads/*" element={<UploadsRedirectHandler />} />
-            <Route path="/api/uploads/*" element={<UploadsRedirectHandler />} />
+          {/* Login Page */}
+          <Route path="/login" element={<LoginPage />} />
 
-            {/* Root & Public Landing Page — No login required */}
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/landing" element={<LandingPage />} />
-            <Route path="/landing/:tab" element={<LandingPage />} />
+          {/* Public Auth Routes */}
+          <Route path="/auth/set-password" element={<SetPasswordPage />} />
+          <Route path="/auth/verify-invitation" element={<SetPasswordPage />} />
 
-          <Route element={<ProtectedRoute />}>
-            {/* Redirect any legacy /mobile-punch links directly to canonical /attendance-leave */}
+          {/* Public Careers Routes */}
+          <Route path="/careers" element={<CareersPage />} />
+          <Route path="/careers/*" element={<CareersPage />} />
+          <Route path="/careers/job/:id" element={<CareersJobDetailPage />} />
+          <Route path="/candidate-assessment/:token" element={<CandidateAssessmentPage />} />
+
+          {/* Uploads & Resume Download Interceptor */}
+          <Route path="/uploads/*" element={<UploadsRedirectHandler />} />
+          <Route path="/api/uploads/*" element={<UploadsRedirectHandler />} />
+
+          {/* ── PROTECTED ROUTES ──────────────────────────────────────── */}
+          {/* CompanyProvider is scoped here — only mounts for authenticated sessions */}
+          <Route element={<AuthenticatedLayout />}>
+
+            {/* Legacy redirect */}
             <Route path="/mobile-punch" element={<Navigate to="/attendance-leave" replace />} />
 
             <Route element={<AppLayout />}>
-              
+
               {/* Dashboard Routes */}
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/dashboard/:tab" element={<DashboardPage />} />
@@ -140,7 +163,7 @@ export default function App() {
               <Route path="/recruitment/:tab" element={<JobOpeningsPage />} />
               <Route path="/recruitment/detail/:id" element={<JobOpeningDetailPage />} />
 
-              {/* Workforce Routes (Standalone Pages) */}
+              {/* Workforce Routes */}
               <Route path="/workforce" element={<Navigate to="/workforce/planning" replace />} />
               <Route path="/workforce/planning" element={<WorkforcePlanningPage />} />
               <Route path="/workforce/shift-planning" element={<ShiftPlanningPage />} />
@@ -183,7 +206,7 @@ export default function App() {
               <Route path="/employee-experience" element={<EmployeeExperiencePage />} />
               <Route path="/employee-experience/:tab" element={<EmployeeExperiencePage />} />
 
-              {/* Assets Routes (Standalone Pages) */}
+              {/* Assets Routes */}
               <Route path="/asset-management" element={<Navigate to="/asset-management/master" replace />} />
               <Route path="/asset-management/master" element={<AssetMasterPage />} />
               <Route path="/asset-management/requests" element={<AssetRequestPage />} />
@@ -224,13 +247,12 @@ export default function App() {
               <Route path="/administration" element={<AdministrationPage />} />
               <Route path="/administration/:tab" element={<AdministrationPage />} />
 
-              {/* Landing Page removed from here — now public above */}
             </Route>
           </Route>
 
+          {/* Catch-all: redirect unknown routes to dashboard */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
-        </CompanyProvider>
       </BrowserRouter>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>

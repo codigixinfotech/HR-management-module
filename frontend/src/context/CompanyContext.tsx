@@ -102,7 +102,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         localStorage.setItem(STORAGE_KEY, defaultCompany);
       }
     }
-  }, [user?.companyId, user?.employee?.companyId, isSuperAdmin, rawCompanies, isLoading, activeCompanyId]);
+  }, [user?.companyId, user?.employee?.companyId, isSuperAdmin, rawCompanies, isLoading]);
 
   const setActiveCompanyId = (id: string) => {
     if (!id || id === 'ALL') return;

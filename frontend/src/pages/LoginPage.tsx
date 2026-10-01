@@ -102,7 +102,8 @@ export default function LoginPage() {
       const storedEmail = sessionStorage.getItem('ehcm_activated_email');
       if (storedEmail) setSignInEmail(storedEmail);
     }
-  }, [location.state]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(location.state as any)?.email]);
 
   // Sign Up form fields
   const [signUpFullName, setSignUpFullName] = useState('');

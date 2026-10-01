@@ -1,4 +1,3 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import { toast } from 'sonner'
@@ -33,8 +32,4 @@ if (import.meta.env.DEV && typeof window !== 'undefined' && 'serviceWorker' in n
   });
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+createRoot(document.getElementById('root')!).render(<App />)

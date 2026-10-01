@@ -43,6 +43,14 @@ const ROUTE_TO_MODULE_KEY: Record<string, string> = {
   '/iot-devices': 'integrations-iot',
 };
 
+/**
+ * ProtectedRoute — Guards all authenticated pages.
+ *
+ * This component is ALWAYS mounted inside <CompanyProvider> (via AuthenticatedLayout
+ * in App.tsx). It no longer needs public-route bypass logic because /, /login,
+ * /landing, /careers, and /auth/* are defined OUTSIDE this route tree in App.tsx
+ * and will never reach ProtectedRoute.
+ */
 export function ProtectedRoute() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
@@ -57,18 +65,7 @@ export function ProtectedRoute() {
     enabled: Boolean(activeCompanyId && accessToken),
   });
 
-  if (
-    currentPath === '/' ||
-    currentPath === '/landing' ||
-    currentPath.startsWith('/landing/') ||
-    currentPath.startsWith('/careers') ||
-    currentPath.startsWith('/candidate-assessment') ||
-    currentPath.startsWith('/auth') ||
-    currentPath === '/login'
-  ) {
-    return <Outlet />;
-  }
-
+  // Not authenticated — redirect to login, preserving the intended destination
   if (!accessToken || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
