@@ -153,22 +153,166 @@ export function ShiftAssignmentsTab() {
     if (rawList.length > 0) {
       return rawList.map((e: any) => ({
         id: e.id,
-        employeeCode: e.employeeCode,
+        employeeCode: e.employeeCode || e.code || 'EMP',
         firstName: e.firstName,
         lastName: e.lastName,
-        name: `${e.firstName} ${e.lastName}`.trim(),
-        departmentName: e.department?.name || 'Production',
+        name: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.name || e.employeeCode,
+        departmentName: e.department?.name || e.departmentName || 'General',
         departmentId: e.departmentId || e.department?.id,
-        designationTitle: e.designation?.title || e.designation?.name || 'Staff Member',
-        branchName: e.branch?.name || 'Pune Manufacturing Plant',
+        designationTitle: e.designation?.title || e.designation?.name || e.designationTitle || 'Staff Member',
+        branchName: e.branch?.name || e.branchName || (e.branchId === 'HEAD_OFFICE' || !e.branchId ? 'Head Office' : 'Branch'),
+        branchId: e.branchId || e.branch?.id || (e.branchId === null ? 'HEAD_OFFICE' : 'HEAD_OFFICE'),
         companyName: e.company?.name || companyName,
         companyId: e.companyId,
         status: (e.status || 'ACTIVE').toUpperCase(),
       }));
     }
 
-    // Real database seed fallback for Montanari Lifts and organization
+    // Real database seed fallback for Cravita Technology Pvt Ltd and organizations
     return [
+      {
+        id: 'cmtwjbecd00zuj7op138ul3f5',
+        employeeCode: 'C-0034-001',
+        firstName: 'prashant',
+        lastName: 'patil',
+        name: 'prashant patil',
+        departmentName: 'Administration',
+        designationTitle: 'Company Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmu5be8im0076j7fnte7g79nm',
+        employeeCode: 'EMP-001',
+        firstName: 'sanika',
+        lastName: 'mote',
+        name: 'sanika mote',
+        departmentName: 'Administration head',
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmul98gnt007bj7irx8ozqy5t',
+        employeeCode: 'EMP-0010',
+        firstName: 'Harshal',
+        lastName: 'Patil',
+        name: 'Harshal Patil',
+        departmentName: 'Cardiology',
+        designationTitle: 'Ward Boy',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmu5bj3s6007cj7fn7wjsm4j2',
+        employeeCode: 'EMP0006',
+        firstName: 'pratham',
+        lastName: 'patil',
+        name: 'pratham patil',
+        departmentName: 'Administration head',
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmu5fc9nh0086j7py36bk3lei',
+        employeeCode: 'EMP0007',
+        firstName: 'Purvesh',
+        lastName: 'Warude',
+        name: 'Purvesh Warude',
+        departmentName: 'Administration head',
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmul3pnuk0078j719shrajrgx',
+        employeeCode: 'EMP0009',
+        firstName: 'Nishant',
+        lastName: 'Shinde',
+        name: 'Nishant Shinde',
+        departmentName: 'Nursing',
+        designationTitle: 'nurse',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmuf7kfgw007fipzk661dgt32',
+        employeeCode: 'EMP-00001',
+        firstName: 'krnati',
+        lastName: 'gade',
+        name: 'krnati gade',
+        departmentName: 'Nursing',
+        designationTitle: 'Nursing Manager',
+        branchName: 'Cravita B',
+        branchId: 'cmty5i0j50078j79ddagb7bkz',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmuf7wqxr007pipzk9nbgwvzk',
+        employeeCode: 'EMP-002',
+        firstName: 'raj',
+        lastName: 'LTD.',
+        name: 'raj LTD.',
+        departmentName: 'Nursing',
+        designationTitle: 'nurse',
+        branchName: 'Cravita B',
+        branchId: 'cmty5i0j50078j79ddagb7bkz',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmty65x5g007ej79dy9yj87mu_emp1',
+        employeeCode: 'EMP-004',
+        firstName: 'Sunita',
+        lastName: 'wadekar',
+        name: 'Sunita wadekar',
+        departmentName: 'Nurses',
+        designationTitle: 'eyu',
+        branchName: 'Cravita C',
+        branchId: 'cmty65x5g007ej79dy9yj87mu',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmty65x5g007ej79dy9yj87mu_emp2',
+        employeeCode: 'EMP-003',
+        firstName: 'sanu',
+        lastName: 'mote',
+        name: 'sanu mote',
+        departmentName: 'nursing',
+        designationTitle: 'nurse',
+        branchName: 'Cravita C',
+        branchId: 'cmty65x5g007ej79dy9yj87mu',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmu12x2et0074j7xn0u5v7977_emp1',
+        employeeCode: 'EMP0008',
+        firstName: 'vishal',
+        lastName: 'patil',
+        name: 'vishal patil',
+        departmentName: 'Nursing',
+        designationTitle: 'nurse',
+        branchName: 'Branch D',
+        branchId: 'cmu12x2et0074j7xn0u5v7977',
+        companyName: companyName,
+        status: 'ACTIVE',
+      },
       {
         id: 'cmtr2qzm7006zip185kbklj96',
         employeeCode: 'EMP-001',
@@ -177,104 +321,9 @@ export function ShiftAssignmentsTab() {
         name: 'Sudarshan Kale',
         departmentName: 'Production',
         designationTitle: 'Production Operator',
-        branchName: 'Pune Manufacturing Plant',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
         companyName: 'MONTANARI LIFTS COMPONENTS PVT. LTD – LIVE Plot C-3 MIDC',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'cmtr5vw820075ipgg00g8jfg9',
-        employeeCode: 'EMP-002',
-        firstName: 'Anjuuu',
-        lastName: 'Mote',
-        name: 'Anjuuu Mote',
-        departmentName: 'Quality Assurance',
-        designationTitle: 'Contract Machine Operator',
-        branchName: 'Pune Manufacturing Plant',
-        companyName: 'MONTANARI LIFTS COMPONENTS PVT. LTD – LIVE Plot C-3 MIDC',
-        status: 'EXITED',
-      },
-      {
-        id: 'cmto137hf01ihipkgkw9xjot0',
-        employeeCode: 'MLC-001',
-        firstName: 'Ajinkya',
-        lastName: 'Mote',
-        name: 'Ajinkya Mote',
-        departmentName: 'Executive Management',
-        designationTitle: 'Managing Director & Founder',
-        branchName: 'Pune Manufacturing Plant',
-        companyName: 'MONTANARI LIFTS COMPONENTS PVT. LTD – LIVE Plot C-3 MIDC',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'cmsok337k002tipog3o4n3n7q',
-        employeeCode: 'EMP-001',
-        firstName: 'Amit',
-        lastName: 'Kulkarni',
-        name: 'Amit Kulkarni',
-        departmentName: 'Management',
-        designationTitle: 'Chief Executive Officer',
-        branchName: 'Headquarters',
-        companyName: 'Codigix Infotech Pvt. Ltd.',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'cmsok70gq002xipogjhgkguke',
-        employeeCode: 'EMP-002',
-        firstName: 'Rohan',
-        lastName: 'Mehta',
-        name: 'Rohan Mehta',
-        departmentName: 'Management',
-        designationTitle: 'Chief Operating Officer',
-        branchName: 'Headquarters',
-        companyName: 'Codigix Infotech Pvt. Ltd.',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'cmsoka6nh0031ipogucn9dccq',
-        employeeCode: 'EMP-003',
-        firstName: 'Neha',
-        lastName: 'Joshi',
-        name: 'Neha Joshi',
-        departmentName: 'Human Resources',
-        designationTitle: 'HR Manager',
-        branchName: 'Headquarters',
-        companyName: 'Codigix Infotech Pvt. Ltd.',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'cmsokevpp0039ipogipw8btuv',
-        employeeCode: 'EMP-005',
-        firstName: 'Arjun',
-        lastName: 'Patil',
-        name: 'Arjun Patil',
-        departmentName: 'Information Technology',
-        designationTitle: 'Chief Technology Officer',
-        branchName: 'Headquarters',
-        companyName: 'Codigix Infotech Pvt. Ltd.',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'cmsokjp0n003fipog7upc2xe3',
-        employeeCode: 'EMP-004',
-        firstName: 'Pooja',
-        lastName: 'Shah',
-        name: 'Pooja Shah',
-        departmentName: 'Human Resources',
-        designationTitle: 'HR Executive',
-        branchName: 'Headquarters',
-        companyName: 'Codigix Infotech Pvt. Ltd.',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'cmsokn3b3003jipoggyqh5fnd',
-        employeeCode: 'EMP-006',
-        firstName: 'Rahul',
-        lastName: 'Deshmukh',
-        name: 'Rahul Deshmukh',
-        departmentName: 'Information Technology',
-        designationTitle: 'Senior Software Engineer',
-        branchName: 'Headquarters',
-        companyName: 'Codigix Infotech Pvt. Ltd.',
         status: 'ACTIVE',
       },
     ];
@@ -291,17 +340,56 @@ export function ShiftAssignmentsTab() {
       return departmentsData.map((d: any) => d.name);
     }
     return [
+      'Administration',
+      'Administration head',
+      'Cardiology',
+      'Nursing',
       'Production',
       'Operations & Production',
       'Engineering & Maintenance',
       'Quality Assurance',
-      'Executive Management',
-      'Stores & Warehouse',
       'Human Resources',
-      'Supply Chain & Logistics',
-      'Finance & Accounts',
     ];
   }, [departmentsData]);
+
+  // Strictly filter directory employees by selected branch or Head Office
+  const branchFilteredEmployees = useMemo(() => {
+    return directoryEmployees.filter((emp: any) => {
+      if (activeCompanyId && emp.companyId && emp.companyId !== activeCompanyId) {
+        return false;
+      }
+      return matchBranch({
+        branchId: emp.branchId === 'HEAD_OFFICE' ? 'HEAD_OFFICE' : emp.branchId,
+        branchName: emp.branchName,
+        location: emp.branchName,
+      });
+    });
+  }, [directoryEmployees, matchBranch, activeCompanyId]);
+
+  // Derive departments scoped to active branch/Head Office
+  const branchDepartments = useMemo(() => {
+    if (departmentsData && Array.isArray(departmentsData) && departmentsData.length > 0) {
+      const filtered = departmentsData.filter((d: any) =>
+        matchBranch({
+          branchId: d.branchId || (d.branch?.id),
+          branchName: d.branch?.name,
+          location: d.branch?.name,
+        })
+      );
+      if (filtered.length > 0) {
+        return Array.from(new Set(filtered.map((d: any) => d.name)));
+      }
+    }
+    const deptsFromEmps = Array.from(
+      new Set(
+        branchFilteredEmployees
+          .map((e: any) => e.departmentName)
+          .filter(Boolean)
+      )
+    );
+    if (deptsFromEmps.length > 0) return deptsFromEmps;
+    return availableDepartments;
+  }, [departmentsData, matchBranch, branchFilteredEmployees, availableDepartments]);
 
   // ── Helper: Count Active Employees from Employee Master ──
   const isActiveEmployee = (emp: any) => {
@@ -310,10 +398,10 @@ export function ShiftAssignmentsTab() {
     return s === 'ACTIVE' || s === 'PROBATION' || s === 'CONFIRMED';
   };
 
-  // Active employees for a specific department
+  // Active employees for a specific department (strictly branch-scoped)
   const getActiveEmployeesInDept = (deptNameOrId?: string) => {
     if (!deptNameOrId) return [];
-    return directoryEmployees.filter((e: any) => {
+    return branchFilteredEmployees.filter((e: any) => {
       if (!isActiveEmployee(e)) return false;
       const matchesId = e.departmentId && e.departmentId === deptNameOrId;
       const matchesName = e.departmentName && e.departmentName.toLowerCase() === deptNameOrId.toLowerCase();
@@ -321,13 +409,9 @@ export function ShiftAssignmentsTab() {
     });
   };
 
-  // Active employees across the whole company
+  // Active employees across the active branch/head office scope
   const getActiveEmployeesInCompany = () => {
-    return directoryEmployees.filter((e: any) => {
-      if (!isActiveEmployee(e)) return false;
-      if (activeCompanyId && e.companyId && e.companyId !== activeCompanyId) return false;
-      return true;
-    });
+    return branchFilteredEmployees.filter((e: any) => isActiveEmployee(e));
   };
 
   // Department capacity from Department Master
@@ -352,7 +436,7 @@ export function ShiftAssignmentsTab() {
     if (departmentsData && Array.isArray(departmentsData) && departmentsData.length > 0) {
       return departmentsData.reduce((acc: number, d: any) => acc + (d.headcountCapacity ?? 10), 0);
     }
-    return 35; // Montanari Lifts baseline (5 Exec + 10 Prod + 10 QA + 10 Stores)
+    return 35;
   };
 
   // Resolve dynamic headcount & capacity for any assignment row
@@ -381,8 +465,9 @@ export function ShiftAssignmentsTab() {
   // Modal Form State
   const [tier, setTier] = useState<AssignmentTier>('DEPARTMENT');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState<string>('ALL');
   const [employeeSearchFilter, setEmployeeSearchFilter] = useState('');
-  const [departmentName, setDepartmentName] = useState(availableDepartments[0] || 'Production');
+  const [departmentName, setDepartmentName] = useState(branchDepartments[0] || 'Administration');
   const [selectedShiftId, setSelectedShiftId] = useState(activeShifts[0]?.id || '');
   const [selectedWeeklyOffId, setSelectedWeeklyOffId] = useState(activeWeeklyOffPolicies[0]?.id || '');
   const [effectiveFrom, setEffectiveFrom] = useState('2026-09-10');
@@ -398,22 +483,31 @@ export function ShiftAssignmentsTab() {
     return activeWeeklyOffPolicies.find((p) => p.id === selectedWeeklyOffId) || activeWeeklyOffPolicies[0];
   }, [activeWeeklyOffPolicies, selectedWeeklyOffId]);
 
-  const selectedEmployeeObj = useMemo(() => {
-    return directoryEmployees.find((e: any) => e.id === selectedEmployeeId || e.employeeCode === selectedEmployeeId) || directoryEmployees[0];
-  }, [directoryEmployees, selectedEmployeeId]);
-
-  // Filtered employees for dropdown
+  // Filtered employees for dropdown (strictly branch-scoped + optional department filter)
   const filteredDirectoryEmployees = useMemo(() => {
-    if (!employeeSearchFilter.trim()) return directoryEmployees.slice(0, 30);
+    let list = branchFilteredEmployees;
+    if (employeeDepartmentFilter && employeeDepartmentFilter !== 'ALL') {
+      list = list.filter((e: any) => e.departmentName?.toLowerCase() === employeeDepartmentFilter.toLowerCase());
+    }
+    if (!employeeSearchFilter.trim()) return list.slice(0, 50);
     const q = employeeSearchFilter.toLowerCase();
-    return directoryEmployees.filter(
+    return list.filter(
       (e: any) =>
         e.employeeCode?.toLowerCase().includes(q) ||
         e.name?.toLowerCase().includes(q) ||
         e.departmentName?.toLowerCase().includes(q) ||
         e.designationTitle?.toLowerCase().includes(q)
     );
-  }, [directoryEmployees, employeeSearchFilter]);
+  }, [branchFilteredEmployees, employeeDepartmentFilter, employeeSearchFilter]);
+
+  const selectedEmployeeObj = useMemo(() => {
+    if (!selectedEmployeeId) return filteredDirectoryEmployees[0] || branchFilteredEmployees[0];
+    return (
+      branchFilteredEmployees.find((e: any) => e.id === selectedEmployeeId || e.employeeCode === selectedEmployeeId) ||
+      filteredDirectoryEmployees[0] ||
+      branchFilteredEmployees[0]
+    );
+  }, [branchFilteredEmployees, filteredDirectoryEmployees, selectedEmployeeId]);
 
   // Conflict detection for same-level assignment
   const detectedConflict = useMemo(() => {
@@ -496,8 +590,8 @@ export function ShiftAssignmentsTab() {
   const openEditModal = (asg: ShiftAssignmentItem) => {
     setEditingAssignment(asg);
     setEditTier(asg.tier);
-    setEditDepartmentName(asg.departmentName || availableDepartments[0] || 'Production');
-    setEditEmployeeId(asg.employeeId || asg.employeeCode || directoryEmployees[0]?.id || '');
+    setEditDepartmentName(asg.departmentName || branchDepartments[0] || 'Administration');
+    setEditEmployeeId(asg.employeeId || asg.employeeCode || branchFilteredEmployees[0]?.id || directoryEmployees[0]?.id || '');
     setEditShiftId(asg.shiftId || activeShifts[0]?.id || '');
     setEditWeeklyOffId(asg.weeklyOffPolicyId || activeWeeklyOffPolicies[0]?.id || '');
     setEditEffectiveFrom(asg.effectiveFrom || '2026-06-01');
@@ -569,7 +663,11 @@ export function ShiftAssignmentsTab() {
   const viewCoveredEmployees = useMemo(() => {
     if (!viewingAssignment) return [];
     if (viewingAssignment.tier === 'EMPLOYEE') {
-      const match = directoryEmployees.find(
+      const match = branchFilteredEmployees.find(
+        (e: any) =>
+          e.id === viewingAssignment.employeeId ||
+          e.employeeCode === viewingAssignment.employeeCode
+      ) || directoryEmployees.find(
         (e: any) =>
           e.id === viewingAssignment.employeeId ||
           e.employeeCode === viewingAssignment.employeeCode
@@ -591,7 +689,7 @@ export function ShiftAssignmentsTab() {
     }
     // COMPANY
     return getActiveEmployeesInCompany();
-  }, [viewingAssignment, directoryEmployees]);
+  }, [viewingAssignment, branchFilteredEmployees, directoryEmployees]);
 
   // ── Calendar Month Data for viewingAssignment ──
   const calendarMonthData = useMemo(() => {
@@ -694,8 +792,9 @@ export function ShiftAssignmentsTab() {
     setEffectiveFrom('2026-09-10');
     setEffectiveTo('');
     setOverrideReason('');
-    setSelectedEmployeeId(directoryEmployees[0]?.id || '');
-    setDepartmentName(availableDepartments[0] || 'Operations & Production');
+    setEmployeeDepartmentFilter('ALL');
+    setSelectedEmployeeId(branchFilteredEmployees[0]?.id || '');
+    setDepartmentName(branchDepartments[0] || 'Administration');
     setIsAssignModalOpen(true);
   };
 
@@ -754,18 +853,29 @@ export function ShiftAssignmentsTab() {
     if (!resolvedEmployeeId) {
       if (tier === 'DEPARTMENT') {
         const deptActive = getActiveEmployeesInDept(departmentName);
-        resolvedEmployeeId = deptActive[0]?.id || selectedEmployeeObj?.id || directoryEmployees[0]?.id;
+        resolvedEmployeeId = deptActive[0]?.id || selectedEmployeeObj?.id || branchFilteredEmployees[0]?.id || directoryEmployees[0]?.id;
       } else {
         const compActive = getActiveEmployeesInCompany();
-        resolvedEmployeeId = compActive[0]?.id || directoryEmployees[0]?.id;
+        resolvedEmployeeId = compActive[0]?.id || branchFilteredEmployees[0]?.id || directoryEmployees[0]?.id;
       }
     }
+
+    const currentBranchName =
+      (selectedBranch === 'HEAD_OFFICE' || !selectedBranch)
+        ? 'Head Office'
+        : (branches.find((b) => b.id === selectedBranch)?.name || assignedBranchName || selectedEmployeeObj?.branchName || 'Head Office');
+
+    const currentBranchId =
+      selectedBranch === 'HEAD_OFFICE'
+        ? 'HEAD_OFFICE'
+        : (selectedBranch || selectedEmployeeObj?.branchId || undefined);
 
     await addAssignment({
       tier,
       priority: tier === 'EMPLOYEE' ? 1 : tier === 'DEPARTMENT' ? 2 : 3,
       companyName,
-      branchName: selectedEmployeeObj?.branchName || 'Pune Manufacturing Plant',
+      branchName: currentBranchName,
+      branchId: currentBranchId,
       departmentName: tier === 'COMPANY' ? undefined : (tier === 'EMPLOYEE' ? selectedEmployeeObj?.departmentName : departmentName),
       departmentId: tier === 'COMPANY' ? undefined : (tier === 'EMPLOYEE' ? selectedEmployeeObj?.departmentId : targetDeptId),
       employeeId: resolvedEmployeeId,
@@ -785,7 +895,7 @@ export function ShiftAssignmentsTab() {
       effectiveTo: effectiveTo || undefined,
       status: 'Active',
       overrideReason: tier === 'EMPLOYEE' ? overrideReason || 'Specialized individual duty assignment' : undefined,
-      createdBy: 'Super Admin',
+      createdBy: isBranchAdmin ? (assignedBranchName ? `${assignedBranchName} Admin` : 'Branch Admin') : 'Super Admin',
       createdAt: new Date().toISOString().split('T')[0],
     });
 
@@ -931,20 +1041,48 @@ export function ShiftAssignmentsTab() {
 
       {/* Main Assignment Table Card */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" /> Shift Assignment Registry
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Manage Company, Department, and Employee-level shift allocations and overrides
-            </CardDescription>
+        <CardHeader className="pb-3 border-b border-border/60 space-y-3">
+          {/* Line 1: Title, Description & Action Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2 whitespace-nowrap">
+                <Users className="h-4 w-4 text-primary shrink-0" />
+                Shift Assignment Registry
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Manage Company, Department, and Employee-level shift allocations and overrides
+              </CardDescription>
+            </div>
+
+            {/* + Assign Shift Button & Modal */}
+            {canManageAssignments && (
+              <Button
+                size="sm"
+                className="h-8 text-xs px-3 gap-1.5 font-semibold shrink-0"
+                onClick={openCreateModal}
+              >
+                <Plus className="h-3.5 w-3.5" /> Assign Shift
+              </Button>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          {/* Line 2: Filter Toolbar in ONE line with normal spacing */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border/40">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search target or shift..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 pl-8 text-xs bg-background"
+              />
+            </div>
+
             {/* Filter by Tier */}
             <Select value={tierFilter} onValueChange={setTierFilter}>
-              <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectTrigger className="h-8 w-36 text-xs bg-background">
                 <SelectValue placeholder="Scope" />
               </SelectTrigger>
               <SelectContent>
@@ -964,24 +1102,6 @@ export function ShiftAssignmentsTab() {
               branches={branches}
               assignedBranchName={assignedBranchName}
             />
-
-            <div className="relative w-40 sm:w-52">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search target or shift..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 pl-8 text-xs bg-background"
-              />
-            </div>
-
-            {/* + Assign Shift Button & Modal */}
-            {canManageAssignments && (
-              <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold" onClick={openCreateModal}>
-                <Plus className="h-3.5 w-3.5" /> Assign Shift
-              </Button>
-            )}
           </div>
         </CardHeader>
 
@@ -1234,58 +1354,99 @@ export function ShiftAssignmentsTab() {
 
                 <button
                   type="button"
-                  onClick={() => setTier('COMPANY')}
+                  onClick={() => !isBranchAdmin && setTier('COMPANY')}
+                  disabled={isBranchAdmin}
                   className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all ${
-                    tier === 'COMPANY'
+                    isBranchAdmin
+                      ? 'border-border/40 bg-muted/20 text-muted-foreground/50 cursor-not-allowed'
+                      : tier === 'COMPANY'
                       ? 'border-emerald-500 bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold shadow-2xs'
                       : 'border-border bg-card text-muted-foreground hover:bg-muted/40'
                   }`}
+                  title={isBranchAdmin ? 'Company default can only be configured by Super Admin or Company Admin' : undefined}
                 >
                   <div className="flex items-center gap-1.5">
                     <Shield className="h-3.5 w-3.5 text-emerald-600" />
                     <span>Company Default</span>
                   </div>
-                  <p className="text-[10px] font-normal text-muted-foreground mt-0.5">Priority 3 Fallback</p>
+                  <p className="text-[10px] font-normal text-muted-foreground mt-0.5">
+                    {isBranchAdmin ? 'Admin Only' : 'Priority 3 Fallback'}
+                  </p>
                 </button>
               </div>
             </div>
 
             {/* 2. Target Selection */}
-            <div className="space-y-2 border rounded-xl p-3 bg-muted/20">
-              <Label className="text-xs font-semibold text-foreground">
-                2. Target Selection ({tier === 'EMPLOYEE' ? 'Employee Search' : tier === 'DEPARTMENT' ? 'Department' : 'Company Entity'}) *
-              </Label>
+            <div className="space-y-3 border rounded-xl p-3 bg-muted/20">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  2. Target Selection ({tier === 'EMPLOYEE' ? 'Employee Search' : tier === 'DEPARTMENT' ? 'Department' : 'Company Entity'}) *
+                </Label>
+                <Badge variant="outline" className="text-[10px] font-medium border-primary/30 text-primary bg-primary/5 self-start sm:self-auto">
+                  🏢 Scope: {selectedBranch === 'HEAD_OFFICE' || !selectedBranch ? 'Head Office' : branches.find((b) => b.id === selectedBranch)?.name || assignedBranchName || 'Branch'} ({branchFilteredEmployees.length} active staff)
+                </Badge>
+              </div>
 
               {tier === 'EMPLOYEE' && (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Filter employees by code or name..."
-                      value={employeeSearchFilter}
-                      onChange={(e) => setEmployeeSearchFilter(e.target.value)}
-                      className="h-8 pl-8 text-xs bg-card"
-                    />
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-medium text-muted-foreground">Filter by Department</Label>
+                      <Select value={employeeDepartmentFilter} onValueChange={setEmployeeDepartmentFilter}>
+                        <SelectTrigger className="h-8 text-xs bg-card">
+                          <SelectValue placeholder="All Departments" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          <SelectItem value="ALL" className="text-xs font-medium">
+                            All Departments ({branchFilteredEmployees.length})
+                          </SelectItem>
+                          {branchDepartments.map((dept) => {
+                            const count = branchFilteredEmployees.filter((e: any) => e.departmentName?.toLowerCase() === dept.toLowerCase()).length;
+                            return (
+                              <SelectItem key={dept} value={dept} className="text-xs">
+                                {dept} ({count})
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-medium text-muted-foreground">Search by Code or Name</Label>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          placeholder="Filter employees..."
+                          value={employeeSearchFilter}
+                          onChange={(e) => setEmployeeSearchFilter(e.target.value)}
+                          className="h-8 pl-8 text-xs bg-card"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                    <SelectTrigger className="h-9 text-xs bg-card">
-                      <SelectValue placeholder="Select active employee from directory..." />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {filteredDirectoryEmployees.map((e: any) => (
-                        <SelectItem key={e.id} value={e.id} className="text-xs py-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-primary">{e.employeeCode}</span>
-                            <span className="font-semibold text-foreground">{e.name}</span>
-                            <span className="text-muted-foreground ml-1 text-[11px]">
-                              ({e.departmentName} • {e.designationTitle})
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-medium text-muted-foreground">Select Active Employee *</Label>
+                    <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                      <SelectTrigger className="h-9 text-xs bg-card">
+                        <SelectValue placeholder="Select active employee from directory..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {filteredDirectoryEmployees.map((e: any) => (
+                          <SelectItem key={e.id} value={e.id} className="text-xs py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-primary">{e.employeeCode}</span>
+                              <span className="font-semibold text-foreground">{e.name}</span>
+                              <span className="text-muted-foreground ml-1 text-[11px]">
+                                ({e.departmentName} • {e.designationTitle})
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   {selectedEmployeeObj && (
                     <div className="p-3 rounded-lg border border-violet-500/25 bg-violet-500/10 flex items-center justify-between">
@@ -1331,7 +1492,7 @@ export function ShiftAssignmentsTab() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableDepartments.map((dept) => (
+                      {branchDepartments.map((dept) => (
                         <SelectItem key={dept} value={dept} className="text-xs">
                           {dept}
                         </SelectItem>
@@ -1346,7 +1507,7 @@ export function ShiftAssignmentsTab() {
                       <div>
                         <span className="font-semibold text-foreground">{departmentName} Department</span>
                         <p className="text-[10.5px] text-muted-foreground mt-0.5">
-                          Active staff in Employee Master: <strong className="text-foreground font-mono">{getActiveEmployeesInDept(departmentName).length}</strong>
+                          Active staff in {selectedBranch === 'HEAD_OFFICE' || !selectedBranch ? 'Head Office' : branches.find((b) => b.id === selectedBranch)?.name || assignedBranchName || 'this branch'}: <strong className="text-foreground font-mono">{getActiveEmployeesInDept(departmentName).length}</strong>
                         </p>
                       </div>
                     </div>
@@ -1356,7 +1517,7 @@ export function ShiftAssignmentsTab() {
                   </div>
 
                   <p className="text-[10.5px] text-muted-foreground">
-                    This baseline shift will automatically apply to all active staff in this department unless an employee override exists.
+                    This baseline shift will automatically apply to all active staff in this department for {selectedBranch === 'HEAD_OFFICE' || !selectedBranch ? 'Head Office' : branches.find((b) => b.id === selectedBranch)?.name || assignedBranchName || 'this branch'} unless an employee override exists.
                   </p>
                 </div>
               )}
@@ -1978,18 +2139,24 @@ export function ShiftAssignmentsTab() {
 
                 <button
                   type="button"
-                  onClick={() => setEditTier('COMPANY')}
+                  onClick={() => !isBranchAdmin && setEditTier('COMPANY')}
+                  disabled={isBranchAdmin}
                   className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all ${
-                    editTier === 'COMPANY'
+                    isBranchAdmin
+                      ? 'border-border/40 bg-muted/20 text-muted-foreground/50 cursor-not-allowed'
+                      : editTier === 'COMPANY'
                       ? 'border-emerald-500 bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold shadow-2xs'
                       : 'border-border bg-card text-muted-foreground hover:bg-muted/40'
                   }`}
+                  title={isBranchAdmin ? 'Company default can only be configured by Super Admin or Company Admin' : undefined}
                 >
                   <div className="flex items-center gap-1.5">
                     <Shield className="h-3.5 w-3.5 text-emerald-600" />
                     <span>Company Default</span>
                   </div>
-                  <p className="text-[10px] font-normal text-muted-foreground mt-0.5">Priority 3 Fallback</p>
+                  <p className="text-[10px] font-normal text-muted-foreground mt-0.5">
+                    {isBranchAdmin ? 'Admin Only' : 'Priority 3 Fallback'}
+                  </p>
                 </button>
               </div>
             </div>
@@ -2004,7 +2171,7 @@ export function ShiftAssignmentsTab() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableDepartments.map((dept) => (
+                      {branchDepartments.map((dept) => (
                         <SelectItem key={dept} value={dept} className="text-xs">
                           {dept}
                         </SelectItem>
@@ -2031,7 +2198,7 @@ export function ShiftAssignmentsTab() {
                       <SelectValue placeholder="Select active employee..." />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {directoryEmployees.map((e: any) => (
+                      {branchFilteredEmployees.map((e: any) => (
                         <SelectItem key={e.id} value={e.id} className="text-xs py-1.5">
                           <span className="font-mono font-bold text-primary mr-1.5">{e.employeeCode}</span>
                           <span className="font-semibold text-foreground">{e.name}</span>
@@ -2144,7 +2311,7 @@ export function ShiftAssignmentsTab() {
               <p className="text-[11px] text-muted-foreground">
                 <strong className="text-foreground">
                   {editTier === 'EMPLOYEE'
-                    ? directoryEmployees.find((e: any) => e.id === editEmployeeId)?.name || 'Employee'
+                    ? branchFilteredEmployees.find((e: any) => e.id === editEmployeeId)?.name || directoryEmployees.find((e: any) => e.id === editEmployeeId)?.name || 'Employee'
                     : editTier === 'DEPARTMENT'
                     ? editDepartmentName
                     : companyName}

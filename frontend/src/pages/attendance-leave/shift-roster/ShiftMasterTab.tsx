@@ -555,7 +555,7 @@ export function ShiftMasterTab() {
           </div>
         </div>
         <Badge variant="outline" className="text-xs bg-background shrink-0 font-medium">
-          {shifts.length} Standard Shift Definitions
+          {filteredShifts.length} Standard Shift Definition{filteredShifts.length === 1 ? '' : 's'}
         </Badge>
       </div>
 

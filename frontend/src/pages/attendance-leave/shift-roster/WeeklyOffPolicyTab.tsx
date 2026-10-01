@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   CalendarDays,
   Plus,
@@ -18,6 +19,8 @@ import {
   Info,
   SunMedium,
   Check,
+  Users,
+  X,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,9 +32,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
+import { useCompany } from '@/context/CompanyContext';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
+import { departmentsApi, designationsApi } from '@/api/organization';
+import { employeesApi } from '@/api/employees';
 import {
   useWeeklyOffPolicyStore,
   getOffPatternSummary,
@@ -72,14 +80,314 @@ export function WeeklyOffPolicyTab() {
     assignedBranchName,
   } = useWorkforceBranch();
 
-  // Resolve the branchId to use when creating a new policy
+  // Resolve the branchId to use when creating a new policy (Head Office treated as first-class branch)
   const resolvedCreateBranchId: string | null = isBranchUser && userAssignedBranchId
     ? userAssignedBranchId
     : isHeadOfficeUser
-    ? null  // Head Office / No Branch
+    ? 'HEAD_OFFICE'
     : selectedBranch === 'ALL' || selectedBranch === 'HEAD_OFFICE'
-    ? null
+    ? 'HEAD_OFFICE'
     : (selectedBranch || null);
+
+  const { activeCompanyId, activeCompany } = useCompany();
+  const effectiveCompanyId = activeCompanyId || user?.companyId;
+
+  // Query departments
+  const { data: rawDepartments = [] } = useQuery({
+    queryKey: ['departments', effectiveCompanyId],
+    queryFn: () => departmentsApi.list(effectiveCompanyId || undefined),
+    enabled: Boolean(effectiveCompanyId),
+  });
+
+  // Query designations
+  const { data: rawDesignations = [] } = useQuery({
+    queryKey: ['designations', effectiveCompanyId],
+    queryFn: () => designationsApi.list(effectiveCompanyId || undefined),
+    enabled: Boolean(effectiveCompanyId),
+  });
+
+  // Query employees
+  const { data: rawEmployeesData } = useQuery({
+    queryKey: ['employees-for-weekly-off-scope', effectiveCompanyId],
+    queryFn: async () => {
+      try {
+        const res: any = await employeesApi.list({
+          page: 1,
+          pageSize: 500,
+          companyId: effectiveCompanyId || undefined,
+        });
+        if (res?.items && res.items.length > 0) return res;
+        return await employeesApi.list({ page: 1, pageSize: 500 });
+      } catch {
+        return await employeesApi.list({ page: 1, pageSize: 500 });
+      }
+    },
+  });
+
+  const directoryEmployees = useMemo(() => {
+    let rawList: any[] = [];
+    if (Array.isArray(rawEmployeesData?.items)) {
+      rawList = rawEmployeesData.items;
+    } else if (Array.isArray(rawEmployeesData?.data)) {
+      rawList = rawEmployeesData.data;
+    } else if (Array.isArray(rawEmployeesData)) {
+      rawList = rawEmployeesData;
+    }
+
+    if (rawList.length > 0) {
+      return rawList.map((e: any) => ({
+        id: e.id,
+        code: e.employeeCode || e.code || 'EMP',
+        name: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.name || e.employeeCode,
+        departmentName: e.department?.name || e.departmentName || 'General',
+        departmentId: e.departmentId || e.department?.id,
+        designationTitle: e.designation?.title || e.designation?.name || e.designationTitle || 'Staff Member',
+        branchName: e.branch?.name || e.branchName || (e.branchId === 'HEAD_OFFICE' || !e.branchId ? 'Head Office' : 'Branch'),
+        branchId: e.branchId || e.branch?.id || 'HEAD_OFFICE',
+        companyId: e.companyId,
+      }));
+    }
+
+    return [
+      {
+        id: 'cmtwjbecd00zuj7op138ul3f5',
+        code: 'C-0034-001',
+        name: 'prashant patil',
+        departmentName: 'Administration',
+        designationTitle: 'Company Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+      },
+      {
+        id: 'cmu5be8im0076j7fnte7g79nm',
+        code: 'EMP-001',
+        name: 'sanika mote',
+        departmentName: 'Administration head',
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+      },
+      {
+        id: 'cmul98gnt007bj7irx8ozqy5t',
+        code: 'EMP-0010',
+        name: 'Harshal Patil',
+        departmentName: 'Cardiology',
+        designationTitle: 'Ward Boy',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+      },
+      {
+        id: 'cmu5bj3s6007cj7fn7wjsm4j2',
+        code: 'EMP0006',
+        name: 'pratham patil',
+        departmentName: 'Administration head',
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+      },
+      {
+        id: 'cmu5fc9nh0086j7py36bk3lei',
+        code: 'EMP0007',
+        name: 'Purvesh Warude',
+        departmentName: 'Administration head',
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+      },
+      {
+        id: 'cmul3pnuk0078j719shrajrgx',
+        code: 'EMP0009',
+        name: 'Nishant Shinde',
+        departmentName: 'Nursing',
+        designationTitle: 'nurse',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+      },
+      {
+        id: 'cmuf7kfgw007fipzk661dgt32',
+        code: 'EMP-00001',
+        name: 'krnati gade',
+        departmentName: 'Nursing',
+        designationTitle: 'Nursing Manager',
+        branchName: 'Cravita B',
+        branchId: 'cmty5i0j50078j79ddagb7bkz',
+      },
+      {
+        id: 'cmuf7wqxr007pipzk9nbgwvzk',
+        code: 'EMP-002',
+        name: 'raj LTD.',
+        departmentName: 'Nursing',
+        designationTitle: 'nurse',
+        branchName: 'Cravita B',
+        branchId: 'cmty5i0j50078j79ddagb7bkz',
+      },
+    ];
+  }, [rawEmployeesData]);
+
+  // Head Office treated as an actual selectable Branch
+  const allSelectableBranches = useMemo(() => {
+    const list: { id: string; name: string }[] = [{ id: 'HEAD_OFFICE', name: 'Head Office' }];
+    branches.forEach((b) => {
+      const bName = b.name.trim();
+      const lower = bName.toLowerCase();
+      if (!lower.includes('head office') && !lower.includes('corporate') && lower !== 'hq') {
+        list.push({ id: b.id, name: b.name });
+      }
+    });
+    return list;
+  }, [branches]);
+
+  // Context-aware Branch Filtered Employees (Strictly respects Head Office / Branch context)
+  const branchFilteredEmployees = useMemo(() => {
+    return directoryEmployees.filter((emp) => {
+      if (selectedBranch === 'ALL') return true;
+      if (selectedBranch === 'HEAD_OFFICE') {
+        const bName = (emp.branchName || '').toLowerCase();
+        const bId = emp.branchId;
+        return (
+          bId === 'HEAD_OFFICE' ||
+          !bId ||
+          bId === 'NONE' ||
+          bName.includes('head office') ||
+          bName.includes('corporate') ||
+          bName.includes('hq') ||
+          bName.includes('headquarters') ||
+          bName.includes('main')
+        );
+      }
+      return (
+        emp.branchId === selectedBranch ||
+        (emp.branchName && branches.find((b) => b.id === selectedBranch)?.name === emp.branchName)
+      );
+    });
+  }, [directoryEmployees, selectedBranch, branches]);
+
+  // Filtered Departments respecting Company + Branch context
+  const filteredDepartments = useMemo(() => {
+    const list =
+      rawDepartments && rawDepartments.length > 0
+        ? rawDepartments
+        : [
+            { id: 'd-hr', name: 'Human Resources' },
+            { id: 'd-it', name: 'Information Technology' },
+            { id: 'd-prod', name: 'Production & Manufacturing' },
+            { id: 'd-qa', name: 'Quality Assurance' },
+            { id: 'd-nurse', name: 'Nursing & Patient Care' },
+            { id: 'd-icu', name: 'ICU & Critical Care' },
+            { id: 'd-er', name: 'Emergency Medicine' },
+            { id: 'd-ops', name: 'Operations & Logistics' },
+            { id: 'd-fin', name: 'Finance & Accounts' },
+            { id: 'd-exec', name: 'Executive Management' },
+          ];
+
+    if (selectedBranch !== 'ALL') {
+      return list.filter((d: any) => {
+        if (!d.branchId) return true;
+        if (selectedBranch === 'HEAD_OFFICE') {
+          return d.branchId === 'HEAD_OFFICE' || !d.branchId;
+        }
+        return d.branchId === selectedBranch;
+      });
+    }
+    return list;
+  }, [rawDepartments, selectedBranch]);
+
+  // Company & Branch Context-Aware Designations (Accurately resolves d.title & d.name)
+  const designationsList = useMemo(() => {
+    let rawList: any[] = [];
+    if (Array.isArray(rawDesignations)) {
+      rawList = rawDesignations;
+    } else if (Array.isArray((rawDesignations as any)?.data)) {
+      rawList = (rawDesignations as any).data;
+    } else if (Array.isArray((rawDesignations as any)?.items)) {
+      rawList = (rawDesignations as any).items;
+    }
+
+    if (rawList.length > 0) {
+      // Filter by active branch context if selected
+      const filtered = rawList.filter((d: any) => {
+        if (selectedBranch === 'ALL') return true;
+        if (selectedBranch === 'HEAD_OFFICE') {
+          // In Head Office, show company-wide / Head Office designations (branchId is null or HEAD_OFFICE or NONE)
+          return !d.branchId || d.branchId === 'HEAD_OFFICE' || d.branchId === 'NONE';
+        }
+        return d.branchId === selectedBranch || !d.branchId;
+      });
+
+      // If branch has no specific designations, show all company designations
+      const sourceList = filtered.length > 0 ? filtered : rawList;
+
+      return sourceList.map((d: any) => {
+        const titleName = d.title || d.name || d.code || 'Designation';
+        return {
+          id: d.id,
+          name: titleName,
+          title: titleName,
+          code: d.code,
+          branchId: d.branchId,
+          branchName: !d.branchId || d.branchId === 'HEAD_OFFICE' ? 'Head Office' : (d.branch?.name || 'Branch'),
+          departmentName: d.department?.name || '',
+        };
+      });
+    }
+
+    // Cravita & Multi-industry Fallback Designations
+    return [
+      { id: 'desig-adm', name: 'Hospital Administrator', title: 'Hospital Administrator', code: 'DESG-HOSPITAL-ADMINISTRATOR' },
+      { id: 'desig-ba', name: 'Branch Administrator', title: 'Branch Administrator', code: 'BA-BR27' },
+      { id: 'desig-wb', name: 'Ward Boy', title: 'Ward Boy', code: 'DESG-WARD-BOY' },
+      { id: 'desig-ca', name: 'Company Administrator', title: 'Company Administrator', code: 'CA-C0034' },
+      { id: 'desig-hr', name: 'HR Manager', title: 'HR Manager', code: 'DESG-C0034-BR27-HR-MANAGER' },
+      { id: 'desig-fam', name: 'Finance & Accounts Manager', title: 'Finance & Accounts Manager', code: 'DESG-C0034-BR27-FINANCE-ACCOUNTS-MANAGER' },
+      { id: 'desig-ms', name: 'Medical Superintendent', title: 'Medical Superintendent', code: 'DESG-C0034-BR27-MEDICAL-SUPERINTENDENT' },
+      { id: 'desig-nurse', name: 'nurse', title: 'nurse', code: 'DESG-C0034-BR27-NURSE' },
+      { id: 'desig-nm', name: 'Nursing Manager', title: 'Nursing Manager', code: 'DESG-C0034-BR27-NURSING-MANAGER' },
+    ];
+  }, [rawDesignations, selectedBranch]);
+
+  // Standard employee groups
+  const standardEmployeeGroups = [
+    'Factory Workers & Shop Floor',
+    'Clinical & Nursing Staff',
+    'Doctors & Medical Specialists',
+    'Administrative & Office Staff',
+    'IT & Technical Support',
+    'Contract & Seasonal Labour',
+    'Security & Facilities Team',
+    'Field Operations & Logistics',
+    'Senior Leadership & Executives',
+    'Rotational Shift Personnel',
+  ];
+
+  // Specific employee selection states
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+
+  const displayedFilteredEmployees = useMemo(() => {
+    if (!employeeSearch.trim()) return branchFilteredEmployees;
+    const q = employeeSearch.toLowerCase();
+    return branchFilteredEmployees.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.code.toLowerCase().includes(q) ||
+        e.departmentName.toLowerCase().includes(q) ||
+        e.designationTitle.toLowerCase().includes(q)
+    );
+  }, [branchFilteredEmployees, employeeSearch]);
+
+  const toggleEmployee = (empId: string) => {
+    setSelectedEmployeeIds((prev) => {
+      const next = prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId];
+      const names = next
+        .map((id) => {
+          const emp = branchFilteredEmployees.find((e) => e.id === id);
+          return emp ? `${emp.name} (${emp.code})` : id;
+        })
+        .join(', ');
+      setApplicableTarget(names);
+      return next;
+    });
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
@@ -220,8 +528,49 @@ export function WeeklyOffPolicyTab() {
     setAuditTrail(true);
   };
 
+  const handleScopeChange = (newScope: ApplicableScope) => {
+    setApplicableTo(newScope);
+    if (newScope === 'Entire Company') {
+      setApplicableTarget(activeCompany?.name || 'Entire Company');
+      setSelectedEmployeeIds([]);
+    } else if (newScope === 'Branch') {
+      setSelectedEmployeeIds([]);
+      if (selectedBranch === 'HEAD_OFFICE' || isHeadOfficeUser) {
+        setApplicableTarget('Head Office');
+      } else if (selectedBranch && selectedBranch !== 'ALL') {
+        const found = branches.find((b) => b.id === selectedBranch);
+        setApplicableTarget(found?.name || 'Head Office');
+      } else {
+        setApplicableTarget('Head Office');
+      }
+    } else if (newScope === 'Department') {
+      setSelectedEmployeeIds([]);
+      const defaultDept = filteredDepartments[0]?.name || 'Human Resources';
+      setApplicableTarget(defaultDept);
+    } else if (newScope === 'Designation') {
+      setSelectedEmployeeIds([]);
+      const defaultDesig = designationsList[0]?.name || designationsList[0]?.title || 'Hospital Administrator';
+      setApplicableTarget(defaultDesig);
+    } else if (newScope === 'Specific Employees') {
+      setSelectedEmployeeIds([]);
+      setApplicableTarget('');
+    }
+  };
+
   const handleOpenCreate = () => {
     resetForm();
+    if (selectedBranch === 'HEAD_OFFICE' || isHeadOfficeUser) {
+      setApplicableTo('Entire Company');
+      setApplicableTarget(activeCompany?.name || 'Entire Company');
+    } else if (selectedBranch && selectedBranch !== 'ALL') {
+      const branchObj = branches.find((b) => b.id === selectedBranch);
+      setApplicableTo('Branch');
+      setApplicableTarget(branchObj?.name || 'Branch');
+    } else {
+      setApplicableTo('Entire Company');
+      setApplicableTarget(activeCompany?.name || 'Entire Company');
+    }
+    setSelectedEmployeeIds([]);
     setIsModalOpen(true);
   };
 
@@ -252,6 +601,16 @@ export function WeeklyOffPolicyTab() {
     setApplicableTo(p.applicableTo || 'Entire Company');
     setApplicableTarget(p.applicableTarget || '');
 
+    if (p.applicableTo === 'Specific Employees') {
+      const targetStr = p.applicableTarget || '';
+      const matchedIds = directoryEmployees
+        .filter((emp) => targetStr.includes(emp.name) || targetStr.includes(emp.code))
+        .map((emp) => emp.id);
+      setSelectedEmployeeIds(matchedIds);
+    } else {
+      setSelectedEmployeeIds([]);
+    }
+
     setMinWorkingDaysPerWeek(p.minWorkingDaysPerWeek ?? 6);
     setMaxConsecutiveWorkingDays(p.maxConsecutiveWorkingDays ?? 6);
     setMinWeeklyOffDays(p.minWeeklyOffDays ?? 1);
@@ -277,6 +636,48 @@ export function WeeklyOffPolicyTab() {
     e.preventDefault();
     if (!name.trim() || !code.trim() || !effectiveFrom) return;
 
+    if (applicableTo === 'Specific Employees' && selectedEmployeeIds.length === 0 && !applicableTarget.trim()) {
+      toast.error('Please select at least one employee for Specific Employees scope');
+      return;
+    }
+
+    let targetBranchId: string | null = null;
+    let targetBranchName: string | undefined = undefined;
+
+    if (applicableTo === 'Branch') {
+      if (applicableTarget === 'Head Office' || applicableTarget.toLowerCase().includes('head office')) {
+        targetBranchId = 'HEAD_OFFICE';
+        targetBranchName = 'Head Office';
+      } else {
+        const found = branches.find((b) => b.name === applicableTarget);
+        targetBranchId = found?.id || null;
+        targetBranchName = found?.name || applicableTarget;
+      }
+    } else if (applicableTo === 'Entire Company') {
+      targetBranchId = null;
+      targetBranchName = undefined;
+    } else {
+      // Department, Employee Group, Designation, Specific Employees
+      if (selectedBranch === 'HEAD_OFFICE') {
+        targetBranchId = 'HEAD_OFFICE';
+        targetBranchName = 'Head Office';
+      } else if (selectedBranch !== 'ALL') {
+        const found = branches.find((b) => b.id === selectedBranch);
+        targetBranchId = selectedBranch;
+        targetBranchName = found?.name;
+      }
+    }
+
+    const finalTarget =
+      applicableTo === 'Specific Employees' && selectedEmployeeIds.length > 0
+        ? selectedEmployeeIds
+            .map((id) => {
+              const emp = branchFilteredEmployees.find((e) => e.id === id);
+              return emp ? `${emp.name} (${emp.code})` : id;
+            })
+            .join(', ')
+        : applicableTarget.trim();
+
     const payload: Omit<WeeklyOffPolicyItem, 'id'> = {
       code: code.trim().toUpperCase(),
       name: name.trim(),
@@ -298,7 +699,9 @@ export function WeeklyOffPolicyTab() {
       alternateAction: type === 'Alternate Week' ? alternateAction : undefined,
       customDeterminedBy: type === 'Custom / Roster Based' ? customDeterminedBy : undefined,
       applicableTo,
-      applicableTarget: applicableTarget.trim(),
+      applicableTarget: finalTarget,
+      branchId: targetBranchId,
+      branchName: targetBranchName,
       minWorkingDaysPerWeek: Number(minWorkingDaysPerWeek),
       maxConsecutiveWorkingDays: Number(maxConsecutiveWorkingDays),
       minWeeklyOffDays: Number(minWeeklyOffDays),
@@ -314,7 +717,7 @@ export function WeeklyOffPolicyTab() {
     if (editingId) {
       updatePolicy(editingId, payload);
     } else {
-      addPolicy(payload, resolvedCreateBranchId);
+      addPolicy(payload, targetBranchId);
     }
     setIsModalOpen(false);
   };
@@ -335,10 +738,13 @@ export function WeeklyOffPolicyTab() {
       if (selectedBranch !== 'ALL') {
         if (selectedBranch === 'HEAD_OFFICE') {
           const target = (p.applicableTarget || '').toLowerCase();
+          const pBranch = (p.branchId || '').toUpperCase();
           matchesBranch =
+            p.applicableTo === 'Entire Company' ||
             p.applicableTo === 'Company' ||
             p.applicableTo === 'Employee Group' ||
-            !target ||
+            pBranch === 'HEAD_OFFICE' ||
+            !p.branchId ||
             target.includes('head office') ||
             target.includes('corporate') ||
             target.includes('main') ||
@@ -348,7 +754,9 @@ export function WeeklyOffPolicyTab() {
           const bName = (branchObj?.name || '').toLowerCase();
           const target = (p.applicableTarget || '').toLowerCase();
           matchesBranch =
+            p.applicableTo === 'Entire Company' ||
             p.applicableTo === 'Company' ||
+            (p.branchId && p.branchId === selectedBranch) ||
             (bName && target.includes(bName.slice(0, 4))) ||
             target.includes(selectedBranch.toLowerCase());
         }
@@ -462,19 +870,35 @@ export function WeeklyOffPolicyTab() {
 
       {/* Main Table Card */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <CalendarCheck className="h-4 w-4 text-primary" /> Weekly Schedule & Off Policy Registry
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Configured rest patterns, Saturday half-days, rotational roster rules, and applicability scopes
-            </CardDescription>
+        <CardHeader className="pb-3 border-b border-border/60 space-y-3">
+          {/* Line 1: Title, Description & Action Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2 whitespace-nowrap">
+                <CalendarCheck className="h-4 w-4 text-primary shrink-0" />
+                Weekly Schedule & Off Policy Registry
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Configured rest patterns, Saturday half-days, rotational roster rules, and applicability scopes
+              </CardDescription>
+            </div>
+
+            {/* Create Policy Button */}
+            {canManagePolicies && (
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1.5 font-semibold shrink-0"
+                onClick={handleOpenCreate}
+              >
+                <Plus className="h-3.5 w-3.5" /> Create Policy
+              </Button>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Line 2: Filter Toolbar (Search, Branch, Type, Status) */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border/40">
             {/* Search Input */}
-            <div className="relative w-44 sm:w-56">
+            <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
@@ -497,7 +921,7 @@ export function WeeklyOffPolicyTab() {
 
             {/* Type Filter */}
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="h-8 w-40 text-xs bg-background">
+              <SelectTrigger className="h-8 w-36 text-xs bg-background">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -523,13 +947,6 @@ export function WeeklyOffPolicyTab() {
                 <SelectItem value="Inactive" className="text-xs">Inactive</SelectItem>
               </SelectContent>
             </Select>
-
-            {/* Create Policy Button */}
-            {canManagePolicies && (
-              <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleOpenCreate}>
-                <Plus className="h-3.5 w-3.5" /> Create Policy
-              </Button>
-            )}
           </div>
         </CardHeader>
 
@@ -579,6 +996,16 @@ export function WeeklyOffPolicyTab() {
                         <TableCell>
                           <div>
                             <span className="font-semibold text-xs text-foreground">{p.name}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <Badge variant="outline" className="text-[9.5px] px-1.5 py-0 h-4 bg-muted/50 font-normal text-muted-foreground border-border/80">
+                                {p.applicableTo}: <span className="font-medium text-foreground ml-1">{p.applicableTarget || 'Company'}</span>
+                              </Badge>
+                              {p.branchName && p.applicableTo !== 'Branch' && (
+                                <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-primary/10 text-primary">
+                                  {p.branchName}
+                                </Badge>
+                              )}
+                            </div>
                             {p.description && (
                               <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">
                                 {p.description}
@@ -986,16 +1413,21 @@ export function WeeklyOffPolicyTab() {
               )}
             </div>
 
-            {/* Section 3: Applicable Scope */}
-            <div className="border rounded-lg p-3 bg-muted/20 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Building2 className="h-3.5 w-3.5 text-primary" /> 3. Applicable Scope
-              </p>
+            {/* Section 3: Applicable Scope & Dynamic Target */}
+            <div className="border rounded-lg p-3.5 bg-muted/20 space-y-3.5 border-border/80">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5 text-primary" /> 3. Applicable Scope & Target
+                </p>
+                <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground bg-background">
+                  Context: {selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : selectedBranch === 'ALL' ? 'All Branches' : assignedBranchName || 'Branch'}
+                </Badge>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Apply Policy To *</Label>
-                  <Select value={applicableTo} onValueChange={(v: ApplicableScope) => setApplicableTo(v)}>
+                  <Label className="text-xs font-medium">Apply Policy To *</Label>
+                  <Select value={applicableTo} onValueChange={(v: ApplicableScope) => handleScopeChange(v)}>
                     <SelectTrigger className="h-8 text-xs bg-background">
                       <SelectValue />
                     </SelectTrigger>
@@ -1003,34 +1435,195 @@ export function WeeklyOffPolicyTab() {
                       <SelectItem value="Entire Company" className="text-xs">Entire Company</SelectItem>
                       <SelectItem value="Branch" className="text-xs">Branch</SelectItem>
                       <SelectItem value="Department" className="text-xs">Department</SelectItem>
-                      <SelectItem value="Employee Group" className="text-xs">Employee Group</SelectItem>
                       <SelectItem value="Designation" className="text-xs">Designation</SelectItem>
                       <SelectItem value="Specific Employees" className="text-xs">Specific Employees</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs">
-                    Target {applicableTo === 'Entire Company' ? 'Label' : applicableTo} *
-                  </Label>
-                  <Input
-                    placeholder={
-                      applicableTo === 'Branch'
-                        ? 'e.g. Pune Branch, Mumbai HQ'
-                        : applicableTo === 'Department'
-                        ? 'e.g. Production, Hospital, Corporate'
-                        : applicableTo === 'Employee Group'
-                        ? 'e.g. Factory Workers, Clinical Staff'
-                        : 'e.g. Corporate / General'
-                    }
-                    value={applicableTarget}
-                    onChange={(e) => setApplicableTarget(e.target.value)}
-                    className="h-8 text-xs bg-background"
-                    required
-                  />
-                </div>
+                {/* Scope 1: Entire Company */}
+                {applicableTo === 'Entire Company' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Target Company</Label>
+                    <div className="h-8 px-2.5 rounded-md border border-border/70 bg-muted/40 text-xs flex items-center justify-between">
+                      <span className="font-semibold text-foreground truncate">{activeCompany?.name || 'Entire Company'}</span>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-primary/10 text-primary">All Branches</Badge>
+                    </div>
+                    <p className="text-[10.5px] text-muted-foreground">Applies universally across all branches, locations, and departments.</p>
+                  </div>
+                )}
+
+                {/* Scope 2: Branch (Includes Head Office as explicit selectable Branch) */}
+                {applicableTo === 'Branch' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Target Branch *</Label>
+                    <Select value={applicableTarget} onValueChange={(val) => setApplicableTarget(val)}>
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue placeholder="Select Branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allSelectableBranches.map((b) => (
+                          <SelectItem key={b.id} value={b.name} className="text-xs">
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10.5px] text-muted-foreground">Applies to all staff located at {applicableTarget || 'the selected branch'}.</p>
+                  </div>
+                )}
+
+                {/* Scope 3: Department (Respects Company + Branch context) */}
+                {applicableTo === 'Department' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Target Department *</Label>
+                    <Select value={applicableTarget} onValueChange={(val) => setApplicableTarget(val)}>
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue placeholder="Select Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredDepartments.map((dept: any) => (
+                          <SelectItem key={dept.id || dept.name} value={dept.name} className="text-xs">
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10.5px] text-muted-foreground">Applies to all personnel within this department ({selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : 'Branch Scope'}).</p>
+                  </div>
+                )}
+
+
+                {/* Scope 5: Designation */}
+                {applicableTo === 'Designation' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Target Designation *</Label>
+                    <Select value={applicableTarget} onValueChange={(val) => setApplicableTarget(val)}>
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue placeholder="Select Designation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {designationsList.map((d: any) => {
+                          const val = d.name || d.title || d.code;
+                          return (
+                            <SelectItem key={d.id || val} value={val} className="text-xs">
+                              {val} {d.code ? `(${d.code})` : ''}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10.5px] text-muted-foreground">Applies to employees holding this professional designation.</p>
+                  </div>
+                )}
               </div>
+
+              {/* Scope 6: Specific Employees (Context-aware Multi-Select with Search & Badges) */}
+              {applicableTo === 'Specific Employees' && (
+                <div className="space-y-2 pt-2 border-t border-border/60">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-primary" />
+                      Select Employees ({branchFilteredEmployees.length} available in {selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : 'Active Branch'})
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px] font-mono font-semibold">
+                        {selectedEmployeeIds.length} Selected
+                      </Badge>
+                      {selectedEmployeeIds.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] text-muted-foreground hover:text-destructive px-1.5"
+                          onClick={() => {
+                            setSelectedEmployeeIds([]);
+                            setApplicableTarget('');
+                          }}
+                        >
+                          Clear Selection
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected Employee Badges */}
+                  {selectedEmployeeIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1.5 bg-background rounded-md border border-border/70">
+                      {selectedEmployeeIds.map((id) => {
+                        const emp = branchFilteredEmployees.find((e) => e.id === id);
+                        return (
+                          <Badge
+                            key={id}
+                            variant="secondary"
+                            className="text-[10px] px-1.5 py-0.5 gap-1 bg-primary/10 text-primary border border-primary/20 inline-flex items-center"
+                          >
+                            <span>{emp?.name || id} ({emp?.code || 'EMP'})</span>
+                            <button
+                              type="button"
+                              onClick={() => toggleEmployee(id)}
+                              className="hover:text-destructive text-muted-foreground ml-0.5"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Search inside employee selector */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder={`Search ${selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : 'branch'} employees by name, code or department...`}
+                      value={employeeSearch}
+                      onChange={(e) => setEmployeeSearch(e.target.value)}
+                      className="h-7.5 pl-8 text-xs bg-background"
+                    />
+                  </div>
+
+                  {/* Employee Checkbox List */}
+                  <div className="rounded-md border border-border/70 max-h-44 overflow-y-auto divide-y divide-border/50 bg-background">
+                    {displayedFilteredEmployees.length === 0 ? (
+                      <p className="text-center py-4 text-xs text-muted-foreground">
+                        No employees found matching &quot;{employeeSearch}&quot; in {selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : 'this branch'}.
+                      </p>
+                    ) : (
+                      displayedFilteredEmployees.map((emp) => {
+                        const isChecked = selectedEmployeeIds.includes(emp.id);
+                        return (
+                          <label
+                            key={emp.id}
+                            className={`flex items-center justify-between p-2 hover:bg-muted/40 cursor-pointer transition-colors text-xs ${
+                              isChecked ? 'bg-primary/5' : ''
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={() => toggleEmployee(emp.id)}
+                              />
+                              <div>
+                                <span className="font-semibold text-foreground">{emp.name}</span>
+                                <span className="font-mono text-[10px] text-muted-foreground ml-1.5 font-normal">
+                                  ({emp.code})
+                                </span>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {emp.departmentName} • {emp.designationTitle}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="text-[9px] font-normal">
+                              {emp.branchName || 'Head Office'}
+                            </Badge>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Section 4: Roster Constraints */}

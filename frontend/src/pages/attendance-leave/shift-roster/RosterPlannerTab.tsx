@@ -40,6 +40,7 @@ const SCHEDULED_WEEKS = [
     weekNum: 37,
     label: '07 Sep 2026 – 13 Sep 2026 (Week 37)',
     periodName: 'September 2026 Week 37',
+    rotationPhase: 'Department Baseline / General Shift',
     days: [
       { key: '2026-09-07', label: 'Mon', dayNum: '07' },
       { key: '2026-09-08', label: 'Tue', dayNum: '08' },
@@ -84,7 +85,7 @@ const SCHEDULED_WEEKS = [
     weekNum: 40,
     label: '28 Sep 2026 – 04 Oct 2026 (Week 40)',
     periodName: 'Sep-Oct 2026 Week 40',
-    rotationPhase: 'Phase 3 — NS Night Shift',
+    rotationPhase: 'Department Baseline / Active Assignments',
     days: [
       { key: '2026-09-28', label: 'Mon', dayNum: '28' },
       { key: '2026-09-29', label: 'Tue', dayNum: '29' },
@@ -99,7 +100,7 @@ const SCHEDULED_WEEKS = [
     weekNum: 41,
     label: '05 Oct 2026 – 11 Oct 2026 (Week 41)',
     periodName: 'October 2026 Week 41',
-    rotationPhase: 'Phase 4 — GS General Shift',
+    rotationPhase: 'Department Baseline / Active Assignments',
     days: [
       { key: '2026-10-05', label: 'Mon', dayNum: '05' },
       { key: '2026-10-06', label: 'Tue', dayNum: '06' },
@@ -108,6 +109,51 @@ const SCHEDULED_WEEKS = [
       { key: '2026-10-09', label: 'Fri', dayNum: '09' },
       { key: '2026-10-10', label: 'Sat', dayNum: '10' },
       { key: '2026-10-11', label: 'Sun', dayNum: '11' },
+    ],
+  },
+  {
+    weekNum: 42,
+    label: '12 Oct 2026 – 18 Oct 2026 (Week 42)',
+    periodName: 'October 2026 Week 42',
+    rotationPhase: 'Department Baseline / Active Assignments',
+    days: [
+      { key: '2026-10-12', label: 'Mon', dayNum: '12' },
+      { key: '2026-10-13', label: 'Tue', dayNum: '13' },
+      { key: '2026-10-14', label: 'Wed', dayNum: '14' },
+      { key: '2026-10-15', label: 'Thu', dayNum: '15' },
+      { key: '2026-10-16', label: 'Fri', dayNum: '16' },
+      { key: '2026-10-17', label: 'Sat', dayNum: '17' },
+      { key: '2026-10-18', label: 'Sun', dayNum: '18' },
+    ],
+  },
+  {
+    weekNum: 43,
+    label: '19 Oct 2026 – 25 Oct 2026 (Week 43)',
+    periodName: 'October 2026 Week 43',
+    rotationPhase: 'Department Baseline / Active Assignments',
+    days: [
+      { key: '2026-10-19', label: 'Mon', dayNum: '19' },
+      { key: '2026-10-20', label: 'Tue', dayNum: '20' },
+      { key: '2026-10-21', label: 'Wed', dayNum: '21' },
+      { key: '2026-10-22', label: 'Thu', dayNum: '22' },
+      { key: '2026-10-23', label: 'Fri', dayNum: '23' },
+      { key: '2026-10-24', label: 'Sat', dayNum: '24' },
+      { key: '2026-10-25', label: 'Sun', dayNum: '25' },
+    ],
+  },
+  {
+    weekNum: 44,
+    label: '26 Oct 2026 – 01 Nov 2026 (Week 44)',
+    periodName: 'Oct-Nov 2026 Week 44',
+    rotationPhase: 'Department Baseline / Active Assignments',
+    days: [
+      { key: '2026-10-26', label: 'Mon', dayNum: '26' },
+      { key: '2026-10-27', label: 'Tue', dayNum: '27' },
+      { key: '2026-10-28', label: 'Wed', dayNum: '28' },
+      { key: '2026-10-29', label: 'Thu', dayNum: '29' },
+      { key: '2026-10-30', label: 'Fri', dayNum: '30' },
+      { key: '2026-10-31', label: 'Sat', dayNum: '31' },
+      { key: '2026-11-01', label: 'Sun', dayNum: '01' },
     ],
   },
 ];
@@ -128,8 +174,9 @@ export function RosterPlannerTab() {
   } = useShiftRosterStore();
 
   const [viewMode, setViewMode] = useState<'Day' | 'Week' | 'Month'>('Week');
-  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
-  const [activeMonth, setActiveMonth] = useState<'2026-09' | '2026-10'>('2026-09');
+  // Default to Week 40 (28 Sep – 04 Oct 2026) which contains current date 01 Oct 2026
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(3);
+  const [activeMonth, setActiveMonth] = useState<'2026-09' | '2026-10'>('2026-10');
   const [selectedDept, setSelectedDept] = useState<string>('ALL');
   const {
     selectedBranch,
@@ -142,9 +189,9 @@ export function RosterPlannerTab() {
   } = useWorkforceBranch();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [deptMasterList, setDeptMasterList] = useState<string[]>([]);
-  const [activeDayKey, setActiveDayKey] = useState<string>('2026-09-09'); // Wednesday 09 Sep (Today)
+  const [activeDayKey, setActiveDayKey] = useState<string>('2026-10-01'); // 01 Oct 2026
   const [isPublished, setIsPublished] = useState(false);
-  const [publishedPeriodKeys, setPublishedPeriodKeys] = useState<string[]>(['September 2026 Week 37']);
+  const [publishedPeriodKeys, setPublishedPeriodKeys] = useState<string[]>([]);
 
   // Perspective: Admin Overview (All staff) vs Employee View (Individual schedule)
   const [perspective, setPerspective] = useState<'ADMIN' | 'EMPLOYEE'>('ADMIN');
@@ -326,12 +373,11 @@ export function RosterPlannerTab() {
   };
 
   const handleToday = () => {
-    setSelectedWeekIndex(0);
-    setActiveDayKey('2026-09-09');
-    setActiveMonth('2026-09');
+    setSelectedWeekIndex(3); // Week 40 contains 01 Oct 2026
+    setActiveDayKey('2026-10-01');
+    setActiveMonth('2026-10');
     setViewMode('Week');
-    setIsPublished(true);
-    toast.success('Navigated to current active schedule week (09 Sep 2026)');
+    toast.success('Navigated to current schedule (01 Oct 2026)');
   };
 
   // Open Cell Details / Override modal
@@ -473,7 +519,8 @@ export function RosterPlannerTab() {
 
   const handleAutoFill = async () => {
     const dates = activeDays.map((d) => d.key);
-    await bulkAutoAssignWeek(dates, 'GS');
+    const defaultCode = shifts[0]?.code || 'GS';
+    await bulkAutoAssignWeek(dates, defaultCode);
     toast.success(
       hasActiveRotation
         ? `Auto-filled roster from active rotation rules for ${activePeriodLabel}! Approved leaves, shifts, and overrides preserved.`
@@ -585,7 +632,7 @@ export function RosterPlannerTab() {
               title={isSwap ? 'Approved Shift Swap' : isChange ? 'Approved Shift Change' : undefined}
             >
               {isSwap && <span className="mr-1 text-[11px]">🔄</span>}
-              GS — General
+              {cell.shiftCode} — General
             </span>
           );
         case 'MS':
@@ -603,10 +650,11 @@ export function RosterPlannerTab() {
               title={isSwap ? 'Approved Shift Swap' : isChange ? 'Approved Shift Change' : undefined}
             >
               {isSwap && <span className="mr-1 text-[11px]">🔄</span>}
-              MS — Morning
+              {cell.shiftCode} — Morning
             </span>
           );
         case 'ES':
+        case 'E':
         case 'B':
           return (
             <span
@@ -620,10 +668,11 @@ export function RosterPlannerTab() {
               title={isSwap ? 'Approved Shift Swap' : isChange ? 'Approved Shift Change' : undefined}
             >
               {isSwap && <span className="mr-1 text-[11px]">🔄</span>}
-              ES — Evening
+              {cell.shiftCode} — Evening
             </span>
           );
         case 'NS':
+        case 'N':
         case 'C':
         case 'NIT':
           return (
@@ -638,7 +687,7 @@ export function RosterPlannerTab() {
               title={isSwap ? 'Approved Shift Swap' : isChange ? 'Approved Shift Change' : undefined}
             >
               {isSwap && <span className="mr-1 text-[11px]">🔄</span>}
-              NS — Night
+              {cell.shiftCode} — Night
             </span>
           );
         case 'WO':
@@ -762,7 +811,7 @@ export function RosterPlannerTab() {
           )}
 
           {/* Date Navigator */}
-          <div className="flex items-center gap-1.5 pl-2 border-l border-border/60">
+          <div className="flex flex-wrap items-center gap-1.5 pl-2 border-l border-border/60">
             <Button
               variant="outline"
               size="icon"
@@ -772,16 +821,55 @@ export function RosterPlannerTab() {
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <div className="flex items-center gap-1.5 px-2 font-mono text-xs font-bold text-foreground">
-              <CalendarIcon className="h-3.5 w-3.5 text-primary" />
-              {viewMode === 'Day'
-                ? `${activeDayKey} (${WEEK_37_DAYS.find((d) => d.key === activeDayKey)?.label || 'Day'})`
-                : viewMode === 'Week'
-                ? SCHEDULED_WEEKS[selectedWeekIndex]?.label || 'Week Schedule'
-                : activeMonth === '2026-09'
-                ? `September 2026 (30 Days)`
-                : `October 2026 (31 Days)`}
-            </div>
+
+            {viewMode === 'Week' ? (
+              <Select
+                value={String(selectedWeekIndex)}
+                onValueChange={(val) => {
+                  const idx = Number(val);
+                  setSelectedWeekIndex(idx);
+                  setIsPublished(false);
+                }}
+              >
+                <SelectTrigger className="h-7 text-xs font-semibold px-2 min-w-[210px] max-w-[260px] bg-background">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <CalendarIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="truncate">{SCHEDULED_WEEKS[selectedWeekIndex]?.label}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {SCHEDULED_WEEKS.map((w, idx) => (
+                    <SelectItem key={w.weekNum} value={String(idx)} className="text-xs">
+                      {w.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : viewMode === 'Month' ? (
+              <Select
+                value={activeMonth}
+                onValueChange={(val: any) => {
+                  setActiveMonth(val);
+                }}
+              >
+                <SelectTrigger className="h-7 text-xs font-semibold px-2 min-w-[170px] bg-background">
+                  <div className="flex items-center gap-1.5">
+                    <CalendarIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>{activeMonth === '2026-09' ? 'September 2026 (30 Days)' : 'October 2026 (31 Days)'}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2026-09" className="text-xs">September 2026 (30 Days)</SelectItem>
+                  <SelectItem value="2026-10" className="text-xs">October 2026 (31 Days)</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-1.5 px-2 font-mono text-xs font-bold text-foreground">
+                <CalendarIcon className="h-3.5 w-3.5 text-primary" />
+                {`${activeDayKey} (${WEEK_37_DAYS.find((d) => d.key === activeDayKey)?.label || 'Day'})`}
+              </div>
+            )}
+
             <Button
               variant="outline"
               size="icon"
@@ -791,6 +879,41 @@ export function RosterPlannerTab() {
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
+
+            {/* Quick Month Switcher */}
+            <div className="inline-flex rounded-lg border border-border/80 p-0.5 bg-muted/40 ml-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMonth('2026-09');
+                  setSelectedWeekIndex(0);
+                  setIsPublished(false);
+                }}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                  (viewMode === 'Month' ? activeMonth === '2026-09' : selectedWeekIndex < 3)
+                    ? 'bg-background text-foreground shadow-2xs font-bold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Sep
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMonth('2026-10');
+                  setSelectedWeekIndex(3); // Week 40 (28 Sep - 04 Oct, starts Oct)
+                  setIsPublished(false);
+                }}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                  (viewMode === 'Month' ? activeMonth === '2026-10' : selectedWeekIndex >= 3)
+                    ? 'bg-background text-foreground shadow-2xs font-bold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Oct
+              </button>
+            </div>
+
             <Button
               variant="secondary"
               size="sm"
@@ -987,7 +1110,7 @@ export function RosterPlannerTab() {
                     : 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300'
                 }`}
               >
-                {isCurrentPeriodPublished ? 'PUBLISHED' : 'DRAFT — Generated from Rotation'}
+                {isCurrentPeriodPublished ? 'PUBLISHED' : (hasActiveRotation ? 'DRAFT — Generated from Rotation' : 'DRAFT — Active Assignments Baseline')}
               </Badge>
             </div>
             <CardDescription className="text-xs mt-0.5">
@@ -999,18 +1122,42 @@ export function RosterPlannerTab() {
 
           {/* Legend Pills */}
           <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-            <span className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" /> GS (09:00–17:30)
-            </span>
-            <span className="flex items-center gap-1 text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" /> MS (08:00–16:30)
-            </span>
-            <span className="flex items-center gap-1 text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-600" /> ES (16:00–00:00)
-            </span>
-            <span className="flex items-center gap-1 text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-indigo-600" /> NS (22:00–06:30)
-            </span>
+            {shifts && shifts.length > 0 ? (
+              shifts.map((s) => (
+                <span
+                  key={s.id}
+                  className="flex items-center gap-1 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 px-1.5 py-0.5 rounded border border-border"
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      s.code === 'MS'
+                        ? 'bg-blue-600'
+                        : s.code === 'ES' || s.code === 'E'
+                        ? 'bg-purple-600'
+                        : s.code === 'NS' || s.code === 'N'
+                        ? 'bg-indigo-600'
+                        : 'bg-emerald-600'
+                    }`}
+                  />{' '}
+                  {s.code} ({s.startTime}–{s.endTime})
+                </span>
+              ))
+            ) : (
+              <>
+                <span className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" /> GS (09:00–17:30)
+                </span>
+                <span className="flex items-center gap-1 text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" /> MS (08:00–16:30)
+                </span>
+                <span className="flex items-center gap-1 text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-600" /> ES (16:00–00:00)
+                </span>
+                <span className="flex items-center gap-1 text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-600" /> NS (22:00–06:30)
+                </span>
+              </>
+            )}
             <span className="flex items-center gap-1 text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
               <span className="h-1.5 w-1.5 rounded-full bg-slate-500" /> OFF (Rest Day)
             </span>
@@ -1025,7 +1172,23 @@ export function RosterPlannerTab() {
                   Employee & Role
                 </th>
                 {activeDays.map((day) => {
-                  const isToday = day.key === '2026-09-09';
+                  const [, monthStr] = day.key.split('-');
+                  const monthNames: Record<string, string> = {
+                    '01': 'Jan',
+                    '02': 'Feb',
+                    '03': 'Mar',
+                    '04': 'Apr',
+                    '05': 'May',
+                    '06': 'Jun',
+                    '07': 'Jul',
+                    '08': 'Aug',
+                    '09': 'Sep',
+                    '10': 'Oct',
+                    '11': 'Nov',
+                    '12': 'Dec',
+                  };
+                  const monthLabel = monthNames[monthStr] || 'Oct';
+                  const isToday = day.key === '2026-10-01';
                   return (
                     <th
                       key={day.key}
@@ -1037,7 +1200,9 @@ export function RosterPlannerTab() {
                         <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">
                           {day.label}
                         </span>
-                        <span className="font-mono text-sm font-bold mt-0.5">{day.dayNum} Sep</span>
+                        <span className="font-mono text-sm font-bold mt-0.5">
+                          {day.dayNum} {monthLabel}
+                        </span>
                         {isToday && (
                           <Badge className="text-[8px] px-1 py-0 h-3.5 bg-primary text-primary-foreground font-bold mt-0.5">
                             Today
@@ -1088,7 +1253,7 @@ export function RosterPlannerTab() {
                     {/* Day Schedule Cells */}
                     {activeDays.map((day) => {
                       const cell = emp.slots[day.key];
-                      const isToday = day.key === '2026-09-09';
+                      const isToday = day.key === '2026-10-01';
                       const isSwap = Boolean(cell?.isApprovedShiftSwap || cell?.source === 'Shift Swap');
                       return (
                         <td

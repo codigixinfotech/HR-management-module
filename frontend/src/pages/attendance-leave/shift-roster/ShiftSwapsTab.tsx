@@ -288,10 +288,20 @@ export function ShiftSwapsTab() {
     });
   }, [shiftSwaps, searchQuery, statusFilter, matchBranch]);
 
+  // Branch-filtered swaps for summary metrics
+  const branchFilteredSwaps = useMemo(() => {
+    return shiftSwaps.filter((sw) =>
+      matchBranch({
+        branchName: sw.requesterBranch || sw.targetBranch,
+        location: sw.requesterBranch || sw.targetBranch,
+      })
+    );
+  }, [shiftSwaps, matchBranch]);
+
   // Summary Metrics
-  const activeCount = shiftSwaps.filter((s) => s.status === 'Approved').length;
-  const pendingCount = shiftSwaps.filter((s) => s.status === 'Pending Manager Approval').length;
-  const rejectedCount = shiftSwaps.filter((s) => s.status === 'Rejected').length;
+  const activeCount = branchFilteredSwaps.filter((s) => s.status === 'Approved').length;
+  const pendingCount = branchFilteredSwaps.filter((s) => s.status === 'Pending Manager Approval').length;
+  const rejectedCount = branchFilteredSwaps.filter((s) => s.status === 'Rejected').length;
 
   return (
     <div className="space-y-5">
@@ -414,19 +424,33 @@ export function ShiftSwapsTab() {
 
       {/* ── 3. Main Swaps Registry Table ── */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <ArrowLeftRight className="h-4 w-4 text-primary" /> Peer Shift Swap Registry
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Mutual shift exchange requests between verified colleagues with automated compliance tracking
-            </CardDescription>
+        <CardHeader className="pb-3 border-b border-border/60 space-y-3">
+          {/* Line 1: Title, Description & Action Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2 whitespace-nowrap">
+                <ArrowLeftRight className="h-4 w-4 text-primary shrink-0" />
+                Peer Shift Swap Registry
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Mutual shift exchange requests between verified colleagues with automated compliance tracking
+              </CardDescription>
+            </div>
+
+            {/* Propose Shift Swap Modal Trigger */}
+            <Button
+              size="sm"
+              className="h-8 text-xs px-3 gap-1.5 font-semibold shrink-0"
+              onClick={() => setIsProposeModalOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" /> Propose Shift Swap
+            </Button>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Line 2: Filter Toolbar in ONE line with normal spacing */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border/40">
             {/* Search Input */}
-            <div className="relative w-48 sm:w-60">
+            <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
@@ -461,11 +485,6 @@ export function ShiftSwapsTab() {
                 <SelectItem value="CANCELLED" className="text-xs">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-
-            {/* Propose Shift Swap Modal Trigger */}
-            <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold" onClick={() => setIsProposeModalOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Propose Shift Swap
-            </Button>
           </div>
         </CardHeader>
 

@@ -609,7 +609,7 @@ export const useWeeklyOffPolicyStore = create<WeeklyOffPolicyState>()(
             : policyData.branchId !== undefined
             ? policyData.branchId
             : get().activeBranchId === 'HEAD_OFFICE'
-            ? null
+            ? 'HEAD_OFFICE'
             : (get().activeBranchId === 'ALL' ? null : get().activeBranchId);
 
         const newPolicy: WeeklyOffPolicyItem = {
