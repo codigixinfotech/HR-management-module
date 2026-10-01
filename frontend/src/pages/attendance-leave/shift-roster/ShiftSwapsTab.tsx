@@ -35,6 +35,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
 import { useShiftRosterStore } from './shiftRosterStore';
 import type { ShiftSwapRequest } from './shiftRosterStore';
+import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
+import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 import { cn } from '@/lib/utils';
 
 export function ShiftSwapsTab() {
@@ -49,6 +51,16 @@ export function ShiftSwapsTab() {
     resolveShiftSwap,
     cancelShiftSwap,
   } = useShiftRosterStore();
+
+  const {
+    selectedBranch,
+    setSelectedBranch,
+    branches,
+    isBranchAdmin,
+    isSuperOrCompanyAdmin,
+    assignedBranchName,
+    matchBranch,
+  } = useWorkforceBranch();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -267,9 +279,14 @@ export function ShiftSwapsTab() {
         (statusFilter === 'REJECTED' && sw.status === 'Rejected') ||
         (statusFilter === 'CANCELLED' && sw.status === 'Cancelled');
 
-      return matchesSearch && matchesStatus;
+      const matchesBranch = matchBranch({
+        branchName: sw.requesterBranch || sw.targetBranch,
+        location: sw.requesterBranch || sw.targetBranch,
+      });
+
+      return matchesSearch && matchesStatus && matchesBranch;
     });
-  }, [shiftSwaps, searchQuery, statusFilter]);
+  }, [shiftSwaps, searchQuery, statusFilter, matchBranch]);
 
   // Summary Metrics
   const activeCount = shiftSwaps.filter((s) => s.status === 'Approved').length;
@@ -419,6 +436,16 @@ export function ShiftSwapsTab() {
                 className="h-8 pl-8 text-xs bg-background"
               />
             </div>
+
+            {/* Branch Filter (Matching Employee Master Page) */}
+            <WorkforceBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              branches={branches}
+              assignedBranchName={assignedBranchName}
+            />
 
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>

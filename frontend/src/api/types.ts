@@ -790,14 +790,28 @@ export interface AppUser {
 export interface ShiftType {
   id: string;
   companyId: string;
+  branchId?: string | null;
+  branchName?: string;
+  branch?: { id?: string; name?: string } | null;
   code: string;
   name: string;
   startTime: string;
   endTime: string;
   breakMinutes: number;
+  workingHours?: number;
+  lateGraceMinutes?: number;
+  earlyExitGraceMinutes?: number;
+  halfDayThresholdHours?: number;
+  otEligible?: boolean;
+  otStartsAfterMinutes?: number;
+  weeklyOffDays?: string;
+  holidayHandling?: string;
+  colorTag?: string;
   isNightShift: boolean;
   isActive: boolean;
+  effectiveFrom?: string;
 }
+
 
 export interface ShiftAssignment {
   id: string;

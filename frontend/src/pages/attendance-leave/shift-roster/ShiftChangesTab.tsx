@@ -55,6 +55,8 @@ import { isManagerOrHrOrAdmin } from '@/lib/modules';
 import { resolveApplicableShift } from '@/lib/shift-resolver';
 import { useShiftRosterStore } from './shiftRosterStore';
 import type { ShiftChangeRequest, ShiftChangeStatus } from './shiftRosterStore';
+import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
+import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 
 // Format date e.g. "15 Sep 2026"
 function formatDisplayDate(dateStr?: string): string {
@@ -112,6 +114,16 @@ export function ShiftChangesTab() {
     cancelShiftChange,
     resolveShiftChange,
   } = useShiftRosterStore();
+
+  const {
+    selectedBranch,
+    setSelectedBranch,
+    branches,
+    isBranchAdmin,
+    isSuperOrCompanyAdmin,
+    assignedBranchName,
+    matchBranch,
+  } = useWorkforceBranch();
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -469,6 +481,14 @@ export function ShiftChangesTab() {
         sc.reason.toLowerCase().includes(q) ||
         (sc.requestedShift && sc.requestedShift.toLowerCase().includes(q));
 
+      // Branch Filter
+      const emp = rosterEmployees.find((e) => e.employeeCode === sc.employeeCode);
+      const matchesBranch = matchBranch({
+        branchName: emp?.branch || (sc as any).branchName || sc.department,
+        location: emp?.branch,
+      });
+      if (!matchesBranch) return false;
+
       // Status Filter
       if (!matchesQuery) return false;
       if (statusFilter === 'All') return true;
@@ -481,7 +501,7 @@ export function ShiftChangesTab() {
       if (statusFilter === 'Permanent') return sc.changeType === 'Permanent';
       return true;
     });
-  }, [shiftChanges, searchQuery, statusFilter, canApproveOrManage, user]);
+  }, [shiftChanges, searchQuery, statusFilter, canApproveOrManage, user, rosterEmployees, matchBranch]);
 
   // Summary Metrics
   const metrics = useMemo(() => {
@@ -605,6 +625,16 @@ export function ShiftChangesTab() {
                 className="h-8 pl-8 text-xs bg-background"
               />
             </div>
+
+            {/* Branch Filter (Matching Employee Master Page) */}
+            <WorkforceBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              branches={branches}
+              assignedBranchName={assignedBranchName}
+            />
 
             {/* Quick Status Filter Dropdown */}
             <Select value={statusFilter} onValueChange={(val: any) => setStatusFilter(val)}>

@@ -131,7 +131,6 @@ export const HCM_MODULES: HcmModule[] = [
       { key: 'live', label: 'Live Attendance', path: '/attendance-leave' },
       { key: 'register', label: 'Attendance Register', path: '/attendance-leave/register' },
       { key: 'leave', label: 'Leave Management', path: '/attendance-leave/leave' },
-      { key: 'roster', label: 'Shift & Roster', path: '/attendance-leave/roster' },
       { key: 'overtime', label: 'Overtime', path: '/attendance-leave/overtime' },
       { key: 'policies', label: 'Attendance Policies', path: '/attendance-leave/policies' },
       { key: 'reports', label: 'Reports', path: '/attendance-leave/reports' },
@@ -212,7 +211,7 @@ export const HCM_MODULES: HcmModule[] = [
     icon: CalendarClock,
     subItems: [
       { key: 'planning', label: 'Workforce Planning', path: '/workforce/planning' },
-      { key: 'shift-planning', label: 'Shift Planning', path: '/workforce/shift-planning' },
+      { key: 'shift-planning', label: 'Shift Planning & Roster', path: '/workforce/shift-planning' },
       { key: 'machine-allocation', label: 'Machine Allocation', path: '/workforce/machine-allocation' },
       { key: 'contractors', label: 'Contractor Management', path: '/workforce/contractors' },
       { key: 'labour', label: 'Labour Management', path: '/workforce/labour' },

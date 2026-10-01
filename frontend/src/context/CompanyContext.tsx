@@ -21,11 +21,13 @@ const STORAGE_KEY = 'ehcm_active_company_id';
 export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const isSuperAdmin = isSuperAdminUser(user);
 
   const { data: rawCompanies = [], isLoading } = useQuery({
     queryKey: ['companies'],
     queryFn: companiesApi.list,
+    enabled: Boolean(accessToken),
   });
 
   const userCompanyId = user?.companyId || (user?.employee as any)?.companyId;

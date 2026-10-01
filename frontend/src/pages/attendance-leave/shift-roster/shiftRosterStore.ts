@@ -25,6 +25,8 @@ export interface ShiftRuleConfig {
 export interface ShiftMasterItem {
   id: string;
   companyId?: string;
+  branchId?: string | null;
+  branchName?: string;
   name: string;
   code: string;
   startTime: string;
@@ -37,6 +39,7 @@ export interface ShiftMasterItem {
   effectiveFrom?: string;
   rules: ShiftRuleConfig;
 }
+
 
 export type AssignmentTier = 'EMPLOYEE' | 'DEPARTMENT' | 'COMPANY';
 
@@ -270,10 +273,13 @@ export interface ShiftRosterState {
   pendingApprovalsCount: number;
   isLoading: boolean;
   activeCompanyId?: string;
+  activeBranchId?: string;
 
   setCompanyId: (companyId?: string) => void;
-  fetchData: (companyId?: string) => Promise<void>;
-  addShift: (item: Omit<ShiftMasterItem, 'id'>) => Promise<void>;
+  setBranchId: (branchId?: string) => void;
+  setCompanyAndBranch: (companyId?: string, branchId?: string) => void;
+  fetchData: (companyId?: string, branchId?: string) => Promise<void>;
+  addShift: (item: Omit<ShiftMasterItem, 'id'>, branchId?: string | null) => Promise<void>;
   updateShift: (id: string, updates: Partial<ShiftMasterItem>) => Promise<void>;
   deleteShift: (id: string) => Promise<void>;
   addAssignment: (item: Omit<ShiftAssignmentItem, 'id'>) => Promise<void>;
@@ -309,14 +315,26 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
   pendingApprovalsCount: 0,
   isLoading: false,
   activeCompanyId: undefined,
+  activeBranchId: undefined,
 
   setCompanyId: (companyId?: string) => {
     set({ activeCompanyId: companyId });
-    get().fetchData(companyId);
+    get().fetchData(companyId, get().activeBranchId);
   },
 
-  fetchData: async (targetCompanyId?: string) => {
+  setBranchId: (branchId?: string) => {
+    set({ activeBranchId: branchId });
+    get().fetchData(get().activeCompanyId, branchId);
+  },
+
+  setCompanyAndBranch: (companyId?: string, branchId?: string) => {
+    set({ activeCompanyId: companyId, activeBranchId: branchId });
+    get().fetchData(companyId, branchId);
+  },
+
+  fetchData: async (targetCompanyId?: string, targetBranchId?: string) => {
     const effectiveCompanyId = targetCompanyId !== undefined ? targetCompanyId : get().activeCompanyId;
+    const effectiveBranchId = targetBranchId !== undefined ? targetBranchId : get().activeBranchId;
     // Clear previous company data immediately to prevent residual display
     set({
       isLoading: true,
@@ -328,6 +346,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
       shiftSwaps: [],
       batches: [],
       ...(targetCompanyId !== undefined ? { activeCompanyId: targetCompanyId } : {}),
+      ...(targetBranchId !== undefined ? { activeBranchId: targetBranchId } : {}),
     });
 
     try {
@@ -341,7 +360,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
         batchesRes,
         leavesRes,
       ] = await Promise.allSettled([
-        shiftTypesApi.list(effectiveCompanyId),
+        shiftTypesApi.list(effectiveCompanyId, effectiveBranchId),
         shiftAssignmentsApi.list(undefined, effectiveCompanyId),
         shiftRosterApi.getRoster({
           companyId: effectiveCompanyId,
@@ -355,7 +374,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
         leaveRequestsApi.list({ page: 1, pageSize: 100, companyId: effectiveCompanyId }),
       ]);
 
-      // 1. Process Shifts strictly from DB for this company
+      // 1. Process Shifts strictly from DB for this company & branch
       let mappedShifts: ShiftMasterItem[] = [];
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value) && shiftsRes.value.length > 0) {
         const filtered = effectiveCompanyId
@@ -365,6 +384,8 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
         mappedShifts = filtered.map((s: any) => ({
           id: s.id,
           companyId: s.companyId,
+          branchId: s.branchId,
+          branchName: s.branchName || (s.branchId ? undefined : 'Head Office'),
           name: s.name,
           code: s.code,
           startTime: s.startTime,
@@ -374,6 +395,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
           crossMidnight: Boolean(s.isNightShift),
           status: s.isActive ? 'Active' : 'Inactive',
           colorTag: s.colorTag || 'blue',
+          effectiveFrom: s.effectiveFrom,
           rules: {
             lateGraceMinutes: s.lateGraceMinutes ?? 10,
             earlyExitGraceMinutes: s.earlyExitGraceMinutes ?? 10,
@@ -381,7 +403,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
             fullDayThresholdHours: s.workingHours ?? 7.5,
             otEligible: s.otEligible !== undefined ? Boolean(s.otEligible) : true,
             otStartsAfterMinutes: s.otStartsAfterMinutes ?? 30,
-            weeklyOffDays: s.weeklyOffDays ? s.weeklyOffDays.split(',') : ['Sunday'],
+            weeklyOffDays: s.weeklyOffDays ? (Array.isArray(s.weeklyOffDays) ? s.weeklyOffDays : s.weeklyOffDays.split(',')) : ['Sunday'],
             holidayHandling: (s.holidayHandling as any) || 'Holiday Calendar',
           },
         }));
@@ -793,7 +815,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
     }
   },
 
-  addShift: async (item: Omit<ShiftMasterItem, 'id'>) => {
+  addShift: async (item: Omit<ShiftMasterItem, 'id'>, branchId?: string | null) => {
     try {
       const companyId = item.companyId || get().activeCompanyId || get().shifts[0]?.companyId;
       if (!companyId) {
@@ -801,15 +823,37 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
         return;
       }
 
+      const targetBranch =
+        branchId !== undefined
+          ? branchId
+          : item.branchId !== undefined
+          ? item.branchId
+          : get().activeBranchId === 'HEAD_OFFICE'
+          ? null
+          : (get().activeBranchId === 'ALL' ? null : get().activeBranchId);
+
       await shiftTypesApi.create({
         companyId,
+        branchId: targetBranch,
         name: item.name,
         code: item.code,
         startTime: item.startTime,
         endTime: item.endTime,
         breakMinutes: item.breakMinutes,
+        workingHours: item.workingHours,
+        lateGraceMinutes: item.rules?.lateGraceMinutes,
+        earlyExitGraceMinutes: item.rules?.earlyExitGraceMinutes,
+        halfDayThresholdHours: item.rules?.halfDayThresholdHours,
+        otEligible: item.rules?.otEligible,
+        otStartsAfterMinutes: item.rules?.otStartsAfterMinutes,
+        weeklyOffDays: Array.isArray(item.rules?.weeklyOffDays)
+          ? item.rules.weeklyOffDays.join(',')
+          : item.rules?.weeklyOffDays,
+        holidayHandling: item.rules?.holidayHandling,
+        colorTag: item.colorTag,
         isNightShift: item.crossMidnight,
         isActive: true,
+        effectiveFrom: item.effectiveFrom,
       });
 
       toast.success(`Shift "${item.name} (${item.code})" created in database`);
@@ -822,7 +866,26 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
 
   updateShift: async (id: string, updates: Partial<ShiftMasterItem>) => {
     try {
-      await shiftTypesApi.update(id, updates as any);
+      await shiftTypesApi.update(id, {
+        ...(updates.name !== undefined ? { name: updates.name } : {}),
+        ...(updates.code !== undefined ? { code: updates.code } : {}),
+        ...(updates.startTime !== undefined ? { startTime: updates.startTime } : {}),
+        ...(updates.endTime !== undefined ? { endTime: updates.endTime } : {}),
+        ...(updates.breakMinutes !== undefined ? { breakMinutes: updates.breakMinutes } : {}),
+        ...(updates.workingHours !== undefined ? { workingHours: updates.workingHours } : {}),
+        ...(updates.crossMidnight !== undefined ? { isNightShift: updates.crossMidnight } : {}),
+        ...(updates.status !== undefined ? { isActive: updates.status === 'Active' } : {}),
+        ...(updates.colorTag !== undefined ? { colorTag: updates.colorTag } : {}),
+        ...(updates.effectiveFrom !== undefined ? { effectiveFrom: updates.effectiveFrom } : {}),
+        ...(updates.branchId !== undefined ? { branchId: updates.branchId } : {}),
+        ...(updates.rules?.lateGraceMinutes !== undefined ? { lateGraceMinutes: updates.rules.lateGraceMinutes } : {}),
+        ...(updates.rules?.earlyExitGraceMinutes !== undefined ? { earlyExitGraceMinutes: updates.rules.earlyExitGraceMinutes } : {}),
+        ...(updates.rules?.halfDayThresholdHours !== undefined ? { halfDayThresholdHours: updates.rules.halfDayThresholdHours } : {}),
+        ...(updates.rules?.otEligible !== undefined ? { otEligible: updates.rules.otEligible } : {}),
+        ...(updates.rules?.otStartsAfterMinutes !== undefined ? { otStartsAfterMinutes: updates.rules.otStartsAfterMinutes } : {}),
+        ...(updates.rules?.weeklyOffDays !== undefined ? { weeklyOffDays: Array.isArray(updates.rules.weeklyOffDays) ? updates.rules.weeklyOffDays.join(',') : updates.rules.weeklyOffDays } : {}),
+        ...(updates.rules?.holidayHandling !== undefined ? { holidayHandling: updates.rules.holidayHandling } : {}),
+      } as any);
       toast.success('Shift updated successfully');
       await get().fetchData();
     } catch (err: any) {
@@ -830,6 +893,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
       toast.error('Error updating shift in database');
     }
   },
+
 
   deleteShift: async (id: string) => {
     try {

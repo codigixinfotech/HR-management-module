@@ -43,6 +43,8 @@ import { departmentsApi } from '@/api/organization';
 import { useCompany } from '@/context/CompanyContext';
 import { useAuthStore } from '@/stores/auth-store';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
+import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
+import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 
 export function ShiftAssignmentsTab() {
   const user = useAuthStore((s) => s.user);
@@ -51,6 +53,15 @@ export function ShiftAssignmentsTab() {
   const { policies: weeklyOffPolicies } = useWeeklyOffPolicyStore();
   const { activeCompanyId, activeCompany } = useCompany();
   const companyName = activeCompany?.name || 'MONTANARI LIFTS COMPONENTS PVT. LTD – LIVE Plot C-3 MIDC';
+  const {
+    selectedBranch,
+    setSelectedBranch,
+    branches,
+    isBranchAdmin,
+    isSuperOrCompanyAdmin,
+    assignedBranchName,
+    matchBranch,
+  } = useWorkforceBranch();
 
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState('');
@@ -836,9 +847,18 @@ export function ShiftAssignmentsTab() {
         (item.employeeName && item.employeeName.toLowerCase().includes(q)) ||
         (item.employeeCode && item.employeeCode.toLowerCase().includes(q)) ||
         (item.weeklyOffPolicyName && item.weeklyOffPolicyName.toLowerCase().includes(q));
-      return matchesTier && matchesSearch;
+
+      const matchesBranch =
+        item.tier === 'COMPANY'
+          ? true
+          : matchBranch({
+              branchName: item.branchName,
+              location: item.branchName,
+            });
+
+      return matchesTier && matchesSearch && matchesBranch;
     });
-  }, [userApplicableAssignments, tierFilter, searchQuery]);
+  }, [userApplicableAssignments, tierFilter, searchQuery, matchBranch]);
 
   return (
     <div className="space-y-5">
@@ -934,6 +954,16 @@ export function ShiftAssignmentsTab() {
                 <SelectItem value="COMPANY" className="text-xs">Company Default (Tier 3)</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Branch Filter (Matching Employee Master Page) */}
+            <WorkforceBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              branches={branches}
+              assignedBranchName={assignedBranchName}
+            />
 
             <div className="relative w-40 sm:w-52">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />

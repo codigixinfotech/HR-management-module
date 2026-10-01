@@ -31,6 +31,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
 import { useShiftRosterStore } from './shiftRosterStore';
 import type { EmployeeRosterRow, RosterCellData } from './shiftRosterStore';
+import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
+import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 
 // Multi-Week Scheduled Periods
 const SCHEDULED_WEEKS = [
@@ -129,6 +131,15 @@ export function RosterPlannerTab() {
   const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
   const [activeMonth, setActiveMonth] = useState<'2026-09' | '2026-10'>('2026-09');
   const [selectedDept, setSelectedDept] = useState<string>('ALL');
+  const {
+    selectedBranch,
+    setSelectedBranch,
+    branches,
+    isBranchAdmin,
+    isSuperOrCompanyAdmin,
+    assignedBranchName,
+    matchBranch,
+  } = useWorkforceBranch();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [deptMasterList, setDeptMasterList] = useState<string[]>([]);
   const [activeDayKey, setActiveDayKey] = useState<string>('2026-09-09'); // Wednesday 09 Sep (Today)
@@ -213,6 +224,10 @@ export function RosterPlannerTab() {
     }
 
     return list.filter((emp) => {
+      // Branch filter
+      if (!matchBranch({ branchName: emp.branch, location: emp.branch })) {
+        return false;
+      }
       // Department filter
       if (selectedDept !== 'ALL') {
         if (emp.department?.toLowerCase() !== selectedDept.toLowerCase()) {
@@ -231,7 +246,7 @@ export function RosterPlannerTab() {
       }
       return true;
     });
-  }, [rosterEmployees, selectedDept, searchQuery, canManageRoster, perspective, previewEmployeeId, user]);
+  }, [rosterEmployees, selectedDept, searchQuery, canManageRoster, perspective, previewEmployeeId, user, matchBranch]);
 
   // Determine active columns depending on View Mode
   const activeDays = useMemo(() => {
@@ -812,6 +827,16 @@ export function RosterPlannerTab() {
                 </button>
               )}
             </div>
+
+            {/* Branch Filter (Matching Employee Master Page) */}
+            <WorkforceBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              branches={branches}
+              assignedBranchName={assignedBranchName}
+            />
 
             {/* Department Filter Dropdown strictly from Master */}
             <div className="flex items-center gap-1.5">

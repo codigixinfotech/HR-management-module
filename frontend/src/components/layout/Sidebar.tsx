@@ -41,6 +41,10 @@ function normalizePath(p: string, isHrOrAdmin?: boolean) {
   if (base === '/attendance-leave') return '/attendance-leave';
   if (base === '/dashboard') return '/dashboard/overview';
   if (base === '/asset-management') return isHrOrAdmin === false ? '/asset-management/requests' : '/asset-management/master';
+  if (base === '/workforce') return '/workforce/planning';
+  if (base === '/attendance-leave/roster' || base === '/workforce/shift-roster' || base === '/workforce/shift-types') {
+    return '/workforce/shift-planning';
+  }
   return base;
 }
 

@@ -43,6 +43,8 @@ import {
   type ApplicableScope,
   type HolidayInteraction,
 } from './weeklyOffPolicyStore';
+import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
+import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 
 const DAYS_OF_WEEK: (keyof WeeklySchedulePattern)[] = [
   'Monday',
@@ -58,6 +60,26 @@ export function WeeklyOffPolicyTab() {
   const user = useAuthStore((s) => s.user);
   const canManagePolicies = isManagerOrHrOrAdmin(user);
   const { policies, addPolicy, updatePolicy, deletePolicy, getNextCode } = useWeeklyOffPolicyStore();
+  const {
+    selectedBranch,
+    setSelectedBranch,
+    branches,
+    isBranchAdmin,
+    isSuperOrCompanyAdmin,
+    isHeadOfficeUser,
+    isBranchUser,
+    userAssignedBranchId,
+    assignedBranchName,
+  } = useWorkforceBranch();
+
+  // Resolve the branchId to use when creating a new policy
+  const resolvedCreateBranchId: string | null = isBranchUser && userAssignedBranchId
+    ? userAssignedBranchId
+    : isHeadOfficeUser
+    ? null  // Head Office / No Branch
+    : selectedBranch === 'ALL' || selectedBranch === 'HEAD_OFFICE'
+    ? null
+    : (selectedBranch || null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
@@ -292,7 +314,7 @@ export function WeeklyOffPolicyTab() {
     if (editingId) {
       updatePolicy(editingId, payload);
     } else {
-      addPolicy(payload);
+      addPolicy(payload, resolvedCreateBranchId);
     }
     setIsModalOpen(false);
   };
@@ -308,9 +330,33 @@ export function WeeklyOffPolicyTab() {
       const matchesType = typeFilter === 'ALL' || p.type === typeFilter;
       const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
 
-      return matchesSearch && matchesType && matchesStatus;
+      // Branch Filtering matching Employee Master Page
+      let matchesBranch = true;
+      if (selectedBranch !== 'ALL') {
+        if (selectedBranch === 'HEAD_OFFICE') {
+          const target = (p.applicableTarget || '').toLowerCase();
+          matchesBranch =
+            p.applicableTo === 'Company' ||
+            p.applicableTo === 'Employee Group' ||
+            !target ||
+            target.includes('head office') ||
+            target.includes('corporate') ||
+            target.includes('main') ||
+            target.includes('hq');
+        } else {
+          const branchObj = branches.find((b) => b.id === selectedBranch);
+          const bName = (branchObj?.name || '').toLowerCase();
+          const target = (p.applicableTarget || '').toLowerCase();
+          matchesBranch =
+            p.applicableTo === 'Company' ||
+            (bName && target.includes(bName.slice(0, 4))) ||
+            target.includes(selectedBranch.toLowerCase());
+        }
+      }
+
+      return matchesSearch && matchesType && matchesStatus && matchesBranch;
     });
-  }, [policies, searchQuery, typeFilter, statusFilter]);
+  }, [policies, searchQuery, typeFilter, statusFilter, selectedBranch, branches]);
 
   const getTypeBadgeClass = (t: WeeklyOffType) => {
     switch (t) {
@@ -438,6 +484,16 @@ export function WeeklyOffPolicyTab() {
                 className="h-8 pl-8 text-xs bg-background"
               />
             </div>
+
+            {/* Branch Filter (Matching Employee Master Page) */}
+            <WorkforceBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              branches={branches}
+              assignedBranchName={assignedBranchName}
+            />
 
             {/* Type Filter */}
             <Select value={typeFilter} onValueChange={setTypeFilter}>

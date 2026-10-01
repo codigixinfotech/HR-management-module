@@ -1,4 +1,4 @@
-import { useSearchParams, useParams } from 'react-router-dom';
+import { useSearchParams, useParams, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCompany } from '@/context/CompanyContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,7 +10,6 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { LiveAttendanceTab } from './LiveAttendanceTab';
 import { AttendanceRegisterTab } from './AttendanceRegisterTab';
 import { LeaveManagementTab } from './LeaveManagementTab';
-import { ShiftRosterTab } from './ShiftRosterTab';
 import { OvertimeManagementTab } from './OvertimeManagementTab';
 import { AttendancePoliciesTab } from './AttendancePoliciesTab';
 import { AttendanceReportsTab } from './AttendanceReportsTab';
@@ -41,8 +40,8 @@ export default function AttendanceLeavePage() {
       <div className="hidden md:block">
         <PageHeader
           icon={Clock}
-          title="Attendance, Leave & Shift Roster Engine"
-          description="Biometric punch logs, monthly muster roll register, leave workflows, shift rosters & overtime calculations"
+          title="Attendance & Leave Operations"
+          description="Biometric punch logs, monthly muster roll register, leave workflows and overtime calculations"
           badge="Live Gateway Active"
           badgeVariant="success"
           actions={
@@ -82,7 +81,7 @@ export default function AttendanceLeavePage() {
 
         {activeTab === 'leave' && <LeaveManagementTab companyId={effectiveCompanyId} />}
 
-        {activeTab === 'roster' && <ShiftRosterTab companyId={effectiveCompanyId} />}
+        {activeTab === 'roster' && <Navigate to="/workforce/shift-planning" replace />}
 
         {activeTab === 'overtime' && <OvertimeManagementTab companyId={effectiveCompanyId} />}
 

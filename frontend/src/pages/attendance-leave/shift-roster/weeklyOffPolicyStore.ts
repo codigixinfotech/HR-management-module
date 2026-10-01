@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { toast } from 'sonner';
+import { weeklyOffPoliciesApi } from '@/api/workforce';
 
 export type WeeklyOffType =
   | 'Fixed (Single Full Day)'
@@ -44,12 +45,16 @@ export type HolidayInteraction =
 
 export interface WeeklyOffPolicyItem {
   id: string;
+  companyId?: string;
+  branchId?: string | null;
+  branchName?: string;
   code: string;
   name: string;
   description: string;
   status: 'Active' | 'Inactive';
   effectiveFrom: string;
   effectiveTo?: string;
+
 
   // Section 2: Type & 7-Day Weekly Schedule Pattern
   type: WeeklyOffType;
@@ -548,9 +553,13 @@ const INITIAL_POLICIES: WeeklyOffPolicyItem[] = [
 
 interface WeeklyOffPolicyState {
   policies: WeeklyOffPolicyItem[];
-  addPolicy: (policy: Omit<WeeklyOffPolicyItem, 'id'>) => void;
-  updatePolicy: (id: string, updates: Partial<WeeklyOffPolicyItem>) => void;
-  deletePolicy: (id: string) => void;
+  isLoading: boolean;
+  activeCompanyId?: string;
+  activeBranchId?: string;
+  fetchPolicies: (companyId?: string, branchId?: string) => Promise<void>;
+  addPolicy: (policy: Omit<WeeklyOffPolicyItem, 'id'>, branchId?: string | null) => Promise<void>;
+  updatePolicy: (id: string, updates: Partial<WeeklyOffPolicyItem>) => Promise<void>;
+  deletePolicy: (id: string) => Promise<void>;
   getNextCode: () => string;
 }
 
@@ -558,6 +567,9 @@ export const useWeeklyOffPolicyStore = create<WeeklyOffPolicyState>()(
   persist(
     (set, get) => ({
       policies: INITIAL_POLICIES,
+      isLoading: false,
+      activeCompanyId: undefined,
+      activeBranchId: undefined,
 
       getNextCode: () => {
         const { policies } = get();
@@ -573,24 +585,77 @@ export const useWeeklyOffPolicyStore = create<WeeklyOffPolicyState>()(
         return `WO-${nextNum.toString().padStart(3, '0')}`;
       },
 
-      addPolicy: (policyData) => {
+      fetchPolicies: async (companyId?: string, branchId?: string) => {
+        set({ isLoading: true, activeCompanyId: companyId, activeBranchId: branchId });
+        try {
+          const apiPolicies = await weeklyOffPoliciesApi.list(companyId, branchId);
+          if (Array.isArray(apiPolicies) && apiPolicies.length > 0) {
+            set({ policies: apiPolicies });
+          } else if (companyId) {
+            // No policies configured for this company/branch in DB yet
+            set({ policies: [] });
+          }
+        } catch (err) {
+          console.error('Failed fetching weekly off policies from API:', err);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      addPolicy: async (policyData, branchId?: string | null) => {
+        const targetBranchId =
+          branchId !== undefined
+            ? branchId
+            : policyData.branchId !== undefined
+            ? policyData.branchId
+            : get().activeBranchId === 'HEAD_OFFICE'
+            ? null
+            : (get().activeBranchId === 'ALL' ? null : get().activeBranchId);
+
         const newPolicy: WeeklyOffPolicyItem = {
           ...policyData,
+          companyId: policyData.companyId || get().activeCompanyId,
+          branchId: targetBranchId,
           id: `wo-${Date.now()}`,
         };
+
+        try {
+          if (newPolicy.companyId) {
+            const res = await weeklyOffPoliciesApi.create({
+              ...newPolicy,
+              branchId: targetBranchId,
+            });
+            if (res && res.id) {
+              newPolicy.id = res.id;
+            }
+          }
+        } catch (err) {
+          console.error('Failed to sync weekly off policy to backend:', err);
+        }
+
         set((state) => ({ policies: [newPolicy, ...state.policies] }));
         toast.success(`Weekly Off Policy "${newPolicy.name} (${newPolicy.code})" created successfully`);
       },
 
-      updatePolicy: (id, updates) => {
+      updatePolicy: async (id, updates) => {
+        try {
+          await weeklyOffPoliciesApi.update(id, updates);
+        } catch (err) {
+          console.error('Failed to update weekly off policy in backend:', err);
+        }
         set((state) => ({
           policies: state.policies.map((p) => (p.id === id ? { ...p, ...updates } : p)),
         }));
         toast.success('Weekly Off Policy updated successfully');
       },
 
-      deletePolicy: (id) => {
+      deletePolicy: async (id) => {
         const target = get().policies.find((p) => p.id === id);
+        try {
+          await weeklyOffPoliciesApi.remove(id);
+        } catch (err) {
+          console.error('Failed to delete weekly off policy in backend:', err);
+        }
         set((state) => ({
           policies: state.policies.filter((p) => p.id !== id),
         }));
@@ -602,3 +667,4 @@ export const useWeeklyOffPolicyStore = create<WeeklyOffPolicyState>()(
     }
   )
 );
+

@@ -44,6 +44,8 @@ import { departmentsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
 import { useAuthStore } from '@/stores/auth-store';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
+import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
+import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 import { useShiftRosterStore } from './shiftRosterStore';
 import type { RotationCycle, RotationPhase } from './shiftRosterStore';
 import { cn } from '@/lib/utils';
@@ -217,9 +219,19 @@ export function ShiftRotationTab() {
     updateRotation,
     deleteRotation,
     applyRotationNow,
-    startRotation,
     pauseRotation,
   } = useShiftRosterStore();
+
+  const {
+    selectedBranch,
+    setSelectedBranch,
+    branches,
+    isBranchAdmin,
+    isSuperOrCompanyAdmin,
+    assignedBranchName,
+    matchBranch,
+  } = useWorkforceBranch();
+  const [rotationSearch, setRotationSearch] = useState('');
 
   // Active / Scheduled rotation check
   const activeRotations = useMemo(
@@ -624,16 +636,34 @@ export function ShiftRotationTab() {
     toast.success(`Rotation schedule "${rot.name}" removed.`);
   };
 
-  // Filter rotations for regular employees (personal scoping)
+  // Filter rotations for regular employees (personal scoping) and branch
   const userDepartment = user?.employee?.departmentName || 'Production';
   const displayedRotations = useMemo(() => {
-    if (canManageRotations) return rotations;
-    return rotations.filter(
-      (r) =>
-        r.department?.toLowerCase().includes(userDepartment.toLowerCase()) ||
-        userDepartment.toLowerCase().includes(r.department?.toLowerCase())
-    );
-  }, [rotations, canManageRotations, userDepartment]);
+    let list = rotations;
+    if (!canManageRotations) {
+      list = rotations.filter(
+        (r) =>
+          r.department?.toLowerCase().includes(userDepartment.toLowerCase()) ||
+          userDepartment.toLowerCase().includes(r.department?.toLowerCase())
+      );
+    }
+    return list.filter((r) => {
+      const q = rotationSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        r.name.toLowerCase().includes(q) ||
+        (r.code && r.code.toLowerCase().includes(q)) ||
+        (r.department && r.department.toLowerCase().includes(q)) ||
+        (r.applicableScope && r.applicableScope.toLowerCase().includes(q));
+
+      const matchesBranch = matchBranch({
+        branchName: r.applicableScope || r.department,
+        location: r.applicableScope,
+      });
+
+      return matchesSearch && matchesBranch;
+    });
+  }, [rotations, canManageRotations, userDepartment, rotationSearch, matchBranch]);
 
   return (
     <div className="space-y-5">
@@ -743,11 +773,34 @@ export function ShiftRotationTab() {
             </CardDescription>
           </div>
 
-          {canManageRotations && (
-            <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold" onClick={handleOpenCreateModal}>
-              <Plus className="h-3.5 w-3.5" /> New Rotation Rule
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative w-44 sm:w-56">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search rotation..."
+                value={rotationSearch}
+                onChange={(e) => setRotationSearch(e.target.value)}
+                className="h-8 pl-8 text-xs bg-background"
+              />
+            </div>
+
+            {/* Branch Filter (Matching Employee Master Page) */}
+            <WorkforceBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              branches={branches}
+              assignedBranchName={assignedBranchName}
+            />
+
+            {canManageRotations && (
+              <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold" onClick={handleOpenCreateModal}>
+                <Plus className="h-3.5 w-3.5" /> New Rotation Rule
+              </Button>
+            )}
+          </div>
         </CardHeader>
 
         <CardContent className="p-4 sm:p-5">

@@ -40,9 +40,11 @@ type RosterSubTab =
 
 interface ShiftRosterTabProps {
   companyId?: string;
+  selectedBranch?: string;
+  branches?: any[];
 }
 
-export function ShiftRosterTab({ companyId }: ShiftRosterTabProps) {
+export function ShiftRosterTab({ companyId, selectedBranch }: ShiftRosterTabProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSubTab = (searchParams.get('subtab') as RosterSubTab) || 'master';
   const [activeSubTab, setActiveSubTab] = useState<RosterSubTab>(initialSubTab);
@@ -59,8 +61,13 @@ export function ShiftRosterTab({ companyId }: ShiftRosterTabProps) {
   const { policies: weeklyOffPolicies } = useWeeklyOffPolicyStore();
 
   useEffect(() => {
-    fetchData(companyId);
-  }, [companyId, fetchData]);
+    // Resolve effective branch: 'ALL' / 'HEAD_OFFICE' → null (no branch filter), specific branch ID → pass it
+    const effectiveBranchId =
+      !selectedBranch || selectedBranch === 'ALL' || selectedBranch === 'HEAD_OFFICE'
+        ? undefined
+        : selectedBranch;
+    fetchData(companyId, effectiveBranchId);
+  }, [companyId, selectedBranch, fetchData]);
 
   const handleTabChange = (tab: RosterSubTab) => {
     setActiveSubTab(tab);

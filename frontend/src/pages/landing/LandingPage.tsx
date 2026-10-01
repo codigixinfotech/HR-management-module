@@ -77,6 +77,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { FaceAttendanceModal } from '@/pages/attendance/FaceAttendanceModal';
+import { useAuthStore } from '@/stores/auth-store';
 
 // Imported Banner Artifact Images generated for HR ERP
 import heroWorkflowBackgroundBanner from '@/assets/banners/hr_erp_banner_light.jpg';
@@ -90,6 +91,16 @@ type LucideIcon = React.ComponentType<{ className?: string }>;
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
+
+  const handleOpenDashboard = () => {
+    if (accessToken && user) {
+      navigate('/dashboard');
+    } else {
+      navigate('/login', { state: { from: { pathname: '/dashboard' } } });
+    }
+  };
 
   // Active section tracker for navigation
   const [activeSectionId, setActiveSectionId] = useState<string>('sec-hero');
@@ -220,12 +231,12 @@ export function LandingPage() {
               </div>
 
               {/* Top-right floating action buttons */}
-              <div className="absolute top-4 right-4 z-20 hidden sm:flex items-center gap-2">
+              <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
                 {/* Schedule Customer Demo */}
                 <button
                   type="button"
                   onClick={() => setIsBookDemoModalOpen(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white text-purple-700 border border-purple-300/60 font-extrabold text-xs shadow-lg transition-all cursor-pointer"
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white text-purple-700 border border-purple-300/60 font-extrabold text-xs shadow-lg transition-all cursor-pointer"
                 >
                   ▶ Schedule Demo
                 </button>
@@ -237,9 +248,18 @@ export function LandingPage() {
                     const el = document.getElementById('sec-pricing');
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-extrabold text-xs shadow-lg hover:shadow-purple-400/40 transition-all cursor-pointer"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-extrabold text-xs shadow-lg hover:shadow-purple-400/40 transition-all cursor-pointer"
                 >
                   💳 Billing Now
+                </button>
+
+                {/* Direct Sign In to /login */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-900/90 hover:bg-slate-950 text-white font-extrabold text-xs shadow-lg transition-all cursor-pointer border border-white/20"
+                >
+                  <Lock className="h-3.5 w-3.5 text-purple-300" /> Sign In
                 </button>
               </div>
 
@@ -291,8 +311,8 @@ export function LandingPage() {
                       <Button
                         size="lg"
                         variant="ghost"
-                        onClick={() => navigate('/dashboard')}
-                        className="text-slate-800 hover:text-slate-950 font-bold text-xs px-3 py-5 rounded-xl gap-1"
+                        onClick={handleOpenDashboard}
+                        className="text-slate-800 hover:text-slate-950 font-bold text-xs px-3 py-5 rounded-xl gap-1 cursor-pointer"
                       >
                         Open App Dashboard <ArrowRight className="h-3.5 w-3.5" />
                       </Button>
@@ -346,7 +366,7 @@ export function LandingPage() {
                           <span className="text-[9.5px] font-extrabold text-purple-600 uppercase tracking-wider block">LIVE DEMO</span>
                           <button
                             type="button"
-                            onClick={() => navigate('/dashboard')}
+                            onClick={handleOpenDashboard}
                             className="text-xs font-black text-purple-700 hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             Open Link <ExternalLink className="h-3 w-3" />

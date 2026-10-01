@@ -58,15 +58,19 @@ export function ProtectedRoute() {
   });
 
   if (
+    currentPath === '/' ||
+    currentPath === '/landing' ||
+    currentPath.startsWith('/landing/') ||
     currentPath.startsWith('/careers') ||
+    currentPath.startsWith('/candidate-assessment') ||
     currentPath.startsWith('/auth') ||
     currentPath === '/login'
   ) {
     return <Outlet />;
   }
 
-  if (!accessToken) {
-    return <Navigate to="/login" replace />;
+  if (!accessToken || !user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   const isSuperAdmin = isSuperAdminUser(user);

@@ -14,23 +14,50 @@ export const API_BASE_URL = getApiBaseUrl();
 
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
 
+export function isPublicRoute(pathname?: string): boolean {
+  if (!pathname) return true;
+  const cleanPath = pathname.split('?')[0].split('#')[0].replace(/\/+$/, '') || '/';
+  if (cleanPath === '/' || cleanPath === '/login') return true;
+  if (cleanPath === '/landing' || cleanPath.startsWith('/landing/')) return true;
+  if (cleanPath.startsWith('/careers')) return true;
+  if (cleanPath.startsWith('/candidate-assessment')) return true;
+  if (cleanPath.startsWith('/auth')) return true;
+  if (cleanPath.startsWith('/uploads') || cleanPath.startsWith('/api/uploads')) return true;
+  return false;
+}
+
+function redirectToLoginIfProtected() {
+  if (typeof window === 'undefined') return;
+  const currentPath = window.location.pathname;
+  if (isPublicRoute(currentPath)) {
+    // Under NO circumstances redirect unauthenticated users on public landing/career pages to /login
+    return;
+  }
+  if (currentPath !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
+function getStoredAuthState() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('ehcm-auth') || localStorage.getItem('auth-storage');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state || null;
+  } catch {
+    return null;
+  }
+}
+
 apiClient.interceptors.request.use((config) => {
   let token = useAuthStore.getState().accessToken;
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('auth-storage');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const localToken = parsed?.state?.accessToken;
-        if (localToken && localToken !== token) {
-          useAuthStore.getState().setTokens(localToken, parsed?.state?.refreshToken || '');
-          if (parsed?.state?.user) {
-            useAuthStore.getState().setUser(parsed.state.user);
-          }
-          token = localToken;
-        }
-      }
-    } catch {}
+  const storedState = getStoredAuthState();
+  if (storedState?.accessToken && storedState.accessToken !== token) {
+    useAuthStore.getState().setTokens(storedState.accessToken, storedState.refreshToken || '');
+    if (storedState.user) {
+      useAuthStore.getState().setUser(storedState.user);
+    }
+    token = storedState.accessToken;
   }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -44,9 +71,7 @@ async function refreshAccessToken(): Promise<string | null> {
   const { refreshToken, setTokens, clear } = useAuthStore.getState();
   if (!refreshToken) {
     clear();
-    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-      window.location.href = '/login';
-    }
+    redirectToLoginIfProtected();
     return null;
   }
 
@@ -57,9 +82,7 @@ async function refreshAccessToken(): Promise<string | null> {
   } catch (err: any) {
     if (err.response?.status === 401 || err.response?.status === 403) {
       clear();
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+      redirectToLoginIfProtected();
     }
     return null;
   }
@@ -81,24 +104,16 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       // Check if localStorage has an updated token (e.g. from a recent login in another tab)
-      if (typeof window !== 'undefined') {
-        try {
-          const stored = localStorage.getItem('auth-storage');
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            const localToken = parsed?.state?.accessToken;
-            const currentToken = useAuthStore.getState().accessToken;
-            if (localToken && localToken !== currentToken) {
-              useAuthStore.getState().setTokens(localToken, parsed?.state?.refreshToken || '');
-              if (parsed?.state?.user) {
-                useAuthStore.getState().setUser(parsed.state.user);
-              }
-              originalRequest.headers = originalRequest.headers ?? {};
-              originalRequest.headers.Authorization = `Bearer ${localToken}`;
-              return apiClient(originalRequest);
-            }
-          }
-        } catch {}
+      const storedState = getStoredAuthState();
+      const currentToken = useAuthStore.getState().accessToken;
+      if (storedState?.accessToken && storedState.accessToken !== currentToken) {
+        useAuthStore.getState().setTokens(storedState.accessToken, storedState.refreshToken || '');
+        if (storedState.user) {
+          useAuthStore.getState().setUser(storedState.user);
+        }
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${storedState.accessToken}`;
+        return apiClient(originalRequest);
       }
 
       if (!refreshPromise) {
@@ -113,9 +128,7 @@ apiClient.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       } else {
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
+        redirectToLoginIfProtected();
       }
     }
 

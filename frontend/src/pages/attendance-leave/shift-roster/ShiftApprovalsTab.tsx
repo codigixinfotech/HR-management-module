@@ -36,8 +36,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { useShiftRosterStore, type RosterBatchApproval, type ShiftChangeRequest, type ShiftSwapRequest } from './shiftRosterStore';
+import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
+import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 
 export function ShiftApprovalsTab() {
   const {
@@ -50,6 +51,16 @@ export function ShiftApprovalsTab() {
     resolveShiftChange,
     resolveShiftSwap,
   } = useShiftRosterStore();
+
+  const {
+    selectedBranch,
+    setSelectedBranch,
+    branches,
+    isBranchAdmin,
+    isSuperOrCompanyAdmin,
+    assignedBranchName,
+    matchBranch,
+  } = useWorkforceBranch();
 
   const [activeCategory, setActiveCategory] = useState<'ROSTERS' | 'CHANGES' | 'SWAPS'>('ROSTERS');
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +89,33 @@ export function ShiftApprovalsTab() {
   );
 
   const totalPendingDecisions = pendingBatches.length + pendingChanges.length + pendingSwaps.length;
+
+  const filteredBatches = useMemo(() => {
+    return batchApprovals.filter((b) =>
+      matchBranch({
+        branchName: b.department,
+        location: b.department,
+      })
+    );
+  }, [batchApprovals, matchBranch]);
+
+  const filteredChanges = useMemo(() => {
+    return shiftChanges.filter((c) =>
+      matchBranch({
+        branchName: c.department,
+        location: c.department,
+      })
+    );
+  }, [shiftChanges, matchBranch]);
+
+  const filteredSwaps = useMemo(() => {
+    return shiftSwaps.filter((s) =>
+      matchBranch({
+        branchName: s.requesterBranch || s.targetBranch || s.requesterDept,
+        location: s.requesterBranch || s.targetBranch,
+      })
+    );
+  }, [shiftSwaps, matchBranch]);
 
   // Week 38 simulated dates for the Roster Matrix modal
   const sampleRosterDates = [
@@ -320,11 +358,23 @@ export function ShiftApprovalsTab() {
           </Button>
         </div>
 
-        {totalPendingDecisions > 0 && (
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            <strong className="text-foreground">{totalPendingDecisions}</strong> items requiring managerial action
-          </span>
-        )}
+        <div className="flex items-center gap-2.5">
+          {/* Branch Filter (Matching Employee Master Page) */}
+          <WorkforceBranchFilter
+            isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+            isBranchAdmin={isBranchAdmin}
+            selectedBranch={selectedBranch}
+            onBranchChange={setSelectedBranch}
+            branches={branches}
+            assignedBranchName={assignedBranchName}
+          />
+
+          {totalPendingDecisions > 0 && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              <strong className="text-foreground">{totalPendingDecisions}</strong> items requiring managerial action
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -361,7 +411,7 @@ export function ShiftApprovalsTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-border/40">
-                  {batchApprovals.map((batch) => {
+                  {filteredBatches.map((batch) => {
                     const isDraft = batch.status === 'Draft';
                     const isReview = batch.status === 'Manager Review';
                     const isApproved = batch.status === 'Approved';
@@ -533,7 +583,7 @@ export function ShiftApprovalsTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border/40">
-                    {shiftChanges.map((sc) => {
+                    {filteredChanges.map((sc) => {
                       const isPending = sc.status === 'Pending Review' || sc.status === 'Pending Approval' || sc.status === 'Manager Review';
                       const isApproved = sc.status === 'Approved';
 
@@ -685,7 +735,7 @@ export function ShiftApprovalsTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border/40">
-                    {shiftSwaps.map((sw) => {
+                    {filteredSwaps.map((sw) => {
                       const isPending = sw.status === 'Pending Manager Approval';
                       const isApproved = sw.status === 'Approved';
 

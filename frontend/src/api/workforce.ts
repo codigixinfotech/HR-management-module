@@ -2,8 +2,8 @@ import { apiClient } from '@/lib/api-client';
 import type { ShiftAssignment, ShiftType } from './types';
 
 export const shiftTypesApi = {
-  list: async (companyId?: string) =>
-    (await apiClient.get<ShiftType[]>('/workforce/shift-types', { params: { companyId } })).data,
+  list: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<ShiftType[]>('/workforce/shift-types', { params: { companyId, branchId } })).data,
   create: async (payload: Partial<ShiftType>) =>
     (await apiClient.post<ShiftType>('/workforce/shift-types', payload)).data,
   update: async (id: string, payload: Partial<ShiftType>) =>
@@ -11,6 +11,20 @@ export const shiftTypesApi = {
   remove: async (id: string) =>
     (await apiClient.delete(`/workforce/shift-types/${id}`)).data,
 };
+
+export const weeklyOffPoliciesApi = {
+  list: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<any[]>('/workforce/weekly-off-policies', { params: { companyId, branchId } })).data,
+  get: async (id: string) =>
+    (await apiClient.get<any>(`/workforce/weekly-off-policies/${id}`)).data,
+  create: async (payload: any) =>
+    (await apiClient.post<any>('/workforce/weekly-off-policies', payload)).data,
+  update: async (id: string, payload: any) =>
+    (await apiClient.patch<any>(`/workforce/weekly-off-policies/${id}`, payload)).data,
+  remove: async (id: string) =>
+    (await apiClient.delete(`/workforce/weekly-off-policies/${id}`)).data,
+};
+
 
 export const shiftAssignmentsApi = {
   list: async (employeeId?: string, companyId?: string) =>

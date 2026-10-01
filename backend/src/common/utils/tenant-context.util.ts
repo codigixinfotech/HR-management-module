@@ -203,3 +203,60 @@ export async function validateTenantBranchId(
 
   return branchId;
 }
+
+/**
+ * Resolves the strict workforce scope (Company & Branch) for Shift Master, Week Off Master, and Roster.
+ * - Super Admin: Broad access, can switch company or branch or view ALL.
+ * - Head Office Login (no branchId or HEAD_OFFICE): Strictly locked to user.companyId + HEAD_OFFICE.
+ * - Branch Login (user.branchId set, e.g. Cravita B or Cravita C): Strictly locked to user.companyId + user.branchId.
+ */
+export function getWorkforceTenantScope(
+  user?: CurrentUserPayload | null,
+  queryCompanyId?: string,
+  queryBranchId?: string,
+): { companyId: string; branchId?: string | null; isSuperAdmin: boolean } {
+  const isSuper = isUserSuperAdmin(user);
+
+  // 1. Super Admin: full switcher capabilities
+  if (isSuper) {
+    const cleanCompany =
+      queryCompanyId &&
+      queryCompanyId.trim() &&
+      queryCompanyId.trim() !== 'ALL' &&
+      queryCompanyId.trim() !== 'undefined' &&
+      queryCompanyId.trim() !== 'null'
+        ? queryCompanyId.trim()
+        : (user?.companyId || '');
+
+    let resolvedBranch: string | null | undefined = undefined;
+    if (queryBranchId === 'HEAD_OFFICE' || queryBranchId === 'NONE' || queryBranchId === 'null') {
+      resolvedBranch = 'HEAD_OFFICE';
+    } else if (
+      queryBranchId &&
+      queryBranchId.trim() &&
+      queryBranchId.trim() !== 'ALL' &&
+      queryBranchId.trim() !== 'undefined'
+    ) {
+      resolvedBranch = queryBranchId.trim();
+    } // else undefined = ALL branches
+
+    return { companyId: cleanCompany, branchId: resolvedBranch, isSuperAdmin: true };
+  }
+
+  // 2. Non-Super Admin: strictly scoped to Logged-in Company + Logged-in Branch
+  const companyId = user?.companyId || (queryCompanyId && queryCompanyId !== 'ALL' ? queryCompanyId : '');
+  const userAssignedBranchId = user?.branchId || user?.employee?.branchId;
+
+  if (
+    userAssignedBranchId &&
+    userAssignedBranchId !== 'NONE' &&
+    userAssignedBranchId !== 'HEAD_OFFICE'
+  ) {
+    // Assigned to a specific branch (e.g. Cravita B, Cravita C)
+    return { companyId, branchId: userAssignedBranchId, isSuperAdmin: false };
+  }
+
+  // Head Office Login (no branchId or HEAD_OFFICE)
+  return { companyId, branchId: 'HEAD_OFFICE', isSuperAdmin: false };
+}
+

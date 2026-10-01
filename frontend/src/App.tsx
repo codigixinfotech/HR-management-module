@@ -15,6 +15,12 @@ import JobOpeningDetailPage from '@/pages/recruitment/JobOpeningDetailPage';
 import CreateJobRequisitionPage from '@/pages/recruitment/CreateJobRequisitionPage';
 import TasksPage from '@/pages/tasks/TasksPage';
 import WorkforcePage from '@/pages/workforce/WorkforcePage';
+import WorkforcePlanningPage from '@/pages/workforce/WorkforcePlanningPage';
+import ShiftPlanningPage from '@/pages/workforce/ShiftPlanningPage';
+import MachineAllocationPage from '@/pages/workforce/MachineAllocationPage';
+import ContractorManagementPage from '@/pages/workforce/ContractorManagementPage';
+import LabourManagementPage from '@/pages/workforce/LabourManagementPage';
+import WorkforceReportsPage from '@/pages/workforce/WorkforceReportsPage';
 import AttendanceLeavePage from '@/pages/attendance-leave/AttendanceLeavePage';
 import PayrollPage from '@/pages/payroll/PayrollPage';
 import CompliancePage from '@/pages/compliance/CompliancePage';
@@ -79,27 +85,27 @@ function UploadsRedirectHandler() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <CompanyProvider>
-        <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/careers" element={<CareersPage />} />
-          <Route path="/careers/*" element={<CareersPage />} />
-          <Route path="/careers/job/:id" element={<CareersJobDetailPage />} />
-          <Route path="/candidate-assessment/:token" element={<CandidateAssessmentPage />} />
+      <BrowserRouter>
+        <CompanyProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/careers" element={<CareersPage />} />
+            <Route path="/careers/*" element={<CareersPage />} />
+            <Route path="/careers/job/:id" element={<CareersJobDetailPage />} />
+            <Route path="/candidate-assessment/:token" element={<CandidateAssessmentPage />} />
 
-          {/* Public Auth & Password Setup Routes — No login session required */}
-          <Route path="/auth/set-password" element={<SetPasswordPage />} />
-          <Route path="/auth/verify-invitation" element={<SetPasswordPage />} />
+            {/* Public Auth & Password Setup Routes — No login session required */}
+            <Route path="/auth/set-password" element={<SetPasswordPage />} />
+            <Route path="/auth/verify-invitation" element={<SetPasswordPage />} />
 
-          {/* Uploads & Resume Direct Download Interceptor — Prevents SPA fallback redirect to /dashboard */}
-          <Route path="/uploads/*" element={<UploadsRedirectHandler />} />
-          <Route path="/api/uploads/*" element={<UploadsRedirectHandler />} />
+            {/* Uploads & Resume Direct Download Interceptor — Prevents SPA fallback redirect to /dashboard */}
+            <Route path="/uploads/*" element={<UploadsRedirectHandler />} />
+            <Route path="/api/uploads/*" element={<UploadsRedirectHandler />} />
 
-          {/* Root & Public Landing Page — No login required */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/landing" element={<Navigate to="/" replace />} />
-          <Route path="/landing/:tab" element={<LandingPage />} />
+            {/* Root & Public Landing Page — No login required */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/landing" element={<LandingPage />} />
+            <Route path="/landing/:tab" element={<LandingPage />} />
 
           <Route element={<ProtectedRoute />}>
             {/* Redirect any legacy /mobile-punch links directly to canonical /attendance-leave */}
@@ -134,11 +140,20 @@ export default function App() {
               <Route path="/recruitment/:tab" element={<JobOpeningsPage />} />
               <Route path="/recruitment/detail/:id" element={<JobOpeningDetailPage />} />
 
-              {/* Workforce Routes */}
-              <Route path="/workforce" element={<WorkforcePage />} />
+              {/* Workforce Routes (Standalone Pages) */}
+              <Route path="/workforce" element={<Navigate to="/workforce/planning" replace />} />
+              <Route path="/workforce/planning" element={<WorkforcePlanningPage />} />
+              <Route path="/workforce/shift-planning" element={<ShiftPlanningPage />} />
+              <Route path="/workforce/shift-types" element={<Navigate to="/workforce/shift-planning?subtab=master" replace />} />
+              <Route path="/workforce/shift-roster" element={<Navigate to="/workforce/shift-planning?subtab=roster" replace />} />
+              <Route path="/workforce/machine-allocation" element={<MachineAllocationPage />} />
+              <Route path="/workforce/contractors" element={<ContractorManagementPage />} />
+              <Route path="/workforce/labour" element={<LabourManagementPage />} />
+              <Route path="/workforce/reports" element={<WorkforceReportsPage />} />
               <Route path="/workforce/:tab" element={<WorkforcePage />} />
 
               {/* Attendance & Leave Routes */}
+              <Route path="/attendance-leave/roster" element={<Navigate to="/workforce/shift-planning" replace />} />
               <Route path="/attendance-leave" element={<AttendanceLeavePage />} />
               <Route path="/attendance-leave/:tab" element={<AttendanceLeavePage />} />
               <Route path="/attendance_leave" element={<Navigate to="/attendance-leave" replace />} />
@@ -215,8 +230,8 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </CompanyProvider>
       </BrowserRouter>
-      </CompanyProvider>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );

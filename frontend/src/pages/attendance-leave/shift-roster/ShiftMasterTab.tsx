@@ -31,6 +31,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
 import { useShiftRosterStore } from './shiftRosterStore';
 import type { ShiftMasterItem, ShiftRuleConfig } from './shiftRosterStore';
+import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
+import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 
 // --- Time formatting & conversion helpers ---
 function time12To24(timeStr?: string): string {
@@ -342,6 +344,27 @@ export function ShiftMasterTab() {
   const user = useAuthStore((s) => s.user);
   const canManageShifts = isManagerOrHrOrAdmin(user);
   const { shifts, addShift, updateShift, deleteShift } = useShiftRosterStore();
+  const {
+    selectedBranch,
+    setSelectedBranch,
+    branches,
+    isBranchAdmin,
+    isSuperOrCompanyAdmin,
+    isHeadOfficeUser,
+    isBranchUser,
+    userAssignedBranchId,
+    assignedBranchName,
+    matchBranch,
+  } = useWorkforceBranch();
+
+  // Resolve the branchId to use when creating a new shift
+  const resolvedCreateBranchId: string | null = isBranchUser && userAssignedBranchId
+    ? userAssignedBranchId
+    : isHeadOfficeUser
+    ? null  // Head Office / No Branch
+    : selectedBranch === 'ALL' || selectedBranch === 'HEAD_OFFICE'
+    ? null
+    : (selectedBranch || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedShiftForRules, setSelectedShiftForRules] = useState<ShiftMasterItem | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
@@ -498,18 +521,23 @@ export function ShiftMasterTab() {
         colorTag,
         effectiveFrom: effectiveFrom || undefined,
         rules,
-      });
+      }, resolvedCreateBranchId);
     }
 
     setIsCreateModalOpen(false);
     resetForm();
   };
 
-  const filteredShifts = shifts.filter(
-    (s) =>
+  const filteredShifts = shifts.filter((s) => {
+    const matchesSearch =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.code.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      s.code.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesBranch = matchBranch({
+      branchId: (s as any).branchId,
+      branchName: (s as any).branchName,
+    });
+    return matchesSearch && matchesBranch;
+  });
 
   return (
     <div className="space-y-5">
@@ -543,7 +571,7 @@ export function ShiftMasterTab() {
             </CardDescription>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <div className="relative w-44 sm:w-56">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -554,6 +582,16 @@ export function ShiftMasterTab() {
                 className="h-8 pl-8 text-xs bg-background"
               />
             </div>
+
+            {/* Branch Filter (Matching Employee Master Page) */}
+            <WorkforceBranchFilter
+              isSuperOrCompanyAdmin={isSuperOrCompanyAdmin}
+              isBranchAdmin={isBranchAdmin}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              branches={branches}
+              assignedBranchName={assignedBranchName}
+            />
 
             {/* Create Shift Dialog */}
             {canManageShifts && (
