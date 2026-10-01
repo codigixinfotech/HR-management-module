@@ -503,11 +503,19 @@ export function ShiftChangesTab() {
     });
   }, [shiftChanges, searchQuery, statusFilter, canApproveOrManage, user, rosterEmployees, matchBranch]);
 
-  // Summary Metrics
+  // Summary Metrics (scoped by branch and user role)
   const metrics = useMemo(() => {
+    const branchRecords = shiftChanges.filter((sc) => {
+      const emp = rosterEmployees.find((e) => e.employeeCode === sc.employeeCode);
+      return matchBranch({
+        branchName: emp?.branch || (sc as any).branchName || sc.department,
+        location: emp?.branch,
+      });
+    });
+
     const records = canApproveOrManage
-      ? shiftChanges
-      : shiftChanges.filter((sc) => {
+      ? branchRecords
+      : branchRecords.filter((sc) => {
           const myCode = user?.employee?.employeeCode;
           const myId = user?.employee?.id;
           const myName = user?.employee?.fullName;
@@ -527,7 +535,7 @@ export function ShiftChangesTab() {
     const rejected = records.filter((s) => s.status === 'Rejected').length;
     const temporary = records.filter((s) => s.changeType === 'Temporary').length;
     return { total, pending, approved, rejected, temporary };
-  }, [shiftChanges, canApproveOrManage, user]);
+  }, [shiftChanges, rosterEmployees, matchBranch, canApproveOrManage, user]);
 
   return (
     <div className="space-y-5">
@@ -603,19 +611,33 @@ export function ShiftChangesTab() {
 
       {/* ── 3. Main Shift Modification Registry Card ── */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Clock className="h-4 w-4 text-primary" /> Shift Modification Registry
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Complete audit history of employee shift transition requests and approvals
-            </CardDescription>
+        <CardHeader className="pb-3 border-b border-border/60 space-y-3">
+          {/* Line 1: Title, Description & Action Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2 whitespace-nowrap">
+                <Clock className="h-4 w-4 text-primary shrink-0" />
+                Shift Modification Registry
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Complete audit history of employee shift transition requests and approvals
+              </CardDescription>
+            </div>
+
+            {/* Request Shift Change Button */}
+            <Button
+              size="sm"
+              className="h-8 text-xs px-3 gap-1.5 font-semibold shrink-0"
+              onClick={handleOpenCreate}
+            >
+              <Plus className="h-3.5 w-3.5" /> Request Shift Change
+            </Button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Line 2: Filter Toolbar in ONE line with normal spacing */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border/40">
             {/* Search Filter */}
-            <div className="relative w-44 sm:w-56">
+            <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
@@ -650,11 +672,6 @@ export function ShiftChangesTab() {
                 <SelectItem value="Permanent" className="text-xs">Permanent Only</SelectItem>
               </SelectContent>
             </Select>
-
-            {/* Request Shift Change Button */}
-            <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold" onClick={handleOpenCreate}>
-              <Plus className="h-3.5 w-3.5" /> Request Shift Change
-            </Button>
           </div>
         </CardHeader>
 

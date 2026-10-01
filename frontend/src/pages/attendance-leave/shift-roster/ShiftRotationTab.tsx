@@ -253,8 +253,15 @@ export function ShiftRotationTab() {
   // Master Data: Departments & Employees
   const [departmentsList, setDepartmentsList] = useState<string[]>([]);
   const [directoryEmployees, setDirectoryEmployees] = useState<any[]>([]);
+  const companyName = user?.company?.name || 'Company Headquarters';
 
-  const branchesList = ['Pune Manufacturing Plant', 'MIDC Unit 2', 'Corporate Headquarters'];
+  const branchesList = useMemo(() => {
+    if (branches && branches.length > 0) {
+      return branches.map((b) => b.name);
+    }
+    return ['Head Office'];
+  }, [branches]);
+
   const employeeGroupsList = [
     'Plant Shift Operations Crew',
     'Machine Operators & Technicians',
@@ -763,18 +770,33 @@ export function ShiftRotationTab() {
 
       {/* ── 2. Active Rotation Schedules Table ── */}
       <Card className="shadow-xs border-border/80">
-        <CardHeader className="pb-3 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-primary" /> Active Rotation Schedules
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Automated roster rolling policies, phase progression, and scheduled handovers
-            </CardDescription>
+        <CardHeader className="pb-3 border-b border-border/60 space-y-3">
+          {/* Line 1: Title, Description & Action Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2 whitespace-nowrap">
+                <RefreshCw className="h-4 w-4 text-primary shrink-0" />
+                Active Rotation Schedules
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Automated roster rolling policies, phase progression, and scheduled handovers
+              </CardDescription>
+            </div>
+
+            {canManageRotations && (
+              <Button
+                size="sm"
+                className="h-8 text-xs px-3 gap-1.5 font-semibold shrink-0"
+                onClick={handleOpenCreateModal}
+              >
+                <Plus className="h-3.5 w-3.5" /> New Rotation Rule
+              </Button>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative w-44 sm:w-56">
+          {/* Line 2: Filter Toolbar in ONE line with normal spacing */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border/40">
+            <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
@@ -794,12 +816,6 @@ export function ShiftRotationTab() {
               branches={branches}
               assignedBranchName={assignedBranchName}
             />
-
-            {canManageRotations && (
-              <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold" onClick={handleOpenCreateModal}>
-                <Plus className="h-3.5 w-3.5" /> New Rotation Rule
-              </Button>
-            )}
           </div>
         </CardHeader>
 
@@ -1430,7 +1446,7 @@ export function ShiftRotationTab() {
                         <Input
                           readOnly
                           disabled
-                          value="MONTANARI LIFTS COMPONENTS PVT. LTD – LIVE (All Personnel)"
+                          value={`${companyName} (All Personnel)`}
                           className="h-8 text-xs bg-muted text-foreground font-medium cursor-not-allowed truncate"
                         />
                       </div>

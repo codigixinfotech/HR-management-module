@@ -28,11 +28,11 @@ export class ShiftLifecycleService implements OnModuleInit {
   // 1. ROSTER ENGINE
   // ─────────────────────────────────────────────────────────────
   async getRoster(companyId?: string, startDate?: string, endDate?: string) {
-    // 1. Fetch real active employees strictly from Employee Master
+    // 1. Fetch real active employees strictly from Employee Master (including PROBATION and CONFIRMED)
     const employees = await this.prisma.employee.findMany({
       where: {
         ...(companyId ? { companyId } : {}),
-        status: 'ACTIVE',
+        status: { in: ['ACTIVE', 'PROBATION', 'NOTICE_PERIOD'] },
       },
       select: {
         id: true,
@@ -73,7 +73,7 @@ export class ShiftLifecycleService implements OnModuleInit {
     // 4. Fetch all active shift assignments from DB (Priority 1: Employee, Priority 2: Dept, Priority 3: Company)
     const assignments = await this.prisma.shiftAssignment.findMany({
       where: {
-        ...(companyId ? { companyId, employee: { companyId } } : {}),
+        ...(companyId ? { companyId } : {}),
         isActive: true,
       },
       include: {
@@ -307,14 +307,58 @@ export class ShiftLifecycleService implements OnModuleInit {
         }
 
         // ── 5. Weekly Off Policy ──
-        const isFactoryOrPlant =
-          emp.department?.name?.toLowerCase().includes('production') ||
-          emp.department?.name?.toLowerCase().includes('manufacturing') ||
-          emp.department?.name?.toLowerCase().includes('stores') ||
-          emp.department?.name?.toLowerCase().includes('warehouse');
+        // ── Resolve Assignment Hierarchy Early for Shift & Weekly Off ──
+        // Tier 1: Employee Override in Master
+        const empOverride = assignments.find((a) => {
+          if (a.tier !== 'EMPLOYEE') return false;
+          if (a.employeeId !== emp.id) return false;
+          const from = a.effectiveFrom ? new Date(a.effectiveFrom).toISOString().split('T')[0] : '';
+          const to = a.effectiveTo ? new Date(a.effectiveTo).toISOString().split('T')[0] : null;
+          if (from && dateStr < from) return false;
+          if (to && dateStr > to) return false;
+          return true;
+        });
 
+        // Tier 2: Department Baseline Assignment
+        const deptAsg = !empOverride
+          ? assignments.find((a) => {
+              if (a.tier !== 'DEPARTMENT') return false;
+              const matchesDept = Boolean(a.departmentId && a.departmentId === emp.department?.id);
+              if (!matchesDept) return false;
+              const from = a.effectiveFrom ? new Date(a.effectiveFrom).toISOString().split('T')[0] : '';
+              const to = a.effectiveTo ? new Date(a.effectiveTo).toISOString().split('T')[0] : null;
+              if (from && dateStr < from) return false;
+              if (to && dateStr > to) return false;
+              return true;
+            })
+          : null;
+
+        // Tier 3: Company Default Assignment
+        const compDefault =
+          !empOverride && !deptAsg
+            ? assignments.find((a) => a.tier === 'COMPANY' || (!a.employeeId && !a.departmentId))
+            : null;
+
+        const resolvedAssignment = empOverride || deptAsg || compDefault;
+        const assignedShift = resolvedAssignment?.shiftType || defaultShift;
+
+        // ── 5. Weekly Off Policy (resolved from shift rules or hospital standard) ──
         const dayOfWeek = new Date(dateStr).getDay(); // 0 = Sunday, 6 = Saturday
-        const isWeeklyOff = isFactoryOrPlant ? dayOfWeek === 0 : dayOfWeek === 0 || dayOfWeek === 6;
+        const rawWeeklyOff = assignedShift?.weeklyOffDays;
+        let isWeeklyOff = false;
+        if (rawWeeklyOff) {
+          const offDays = (Array.isArray(rawWeeklyOff) ? rawWeeklyOff : String(rawWeeklyOff).split(',')).map((d: string) => d.trim().toLowerCase());
+          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          const currentDayName = dayNames[dayOfWeek];
+          isWeeklyOff = offDays.includes(currentDayName);
+        } else {
+          const isFactoryOrPlant =
+            emp.department?.name?.toLowerCase().includes('production') ||
+            emp.department?.name?.toLowerCase().includes('manufacturing') ||
+            emp.department?.name?.toLowerCase().includes('stores') ||
+            emp.department?.name?.toLowerCase().includes('warehouse');
+          isWeeklyOff = isFactoryOrPlant ? dayOfWeek === 0 : dayOfWeek === 0 || dayOfWeek === 6;
+        }
 
         if (isWeeklyOff) {
           slots[dateStr] = {
@@ -382,25 +426,25 @@ export class ShiftLifecycleService implements OnModuleInit {
                 name:
                   phaseCode === 'MS'
                     ? 'Morning Shift'
-                    : phaseCode === 'ES'
+                    : phaseCode === 'ES' || phaseCode === 'E'
                     ? 'Evening Shift'
-                    : phaseCode === 'NS'
+                    : phaseCode === 'NS' || phaseCode === 'N'
                     ? 'Night Shift'
                     : 'General Shift',
                 startTime:
                   phaseCode === 'MS'
                     ? '08:00 AM'
-                    : phaseCode === 'ES'
+                    : phaseCode === 'ES' || phaseCode === 'E'
                     ? '04:00 PM'
-                    : phaseCode === 'NS'
+                    : phaseCode === 'NS' || phaseCode === 'N'
                     ? '10:00 PM'
                     : '09:00 AM',
                 endTime:
                   phaseCode === 'MS'
                     ? '04:30 PM'
-                    : phaseCode === 'ES'
+                    : phaseCode === 'ES' || phaseCode === 'E'
                     ? '12:30 AM'
-                    : phaseCode === 'NS'
+                    : phaseCode === 'NS' || phaseCode === 'N'
                     ? '06:30 AM'
                     : '05:30 PM',
               };
@@ -422,45 +466,13 @@ export class ShiftLifecycleService implements OnModuleInit {
         }
 
         // ── 8. Default Shift Assignment (Department / Company Default) ──
-        // Tier 1: Employee Override in Master
-        const empOverride = assignments.find((a) => {
-          if (a.tier !== 'EMPLOYEE') return false;
-          if (a.employeeId !== emp.id) return false;
-          const from = a.effectiveFrom ? new Date(a.effectiveFrom).toISOString().split('T')[0] : '';
-          const to = a.effectiveTo ? new Date(a.effectiveTo).toISOString().split('T')[0] : null;
-          if (from && dateStr < from) return false;
-          if (to && dateStr > to) return false;
-          return true;
-        });
-
-        // Tier 2: Department Baseline Assignment
-        const deptAsg = !empOverride
-          ? assignments.find((a) => {
-              if (a.tier !== 'DEPARTMENT') return false;
-              const matchesDept = Boolean(a.departmentId && a.departmentId === emp.department?.id);
-              if (!matchesDept) return false;
-              const from = a.effectiveFrom ? new Date(a.effectiveFrom).toISOString().split('T')[0] : '';
-              const to = a.effectiveTo ? new Date(a.effectiveTo).toISOString().split('T')[0] : null;
-              if (from && dateStr < from) return false;
-              if (to && dateStr > to) return false;
-              return true;
-            })
-          : null;
-
-        // Tier 3: Company Default Assignment
-        const compDefault =
-          !empOverride && !deptAsg
-            ? assignments.find((a) => a.tier === 'COMPANY' || (!a.employeeId && !a.departmentId))
-            : null;
-
-        const resolvedAssignment = empOverride || deptAsg || compDefault;
-        const assignedShift = resolvedAssignment?.shiftType || defaultShift;
+        const slotStatus = dbSlot?.status || 'Draft';
 
         slots[dateStr] = {
           shiftCode: assignedShift.code,
           shiftName: assignedShift.name,
           timing: `${assignedShift.startTime} - ${assignedShift.endTime}`,
-          status: 'Published',
+          status: slotStatus,
           isCustomOverride: Boolean(empOverride),
           source: empOverride ? 'Manual Override' : deptAsg ? 'Department Assignment' : 'Base Schedule',
           sourceBadge: empOverride ? 'MANUAL' : undefined,
@@ -601,9 +613,10 @@ export class ShiftLifecycleService implements OnModuleInit {
       now
     );
 
-    // Finalize all Draft schedules to Published
+    // Finalize all Draft schedules to Published for this company
     await this.prisma.$executeRawUnsafe(
-      `UPDATE shift_roster_schedules SET status = 'Published', updatedAt = NOW(3) WHERE status = 'Draft'`
+      `UPDATE shift_roster_schedules SET status = 'Published', updatedAt = NOW(3) WHERE status = 'Draft' AND companyId = ?`,
+      dto.companyId
     );
 
     return { success: true, id, status: 'Published' };
