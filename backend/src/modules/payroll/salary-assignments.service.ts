@@ -80,6 +80,18 @@ export class SalaryAssignmentsService {
 
     const { details, ...data } = dto;
 
+    // Verify salary component IDs exist to guarantee foreign key constraint safety
+    let validDetails = details;
+    if (details && details.length > 0) {
+      const allCompIds = details.map((d) => d.salaryComponentId).filter(Boolean);
+      const existingComps = await this.prisma.salaryComponent.findMany({
+        where: { id: { in: allCompIds } },
+        select: { id: true },
+      });
+      const validSet = new Set(existingComps.map((c) => c.id));
+      validDetails = details.filter((d) => validSet.has(d.salaryComponentId));
+    }
+
     const assignment = await this.prisma.employeeSalaryAssignment.create({
       data: {
         ...data,
@@ -89,9 +101,9 @@ export class SalaryAssignmentsService {
         previousCtc,
         newCtc: dto.annualCtc,
         increasePercentage,
-        details: details
+        details: validDetails && validDetails.length > 0
           ? {
-              create: details.map((d) => ({
+              create: validDetails.map((d) => ({
                 salaryComponentId: d.salaryComponentId,
                 monthlyAmount: d.monthlyAmount,
                 annualAmount: d.annualAmount || d.monthlyAmount * 12,
@@ -105,8 +117,8 @@ export class SalaryAssignmentsService {
     });
 
     // Also sync to legacy employee_salary_components for 100% backward compatibility
-    if (details && details.length > 0) {
-      for (const d of details) {
+    if (validDetails && validDetails.length > 0) {
+      for (const d of validDetails) {
         await this.prisma.employeeSalaryComponent.upsert({
           where: {
             employeeId_salaryComponentId: {

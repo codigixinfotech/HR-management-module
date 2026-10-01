@@ -17,21 +17,114 @@ export class SalaryTemplatesService {
 
   private formatTemplate(template: any) {
     if (!template) return template;
-    const match = template.description?.match(/^\[GRADE:([^:]+):([^:]*):([^\]]*)\]\s*(.*)/s);
-    if (match) {
-      return {
-        ...template,
-        gradeCode: match[1],
-        gradeName: match[2],
-        gradeId: match[3],
-        description: match[4] || '',
-      };
+    let desc = template.description || '';
+    let branchId = template.branchId;
+    let branchName = template.branchName;
+    let departmentId = template.departmentId;
+    let departmentName = template.departmentName;
+    let designationId = template.designationId;
+    let designationTitle = template.designationTitle;
+    let gradeCode = template.gradeCode;
+    let gradeName = template.gradeName;
+    let gradeId = template.gradeId;
+
+    const branchMatch = desc.match(/\[BRANCH:([^:]*):([^\]]*)\]/);
+    if (branchMatch) {
+      branchId = branchMatch[1] || undefined;
+      branchName = branchMatch[2] || undefined;
+      desc = desc.replace(branchMatch[0], '').trim();
     }
+
+    const deptMatch = desc.match(/\[DEPT:([^:]*):([^\]]*)\]/);
+    if (deptMatch) {
+      departmentId = deptMatch[1] || undefined;
+      departmentName = deptMatch[2] || undefined;
+      desc = desc.replace(deptMatch[0], '').trim();
+    }
+
+    const desgMatch = desc.match(/\[DESG:([^:]*):([^\]]*)\]/);
+    if (desgMatch) {
+      designationId = desgMatch[1] || undefined;
+      designationTitle = desgMatch[2] || undefined;
+      desc = desc.replace(desgMatch[0], '').trim();
+    }
+
+    const gradeMatch = desc.match(/\[GRADE:([^:]+):([^:]*):([^\]]*)\]/);
+    if (gradeMatch) {
+      gradeCode = gradeMatch[1];
+      gradeName = gradeMatch[2];
+      gradeId = gradeMatch[3];
+      desc = desc.replace(gradeMatch[0], '').trim();
+    }
+
+    let balancing = 'SPECIAL_ALLOW';
+    const balMatch = desc.match(/\[BALANCING:([^\]]+)\]/);
+    if (balMatch) {
+      balancing = balMatch[1];
+      desc = desc.replace(balMatch[0], '').trim();
+    }
+
+    let minCtc = 300000;
+    const minMatch = desc.match(/\[MIN:([0-9]+)\]/);
+    if (minMatch) {
+      minCtc = Number(minMatch[1]);
+      desc = desc.replace(minMatch[0], '').trim();
+    }
+
+    let maxCtc = 1500000;
+    const maxMatch = desc.match(/\[MAX:([0-9]+)\]/);
+    if (maxMatch) {
+      maxCtc = Number(maxMatch[1]);
+      desc = desc.replace(maxMatch[0], '').trim();
+    }
+
+    let level = 'L1';
+    const lvlMatch = desc.match(/\[LEVEL:([^\]]+)\]/);
+    if (lvlMatch) {
+      level = lvlMatch[1];
+      desc = desc.replace(lvlMatch[0], '').trim();
+    }
+
+    let category = 'Corporate & Tech';
+    const catMatch = desc.match(/\[CAT:([^\]]+)\]/);
+    if (catMatch) {
+      category = catMatch[1];
+      desc = desc.replace(catMatch[0], '').trim();
+    }
+
+    let industry = 'IT';
+    const indMatch = desc.match(/\[IND:([^\]]+)\]/);
+    if (indMatch) {
+      industry = indMatch[1];
+      desc = desc.replace(indMatch[0], '').trim();
+    }
+
+    let employmentType = template.employmentType || 'PERMANENT';
+    const empMatch = desc.match(/\[EMP:([^\]]+)\]/);
+    if (empMatch) {
+      employmentType = empMatch[1];
+      desc = desc.replace(empMatch[0], '').trim();
+    }
+
     return {
       ...template,
-      gradeCode: template.gradeCode || 'G3',
-      gradeName: template.gradeName || 'Senior Professional',
-      gradeId: template.gradeId || 'grade-g3',
+      branchId: branchId || undefined,
+      branchName: branchName || undefined,
+      departmentId: departmentId || undefined,
+      departmentName: departmentName || undefined,
+      designationId: designationId || undefined,
+      designationTitle: designationTitle || undefined,
+      gradeCode: gradeCode || 'G3',
+      gradeName: gradeName || 'Senior Professional',
+      gradeId: gradeId || 'grade-g3',
+      level,
+      employmentType,
+      category,
+      industry,
+      balancingComponentCode: balancing,
+      minCtc,
+      maxCtc,
+      description: desc,
     };
   }
 
@@ -72,7 +165,7 @@ export class SalaryTemplatesService {
     }
 
     let description = data.description || '';
-    if (gradeCode) {
+    if (gradeCode && !description.includes('[GRADE:')) {
       description = `[GRADE:${gradeCode}:${gradeName || ''}:${gradeId || ''}] ${description}`.trim();
     }
 
@@ -81,12 +174,27 @@ export class SalaryTemplatesService {
     if (items && items.length > 0) {
       for (let idx = 0; idx < items.length; idx++) {
         const item = items[idx];
-        let comp = await this.prisma.salaryComponent.findUnique({
-          where: { id: item.salaryComponentId },
-        });
+        let comp: any = null;
+        if (item.salaryComponentId) {
+          comp = await this.prisma.salaryComponent.findUnique({
+            where: { id: item.salaryComponentId },
+          }).catch(() => null);
+        }
+
+        if (!comp && item.salaryComponentId) {
+          comp = await this.prisma.salaryComponent.findFirst({
+            where: { companyId, code: item.salaryComponentId },
+          });
+        }
+
+        if (!comp && (item as any).componentCode) {
+          comp = await this.prisma.salaryComponent.findFirst({
+            where: { companyId, code: (item as any).componentCode },
+          });
+        }
 
         if (!comp) {
-          // If mock id or deleted, resolve any matching component in company
+          // If still not found, resolve any matching component in company
           comp = await this.prisma.salaryComponent.findFirst({
             where: { companyId },
           });
@@ -147,9 +255,24 @@ export class SalaryTemplatesService {
       resolvedItems = [];
       for (let idx = 0; idx < items.length; idx++) {
         const item = items[idx];
-        let comp = await this.prisma.salaryComponent.findUnique({
-          where: { id: item.salaryComponentId },
-        });
+        let comp: any = null;
+        if (item.salaryComponentId) {
+          comp = await this.prisma.salaryComponent.findUnique({
+            where: { id: item.salaryComponentId },
+          }).catch(() => null);
+        }
+
+        if (!comp && item.salaryComponentId) {
+          comp = await this.prisma.salaryComponent.findFirst({
+            where: { companyId: currentTmpl.companyId, code: item.salaryComponentId },
+          });
+        }
+
+        if (!comp && (item as any).componentCode) {
+          comp = await this.prisma.salaryComponent.findFirst({
+            where: { companyId: currentTmpl.companyId, code: (item as any).componentCode },
+          });
+        }
 
         if (!comp) {
           comp = await this.prisma.salaryComponent.findFirst({

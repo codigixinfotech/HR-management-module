@@ -7,6 +7,8 @@ import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EmptyState } from '@/components/ui/empty-state';
 
+import { useCompany } from '@/context/CompanyContext';
+
 // Import subpages
 import { SalaryStructureTab } from './SalaryStructureTab';
 import { PayrollProcessingTab } from './PayrollProcessingTab';
@@ -33,8 +35,9 @@ export default function PayrollPage() {
   const [searchParams] = useSearchParams();
   const activeTab = routeTab || searchParams.get('tab') || 'dashboard';
 
+  const { activeCompanyId } = useCompany();
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: companiesApi.list });
-  const companyId = companies?.[0]?.id;
+  const companyId = activeCompanyId || companies?.[0]?.id;
 
   const { data: runs } = useQuery({
     queryKey: ['payroll-runs', companyId],
@@ -56,48 +59,49 @@ export default function PayrollPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={Wallet}
-        title="Payroll Processing Engine"
-        description="Manage salary components, automated payroll calculation, statutory deductions and payslips"
-        badge={latestRun ? `${MONTH_NAMES[latestRun.month - 1]} ${latestRun.year} - ${latestRun.status}` : 'No runs yet'}
-        badgeVariant={latestRun ? RUN_STATUS_BADGE_VARIANT[latestRun.status] ?? 'info' : 'secondary'}
-      />
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          icon={DollarSign}
-          label="Latest Run Gross"
-          value={`₹${grossTotal.toLocaleString('en-IN')}`}
-          hint={latestRun ? `${MONTH_NAMES[latestRun.month - 1]} ${latestRun.year}` : 'Process a run to see totals'}
-          accent="primary"
-        />
-        <StatCard
-          icon={Building}
-          label="Statutory Deductions (PF/ESIC/PT)"
-          value={`₹${statutoryTotal.toLocaleString('en-IN')}`}
-          hint="Computed automatically on processing"
-          accent="warning"
-        />
-        <StatCard
-          icon={Wallet}
-          label="Net Payout"
-          value={`₹${netTotal.toLocaleString('en-IN')}`}
-          hint={latestRun?.status ?? '-'}
-          accent="success"
-        />
-        <StatCard
-          icon={FileText}
-          label="Payslips Generated"
-          value={latestRun?._count?.payslips ?? 0}
-          hint="In the latest processed run"
-          accent="info"
-        />
-      </div>
-
-      {/* Render Dedicated Subpage based on activeTab */}
+      {/* Show Engine Overview Header & Stats only on dashboard view */}
       {activeTab === 'dashboard' && (
-        <div className="space-y-4">
+        <>
+          <PageHeader
+            icon={Wallet}
+            title="Payroll Processing Engine"
+            description="Manage salary components, automated payroll calculation, statutory deductions and payslips"
+            badge={latestRun ? `${MONTH_NAMES[latestRun.month - 1]} ${latestRun.year} - ${latestRun.status}` : 'No runs yet'}
+            badgeVariant={latestRun ? RUN_STATUS_BADGE_VARIANT[latestRun.status] ?? 'info' : 'secondary'}
+          />
+
+          <div className="grid gap-4 md:grid-cols-4">
+            <StatCard
+              icon={DollarSign}
+              label="Latest Run Gross"
+              value={`₹${grossTotal.toLocaleString('en-IN')}`}
+              hint={latestRun ? `${MONTH_NAMES[latestRun.month - 1]} ${latestRun.year}` : 'Process a run to see totals'}
+              accent="primary"
+            />
+            <StatCard
+              icon={Building}
+              label="Statutory Deductions (PF/ESIC/PT)"
+              value={`₹${statutoryTotal.toLocaleString('en-IN')}`}
+              hint="Computed automatically on processing"
+              accent="warning"
+            />
+            <StatCard
+              icon={Wallet}
+              label="Net Payout"
+              value={`₹${netTotal.toLocaleString('en-IN')}`}
+              hint={latestRun?.status ?? '-'}
+              accent="success"
+            />
+            <StatCard
+              icon={FileText}
+              label="Payslips Generated"
+              value={latestRun?._count?.payslips ?? 0}
+              hint="In the latest processed run"
+              accent="info"
+            />
+          </div>
+
+          <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Snapshot of the most recently processed payroll run. Select options from the sidebar to manage salary structures,
             process new runs, and review payslips and reports.
@@ -127,6 +131,7 @@ export default function PayrollPage() {
             />
           )}
         </div>
+        </>
       )}
 
       {activeTab === 'structure' && <SalaryStructureTab companyId={companyId} />}
@@ -135,15 +140,15 @@ export default function PayrollPage() {
 
       {activeTab === 'payslips' && <PayslipsTab companyId={companyId} />}
 
+      {activeTab === 'bank-transfer' && <BankTransferTab />}
+
+      {activeTab === 'reports' && <PayrollReportsTab companyId={companyId} />}
+
       {activeTab === 'revision' && <SalaryRevisionTab />}
 
       {activeTab === 'loans' && <LoansAdvancesTab />}
 
       {activeTab === 'reimbursements' && <ReimbursementsTab />}
-
-      {activeTab === 'bank-transfer' && <BankTransferTab />}
-
-      {activeTab === 'reports' && <PayrollReportsTab companyId={companyId} />}
     </div>
   );
 }

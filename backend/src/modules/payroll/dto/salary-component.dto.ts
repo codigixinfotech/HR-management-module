@@ -73,6 +73,42 @@ export class CreateSalaryComponentDto {
 
   @IsOptional()
   @IsBoolean()
+  proRateOnLop?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isLwfApplicable?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isGratuityApplicable?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isSystem?: boolean;
+
+  @IsOptional()
+  @IsString()
+  formula?: string;
+
+  @IsOptional()
+  @IsString()
+  frequency?: string;
+
+  @IsOptional()
+  @IsNumber()
+  displayOrder?: number;
+
+  @IsOptional()
+  @IsString()
+  roundingRule?: string;
+
+  @IsOptional()
+  @IsString()
+  effectiveFrom?: string;
+
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
 

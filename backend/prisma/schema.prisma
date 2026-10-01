@@ -1752,7 +1752,7 @@ model SalaryStructureTemplate {
   companyId       String
   name            String
   code            String
-  description     String?
+  description     String?  @db.Text
   currency        String   @default("INR")
   payFrequency    String   @default("MONTHLY")
   isActive        Boolean  @default(true)
