@@ -102,12 +102,29 @@ export function WorkforceBranchProvider({
       location?: string | null;
       line?: string | null;
     }): boolean => {
+      // Helper function to safely match two branch names without false partial matches
+      const isNameMatch = (nameA?: string | null, nameB?: string | null): boolean => {
+        if (!nameA || !nameB) return false;
+        const a = nameA.trim().toLowerCase();
+        const b = nameB.trim().toLowerCase();
+        if (a === b) return true;
+        if (a.length > 5 && b.length > 5) {
+          if (a.includes(b) || b.includes(a)) {
+            const lastA = a.match(/[a-z0-9]$/)?.[0];
+            const lastB = b.match(/[a-z0-9]$/)?.[0];
+            if (lastA && lastB && lastA !== lastB) return false;
+            return true;
+          }
+        }
+        return false;
+      };
+
       // 1. Branch User (e.g. Cravita B or Cravita C) is strictly scoped to their assigned branch
       if (isBranchUser && userAssignedBranchId) {
         if (item.branchId) return item.branchId === userAssignedBranchId;
         if (item.branch?.id) return item.branch.id === userAssignedBranchId;
         if (assignedBranch && item.branchName) {
-          return item.branchName.toLowerCase().includes(assignedBranch.name.toLowerCase().slice(0, 4));
+          return isNameMatch(item.branchName, assignedBranch.name);
         }
         return false;
       }
@@ -133,11 +150,11 @@ export function WorkforceBranchProvider({
           !rawLocation.includes('main') &&
           !rawLocation.includes('hq')
         ) {
-          const isOtherBranch = branches.some(
-            (b) =>
-              !b.name.toLowerCase().includes('head') &&
-              rawLocation.includes(b.name.toLowerCase().slice(0, 4))
-          );
+          const isOtherBranch = branches.some((b) => {
+            const bName = b.name.toLowerCase().trim();
+            if (bName.includes('head') || bName.includes('corporate') || bName.includes('main') || bName.includes('hq')) return false;
+            return isNameMatch(rawLocation, bName);
+          });
           if (isOtherBranch) return false;
         }
         return true;
@@ -167,11 +184,11 @@ export function WorkforceBranchProvider({
           !rawLocation.includes('main') &&
           !rawLocation.includes('hq')
         ) {
-          const isOtherBranch = branches.some(
-            (b) =>
-              !b.name.toLowerCase().includes('head') &&
-              rawLocation.includes(b.name.toLowerCase().slice(0, 4))
-          );
+          const isOtherBranch = branches.some((b) => {
+            const bName = b.name.toLowerCase().trim();
+            if (bName.includes('head') || bName.includes('corporate') || bName.includes('main') || bName.includes('hq')) return false;
+            return isNameMatch(rawLocation, bName);
+          });
           if (isOtherBranch) return false;
         }
         return true;
@@ -179,14 +196,14 @@ export function WorkforceBranchProvider({
 
       // Specific branch selected by Super Admin
       const selectedBranchObj = branches.find((b) => b.id === selectedBranch);
-      const targetName = (selectedBranchObj?.name || '').toLowerCase();
+      const targetName = selectedBranchObj?.name || '';
 
       if (item.branchId && item.branchId === selectedBranch) return true;
       if (item.branch?.id && item.branch.id === selectedBranch) return true;
 
       if (targetName) {
-        const itemName = (item.branchName || item.branch?.name || item.location || item.line || '').toLowerCase();
-        if (itemName && itemName.includes(targetName.slice(0, 4))) return true;
+        const itemName = item.branchName || item.branch?.name || item.location || item.line || '';
+        if (itemName && isNameMatch(itemName, targetName)) return true;
       }
 
       return false;

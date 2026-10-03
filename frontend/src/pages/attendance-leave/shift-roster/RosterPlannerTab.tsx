@@ -49,6 +49,24 @@ function time24To12(time24?: string): string {
   return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
 }
 
+export function formatTiming12Hour(timingStr?: string): string {
+  if (!timingStr) return '';
+  const trimmed = timingStr.trim();
+  if (/AM|PM/i.test(trimmed)) return trimmed;
+  if (['Holiday', 'Rest Day', 'On Leave', 'Standard Hours', 'Half Day Leave'].includes(trimmed)) {
+    return trimmed;
+  }
+  const parts = trimmed.split(/[-–—]/);
+  if (parts.length === 2) {
+    const startFormatted = time24To12(parts[0].trim());
+    const endFormatted = time24To12(parts[1].trim());
+    if (startFormatted && endFormatted) {
+      return `${startFormatted} – ${endFormatted}`;
+    }
+  }
+  return trimmed;
+}
+
 // Multi-Week Scheduled Periods
 const SCHEDULED_WEEKS = [
   {
@@ -441,7 +459,7 @@ export function RosterPlannerTab() {
 
     if (!canManageRoster) {
       toast.info(
-        `${existing?.shiftName || 'Scheduled'}: ${existing?.timing || 'Standard Hours'} (Source: ${existing?.source || 'Base Schedule'})`
+        `${existing?.shiftName || 'Scheduled'}: ${formatTiming12Hour(existing?.timing) || 'Standard Hours'} (Source: ${existing?.source || 'Base Schedule'})`
       );
       return;
     }
@@ -506,7 +524,7 @@ export function RosterPlannerTab() {
       cellData = {
         shiftCode: s.code,
         shiftName: s.name,
-        timing: `${s.startTime} - ${s.endTime}`,
+        timing: s ? `${time24To12(s.startTime)} – ${time24To12(s.endTime)}` : '09:00 AM – 05:30 PM',
         status: 'Draft',
         isCustomOverride: true,
         overrideReason,
@@ -1271,22 +1289,22 @@ export function RosterPlannerTab() {
                         : 'bg-emerald-600'
                     }`}
                   />{' '}
-                  {s.code} ({s.startTime}–{s.endTime})
+                  {s.code} ({time24To12(s.startTime)} – {time24To12(s.endTime)})
                 </span>
               ))
             ) : (
               <>
                 <span className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" /> GS (09:00–17:30)
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" /> GS (09:00 AM – 05:30 PM)
                 </span>
                 <span className="flex items-center gap-1 text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" /> MS (08:00–16:30)
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" /> MS (07:00 AM – 03:00 PM)
                 </span>
                 <span className="flex items-center gap-1 text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-purple-600" /> ES (16:00–00:00)
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-600" /> E (03:00 PM – 11:00 PM)
                 </span>
                 <span className="flex items-center gap-1 text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-600" /> NS (22:00–06:30)
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-600" /> N (11:00 PM – 07:00 AM)
                 </span>
               </>
             )}
@@ -1398,15 +1416,15 @@ export function RosterPlannerTab() {
                             isSwap
                               ? `Approved Shift Swap with ${cell?.swapDetails?.partnerName} — Click to inspect audit trail`
                               : canManageRoster
-                              ? 'Click to modify allocation'
-                              : `${cell?.shiftName || 'Shift'} (Source: ${cell?.source || 'Base Schedule'})`
+                              ? `Click to modify allocation (${formatTiming12Hour(cell?.timing)})`
+                              : `${cell?.shiftName || 'Shift'} (${formatTiming12Hour(cell?.timing)})`
                           }
                         >
                           <div className="flex flex-col items-center justify-center min-h-[50px]">
                             {getShiftBadge(cell)}
                             {cell?.timing && (
                               <span className="text-[9px] font-mono text-muted-foreground mt-1">
-                                {cell.timing}
+                                {formatTiming12Hour(cell.timing)}
                               </span>
                             )}
                             {cell?.isCustomOverride && !isSwap && !cell?.isApprovedShiftChange && (
@@ -1476,7 +1494,7 @@ export function RosterPlannerTab() {
                   🔄 {activeSwapTarget?.cell?.swapDetails?.swappedShift || activeSwapTarget?.cell?.shiftName || 'GS – General Shift'}
                 </p>
                 <p className="text-[10px] font-mono text-muted-foreground">
-                  {activeSwapTarget?.cell?.timing || '09:00 AM – 05:30 PM'}
+                  {formatTiming12Hour(activeSwapTarget?.cell?.timing) || '09:00 AM – 05:30 PM'}
                 </p>
               </div>
             </div>
@@ -1581,7 +1599,7 @@ export function RosterPlannerTab() {
               <div className="pt-1 mt-1 border-t border-border/40 flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">Current Allocation:</span>
                 <span className="font-semibold text-foreground">
-                  {activeCellTarget?.currentCell?.shiftName || 'Unassigned'} ({activeCellTarget?.currentCell?.timing || 'Rest Day'})
+                  {activeCellTarget?.currentCell?.shiftName || 'Unassigned'} ({formatTiming12Hour(activeCellTarget?.currentCell?.timing) || 'Rest Day'})
                 </span>
               </div>
             </div>

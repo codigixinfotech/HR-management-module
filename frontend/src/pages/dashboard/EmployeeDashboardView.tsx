@@ -3,15 +3,19 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAttendanceRequestsStore } from '@/stores/attendance-requests-store';
+import { useCompany } from '@/context/CompanyContext';
 import { attendanceApi } from '@/api/attendance-leave';
 import { employeesApi } from '@/api/employees';
 import { tasksApi } from '@/api/tasks';
+import { useShiftRosterStore } from '@/pages/attendance-leave/shift-roster/shiftRosterStore';
 import {
   Brain,
   CheckCircle2,
   Clock,
   MapPin,
   CalendarClock,
+  CalendarDays,
+  RefreshCw,
   CheckSquare,
   User,
   Building2,
@@ -32,6 +36,25 @@ import { VerificationDetailsModal } from '@/components/attendance/VerificationDe
 import { EditAttendanceRequestModal } from '@/components/attendance/EditAttendanceRequestModal';
 import { FileSignature } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+
+function formatTiming12Hour(timingStr?: string): string {
+  if (!timingStr) return '';
+  const parts = timingStr.split(/[-–—]/).map((p) => p.trim());
+  if (parts.length !== 2) return timingStr;
+
+  const to12h = (t: string) => {
+    if (/am|pm/i.test(t)) return t;
+    const [hStr, mStr] = t.split(':');
+    const h = parseInt(hStr, 10);
+    const m = mStr !== undefined ? parseInt(mStr, 10) : 0;
+    if (isNaN(h)) return t;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+  };
+
+  return `${to12h(parts[0])} – ${to12h(parts[1])}`;
+}
 
 export function EmployeeDashboardView() {
   const navigate = useNavigate();
@@ -83,6 +106,72 @@ export function EmployeeDashboardView() {
     queryKey: ['my-assigned-tasks', user?.employee?.id],
     queryFn: () => tasksApi.myTasks({ employeeId: user?.employee?.id }),
   });
+
+  const { activeCompanyId } = useCompany();
+
+  // Shift Roster Store data for employee's shift telemetry
+  const shifts = useShiftRosterStore((s) => s.shifts);
+  const rosterEmployees = useShiftRosterStore((s) => s.rosterEmployees);
+  const rotations = useShiftRosterStore((s) => s.rotations);
+  const fetchData = useShiftRosterStore((s) => s.fetchData);
+
+  useEffect(() => {
+    if (activeCompanyId) {
+      fetchData(activeCompanyId);
+    }
+  }, [activeCompanyId, fetchData]);
+
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  const currentEmployee = useMemo(() => {
+    const myId = user?.employee?.id;
+    const myCode = (user?.employee?.employeeCode || empCode).toLowerCase();
+    const myName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim().toLowerCase() : '';
+    const firstName = user?.employee?.firstName?.toLowerCase() || '';
+
+    return (
+      rosterEmployees.find((e) => {
+        if (myId && e.employeeId === myId) return true;
+        if (myCode && e.employeeCode?.toLowerCase() === myCode) return true;
+        if (myName && e.name?.toLowerCase() === myName) return true;
+        if (firstName && e.name?.toLowerCase().includes(firstName)) return true;
+        return false;
+      }) || rosterEmployees[0]
+    );
+  }, [user, empCode, rosterEmployees]);
+
+  const todayShiftInfo = useMemo(() => {
+    const slot = currentEmployee?.slots?.[todayStr];
+    if (slot) {
+      const matchedShift = shifts.find(
+        (s) => s.code?.toLowerCase() === (slot.shiftCode || '').toLowerCase()
+      );
+      const rawTiming = matchedShift ? `${matchedShift.startTime} - ${matchedShift.endTime}` : slot.timing;
+      return {
+        code: slot.shiftCode || 'MS',
+        name: slot.shiftName || matchedShift?.name || 'Morning Shift',
+        timing: formatTiming12Hour(rawTiming) || '07:00 AM – 03:00 PM',
+        status: slot.status || 'Published',
+        phase: slot.rotationPhase || 1,
+      };
+    }
+
+    const msShift = shifts.find((s) => s.code === 'MS');
+    const msTiming = msShift ? `${msShift.startTime} - ${msShift.endTime}` : '07:00 - 15:00';
+    return {
+      code: 'MS',
+      name: msShift?.name || 'Morning Shift',
+      timing: formatTiming12Hour(msTiming) || '07:00 AM – 03:00 PM',
+      status: 'Published',
+      phase: 1,
+    };
+  }, [currentEmployee, todayStr, shifts]);
 
   const assignedTasks = tasksData?.items || [
     {
@@ -241,6 +330,16 @@ export function EmployeeDashboardView() {
               variant="outline"
               size="sm"
               asChild
+              className="font-semibold text-xs gap-1.5 border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary"
+            >
+              <Link to="/workforce/shift-planning">
+                <CalendarClock className="h-3.5 w-3.5" /> Shift Planning & Roster
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
               className="font-semibold text-xs gap-1"
             >
               <Link to="/attendance-leave/leave?tab=apply">
@@ -287,8 +386,44 @@ export function EmployeeDashboardView() {
         </Card>
       )}
 
-      {/* ── 2. Today's Attendance & Verification Telemetry ── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* ── 2. Today's Attendance & Shift Telemetry ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Today's Shift & Roster Card */}
+        <Card className="border-border/80 shadow-2xs hover:border-primary/40 transition-colors">
+          <CardHeader className="pb-3 border-b border-border/60">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 text-primary" /> Today's Shift
+              </CardTitle>
+              <Badge className="bg-primary text-primary-foreground font-bold text-[10px]">
+                {todayShiftInfo.code}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 space-y-3">
+            <div className="p-3 rounded-xl bg-primary/10 border border-primary/20">
+              <span className="text-[10.5px] font-semibold text-muted-foreground uppercase">Assigned Timing</span>
+              <p className="text-base font-bold text-foreground mt-0.5 truncate">
+                {todayShiftInfo.timing}
+              </p>
+              <p className="text-[10px] text-primary font-semibold mt-1">
+                {todayShiftInfo.name} &bull; Phase {todayShiftInfo.phase}
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="w-full text-xs font-semibold gap-1.5 text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
+            >
+              <Link to="/workforce/shift-planning">
+                <CalendarDays className="h-3.5 w-3.5" /> View Roster & Schedule
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* Today's Punch Card */}
         <Card className="border-border/80 shadow-2xs">
           <CardHeader className="pb-3 border-b border-border/60">

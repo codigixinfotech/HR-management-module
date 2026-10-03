@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   GitPullRequest,
@@ -27,6 +27,11 @@ import {
   Check,
   X,
   Filter,
+  Paperclip,
+  FileBadge,
+  Trash2,
+  ImageIcon,
+  FileCheck,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,6 +62,7 @@ import { useShiftRosterStore } from './shiftRosterStore';
 import type { ShiftChangeRequest, ShiftChangeStatus } from './shiftRosterStore';
 import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
 import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
+import { useCompany } from '@/context/CompanyContext';
 
 // Format date e.g. "15 Sep 2026"
 function formatDisplayDate(dateStr?: string): string {
@@ -109,11 +115,22 @@ export function ShiftChangesTab() {
     assignments,
     rotations,
     rosterEmployees,
+    fetchData,
     submitShiftChange,
     updateShiftChange,
     cancelShiftChange,
     resolveShiftChange,
   } = useShiftRosterStore();
+
+  const { activeCompanyId } = useCompany();
+
+  // Always fetch data when the tab mounts or company changes
+  useEffect(() => {
+    if (activeCompanyId) {
+      fetchData(activeCompanyId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCompanyId]);
 
   const {
     selectedBranch,
@@ -138,11 +155,13 @@ export function ShiftChangesTab() {
   const [selectedEmployeeName, setSelectedEmployeeName] = useState<string>('');
   const [selectedEmployeeDept, setSelectedEmployeeDept] = useState<string>('Production');
   const [changeType, setChangeType] = useState<'Temporary' | 'Permanent'>('Temporary');
-  const [requestedShiftCode, setRequestedShiftCode] = useState<string>('ES');
-  const [effectiveFrom, setEffectiveFrom] = useState<string>('2026-09-15');
-  const [effectiveTo, setEffectiveTo] = useState<string>('2026-09-30');
+  const [requestedShiftCode, setRequestedShiftCode] = useState<string>('');
+  const [effectiveFrom, setEffectiveFrom] = useState<string>('2026-10-03');
+  const [effectiveTo, setEffectiveTo] = useState<string>('2026-10-15');
   const [reason, setReason] = useState<string>('');
   const [attachmentName, setAttachmentName] = useState<string>('');
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rejection Modal State
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
@@ -160,9 +179,9 @@ export function ShiftChangesTab() {
   // Initialize selected employee on mount or when rosterEmployees loads
   useEffect(() => {
     if (!canApproveOrManage) {
-      const myCode = user?.employee?.employeeCode || 'EMP-001';
-      const myName = user?.employee?.fullName || 'Sudarshan Kale';
-      const myDept = user?.employee?.departmentName || 'Production';
+      const myCode = user?.employee?.employeeCode || 'EMP-003';
+      const myName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim() : 'sanu mote';
+      const myDept = user?.employee?.departmentName || 'Medical Administration';
       setSelectedEmployeeCode(myCode);
       setSelectedEmployeeName(myName);
       setSelectedEmployeeDept(myDept);
@@ -184,27 +203,95 @@ export function ShiftChangesTab() {
     }
   };
 
-  // Auto-resolve Current Shift in real-time from the employee's existing assignments/roster/rotation
-  const currentResolvedShift = useMemo(() => {
-    if (!selectedEmployeeCode) return null;
-    return resolveApplicableShift({
-      employeeCode: selectedEmployeeCode,
-      departmentName: selectedEmployeeDept,
-      dateStr: effectiveFrom || '2026-09-10',
+  // Helper: resolve shift for a given employee code + dept (used synchronously in handlers)
+  const resolveShiftFor = (empCode: string, deptName: string, dateStr: string) =>
+    resolveApplicableShift({
+      employeeCode: empCode,
+      departmentName: deptName,
+      dateStr: dateStr || '2026-10-03',
       shifts,
       assignments,
       rosterEmployees,
     });
-  }, [selectedEmployeeCode, selectedEmployeeDept, effectiveFrom, shifts, assignments, rosterEmployees]);
 
-  // Requested shift object
+  // Auto-resolve Current Shift in real-time from the employee's existing assignments/roster/rotation
+  const currentResolvedShift = useMemo(() => {
+    if (!selectedEmployeeCode) {
+      // For employees: resolve using their own code immediately
+      if (!canApproveOrManage && user?.employee?.employeeCode) {
+        return resolveApplicableShift({
+          employeeCode: user.employee.employeeCode,
+          departmentName: user.employee.departmentName || 'Production',
+          dateStr: effectiveFrom || '2026-10-03',
+          shifts,
+          assignments,
+          rosterEmployees,
+        });
+      }
+      return null;
+    }
+    return resolveApplicableShift({
+      employeeCode: selectedEmployeeCode,
+      departmentName: selectedEmployeeDept,
+      dateStr: effectiveFrom || '2026-10-03',
+      shifts,
+      assignments,
+      rosterEmployees,
+    });
+  }, [selectedEmployeeCode, selectedEmployeeDept, effectiveFrom, shifts, assignments, rosterEmployees, canApproveOrManage, user]);
+
+  // Filter available target shifts: must be active in Shift Master, and strictly EXCLUDE the employee's current shift
+  const availableTargetShifts = useMemo(() => {
+    const baseShifts =
+      shifts && shifts.length > 0
+        ? shifts
+        : [
+            { id: 'shift-ms', code: 'MS', name: 'Morning shift', startTime: '07:00 AM', endTime: '03:00 PM', status: 'Active' },
+            { id: 'shift-e', code: 'E', name: 'Evening', startTime: '03:00 PM', endTime: '11:00 PM', status: 'Active' },
+            { id: 'shift-n', code: 'N', name: 'Night', startTime: '11:00 PM', endTime: '07:00 AM', status: 'Active' },
+          ];
+
+    const currentCode = (currentResolvedShift?.code || '').trim().toUpperCase();
+
+    const isMatchCurrent = (sCode: string) => {
+      if (!currentCode) return false;
+      if (sCode === currentCode) return true;
+      if ((currentCode === 'E' || currentCode === 'EVENING' || currentCode === 'ES') && (sCode === 'E' || sCode === 'ES')) return true;
+      if ((currentCode === 'N' || currentCode === 'NIGHT' || currentCode === 'NS') && (sCode === 'N' || sCode === 'NS')) return true;
+      if ((currentCode === 'MS' || currentCode === 'MORNING') && sCode === 'MS') return true;
+      return false;
+    };
+
+    return baseShifts.filter((s: any) => {
+      if (s.status === 'Inactive' || s.status === 'inactive' || s.isActive === false) return false;
+      const sCode = (s.code || '').trim().toUpperCase();
+      if (!sCode) return false;
+      // Exclude employee's current shift
+      if (isMatchCurrent(sCode)) return false;
+      return true;
+    });
+  }, [shifts, currentResolvedShift]);
+
+  // Automatically sync requestedShiftCode to the first valid target shift
+  useEffect(() => {
+    if (availableTargetShifts.length > 0) {
+      const match = availableTargetShifts.find(
+        (s) => s.code.toUpperCase() === (requestedShiftCode || '').toUpperCase()
+      );
+      if (!match) {
+        setRequestedShiftCode(availableTargetShifts[0].code);
+      }
+    }
+  }, [availableTargetShifts, requestedShiftCode]);
+
+  // Requested shift object — strictly chosen from available target shifts
   const requestedShiftObj = useMemo(() => {
+    if (!availableTargetShifts || availableTargetShifts.length === 0) return null;
     return (
-      shifts.find((s) => s.code === requestedShiftCode) ||
-      shifts.find((s) => s.code === 'ES') ||
-      shifts[0]
+      availableTargetShifts.find((s) => s.code.toUpperCase() === (requestedShiftCode || '').toUpperCase()) ||
+      availableTargetShifts[0]
     );
-  }, [shifts, requestedShiftCode]);
+  }, [availableTargetShifts, requestedShiftCode]);
 
   // Validation & Conflict Checks Checklist
   const validationResults = useMemo(() => {
@@ -329,17 +416,51 @@ export function ShiftChangesTab() {
   // Open Create Modal
   const handleOpenCreate = () => {
     setEditingChangeId(null);
-    if (rosterEmployees.length > 0) {
-      setSelectedEmployeeCode(rosterEmployees[0].employeeCode);
-      setSelectedEmployeeName(rosterEmployees[0].name);
-      setSelectedEmployeeDept(rosterEmployees[0].department || 'Production');
+    const today = new Date().toISOString().split('T')[0];
+    const defaultTo = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    let empCode = selectedEmployeeCode;
+    let empDept = selectedEmployeeDept;
+
+    if (!canApproveOrManage) {
+      empCode = user?.employee?.employeeCode || empCode || '';
+      const myName = user?.employee
+        ? `${user.employee.firstName} ${user.employee.lastName}`.trim()
+        : selectedEmployeeName;
+      empDept = user?.employee?.departmentName || empDept || 'Production';
+      setSelectedEmployeeCode(empCode);
+      setSelectedEmployeeName(myName);
+      setSelectedEmployeeDept(empDept);
+    } else if (!empCode && rosterEmployees.length > 0) {
+      const defaultEmp = rosterEmployees[0];
+      empCode = defaultEmp.employeeCode;
+      empDept = defaultEmp.department || 'Production';
+      setSelectedEmployeeCode(empCode);
+      setSelectedEmployeeName(defaultEmp.name);
+      setSelectedEmployeeDept(empDept);
     }
+
     setChangeType('Temporary');
-    setRequestedShiftCode('ES');
-    setEffectiveFrom('2026-09-15');
-    setEffectiveTo('2026-09-30');
+    setEffectiveFrom(today);
+    setEffectiveTo(defaultTo);
     setReason('');
     setAttachmentName('');
+    setAttachedFile(null);
+
+    // Compute current shift NOW with the resolved empCode + dept, then pick first available target
+    const resolvedCurrent = empCode
+      ? resolveShiftFor(empCode, empDept, today)
+      : currentResolvedShift;
+    const currentCode = resolvedCurrent?.code?.toUpperCase() || '';
+    const activeShifts = (shifts && shifts.length > 0 ? shifts : [
+      { id: 'shift-ms', code: 'MS', name: 'Morning Shift', startTime: '07:00 AM', endTime: '03:00 PM', status: 'Active' as const, breakMinutes: 60, workingHours: 7, crossMidnight: false, colorTag: 'amber', rules: { lateGraceMinutes: 10, earlyExitGraceMinutes: 10, halfDayThresholdHours: 4, fullDayThresholdHours: 7, otEligible: true, otStartsAfterMinutes: 30 } },
+      { id: 'shift-e', code: 'E', name: 'Evening', startTime: '03:00 PM', endTime: '11:00 PM', status: 'Active' as const, breakMinutes: 60, workingHours: 7, crossMidnight: false, colorTag: 'purple', rules: { lateGraceMinutes: 10, earlyExitGraceMinutes: 10, halfDayThresholdHours: 4, fullDayThresholdHours: 7, otEligible: true, otStartsAfterMinutes: 30 } },
+      { id: 'shift-n', code: 'N', name: 'Night', startTime: '11:00 PM', endTime: '07:00 AM', status: 'Active' as const, breakMinutes: 60, workingHours: 7, crossMidnight: true, colorTag: 'indigo', rules: { lateGraceMinutes: 10, earlyExitGraceMinutes: 10, halfDayThresholdHours: 4, fullDayThresholdHours: 7, otEligible: true, otStartsAfterMinutes: 30 } },
+    ]).filter((s) => s.status === 'Active' && s.code?.toUpperCase() !== currentCode && s.code);
+
+    const targetCode = activeShifts[0]?.code || (currentCode === 'MS' ? 'E' : 'MS');
+    setRequestedShiftCode(targetCode);
+
     setIsModalOpen(true);
   };
 
@@ -350,11 +471,12 @@ export function ShiftChangesTab() {
     setSelectedEmployeeName(req.employeeName);
     setSelectedEmployeeDept(req.department);
     setChangeType(req.changeType || 'Temporary');
-    setRequestedShiftCode(req.requestedShiftCode || 'ES');
-    setEffectiveFrom(req.effectiveFrom || req.effectiveDate || '2026-09-15');
-    setEffectiveTo(req.effectiveTo || '2026-09-30');
+    setRequestedShiftCode(req.requestedShiftCode || availableTargetShifts[0]?.code || '');
+    setEffectiveFrom(req.effectiveFrom || req.effectiveDate || '2026-10-03');
+    setEffectiveTo(req.effectiveTo || '2026-10-15');
     setReason(req.reason || '');
     setAttachmentName(req.attachmentName || '');
+    setAttachedFile(null); // existing attachment shown via name only
     setIsModalOpen(true);
   };
 
@@ -376,7 +498,9 @@ export function ShiftChangesTab() {
 
     const requestedShiftStr = requestedShiftObj
       ? `${requestedShiftObj.name} (${requestedShiftObj.code})`
-      : 'Evening Shift (ES)';
+      : availableTargetShifts[0]
+      ? `${availableTargetShifts[0].name} (${availableTargetShifts[0].code})`
+      : 'Evening (E)';
 
     const payload: Partial<ShiftChangeRequest> = {
       employeeCode: selectedEmployeeCode,
@@ -385,14 +509,14 @@ export function ShiftChangesTab() {
       currentShift: currentShiftStr,
       currentShiftCode: currentResolvedShift?.code || 'MS',
       currentShiftName: currentResolvedShift?.name || 'Morning Shift',
-      currentShiftTiming: currentResolvedShift?.timing || '08:00 AM – 04:30 PM',
+      currentShiftTiming: currentResolvedShift?.timing || '07:00 AM – 03:00 PM',
       changeType,
       requestedShift: requestedShiftStr,
-      requestedShiftCode: requestedShiftObj?.code || 'ES',
-      requestedShiftName: requestedShiftObj?.name || 'Evening Shift',
+      requestedShiftCode: requestedShiftObj?.code || availableTargetShifts[0]?.code || 'MS',
+      requestedShiftName: requestedShiftObj?.name || availableTargetShifts[0]?.name || 'Morning Shift',
       requestedShiftTiming: requestedShiftObj
         ? `${time24To12(requestedShiftObj.startTime)} – ${time24To12(requestedShiftObj.endTime)}`
-        : '04:00 PM – 12:00 AM',
+        : '07:00 AM – 03:00 PM',
       effectiveFrom,
       effectiveTo: changeType === 'Temporary' ? effectiveTo : undefined,
       effectiveDate: effectiveFrom,
@@ -1018,7 +1142,7 @@ export function ShiftChangesTab() {
                       {currentResolvedShift?.name || 'Morning Shift'}
                     </span>
                     <span className="text-[11px] text-muted-foreground font-mono">
-                      ({currentResolvedShift?.timing || '08:00 AM – 04:30 PM'})
+                      ({currentResolvedShift?.timing || '07:00 AM – 03:00 PM'})
                     </span>
                   </div>
                 </div>
@@ -1067,7 +1191,7 @@ export function ShiftChangesTab() {
                   </div>
                 </div>
 
-                {/* New Shift Dropdown */}
+                {/* New Shift Dropdown: Dynamically filtered to exclude current shift */}
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold">Requested New Shift *</Label>
                   <Select value={requestedShiftCode} onValueChange={setRequestedShiftCode}>
@@ -1075,7 +1199,7 @@ export function ShiftChangesTab() {
                       <SelectValue placeholder="Select target shift..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {shifts.map((s) => (
+                      {availableTargetShifts.map((s) => (
                         <SelectItem key={s.id} value={s.code} className="text-xs">
                           <span className="font-bold font-mono text-primary mr-1.5">[{s.code}]</span>
                           {s.name} ({time24To12(s.startTime)} – {time24To12(s.endTime)})
@@ -1153,29 +1277,126 @@ export function ShiftChangesTab() {
                 </div>
               </div>
 
-              {/* Optional Attachment */}
-              <div className="space-y-1 pt-1">
-                <Label className="text-xs font-semibold flex items-center gap-1">
-                  <Upload className="h-3 w-3 text-muted-foreground" /> Supporting Document / Attachment (Optional)
+              {/* Optional Attachment — Real File Upload */}
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Paperclip className="h-3 w-3 text-muted-foreground" />
+                  Supporting Document / Attachment
+                  <span className="text-muted-foreground font-normal">(Optional)</span>
                 </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="text"
-                    placeholder="e.g. supervisor_preapproval.pdf or medical_note.pdf"
-                    value={attachmentName}
-                    onChange={(e) => setAttachmentName(e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs shrink-0"
-                    onClick={() => setAttachmentName('approval_memo_prod_dept.pdf')}
+
+                {/* Hidden native file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    if (file) {
+                      setAttachedFile(file);
+                      setAttachmentName(file.name);
+                    }
+                    // Reset input so same file can be re-selected
+                    e.target.value = '';
+                  }}
+                />
+
+                {!attachedFile && !attachmentName ? (
+                  /* Drop Zone / Upload trigger */
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="group relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border/60 bg-muted/30 px-4 py-5 text-center cursor-pointer transition-all hover:border-primary/50 hover:bg-primary/5 focus:outline-none focus:border-primary"
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add('border-primary', 'bg-primary/5');
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('border-primary', 'bg-primary/5');
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-primary', 'bg-primary/5');
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) {
+                        setAttachedFile(file);
+                        setAttachmentName(file.name);
+                      }
+                    }}
                   >
-                    Attach Sample
-                  </Button>
-                </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="p-2 rounded-full bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+                        <Upload className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">
+                          Click to upload{' '}
+                          <span className="text-muted-foreground font-normal">or drag &amp; drop</span>
+                        </p>
+                        <p className="text-[10.5px] text-muted-foreground mt-0.5">
+                          PDF, DOC, DOCX, JPG, PNG, XLSX — max 10 MB
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* File Preview Card */
+                  <div className="flex items-center gap-3 rounded-lg border bg-emerald-500/5 border-emerald-500/20 px-3 py-2.5">
+                    {/* File type icon — derived from File object or filename extension */}
+                    <div className="p-2 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 shrink-0">
+                      {(() => {
+                        const ext = (attachedFile?.name || attachmentName).split('.').pop()?.toLowerCase() || '';
+                        const mime = attachedFile?.type || '';
+                        if (mime.includes('pdf') || ext === 'pdf') return <FileText className="h-4 w-4" />;
+                        if (mime.includes('image') || ['jpg','jpeg','png','gif','webp'].includes(ext)) return <ImageIcon className="h-4 w-4" />;
+                        if (mime.includes('sheet') || mime.includes('excel') || ['xlsx','xls','csv'].includes(ext)) return <FileBadge className="h-4 w-4" />;
+                        return <FileCheck className="h-4 w-4" />;
+                      })()}
+                    </div>
+
+                    {/* File info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate">
+                        {attachedFile?.name || attachmentName}
+                      </p>
+                      <p className="text-[10.5px] text-muted-foreground">
+                        {attachedFile
+                          ? `${(attachedFile.type.split('/')[1] || 'FILE').toUpperCase()} • ${
+                              attachedFile.size < 1024 * 1024
+                                ? `${Math.round(attachedFile.size / 1024)} KB`
+                                : `${(attachedFile.size / (1024 * 1024)).toFixed(1)} MB`
+                            }`
+                          : 'Previously attached document'}
+                      </p>
+                    </div>
+
+                    {/* Change / Remove actions */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs px-2 text-muted-foreground hover:text-primary"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        Change
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-600"
+                        title="Remove attachment"
+                        onClick={() => { setAttachedFile(null); setAttachmentName(''); }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

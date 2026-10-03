@@ -48,7 +48,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCompany } from '@/context/CompanyContext';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
 import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
-import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
+import { WorkforceBranchFilter, isSafeBranchNameMatch } from '@/pages/workforce/WorkforceBranchFilter';
 import { useShiftRosterStore } from './shiftRosterStore';
 import type { RotationCycle, RotationPhase } from './shiftRosterStore';
 import { cn } from '@/lib/utils';
@@ -861,8 +861,8 @@ export function ShiftRotationTab() {
             bName.includes('main')
           );
         }
-        const bName = (e.branchName || '').toLowerCase();
-        return bName.includes(tgtLower.slice(0, 4)) || e.branchId === applicableTarget;
+        const bName = e.branchName || '';
+        return isSafeBranchNameMatch(bName, tgtLower) || e.branchId === applicableTarget;
       });
     }
     if (applicableTo === 'Department') {

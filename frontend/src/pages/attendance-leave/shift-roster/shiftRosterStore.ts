@@ -121,6 +121,9 @@ export interface EmployeeRosterRow {
   department: string;
   branch: string;
   avatar?: string;
+  status?: string; // e.g. 'Active' | 'Inactive'
+  currentShiftCode?: string; // current assigned shift code for this employee
+  currentShiftName?: string;
   slots: Record<string, RosterCellData>;
 }
 
@@ -438,10 +441,10 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
             id: 'cmtv2wi1f007cipfguu8jbh37',
             name: 'Morning Shift',
             code: 'MS',
-            startTime: '08:00 AM',
-            endTime: '04:30 PM',
+            startTime: '07:00 AM',
+            endTime: '03:00 PM',
             breakMinutes: 60,
-            workingHours: 7.5,
+            workingHours: 7.0,
             crossMidnight: false,
             status: 'Active',
             colorTag: 'amber',
@@ -449,7 +452,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
               lateGraceMinutes: 15,
               earlyExitGraceMinutes: 10,
               halfDayThresholdHours: 4.0,
-              fullDayThresholdHours: 7.5,
+              fullDayThresholdHours: 7.0,
               otEligible: true,
               otStartsAfterMinutes: 30,
               weeklyOffDays: ['Sunday'],
@@ -458,20 +461,20 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
           },
           {
             id: 'cmtv2xiey007eipfg88mibz93',
-            name: 'Evening Shift',
-            code: 'ES',
-            startTime: '04:00 PM',
-            endTime: '12:30 AM',
+            name: 'Evening',
+            code: 'E',
+            startTime: '03:00 PM',
+            endTime: '11:00 PM',
             breakMinutes: 60,
-            workingHours: 7.5,
-            crossMidnight: true,
+            workingHours: 7.0,
+            crossMidnight: false,
             status: 'Active',
             colorTag: 'purple',
             rules: {
               lateGraceMinutes: 15,
               earlyExitGraceMinutes: 10,
               halfDayThresholdHours: 4.0,
-              fullDayThresholdHours: 7.5,
+              fullDayThresholdHours: 7.0,
               otEligible: true,
               otStartsAfterMinutes: 30,
               weeklyOffDays: ['Sunday'],
@@ -480,12 +483,12 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
           },
           {
             id: 'cmtv2yfg1007gipfg5735umcd',
-            name: 'Night Shift',
-            code: 'NS',
-            startTime: '10:00 PM',
-            endTime: '06:30 AM',
+            name: 'Night',
+            code: 'N',
+            startTime: '11:00 PM',
+            endTime: '07:00 AM',
             breakMinutes: 60,
-            workingHours: 7.5,
+            workingHours: 7.0,
             crossMidnight: true,
             status: 'Active',
             colorTag: 'indigo',
@@ -493,7 +496,7 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
               lateGraceMinutes: 15,
               earlyExitGraceMinutes: 10,
               halfDayThresholdHours: 4.0,
-              fullDayThresholdHours: 7.5,
+              fullDayThresholdHours: 7.0,
               otEligible: true,
               otStartsAfterMinutes: 30,
               weeklyOffDays: ['Sunday'],
@@ -688,8 +691,8 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
           if (found) return { code: found.code, name: found.name, timing: `${found.startTime} - ${found.endTime}` };
           return {
             code,
-            name: code === 'MS' ? 'Morning Shift' : code === 'ES' ? 'Evening Shift' : code === 'NS' ? 'Night Shift' : 'General Shift',
-            timing: code === 'MS' ? '08:00 AM - 04:30 PM' : code === 'ES' ? '04:00 PM - 12:30 AM' : code === 'NS' ? '10:00 PM - 06:30 AM' : '09:00 AM - 05:30 PM',
+            name: code === 'MS' ? 'Morning Shift' : (code === 'ES' || code === 'E') ? 'Evening' : (code === 'NS' || code === 'N') ? 'Night' : 'General Shift',
+            timing: code === 'MS' ? '07:00 AM - 03:00 PM' : (code === 'ES' || code === 'E') ? '03:00 PM - 11:00 PM' : (code === 'NS' || code === 'N') ? '11:00 PM - 07:00 AM' : '09:00 AM - 05:30 PM',
           };
         };
 
@@ -1372,13 +1375,21 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
   submitShiftSwap: async (swap: Omit<ShiftSwapRequest, 'id' | 'status' | 'checks'>) => {
     try {
       const companyId = get().activeCompanyId || get().shifts[0]?.companyId;
-      let reqId = get().rosterEmployees[0]?.employeeId;
-      let tarId = get().rosterEmployees[1]?.employeeId || get().rosterEmployees[0]?.employeeId;
+      let reqId = swap.requesterId;
+      let tarId = swap.targetId;
 
-      const fReq = get().rosterEmployees.find((e) => e.employeeCode === swap.requesterCode);
-      if (fReq) reqId = fReq.employeeId;
-      const fTar = get().rosterEmployees.find((e) => e.employeeCode === swap.targetCode);
-      if (fTar) tarId = fTar.employeeId;
+      if (!reqId) {
+        const fReq = get().rosterEmployees.find(
+          (e) => e.employeeCode === swap.requesterCode || e.employeeId === swap.requesterCode
+        );
+        reqId = fReq?.employeeId || swap.requesterCode;
+      }
+      if (!tarId) {
+        const fTar = get().rosterEmployees.find(
+          (e) => e.employeeCode === swap.targetCode || e.employeeId === swap.targetCode
+        );
+        tarId = fTar?.employeeId || swap.targetCode;
+      }
 
       await shiftSwapsApi.create({
         companyId,

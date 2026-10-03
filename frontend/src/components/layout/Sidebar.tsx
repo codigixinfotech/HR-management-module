@@ -41,7 +41,7 @@ function normalizePath(p: string, isHrOrAdmin?: boolean) {
   if (base === '/attendance-leave') return '/attendance-leave';
   if (base === '/dashboard') return '/dashboard/overview';
   if (base === '/asset-management') return isHrOrAdmin === false ? '/asset-management/requests' : '/asset-management/master';
-  if (base === '/workforce') return '/workforce/planning';
+  if (base === '/workforce' || base === '/workforce/my-shift-roster') return '/workforce/shift-planning';
   if (base === '/attendance-leave/roster' || base === '/workforce/shift-roster' || base === '/workforce/shift-types') {
     return '/workforce/shift-planning';
   }
@@ -88,7 +88,8 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           mod.key === 'employees' ||
           mod.key === 'administration' ||
           mod.key === 'landing-page' ||
-          mod.key === 'asset-management'
+          mod.key === 'asset-management' ||
+          mod.key === 'workforce'
         ) {
           return true;
         }
@@ -152,6 +153,17 @@ export function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps) {
           path: '/asset-management/requests',
           subItems: [
             { key: 'requests', label: 'Asset Request', path: '/asset-management/requests' },
+          ],
+        };
+      }
+
+      // Configure Workforce module subitems for non-admin employees (Show Shift Planning & Roster)
+      if (mod.key === 'workforce' && !isHrOrAdmin && mod.subItems) {
+        return {
+          ...mod,
+          path: '/workforce/shift-planning',
+          subItems: [
+            { key: 'shift-planning', label: 'Shift Planning & Roster', path: '/workforce/shift-planning' },
           ],
         };
       }

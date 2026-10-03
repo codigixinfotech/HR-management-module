@@ -81,12 +81,18 @@ export function ProtectedRoute() {
     return <Navigate to="/asset-management/requests" replace />;
   }
 
+  const isEmployeeAllowedPath =
+    currentPath === '/workforce' ||
+    currentPath.startsWith('/workforce/shift-planning') ||
+    currentPath.startsWith('/workforce/my-shift-roster');
+
   const isAdminOnly =
-    ADMIN_ONLY_ROUTES.some((route) => currentPath === route || currentPath.startsWith(`${route}/`)) ||
-    (currentPath.startsWith('/employees') &&
-      !currentPath.startsWith('/employees/detail/me') &&
-      !currentPath.startsWith('/employees/transfers') &&
-      !currentPath.startsWith('/employees/exit'));
+    !isEmployeeAllowedPath &&
+    (ADMIN_ONLY_ROUTES.some((route) => currentPath === route || currentPath.startsWith(`${route}/`)) ||
+      (currentPath.startsWith('/employees') &&
+        !currentPath.startsWith('/employees/detail/me') &&
+        !currentPath.startsWith('/employees/transfers') &&
+        !currentPath.startsWith('/employees/exit')));
 
   if (isEmployee && isAdminOnly) {
     return <Navigate to="/dashboard" replace />;

@@ -52,7 +52,7 @@ import {
   type HolidayInteraction,
 } from './weeklyOffPolicyStore';
 import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
-import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
+import { WorkforceBranchFilter, isSafeBranchNameMatch } from '@/pages/workforce/WorkforceBranchFilter';
 
 const DAYS_OF_WEEK: (keyof WeeklySchedulePattern)[] = [
   'Monday',
@@ -751,14 +751,14 @@ export function WeeklyOffPolicyTab() {
             target.includes('hq');
         } else {
           const branchObj = branches.find((b) => b.id === selectedBranch);
-          const bName = (branchObj?.name || '').toLowerCase();
-          const target = (p.applicableTarget || '').toLowerCase();
+          const bName = branchObj?.name || '';
+          const target = p.applicableTarget || '';
           matchesBranch =
             p.applicableTo === 'Entire Company' ||
             p.applicableTo === 'Company' ||
             (p.branchId && p.branchId === selectedBranch) ||
-            (bName && target.includes(bName.slice(0, 4))) ||
-            target.includes(selectedBranch.toLowerCase());
+            (bName && isSafeBranchNameMatch(target, bName)) ||
+            target.toLowerCase().includes(selectedBranch.toLowerCase());
         }
       }
 

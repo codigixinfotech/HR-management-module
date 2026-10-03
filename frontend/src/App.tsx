@@ -164,9 +164,10 @@ export default function App() {
               <Route path="/recruitment/detail/:id" element={<JobOpeningDetailPage />} />
 
               {/* Workforce Routes */}
-              <Route path="/workforce" element={<Navigate to="/workforce/planning" replace />} />
+              <Route path="/workforce" element={<Navigate to="/workforce/shift-planning" replace />} />
               <Route path="/workforce/planning" element={<WorkforcePlanningPage />} />
               <Route path="/workforce/shift-planning" element={<ShiftPlanningPage />} />
+              <Route path="/workforce/my-shift-roster" element={<Navigate to="/workforce/shift-planning" replace />} />
               <Route path="/workforce/shift-types" element={<Navigate to="/workforce/shift-planning?subtab=master" replace />} />
               <Route path="/workforce/shift-roster" element={<Navigate to="/workforce/shift-planning?subtab=roster" replace />} />
               <Route path="/workforce/machine-allocation" element={<MachineAllocationPage />} />

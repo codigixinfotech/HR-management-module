@@ -454,21 +454,61 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
     if (!employees || employees.length === 0) return [];
     const empIds = new Set(employees.map((e) => e.id));
 
+    // Map direct reports strictly based on valid, non-self reportingManagerId
     const managerToReports = new Map<string, Employee[]>();
     employees.forEach((emp) => {
-      if (emp.reportingManagerId && empIds.has(emp.reportingManagerId)) {
+      if (emp.reportingManagerId && empIds.has(emp.reportingManagerId) && emp.reportingManagerId !== emp.id) {
         const list = managerToReports.get(emp.reportingManagerId) || [];
         list.push(emp);
         managerToReports.set(emp.reportingManagerId, list);
       }
     });
 
-    const rootEmployees = employees.filter(
-      (emp) => !emp.reportingManagerId || !empIds.has(emp.reportingManagerId),
+    // Unassigned employees (no manager within this group)
+    const unassigned = employees.filter(
+      (emp) => !emp.reportingManagerId || !empIds.has(emp.reportingManagerId) || emp.reportingManagerId === emp.id
     );
 
+    // Identify branch administrator or senior manager among unassigned
+    const branchHead = unassigned.find(
+      (e) =>
+        e.designation?.title?.toLowerCase().includes('branch administrator') ||
+        e.designation?.title?.toLowerCase().includes('branch admin') ||
+        e.designation?.title?.toLowerCase().includes('branch manager') ||
+        e.designation?.title?.toLowerCase().includes('nursing manager') ||
+        e.firstName?.toLowerCase() === 'branch'
+    );
+
+    // If branchHead exists, remaining unassigned staff report directly to branchHead without cycles
+    if (branchHead) {
+      const list = managerToReports.get(branchHead.id) || [];
+      unassigned.forEach((emp) => {
+        if (emp.id !== branchHead.id && !list.some((existing) => existing.id === emp.id)) {
+          list.push(emp);
+        }
+      });
+      managerToReports.set(branchHead.id, list);
+    }
+
+    const rootEmployees = branchHead ? [branchHead] : unassigned;
+    const visited = new Set<string>();
+
     const toNode = (emp: Employee): UnifiedOrgNode => {
-      const directReports = managerToReports.get(emp.id) || [];
+      if (visited.has(emp.id)) {
+        return {
+          id: `emp-${emp.id}`,
+          type: 'employee',
+          name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+          subtitle: emp.designation?.title || 'Staff Member',
+          dept: emp.department?.name || 'General Operations',
+          code: emp.employeeCode,
+          avatar: `${emp.firstName?.[0] || 'E'}${emp.lastName?.[0] || ''}`.toUpperCase(),
+          location: emp.branch?.name || (emp.branchId ? 'Branch Facility' : 'Corporate Head Office'),
+        };
+      }
+      visited.add(emp.id);
+
+      const directReports = (managerToReports.get(emp.id) || []).filter((r) => !visited.has(r.id));
       const childNodes = directReports.map(toNode);
 
       const cleanFirst = (emp.firstName || '').replace(/^(mr\.|mrs\.|ms\.|dr\.)\s*/i, '');
@@ -481,7 +521,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
         'Staff Member';
 
       const actualDept = emp.department?.name || 'General Operations';
-      const actualLocation = emp.branch?.name || (emp.branchId ? 'Branch Facility' : 'Corporate / Head Office');
+      const actualLocation = emp.branch?.name || (emp.branchId ? 'Branch Facility' : 'Corporate Head Office');
 
       return {
         id: `emp-${emp.id}`,
@@ -553,19 +593,41 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
       const corporateEmps = cData.emps.filter((e) => !e.branchId);
       const branchEmps = cData.emps.filter((e) => Boolean(e.branchId));
 
-      // Find Founder / Managing Director (e.g. prashant patil or first corporate emp)
-      let founderEmp = corporateEmps.find((e) => {
-        const name = `${e.firstName} ${e.lastName}`.toLowerCase();
-        const title = (e.designation?.title || '').toLowerCase();
-        return (
-          name.includes('patil') ||
-          name.includes('prashant') ||
-          title.includes('director') ||
-          title.includes('founder') ||
-          title.includes('md') ||
-          title.includes('ceo')
-        );
-      }) || corporateEmps[0];
+      // Find Founder / Managing Director (specifically Prashant Patil / ppurvesh503@gmail.com)
+      const allCompEmps = (employeesData?.items || []).filter(
+        (e) => !validCompanyId || validCompanyId === 'ALL' || e.companyId === cId
+      );
+
+      let founderEmp =
+        allCompEmps.find((e) => {
+          const email = (e.workEmail || (e as any).email || '').toLowerCase();
+          const first = (e.firstName || '').toLowerCase();
+          const full = `${e.firstName || ''} ${e.lastName || ''}`.toLowerCase();
+          return (
+            email.includes('ppurvesh') ||
+            first.includes('prashant') ||
+            full.includes('prashant patil') ||
+            e.employeeCode === 'C-0034-001'
+          );
+        }) ||
+        allCompEmps.find((e) => {
+          const title = (e.designation?.title || '').toLowerCase();
+          const full = `${e.firstName || ''} ${e.lastName || ''}`.toLowerCase();
+          if (full.includes('harshal') || title.includes('ward')) return false;
+          return (
+            title.includes('founder') ||
+            title.includes('managing director') ||
+            title.includes('director') ||
+            title.includes('ceo') ||
+            title.includes('md')
+          );
+        }) ||
+        corporateEmps.find((e) => {
+          const full = `${e.firstName || ''} ${e.lastName || ''}`.toLowerCase();
+          const title = (e.designation?.title || '').toLowerCase();
+          return !full.includes('harshal') && !title.includes('ward');
+        }) ||
+        corporateEmps[0];
 
       // 2. Group branch employees by branch
       const branchMap = new Map<string, { name: string; code: string; emps: Employee[] }>();
@@ -590,6 +652,23 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
 
       // Build branch nodes
       const branchNodes: UnifiedOrgNode[] = [];
+
+      // Add Corporate Head Office branch node for corporate staff (excluding the founder)
+      const corporateStaff = corporateEmps.filter((e) => e.id !== founderEmp?.id);
+      if (corporateStaff.length > 0 && (validBranchId === 'ALL' || validBranchId === 'HEAD_OFFICE')) {
+        const corpTrees = buildEmployeeTreeNodes(corporateStaff);
+        branchNodes.push({
+          id: `branch-${cId}-head-office`,
+          type: 'branch',
+          name: 'Corporate Head Office',
+          subtitle: 'Headquarters',
+          code: 'HQ',
+          metaBadge: 'Corporate HQ',
+          headcount: corporateStaff.length,
+          children: corpTrees.length > 0 ? corpTrees : undefined,
+        });
+      }
+
       branchMap.forEach((bData, bKey) => {
         const empTrees = buildEmployeeTreeNodes(bData.emps);
         branchNodes.push({
@@ -604,8 +683,12 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
         });
       });
 
-      // Sort branches alphabetically
-      branchNodes.sort((a, b) => a.name.localeCompare(b.name));
+      // Sort branches alphabetically (keeping HQ at top if present)
+      branchNodes.sort((a, b) => {
+        if (a.code === 'HQ') return -1;
+        if (b.code === 'HQ') return 1;
+        return a.name.localeCompare(b.name);
+      });
 
       // 3. Connect Founder & Managing Director
       let companyChildren: UnifiedOrgNode[] = [];
@@ -613,7 +696,7 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
       if (founderEmp) {
         const cleanFirst = (founderEmp.firstName || '').replace(/^(mr\.|mrs\.|ms\.|dr\.)\s*/i, '');
         const firstInitial = cleanFirst[0] || founderEmp.firstName?.[0] || 'P';
-        const lastInitial = founderEmp.lastName?.[0] || '';
+        const lastInitial = founderEmp.lastName?.[0] || 'P';
         const formattedName = `${founderEmp.firstName} ${founderEmp.lastName}`
           .trim()
           .split(' ')
@@ -623,10 +706,10 @@ export function OrgStructureTab({ companyId: propCompanyId }: OrgStructureTabPro
         const founderNode: UnifiedOrgNode = {
           id: `founder-${founderEmp.id}`,
           type: 'founder',
-          name: formattedName,
+          name: formattedName || 'Prashant Patil',
           subtitle: 'Founder & Managing Director',
           dept: 'Corporate Head',
-          code: founderEmp.employeeCode,
+          code: founderEmp.employeeCode || 'C-0034-001',
           avatar: `${firstInitial}${lastInitial}`.toUpperCase(),
           location: 'Corporate Head Office',
           children: branchNodes.length > 0 ? branchNodes : undefined,

@@ -85,6 +85,23 @@ export function WorkforceBranchFilter({
  * - When ALL: returns true for all items
  * - When specific branch ID: matches by branch ID or branch name
  */
+// Helper function to safely match two branch names without false partial matches (e.g. Cravita B vs Cravita C)
+export function isSafeBranchNameMatch(nameA?: string | null, nameB?: string | null): boolean {
+  if (!nameA || !nameB) return false;
+  const a = nameA.trim().toLowerCase();
+  const b = nameB.trim().toLowerCase();
+  if (a === b) return true;
+  if (a.length > 5 && b.length > 5) {
+    if (a.includes(b) || b.includes(a)) {
+      const lastA = a.match(/[a-z0-9]$/)?.[0];
+      const lastB = b.match(/[a-z0-9]$/)?.[0];
+      if (lastA && lastB && lastA !== lastB) return false;
+      return true;
+    }
+  }
+  return false;
+}
+
 export function matchWorkforceBranch(
   item: {
     branchId?: string | null;
@@ -103,7 +120,7 @@ export function matchWorkforceBranch(
     if (item.branch?.id) return item.branch.id === userAssignedBranchId;
     const assignedBranch = branches.find((b) => b.id === userAssignedBranchId);
     if (assignedBranch && item.branchName) {
-      return item.branchName.toLowerCase().includes(assignedBranch.name.toLowerCase().slice(0, 4));
+      return isSafeBranchNameMatch(item.branchName, assignedBranch.name);
     }
     return true;
   }
@@ -122,7 +139,7 @@ export function matchWorkforceBranch(
     if (rawLocation && !rawLocation.includes('head') && !rawLocation.includes('corporate') && !rawLocation.includes('line 1') && !rawLocation.includes('main')) {
       // If it explicitly belongs to another non-HO branch, filter it out
       const isOtherBranch = branches.some(
-        (b) => !b.name.toLowerCase().includes('head') && rawLocation.includes(b.name.toLowerCase().slice(0, 4))
+        (b) => !b.name.toLowerCase().includes('head') && isSafeBranchNameMatch(rawLocation, b.name)
       );
       if (isOtherBranch) return false;
     }
@@ -131,14 +148,14 @@ export function matchWorkforceBranch(
 
   // Specific branch selected by ID
   const selectedBranchObj = branches.find((b) => b.id === selectedBranch);
-  const targetName = (selectedBranchObj?.name || '').toLowerCase();
+  const targetName = selectedBranchObj?.name || '';
 
   if (item.branchId && item.branchId === selectedBranch) return true;
   if (item.branch?.id && item.branch.id === selectedBranch) return true;
 
   if (targetName) {
-    const itemName = (item.branchName || item.branch?.name || item.line || '').toLowerCase();
-    if (itemName && itemName.includes(targetName.slice(0, 4))) return true;
+    const itemName = item.branchName || item.branch?.name || item.line || '';
+    if (itemName && isSafeBranchNameMatch(itemName, targetName)) return true;
   }
 
   return false;

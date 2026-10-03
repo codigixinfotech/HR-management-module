@@ -518,6 +518,17 @@ export const EMPLOYEE_MODULES: HcmModule[] = [
     ],
   },
   {
+    key: 'workforce',
+    label: 'Workforce',
+    path: '/workforce/shift-planning',
+    phase: 3,
+    status: 'active',
+    icon: CalendarClock,
+    subItems: [
+      { key: 'shift-planning', label: 'Shift Planning & Roster', path: '/workforce/shift-planning' },
+    ],
+  },
+  {
     key: 'notifications',
     label: 'Notifications',
     path: '/workflow-automation/notifications',
@@ -668,7 +679,8 @@ export function getModulesForRole(user?: any): HcmModule[] {
       mod.key === 'landing-page' ||
       mod.key === 'profile' ||
       mod.key === 'employees' ||
-      mod.key === 'asset-management'
+      mod.key === 'asset-management' ||
+      mod.key === 'workforce'
     ) return true;
     return hasModulePermission(user, mod.key, 'view');
   });

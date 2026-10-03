@@ -24,6 +24,29 @@ export class ShiftLifecycleService implements OnModuleInit {
     }
   }
 
+  // Helper: Format 24-hr time to 12-hr AM/PM format
+  private formatTimeTo12Hour(timeStr?: string): string {
+    if (!timeStr) return '';
+    const trimmed = timeStr.trim();
+    if (/AM|PM/i.test(trimmed)) return trimmed;
+    const parts = trimmed.split(':');
+    if (parts.length < 2) return trimmed;
+    let h = parseInt(parts[0], 10);
+    const m = parts[1].slice(0, 2);
+    if (isNaN(h)) return trimmed;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+  }
+
+  private formatShiftTiming(start?: string, end?: string): string {
+    if (!start && !end) return '';
+    const s = this.formatTimeTo12Hour(start);
+    const e = this.formatTimeTo12Hour(end);
+    return `${s} – ${e}`;
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 1. ROSTER ENGINE
   // ─────────────────────────────────────────────────────────────
@@ -105,6 +128,33 @@ export class ShiftLifecycleService implements OnModuleInit {
         ...(companyId ? [companyId] : [])
       )
       .catch(() => [])) as any[]) || [];
+
+    // 4e. Fetch published batches from DB to recognize published period slots
+    const publishedBatches: any[] = ((await this.prisma
+      .$queryRawUnsafe(
+        `SELECT * FROM shift_roster_batches WHERE status = 'Published' ${companyId ? 'AND companyId = ?' : ''}`,
+        ...(companyId ? [companyId] : [])
+      )
+      .catch(() => [])) as any[]) || [];
+
+    const isDatePublished = (dateStr: string, dbSlot?: any) => {
+      if (dbSlot?.status === 'Published') return true;
+      if (publishedBatches.length > 0) {
+        for (const batch of publishedBatches) {
+          if (!batch.dateRange) continue;
+          const parts = batch.dateRange.split(/[–—-]/);
+          if (parts.length >= 2) {
+            const startParsed = new Date(parts[0].trim());
+            const endParsed = new Date(parts[1].trim());
+            const target = new Date(dateStr);
+            if (!isNaN(startParsed.getTime()) && !isNaN(endParsed.getTime())) {
+              if (target >= startParsed && target <= endParsed) return true;
+            }
+          }
+        }
+      }
+      return false;
+    };
 
     // 5. Fetch holidays and approved leaves for date integration
     const holidays = await this.prisma.holiday.findMany({
@@ -216,7 +266,7 @@ export class ShiftLifecycleService implements OnModuleInit {
           slots[dateStr] = {
             shiftCode: swapShift.code,
             shiftName: swapShift.name,
-            timing: `${swapShift.startTime} - ${swapShift.endTime}`,
+            timing: this.formatShiftTiming(swapShift.startTime, swapShift.endTime),
             status: 'Published',
             isCustomOverride: true,
             isApprovedShiftSwap: true,
@@ -268,7 +318,7 @@ export class ShiftLifecycleService implements OnModuleInit {
           slots[dateStr] = {
             shiftCode: targetShift.code,
             shiftName: targetShift.name,
-            timing: `${targetShift.startTime} - ${targetShift.endTime}`,
+            timing: this.formatShiftTiming(targetShift.startTime, targetShift.endTime),
             status: 'Published',
             isCustomOverride: true,
             isApprovedShiftChange: true,
@@ -465,12 +515,12 @@ export class ShiftLifecycleService implements OnModuleInit {
                     : '05:30 PM',
               };
 
-            const slotStatus = dbSlot?.status || 'Draft';
+            const slotStatus = isDatePublished(dateStr, dbSlot) ? 'Published' : (dbSlot?.status || 'Draft');
 
             slots[dateStr] = {
               shiftCode: rotShift.code,
               shiftName: rotShift.name,
-              timing: `${rotShift.startTime} - ${rotShift.endTime}`,
+              timing: this.formatShiftTiming(rotShift.startTime, rotShift.endTime),
               status: slotStatus,
               source: 'Rotation',
               sourceBadge: 'ROT',
@@ -482,12 +532,12 @@ export class ShiftLifecycleService implements OnModuleInit {
         }
 
         // ── 8. Default Shift Assignment (Department / Company Default) ──
-        const slotStatus = dbSlot?.status || 'Draft';
+        const slotStatus = isDatePublished(dateStr, dbSlot) ? 'Published' : (dbSlot?.status || 'Draft');
 
         slots[dateStr] = {
           shiftCode: assignedShift.code,
           shiftName: assignedShift.name,
-          timing: `${assignedShift.startTime} - ${assignedShift.endTime}`,
+          timing: this.formatShiftTiming(assignedShift.startTime, assignedShift.endTime),
           status: slotStatus,
           isCustomOverride: Boolean(empOverride),
           source: empOverride ? 'Manual Override' : deptAsg ? 'Department Assignment' : 'Base Schedule',
@@ -1246,12 +1296,12 @@ export class ShiftLifecycleService implements OnModuleInit {
     excludeSwapId?: string
   ) {
     const [empA, empB] = await Promise.all([
-      this.prisma.employee.findUnique({
-        where: { id: requesterId },
+      this.prisma.employee.findFirst({
+        where: { OR: [{ id: requesterId }, { employeeCode: requesterId }] },
         include: { department: true, branch: true },
       }),
-      this.prisma.employee.findUnique({
-        where: { id: targetId },
+      this.prisma.employee.findFirst({
+        where: { OR: [{ id: targetId }, { employeeCode: targetId }] },
         include: { department: true, branch: true },
       }),
     ]);
@@ -1269,7 +1319,10 @@ export class ShiftLifecycleService implements OnModuleInit {
     // Check 2: Same Branch
     const aBranch = empA?.branch?.name || '';
     const bBranch = empB?.branch?.name || '';
-    const sameBranch = Boolean(aBranch && bBranch && aBranch.toLowerCase() === bBranch.toLowerCase());
+    const sameBranch =
+      (!aBranch && !bBranch) ||
+      (!aBranch || !bBranch) ||
+      aBranch.toLowerCase() === bBranch.toLowerCase();
     if (!sameBranch) {
       failureReasons.push(`Employees belong to different branches (${aBranch || 'Location A'} vs ${bBranch || 'Location B'}).`);
     }
@@ -1493,14 +1546,17 @@ export class ShiftLifecycleService implements OnModuleInit {
       },
     ];
 
+    const finalReqId = evalResult.empA?.id || dto.requesterId;
+    const finalTarId = evalResult.empB?.id || dto.targetId;
+
     try {
       await this.prisma.$executeRawUnsafe(
         `INSERT INTO shift_swap_requests (id, companyId, requesterId, targetId, swapDate, requesterShift, targetShift, reason, status, checks, history, updatedAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending Manager Approval', ?, ?, NOW(3))`,
         id,
         dto.companyId,
-        dto.requesterId,
-        dto.targetId,
+        finalReqId,
+        finalTarId,
         dto.swapDate,
         dto.requesterShift,
         dto.targetShift,

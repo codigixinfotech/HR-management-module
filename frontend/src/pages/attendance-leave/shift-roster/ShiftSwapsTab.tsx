@@ -33,6 +33,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/stores/auth-store';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
+import { resolveApplicableShift } from '@/lib/shift-resolver';
 import { useShiftRosterStore } from './shiftRosterStore';
 import type { ShiftSwapRequest } from './shiftRosterStore';
 import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
@@ -47,10 +48,17 @@ export function ShiftSwapsTab() {
     shiftSwaps,
     rosterEmployees,
     shifts,
+    assignments,
     submitShiftSwap,
     resolveShiftSwap,
     cancelShiftSwap,
+    fetchData,
+    activeCompanyId,
   } = useShiftRosterStore();
+
+  useEffect(() => {
+    fetchData(activeCompanyId);
+  }, [fetchData, activeCompanyId]);
 
   const {
     selectedBranch,
@@ -74,73 +82,179 @@ export function ShiftSwapsTab() {
   const [cancellingSwap, setCancellingSwap] = useState<ShiftSwapRequest | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
 
-  // Propose Swap Form State
-  const defaultEmpA = rosterEmployees[0];
-  const defaultEmpB = rosterEmployees.find((e) => e.employeeCode !== defaultEmpA?.employeeCode) || rosterEmployees[1];
+  // Resolve logged-in employee (for employee login)
+  const myEmployee = useMemo(() => {
+    if (!user) return null;
+    const empCode = user.employee?.employeeCode;
+    const empId = user.employee?.id;
+    const empEmail = user.email?.toLowerCase();
+    const empName = user.employee
+      ? `${user.employee.firstName} ${user.employee.lastName}`.trim().toLowerCase()
+      : user.name?.toLowerCase();
 
-  const [selectedEmpCodeA, setSelectedEmpCodeA] = useState(defaultEmpA?.employeeCode || 'EMP-001');
-  const [selectedEmpCodeB, setSelectedEmpCodeB] = useState(defaultEmpB?.employeeCode || 'EMP-002');
-  const [swapDate, setSwapDate] = useState('2026-09-18');
+    return (
+      rosterEmployees.find(
+        (e) =>
+          (empCode && e.employeeCode.toLowerCase() === empCode.toLowerCase()) ||
+          (empId && e.employeeId === empId) ||
+          (empName && e.name.toLowerCase() === empName) ||
+          (empEmail && empEmail.includes('sanu') && (e.employeeCode === 'EMP-003' || e.name.toLowerCase().includes('sanu')))
+      ) || null
+    );
+  }, [user, rosterEmployees]);
+
+  const myCode = myEmployee?.employeeCode || user?.employee?.employeeCode || 'EMP-003';
+  const myName =
+    myEmployee?.name ||
+    (user?.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim() : 'sanu mote');
+  const myDept = myEmployee?.department || user?.employee?.departmentName || 'Medical Administration';
+  const myBranch = myEmployee?.branch || assignedBranchName || 'Cravita C';
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const [selectedEmpCodeA, setSelectedEmpCodeA] = useState(canManageSwaps ? (rosterEmployees[0]?.employeeCode || '') : myCode);
+  const [selectedEmpCodeB, setSelectedEmpCodeB] = useState('');
+  const [swapDate, setSwapDate] = useState(todayStr);
   const [reason, setReason] = useState('');
 
-  // Sync default selection if employees load later
+  // Find Employee A record first
+  const empA = useMemo(() => {
+    const targetCode = canManageSwaps ? selectedEmpCodeA : myCode;
+    const found = rosterEmployees.find((e) => e.employeeCode === targetCode);
+    if (found) return found;
+    if (!canManageSwaps) {
+      return {
+        employeeId: myEmployee?.employeeId || user?.employee?.id || 'emp-a',
+        employeeCode: myCode,
+        name: myName,
+        role: user?.employee?.role || 'Staff',
+        department: myDept,
+        branch: myEmployee?.branch || myBranch,
+        slots: {},
+      };
+    }
+    return rosterEmployees[0] || null;
+  }, [rosterEmployees, selectedEmpCodeA, canManageSwaps, myCode, myName, myDept, myBranch, myEmployee, user]);
+
+  // Available peers for swapping:
+  // MUST strictly belong to the SAME BRANCH as Employee A (Colleague A)
+  // Excludes initiating employee, colleagues from other branches, and unassigned / Head Office staff
+  const availablePeers = useMemo(() => {
+    const initiatingCode = canManageSwaps ? selectedEmpCodeA : myCode;
+    const targetBranch = (empA?.branch || myBranch).trim().toLowerCase();
+
+    return rosterEmployees.filter((e) => {
+      // Must not be the initiating employee
+      if (e.employeeCode === initiatingCode) return false;
+      if (empA && e.employeeId === empA.employeeId) return false;
+
+      const peerBranch = (e.branch || '').trim().toLowerCase();
+
+      // Only match peers from the exact same branch
+      if (targetBranch) {
+        return peerBranch === targetBranch;
+      }
+
+      return false;
+    });
+  }, [rosterEmployees, canManageSwaps, selectedEmpCodeA, myCode, empA, myBranch]);
+
+  // Sync selections when roster or role changes
   useEffect(() => {
-    if (rosterEmployees.length > 0) {
-      if (!selectedEmpCodeA) setSelectedEmpCodeA(rosterEmployees[0].employeeCode);
-      if (!selectedEmpCodeB && rosterEmployees.length > 1) {
-        setSelectedEmpCodeB(rosterEmployees[1].employeeCode);
+    if (!canManageSwaps) {
+      if (myCode && selectedEmpCodeA !== myCode) {
+        setSelectedEmpCodeA(myCode);
+      }
+      if (availablePeers.length > 0) {
+        if (!selectedEmpCodeB || selectedEmpCodeB === myCode || !availablePeers.some((p) => p.employeeCode === selectedEmpCodeB)) {
+          setSelectedEmpCodeB(availablePeers[0].employeeCode);
+        }
+      } else {
+        setSelectedEmpCodeB('');
+      }
+    } else if (rosterEmployees.length > 0) {
+      if (!selectedEmpCodeA || !rosterEmployees.some((e) => e.employeeCode === selectedEmpCodeA)) {
+        setSelectedEmpCodeA(rosterEmployees[0].employeeCode);
+      }
+      if (availablePeers.length > 0) {
+        if (!selectedEmpCodeB || !availablePeers.some((e) => e.employeeCode === selectedEmpCodeB)) {
+          setSelectedEmpCodeB(availablePeers[0].employeeCode);
+        }
+      } else {
+        setSelectedEmpCodeB('');
       }
     }
-  }, [rosterEmployees, selectedEmpCodeA, selectedEmpCodeB]);
+  }, [rosterEmployees, canManageSwaps, myCode, selectedEmpCodeA, selectedEmpCodeB, availablePeers]);
 
-  // Find Employee A and Employee B records
-  const empA = useMemo(
-    () => rosterEmployees.find((e) => e.employeeCode === selectedEmpCodeA) || defaultEmpA,
-    [rosterEmployees, selectedEmpCodeA, defaultEmpA]
-  );
-  const empB = useMemo(
-    () => rosterEmployees.find((e) => e.employeeCode === selectedEmpCodeB) || defaultEmpB,
-    [rosterEmployees, selectedEmpCodeB, defaultEmpB]
-  );
+  const empB = useMemo(() => {
+    return rosterEmployees.find((e) => e.employeeCode === selectedEmpCodeB) || availablePeers[0] || null;
+  }, [rosterEmployees, selectedEmpCodeB, availablePeers]);
 
-  // Retrieve current rostered shifts on swapDate
+  // Retrieve current rostered shifts on swapDate dynamically using shift resolver
   const shiftA = useMemo(() => {
-    if (!empA || !empA.slots) return { code: 'MS', name: 'Morning Shift', timing: '08:00 AM - 04:30 PM', isLeave: false, isOff: false };
-    const slot = empA.slots[swapDate];
+    if (!empA) return { code: 'MS', name: 'Morning Shift', timing: '07:00 AM – 03:00 PM', isLeave: false, isOff: false };
+    const slot = empA.slots?.[swapDate];
     if (slot) {
       return {
         code: slot.shiftCode,
         name: slot.shiftName,
-        timing: slot.timing || '08:00 AM - 04:30 PM',
+        timing: slot.timing || '07:00 AM – 03:00 PM',
         isLeave: slot.status === 'Leave' || slot.shiftCode === 'LV',
         isOff: slot.status === 'Off' || slot.shiftCode === 'WO',
       };
     }
-    return { code: 'MS', name: 'Morning Shift', timing: '08:00 AM - 04:30 PM', isLeave: false, isOff: false };
-  }, [empA, swapDate]);
+    const resolved = resolveApplicableShift({
+      employeeCode: empA.employeeCode,
+      departmentName: empA.department,
+      dateStr: swapDate,
+      shifts,
+      assignments,
+      rosterEmployees,
+    });
+    return {
+      code: resolved.code,
+      name: resolved.name,
+      timing: resolved.timing,
+      isLeave: false,
+      isOff: false,
+    };
+  }, [empA, swapDate, shifts, assignments, rosterEmployees]);
 
   const shiftB = useMemo(() => {
-    if (!empB || !empB.slots) return { code: 'ES', name: 'Evening Shift', timing: '04:00 PM - 12:30 AM', isLeave: false, isOff: false };
-    const slot = empB.slots[swapDate];
+    if (!empB) return { code: 'ES', name: 'Evening Shift', timing: '03:00 PM – 11:00 PM', isLeave: false, isOff: false };
+    const slot = empB.slots?.[swapDate];
     if (slot) {
       return {
         code: slot.shiftCode,
         name: slot.shiftName,
-        timing: slot.timing || '04:00 PM - 12:30 AM',
+        timing: slot.timing || '03:00 PM – 11:00 PM',
         isLeave: slot.status === 'Leave' || slot.shiftCode === 'LV',
         isOff: slot.status === 'Off' || slot.shiftCode === 'WO',
       };
     }
-    return { code: 'ES', name: 'Evening Shift', timing: '04:00 PM - 12:30 AM', isLeave: false, isOff: false };
-  }, [empB, swapDate]);
+    const resolved = resolveApplicableShift({
+      employeeCode: empB.employeeCode,
+      departmentName: empB.department,
+      dateStr: swapDate,
+      shifts,
+      assignments,
+      rosterEmployees,
+    });
+    return {
+      code: resolved.code,
+      name: resolved.name,
+      timing: resolved.timing,
+      isLeave: false,
+      isOff: false,
+    };
+  }, [empB, swapDate, shifts, assignments, rosterEmployees]);
 
   // Real-time Compliance Evaluation
   const compliance = useMemo(() => {
-    const isSameEmp = empA && empB && empA.employeeCode === empB.employeeCode;
+    const isSameEmp = !empA || !empB || empA.employeeCode === empB.employeeCode;
     const bothActive = Boolean(empA && empB && !isSameEmp);
-    const branchA = empA?.branch || 'Pune Manufacturing Plant';
-    const branchB = empB?.branch || 'Pune Manufacturing Plant';
-    const sameBranch = branchA.toLowerCase() === branchB.toLowerCase();
+    const branchA = (empA?.branch || '').trim().toLowerCase();
+    const branchB = (empB?.branch || '').trim().toLowerCase();
+    const sameBranch = Boolean(branchA && branchB && branchA === branchB);
 
     const noLeaveConflict = !shiftA.isLeave && !shiftB.isLeave;
     const hasWeeklyOff = shiftA.isOff || shiftB.isOff;
@@ -150,7 +264,10 @@ export function ShiftSwapsTab() {
       if (sw.swapDate !== swapDate) return false;
       if (sw.status === 'Rejected' || sw.status === 'Cancelled') return false;
       const participants = [sw.requesterCode, sw.targetCode];
-      return participants.includes(selectedEmpCodeA) || participants.includes(selectedEmpCodeB);
+      return (
+        (empA && participants.includes(empA.employeeCode)) ||
+        (empB && participants.includes(empB.employeeCode))
+      );
     });
     const noDoubleBooking = !doubleBooked;
 
@@ -165,7 +282,7 @@ export function ShiftSwapsTab() {
       (shiftA.code === 'ES' && shiftB.code === 'MS') ||
       (shiftB.code === 'ES' && shiftA.code === 'MS')
     ) {
-      restHours = 7.5;
+      restHours = 7.0;
     } else if (
       (shiftA.code === 'NS' && shiftB.code === 'MS') ||
       (shiftB.code === 'NS' && shiftA.code === 'MS')
@@ -175,6 +292,7 @@ export function ShiftSwapsTab() {
     const restHoursCompliant = restHours >= 11;
 
     const reasons: string[] = [];
+    if (!empB) reasons.push('Please select a colleague (Swap Partner) to swap with.');
     if (isSameEmp) reasons.push('Swap partner must be a different employee.');
     if (!sameBranch) reasons.push(`Employees belong to different branches (${branchA} vs ${branchB}).`);
     if (shiftA.isLeave) reasons.push(`${empA?.name} has approved leave on ${swapDate}.`);
@@ -204,7 +322,28 @@ export function ShiftSwapsTab() {
       allPassed,
       failureReasons: reasons,
     };
-  }, [empA, empB, shiftA, shiftB, swapDate, shiftSwaps, selectedEmpCodeA, selectedEmpCodeB, reason]);
+  }, [empA, empB, shiftA, shiftB, swapDate, shiftSwaps, reason]);
+
+  const handleOpenPropose = () => {
+    setSwapDate(todayStr);
+    setReason('');
+
+    if (!canManageSwaps) {
+      setSelectedEmpCodeA(myCode);
+      const peers = rosterEmployees.filter((e) => e.employeeCode !== myCode);
+      if (peers.length > 0) {
+        setSelectedEmpCodeB(peers[0].employeeCode);
+      }
+    } else {
+      const defaultA = rosterEmployees[0]?.employeeCode || '';
+      setSelectedEmpCodeA(defaultA);
+      const peers = rosterEmployees.filter((e) => e.employeeCode !== defaultA);
+      if (peers.length > 0) {
+        setSelectedEmpCodeB(peers[0].employeeCode);
+      }
+    }
+    setIsProposeModalOpen(true);
+  };
 
   // Handle Propose Swap Submission
   const handleProposeSubmit = async (e: React.FormEvent) => {
@@ -216,14 +355,16 @@ export function ShiftSwapsTab() {
 
     try {
       await submitShiftSwap({
-        requesterCode: empA?.employeeCode || 'EMP-001',
-        requesterName: empA?.name || 'Sudarshan Kale',
-        requesterBranch: empA?.branch || 'Pune Manufacturing Plant',
-        requesterDept: empA?.department || 'Production',
+        requesterId: empA?.employeeId || (user?.employee?.id ? String(user.employee.id) : undefined),
+        requesterCode: empA?.employeeCode || myCode,
+        requesterName: empA?.name || myName,
+        requesterBranch: empA?.branch || myBranch,
+        requesterDept: empA?.department || myDept,
         requesterShift: `${shiftA.code} (${shiftA.name})`,
-        targetCode: empB?.employeeCode || 'EMP-002',
-        targetName: empB?.name || 'Staff B',
-        targetBranch: empB?.branch || 'Pune Manufacturing Plant',
+        targetId: empB?.employeeId,
+        targetCode: empB?.employeeCode || '',
+        targetName: empB?.name || '',
+        targetBranch: empB?.branch || myBranch,
         targetDept: empB?.department || 'Production',
         targetShift: `${shiftB.code} (${shiftB.name})`,
         swapDate,
@@ -263,6 +404,22 @@ export function ShiftSwapsTab() {
   // Filtered List
   const filteredSwaps = useMemo(() => {
     return shiftSwaps.filter((sw) => {
+      // Role-based filtering: non-manager employees see only their own requests
+      if (!canManageSwaps) {
+        const myCode = user?.employee?.employeeCode?.toLowerCase();
+        const myId = user?.employee?.id;
+        const myName = user?.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim().toLowerCase() : '';
+        const firstName = user?.employee?.firstName?.toLowerCase() || '';
+
+        const isParticipant =
+          (myCode && (sw.requesterCode?.toLowerCase() === myCode || sw.targetCode?.toLowerCase() === myCode)) ||
+          (myId && (sw.requesterId === myId || sw.targetId === myId)) ||
+          (myName && (sw.requesterName?.toLowerCase().includes(myName) || sw.targetName?.toLowerCase().includes(myName))) ||
+          (firstName && (sw.requesterName?.toLowerCase().includes(firstName) || sw.targetName?.toLowerCase().includes(firstName)));
+
+        if (!isParticipant) return false;
+      }
+
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         sw.requesterName.toLowerCase().includes(q) ||
@@ -286,7 +443,7 @@ export function ShiftSwapsTab() {
 
       return matchesSearch && matchesStatus && matchesBranch;
     });
-  }, [shiftSwaps, searchQuery, statusFilter, matchBranch]);
+  }, [shiftSwaps, searchQuery, statusFilter, matchBranch, canManageSwaps, user]);
 
   // Branch-filtered swaps for summary metrics
   const branchFilteredSwaps = useMemo(() => {
@@ -356,7 +513,7 @@ export function ShiftSwapsTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Locations Covered</p>
-              <h3 className="text-xl font-bold text-foreground mt-0.5">Pune Plant</h3>
+              <h3 className="text-xl font-bold text-foreground mt-0.5">{empA?.branch || selectedBranch || assignedBranchName || 'Active Branch'}</h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">Single-branch policy enforced</p>
             </div>
             <div className="h-10 w-10 rounded-xl bg-muted border text-muted-foreground flex items-center justify-center">
@@ -441,7 +598,7 @@ export function ShiftSwapsTab() {
             <Button
               size="sm"
               className="h-8 text-xs px-3 gap-1.5 font-semibold shrink-0"
-              onClick={() => setIsProposeModalOpen(true)}
+              onClick={handleOpenPropose}
             >
               <Plus className="h-3.5 w-3.5" /> Propose Shift Swap
             </Button>
@@ -698,35 +855,49 @@ export function ShiftSwapsTab() {
                   <Users className="h-3 w-3" /> Step 1: Initiating Employee (Colleague A)
                 </span>
                 <Badge variant="outline" className="text-[9px] bg-background font-mono">
-                  {empA?.employeeCode}
+                  {canManageSwaps ? (empA?.employeeCode || 'EMP') : 'Initiator (You)'}
                 </Badge>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-medium">Select Employee A</Label>
-                <Select value={selectedEmpCodeA} onValueChange={setSelectedEmpCodeA}>
-                  <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue placeholder="Choose Colleague A..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {rosterEmployees.map((e) => (
-                      <SelectItem key={e.employeeId} value={e.employeeCode} className="text-xs">
-                        {e.employeeCode} — {e.name} ({e.department})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-[11px] font-medium">
+                  {canManageSwaps ? 'Select Employee A' : 'Initiating Employee (You)'}
+                </Label>
+                {canManageSwaps ? (
+                  <Select value={selectedEmpCodeA} onValueChange={setSelectedEmpCodeA}>
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Choose Colleague A..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rosterEmployees.map((e) => (
+                        <SelectItem key={e.employeeId || e.employeeCode} value={e.employeeCode} className="text-xs">
+                          {e.employeeCode} — {e.name} ({e.department})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={`${empA?.employeeCode || myCode} — ${empA?.name || myName} (${empA?.department || myDept})`}
+                    readOnly
+                    className="h-8 text-xs bg-muted text-foreground cursor-not-allowed font-medium"
+                  />
+                )}
               </div>
 
               {empA && (
                 <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
                   <div>
                     <span className="text-muted-foreground text-[10px] block">Branch & Dept</span>
-                    <span className="font-medium text-foreground text-[11px]">{empA.branch || 'Pune Plant'} • {empA.department}</span>
+                    <span className="font-medium text-foreground text-[11px]">
+                      {empA.branch || myBranch} • {empA.department || myDept}
+                    </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground text-[10px] block">Current Shift ({swapDate})</span>
-                    <span className="font-semibold text-primary text-[11px]">{shiftA.code} — {shiftA.name}</span>
+                    <span className="font-semibold text-primary text-[11px]">
+                      {shiftA.code} — {shiftA.name} ({shiftA.timing})
+                    </span>
                   </div>
                 </div>
               )}
@@ -739,37 +910,53 @@ export function ShiftSwapsTab() {
                   <Users className="h-3 w-3" /> Step 2: Swap Partner (Colleague B)
                 </span>
                 <Badge variant="outline" className="text-[9px] bg-background font-mono text-violet-600">
-                  {empB?.employeeCode}
+                  {empB?.employeeCode || 'Select Colleague'}
                 </Badge>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-medium">Select Swap Partner</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[11px] font-medium">Select Swap Partner</Label>
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    Same Branch: <span className="text-primary font-semibold">{empA?.branch || myBranch}</span>
+                  </span>
+                </div>
                 <Select value={selectedEmpCodeB} onValueChange={setSelectedEmpCodeB}>
                   <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue placeholder="Choose Colleague B..." />
+                    <SelectValue placeholder="Choose Colleague B to swap with..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {rosterEmployees
-                      .filter((e) => e.employeeCode !== selectedEmpCodeA)
-                      .map((e) => (
-                        <SelectItem key={e.employeeId} value={e.employeeCode} className="text-xs">
-                          {e.employeeCode} — {e.name} ({e.department})
+                    {availablePeers.length > 0 ? (
+                      availablePeers.map((e) => (
+                        <SelectItem key={e.employeeId || e.employeeCode} value={e.employeeCode} className="text-xs">
+                          {e.employeeCode} — {e.name} ({e.department}) • {e.branch}
                         </SelectItem>
-                      ))}
+                      ))
+                    ) : (
+                      <div className="p-2 text-xs text-muted-foreground text-center">
+                        No other colleagues in {empA?.branch || myBranch} available to swap with
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  Only showing peers working at the same branch ({empA?.branch || myBranch}). Head Office and other branches are excluded.
+                </p>
               </div>
 
               {empB && (
                 <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
                   <div>
                     <span className="text-muted-foreground text-[10px] block">Branch & Dept</span>
-                    <span className="font-medium text-foreground text-[11px]">{empB.branch || 'Pune Plant'} • {empB.department}</span>
+                    <span className="font-medium text-foreground text-[11px]">
+                      {empB.branch || empA?.branch || myBranch} • {empB.department}
+                    </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground text-[10px] block">Current Shift ({swapDate})</span>
-                    <span className="font-semibold text-violet-600 text-[11px]">{shiftB.code} — {shiftB.name}</span>
+                    <span className="font-semibold text-violet-600 text-[11px]">
+                      {shiftB.code} — {shiftB.name} ({shiftB.timing})
+                    </span>
                   </div>
                 </div>
               )}
@@ -782,6 +969,7 @@ export function ShiftSwapsTab() {
               </Label>
               <Input
                 type="date"
+                min={todayStr}
                 value={swapDate}
                 onChange={(e) => setSwapDate(e.target.value)}
                 className="h-8 text-xs bg-background font-mono"
@@ -885,7 +1073,7 @@ export function ShiftSwapsTab() {
                     <XCircle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
                   )}
                   <span className={compliance.sameBranch ? 'text-foreground' : 'text-rose-600 font-medium'}>
-                    Same Branch (Pune Plant)
+                    Same Branch ({empA?.branch || myBranch})
                   </span>
                 </div>
 
