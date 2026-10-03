@@ -201,8 +201,8 @@ export class ShiftLifecycleService implements OnModuleInit {
             endTime: originalCode === 'MS' ? '04:30 PM' : originalCode === 'ES' ? '12:30 AM' : originalCode === 'NS' ? '06:30 AM' : '05:30 PM',
           };
 
-          // Temporal status calculation relative to live date (2026-09-11)
-          const todayIso = '2026-09-11';
+          // Temporal status calculation relative to live current date
+          const todayIso = new Date().toISOString().split('T')[0];
           let statusText = 'Approved – Scheduled';
           let displayStatus = 'Scheduled Swap';
           if (dateStr < todayIso) {
@@ -405,7 +405,23 @@ export class ShiftLifecycleService implements OnModuleInit {
                 const parsed =
                   typeof matchingRot.pattern === 'string' ? JSON.parse(matchingRot.pattern) : matchingRot.pattern;
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                  patternArr = parsed.map((p: string) => p.split(' ')[0]?.replace('(', '').replace(')', '').trim());
+                  patternArr = parsed.map((p: string) => {
+                    const clean = String(p).trim();
+                    const paren = clean.match(/\(([^)]+)\)/);
+                    if (paren) {
+                      const inside = paren[1].trim();
+                      const matchInside = shifts.find(
+                        (s) => s.code.toLowerCase() === inside.toLowerCase() || s.name.toLowerCase() === inside.toLowerCase()
+                      );
+                      if (matchInside) return matchInside.code;
+                    }
+                    const token = clean.split(/[-\s–(]/)[0].replace(/[()]/g, '').trim();
+                    const matchToken = shifts.find((s) => s.code.toLowerCase() === token.toLowerCase());
+                    if (matchToken) return matchToken.code;
+                    const matchName = shifts.find((s) => s.name.toLowerCase() === clean.toLowerCase());
+                    if (matchName) return matchName.code;
+                    return token || clean;
+                  });
                 }
               }
             } catch {}
@@ -420,7 +436,7 @@ export class ShiftLifecycleService implements OnModuleInit {
             const phaseCode = patternArr[phaseIdx] || 'MS';
 
             const rotShift =
-              shifts.find((s) => s.code === phaseCode) || {
+              shifts.find((s) => s.code.toLowerCase() === phaseCode.toLowerCase()) || {
                 id: `s-${phaseCode.toLowerCase()}`,
                 code: phaseCode,
                 name:
@@ -623,15 +639,18 @@ export class ShiftLifecycleService implements OnModuleInit {
   }
 
   async startRotation(id: string) {
+    const [rot]: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM shift_rotation_rules WHERE id = ?`, id);
+    if (!rot) throw new NotFoundException('Rotation rule not found');
+
     await this.prisma.$executeRawUnsafe(
       `UPDATE shift_rotation_rules SET status = 'Active', currentPhase = 1, updatedAt = NOW(3) WHERE id = ?`,
       id
     );
 
-    // Auto-fill upcoming schedule from 14 Sep onwards as Draft
-    const upcomingDates = this.generateDateRange('2026-09-14', '2026-10-31');
-    const [rot]: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM shift_rotation_rules WHERE id = ?`, id);
-    if (rot) {
+    const fromDate = rot.startDate || rot.effectiveFrom || '2026-09-14';
+    // Auto-fill upcoming schedule from rotation start date onwards as Draft
+    const upcomingDates = this.generateDateRange(fromDate, '2026-10-31');
+    if (rot.companyId) {
       await this.bulkAutoAssign({ companyId: rot.companyId, dates: upcomingDates, status: 'Draft' });
     }
 
@@ -658,43 +677,146 @@ export class ShiftLifecycleService implements OnModuleInit {
     return rows.map((r) => {
       let patternArr = ['Morning Shift (A)', 'Evening Shift (B)', 'Night Shift (C)', 'General Day (G)'];
       try {
-        if (r.pattern) patternArr = JSON.parse(r.pattern);
+        if (r.pattern) patternArr = typeof r.pattern === 'string' ? JSON.parse(r.pattern) : r.pattern;
       } catch {}
+
+      let phasesArr: any[] = [];
+      try {
+        if (r.phases) phasesArr = typeof r.phases === 'string' ? JSON.parse(r.phases) : r.phases;
+      } catch {}
+
+      let empIdsArr: string[] = [];
+      try {
+        if (r.selectedEmployeeIds) {
+          empIdsArr = typeof r.selectedEmployeeIds === 'string' ? JSON.parse(r.selectedEmployeeIds) : r.selectedEmployeeIds;
+        }
+      } catch {}
+
       return {
         ...r,
         pattern: patternArr,
+        phases: phasesArr && phasesArr.length > 0 ? phasesArr : undefined,
+        selectedEmployeeIds: empIdsArr,
         autoApplyToRoster: Boolean(r.autoApplyToRoster),
       };
     });
   }
 
-  async createRotation(dto: {
-    companyId: string;
-    name: string;
-    department?: string;
-    frequency: string;
-    pattern?: string[];
-    handoverDay?: string;
-    headcountCovered?: number;
-  }) {
+  async createRotation(dto: any) {
     const id = `rot-${Date.now()}`;
     const patternStr = JSON.stringify(
       dto.pattern || ['Morning Shift (A)', 'Evening Shift (B)', 'Night Shift (C)', 'General Day (G)']
     );
+    const phasesStr = dto.phases ? JSON.stringify(dto.phases) : null;
+    const selectedEmpStr = dto.selectedEmployeeIds ? JSON.stringify(dto.selectedEmployeeIds) : null;
+    const startDate = dto.startDate || dto.effectiveFrom || '2026-09-14';
+    const effectiveFrom = dto.effectiveFrom || dto.startDate || '2026-09-14';
+    const effectiveTo = dto.effectiveTo || null;
+    const code = dto.code || `ROT-${Date.now().toString().slice(-4)}`;
+    const status = dto.status || 'Active';
+    const currentPhase = Number(dto.currentPhase) || 1;
+    const nextRotationDate = dto.nextRotationDate || null;
+    const autoApplyToRoster = dto.autoApplyToRoster !== undefined ? (dto.autoApplyToRoster ? 1 : 0) : 1;
 
     await this.prisma.$executeRawUnsafe(
-      `INSERT INTO shift_rotation_rules (id, companyId, name, department, frequency, pattern, handoverDay, headcountCovered, currentPhase, status, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'Active', NOW(3))`,
+      `INSERT INTO shift_rotation_rules 
+       (id, companyId, name, code, description, department, frequency, pattern, phases, handoverDay, startDate, effectiveFrom, effectiveTo, applicableTo, applicableTarget, applicableScope, selectedEmployeeIds, headcountCovered, currentPhase, nextRotationDate, autoApplyToRoster, status, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`,
       id,
       dto.companyId,
       dto.name,
+      code,
+      dto.description || null,
       dto.department || 'Production & Assembly',
       dto.frequency || 'Weekly',
       patternStr,
-      dto.handoverDay || 'Monday 00:00 AM',
-      dto.headcountCovered || 24
+      phasesStr,
+      dto.handoverDay || 'Monday 08:00 AM',
+      startDate,
+      effectiveFrom,
+      effectiveTo,
+      dto.applicableTo || 'Department',
+      dto.applicableTarget || dto.department || null,
+      dto.applicableScope || null,
+      selectedEmpStr,
+      dto.headcountCovered || 1,
+      currentPhase,
+      nextRotationDate,
+      autoApplyToRoster,
+      status
     );
 
+    return { success: true, id };
+  }
+
+  async updateRotation(id: string, dto: any) {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM shift_rotation_rules WHERE id = ?`,
+      id
+    );
+    if (!rows || rows.length === 0) throw new NotFoundException('Rotation rule not found');
+
+    const existing = rows[0];
+
+    const name = dto.name !== undefined ? dto.name : existing.name;
+    const code = dto.code !== undefined ? dto.code : existing.code;
+    const description = dto.description !== undefined ? dto.description : existing.description;
+    const department = dto.department !== undefined ? dto.department : existing.department;
+    const frequency = dto.frequency !== undefined ? dto.frequency : existing.frequency;
+    const patternStr = dto.pattern ? JSON.stringify(dto.pattern) : existing.pattern;
+    const phasesStr = dto.phases ? JSON.stringify(dto.phases) : existing.phases;
+    const handoverDay = dto.handoverDay !== undefined ? dto.handoverDay : existing.handoverDay;
+    const startDate = dto.startDate !== undefined ? dto.startDate : (dto.effectiveFrom !== undefined ? dto.effectiveFrom : existing.startDate);
+    const effectiveFrom = dto.effectiveFrom !== undefined ? dto.effectiveFrom : (dto.startDate !== undefined ? dto.startDate : existing.effectiveFrom);
+    const effectiveTo = dto.effectiveTo !== undefined ? dto.effectiveTo : existing.effectiveTo;
+    const applicableTo = dto.applicableTo !== undefined ? dto.applicableTo : existing.applicableTo;
+    const applicableTarget = dto.applicableTarget !== undefined ? dto.applicableTarget : existing.applicableTarget;
+    const applicableScope = dto.applicableScope !== undefined ? dto.applicableScope : existing.applicableScope;
+    const selectedEmpStr = dto.selectedEmployeeIds ? JSON.stringify(dto.selectedEmployeeIds) : existing.selectedEmployeeIds;
+    const headcountCovered = dto.headcountCovered !== undefined ? dto.headcountCovered : existing.headcountCovered;
+    const currentPhase = dto.currentPhase !== undefined ? Number(dto.currentPhase) : existing.currentPhase;
+    const nextRotationDate = dto.nextRotationDate !== undefined ? dto.nextRotationDate : existing.nextRotationDate;
+    const status = dto.status !== undefined ? dto.status : existing.status;
+    const autoApplyToRoster = dto.autoApplyToRoster !== undefined ? (dto.autoApplyToRoster ? 1 : 0) : existing.autoApplyToRoster;
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE shift_rotation_rules 
+       SET name = ?, code = ?, description = ?, department = ?, frequency = ?, pattern = ?, phases = ?, 
+           handoverDay = ?, startDate = ?, effectiveFrom = ?, effectiveTo = ?, applicableTo = ?, 
+           applicableTarget = ?, applicableScope = ?, selectedEmployeeIds = ?, headcountCovered = ?, 
+           currentPhase = ?, nextRotationDate = ?, autoApplyToRoster = ?, status = ?, updatedAt = NOW(3)
+       WHERE id = ?`,
+      name,
+      code,
+      description,
+      department,
+      frequency,
+      patternStr,
+      phasesStr,
+      handoverDay,
+      startDate,
+      effectiveFrom,
+      effectiveTo,
+      applicableTo,
+      applicableTarget,
+      applicableScope,
+      selectedEmpStr,
+      headcountCovered,
+      currentPhase,
+      nextRotationDate,
+      autoApplyToRoster,
+      status,
+      id
+    );
+
+    return { success: true, id };
+  }
+
+  async deleteRotation(id: string) {
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM shift_rotation_rules WHERE id = ?`,
+      id
+    );
     return { success: true, id };
   }
 
@@ -712,7 +834,12 @@ export class ShiftLifecycleService implements OnModuleInit {
 
     let patternLength = 4;
     try {
-      patternLength = JSON.parse(rot.pattern).length;
+      if (rot.phases) {
+        const phs = typeof rot.phases === 'string' ? JSON.parse(rot.phases) : rot.phases;
+        if (phs && phs.length > 0) patternLength = phs.length;
+      } else if (rot.pattern) {
+        patternLength = (typeof rot.pattern === 'string' ? JSON.parse(rot.pattern) : rot.pattern).length;
+      }
     } catch {}
 
     const nextPhase = (rot.currentPhase % patternLength) + 1;

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -66,6 +67,18 @@ export class ShiftLifecycleController {
   createRotation(@Body() dto: any, @CurrentUser() user?: CurrentUserPayload) {
     const tenantCompanyId = getTenantCompanyId(user, dto.companyId);
     return this.lifecycleService.createRotation({ ...dto, companyId: tenantCompanyId || dto.companyId });
+  }
+
+  @Patch('rotations/:id')
+  @Permissions('workforce.write')
+  updateRotation(@Param('id') id: string, @Body() dto: any) {
+    return this.lifecycleService.updateRotation(id, dto);
+  }
+
+  @Delete('rotations/:id')
+  @Permissions('workforce.write')
+  deleteRotation(@Param('id') id: string) {
+    return this.lifecycleService.deleteRotation(id);
   }
 
   @Post('rotations/:id/start')

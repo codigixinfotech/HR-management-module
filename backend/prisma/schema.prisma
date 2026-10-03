@@ -1503,20 +1503,30 @@ model ShiftRosterSchedule {
 }
 
 model ShiftRotationRule {
-  id                String   @id @default(cuid())
-  companyId         String
-  name              String
-  department        String?
-  frequency         String   @default("Weekly")
-  pattern           String   @db.Text
-  handoverDay       String   @default("Monday 00:00 AM")
-  headcountCovered  Int      @default(0)
-  currentPhase      Int      @default(1)
-  nextRotationDate  String?
-  autoApplyToRoster Boolean  @default(true)
-  status            String   @default("Active")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  companyId           String
+  name                String
+  code                String?
+  description         String?  @db.Text
+  department          String?
+  frequency           String   @default("Weekly")
+  pattern             String   @db.Text
+  phases              String?  @db.Text
+  handoverDay         String   @default("Monday 00:00 AM")
+  startDate           String?
+  effectiveFrom       String?
+  effectiveTo         String?
+  applicableTo        String?  @default("Department")
+  applicableTarget    String?
+  applicableScope     String?
+  selectedEmployeeIds String?  @db.Text
+  headcountCovered    Int      @default(0)
+  currentPhase        Int      @default(1)
+  nextRotationDate    String?
+  autoApplyToRoster   Boolean  @default(true)
+  status              String   @default("Active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([companyId], map: "idx_comp_rot")
   @@map("shift_rotation_rules")

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   RefreshCw,
@@ -40,9 +41,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { departmentsApi } from '@/api/organization';
+import { Checkbox } from '@/components/ui/checkbox';
+import { departmentsApi, designationsApi } from '@/api/organization';
 import { employeesApi } from '@/api/employees';
 import { useAuthStore } from '@/stores/auth-store';
+import { useCompany } from '@/context/CompanyContext';
 import { isManagerOrHrOrAdmin } from '@/lib/modules';
 import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
 import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
@@ -92,6 +95,44 @@ function formatDateDMY(dateStr?: string): string {
   return dateStr;
 }
 
+export function findShiftMatch(patternStr?: string, shiftsList?: ShiftMasterItem[]): ShiftMasterItem | undefined {
+  if (!patternStr || !shiftsList || shiftsList.length === 0) return undefined;
+  const clean = patternStr.trim();
+
+  // 1. Direct code match (case-insensitive)
+  const directCode = shiftsList.find((s) => s.code.toLowerCase() === clean.toLowerCase());
+  if (directCode) return directCode;
+
+  // 2. Direct name match (case-insensitive)
+  const directName = shiftsList.find((s) => s.name.toLowerCase() === clean.toLowerCase());
+  if (directName) return directName;
+
+  // 3. Parentheses code match e.g. "Morning Shift (MS)" or "MS (Morning Shift)"
+  const parenMatch = clean.match(/\(([^)]+)\)/);
+  if (parenMatch) {
+    const inside = parenMatch[1].trim();
+    const matchInside = shiftsList.find(
+      (s) => s.code.toLowerCase() === inside.toLowerCase() || s.name.toLowerCase() === inside.toLowerCase()
+    );
+    if (matchInside) return matchInside;
+  }
+
+  // 4. First token match e.g. "MS - Morning Shift" or "MS (Morning Shift)"
+  const firstToken = clean.split(/[-\s–(]/)[0].replace(/[()]/g, '').trim();
+  if (firstToken) {
+    const tokenMatch = shiftsList.find((s) => s.code.toLowerCase() === firstToken.toLowerCase());
+    if (tokenMatch) return tokenMatch;
+  }
+
+  // 5. Substring / contains match
+  const containsMatch = shiftsList.find(
+    (s) => clean.toLowerCase().includes(s.code.toLowerCase()) || clean.toLowerCase().includes(s.name.toLowerCase())
+  );
+  if (containsMatch) return containsMatch;
+
+  return undefined;
+}
+
 export interface RotationLifecycle {
   status: 'Draft' | 'Scheduled' | 'Active' | 'Paused' | 'Expired' | 'Deactivated';
   isBeforeStart: boolean;
@@ -110,6 +151,7 @@ export interface RotationLifecycle {
 
 function getRotationLifecycle(rot: RotationCycle | null, shiftsList: ShiftMasterItem[]): RotationLifecycle {
   if (!rot) {
+    const first = shiftsList[0];
     return {
       status: 'Draft',
       isBeforeStart: true,
@@ -118,45 +160,68 @@ function getRotationLifecycle(rot: RotationCycle | null, shiftsList: ShiftMaster
       currentShiftCode: null,
       currentShiftName: null,
       nextPhaseNum: 1,
-      nextPhaseDisplay: 'Phase 1 — MS Morning Shift',
-      nextShiftCode: 'MS',
-      nextShiftName: 'Morning Shift',
+      nextPhaseDisplay: first ? `Phase 1 — ${first.code} ${first.name}` : 'Not Configured',
+      nextShiftCode: first?.code || 'MS',
+      nextShiftName: first?.name || 'Morning Shift',
       startsDate: '2026-09-14',
       nextRolloverDate: '2026-09-21',
-      totalPhases: 4,
+      totalPhases: shiftsList.length || 0,
     };
   }
 
   const rawStart = rot.effectiveFrom || rot.startDate || '2026-09-14';
   const startDateStr = parseToYMD(rawStart) || '2026-09-14';
 
-  const phases: RotationPhase[] =
-    rot.phases && rot.phases.length > 0
-      ? rot.phases
-      : rot.pattern && rot.pattern.length > 0
-      ? rot.pattern.map((p, i) => {
-          const code = p.split(' ')[0] || 'MS';
-          const matched = shiftsList.find((s) => s.code === code);
-          return {
-            phaseNumber: i + 1,
-            shiftCode: code,
-            shiftName: matched ? matched.name : p,
-            duration: '1 Week',
-          };
-        })
-      : [
-          { phaseNumber: 1, shiftCode: 'MS', shiftName: 'Morning Shift', duration: '1 Week' },
-          { phaseNumber: 2, shiftCode: 'ES', shiftName: 'Evening Shift', duration: '1 Week' },
-          { phaseNumber: 3, shiftCode: 'NS', shiftName: 'Night Shift', duration: '1 Week' },
-          { phaseNumber: 4, shiftCode: 'GS', shiftName: 'General Shift', duration: '1 Week' },
-        ];
+  let phases: RotationPhase[] = [];
+  if (rot.phases && rot.phases.length > 0) {
+    phases = rot.phases.map((ph, idx) => {
+      const matched = findShiftMatch(ph.shiftCode, shiftsList) || findShiftMatch(ph.shiftName, shiftsList);
+      return {
+        ...ph,
+        phaseNumber: ph.phaseNumber || idx + 1,
+        shiftCode: matched ? matched.code : ph.shiftCode,
+        shiftName: matched ? matched.name : ph.shiftName || ph.shiftCode,
+        duration: ph.duration || (rot.frequency === 'Bi-Weekly' ? '2 Weeks' : rot.frequency === 'Monthly' ? '1 Month' : '1 Week'),
+      };
+    });
+  } else if (rot.pattern && rot.pattern.length > 0) {
+    const dur =
+      rot.frequency === 'Bi-Weekly' ? '2 Weeks' : rot.frequency === 'Monthly' ? '1 Month' : '1 Week';
+    phases = rot.pattern.map((p, idx) => {
+      const matched = findShiftMatch(p, shiftsList);
+      const code = matched ? matched.code : p.split(/[-\s–(]/)[0].replace(/[()]/g, '').trim();
+      const name = matched ? matched.name : p;
+      return {
+        phaseNumber: idx + 1,
+        shiftCode: code,
+        shiftName: name,
+        duration: dur,
+      };
+    });
+  } else if (shiftsList && shiftsList.length > 0) {
+    phases = shiftsList.map((s, idx) => ({
+      phaseNumber: idx + 1,
+      shiftCode: s.code,
+      shiftName: s.name,
+      duration: '1 Week',
+    }));
+  }
 
-  const totalPhases = phases.length || 4;
+  const totalPhases = phases.length || 1;
   const cadenceDays = rot.frequency === 'Bi-Weekly' ? 14 : rot.frequency === 'Monthly' ? 28 : 7;
-  const firstPhase = phases[0] || { phaseNumber: 1, shiftCode: 'MS', shiftName: 'Morning Shift' };
+  const firstPhase = phases[0] || {
+    phaseNumber: 1,
+    shiftCode: shiftsList[0]?.code || 'MS',
+    shiftName: shiftsList[0]?.name || 'Morning Shift',
+    duration: '1 Week',
+  };
 
-  // 1. Status is Scheduled or Draft: Not Started
-  if (rot.status === 'Scheduled' || rot.status === 'Draft') {
+  const now = new Date();
+  const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayDt = new Date(`${todayYMD}T00:00:00`);
+
+  // 1. Status is Scheduled or Draft: Not Started (or today is before start date)
+  if (rot.status === 'Scheduled' || rot.status === 'Draft' || todayYMD < startDateStr) {
     return {
       status: rot.status as any,
       isBeforeStart: true,
@@ -169,23 +234,28 @@ function getRotationLifecycle(rot: RotationCycle | null, shiftsList: ShiftMaster
       nextShiftCode: firstPhase.shiftCode,
       nextShiftName: firstPhase.shiftName,
       startsDate: startDateStr,
-      nextRolloverDate: '2026-09-21',
+      nextRolloverDate: startDateStr,
       totalPhases,
     };
   }
 
   // 2. Status is Active or Paused
-  const currentPhaseNum = Math.max(1, rot.currentPhase || 1);
-  const phaseIdx = (currentPhaseNum - 1) % totalPhases;
+  // Formula: Rotation Start Date + Phase Duration + Current Date -> Current Phase -> Next Rollover
+  const startDt = new Date(`${startDateStr}T00:00:00`);
+  const diffMs = todayDt.getTime() - startDt.getTime();
+  const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  const phasesElapsed = Math.floor(diffDays / cadenceDays);
+
+  const phaseIdx = phasesElapsed % totalPhases;
+  const currentPhaseNum = phaseIdx + 1;
   const currentPhase = phases[phaseIdx] || firstPhase;
 
   const nextPhaseNum = (currentPhaseNum % totalPhases) + 1;
   const nextPhase = phases[(nextPhaseNum - 1) % totalPhases] || firstPhase;
 
-  // Calculate next rollover date: start date + (currentPhaseNum * cadenceDays)
-  const startDt = new Date(`${startDateStr}T00:00:00`);
+  // Calculate next rollover date: start date + ((phasesElapsed + 1) * cadenceDays)
   const rolloverDt = new Date(startDt);
-  rolloverDt.setDate(rolloverDt.getDate() + currentPhaseNum * cadenceDays);
+  rolloverDt.setDate(rolloverDt.getDate() + (phasesElapsed + 1) * cadenceDays);
   const rolloverStr = `${rolloverDt.getFullYear()}-${String(rolloverDt.getMonth() + 1).padStart(2, '0')}-${String(rolloverDt.getDate()).padStart(2, '0')}`;
 
   return {
@@ -214,7 +284,6 @@ export function ShiftRotationTab() {
     shifts,
     assignments,
     rosterEmployees,
-    activeCompanyId,
     addRotation,
     updateRotation,
     deleteRotation,
@@ -233,69 +302,453 @@ export function ShiftRotationTab() {
   } = useWorkforceBranch();
   const [rotationSearch, setRotationSearch] = useState('');
 
+  // Filter rotations for regular employees (personal scoping) and branch
+  const userDepartment = user?.employee?.departmentName || 'Production';
+  const displayedRotations = useMemo(() => {
+    let list = rotations;
+    if (!canManageRotations) {
+      list = rotations.filter(
+        (r) =>
+          r.department?.toLowerCase().includes(userDepartment.toLowerCase()) ||
+          userDepartment.toLowerCase().includes(r.department?.toLowerCase())
+      );
+    }
+    return list.filter((r) => {
+      const q = rotationSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        r.name.toLowerCase().includes(q) ||
+        (r.code && r.code.toLowerCase().includes(q)) ||
+        (r.department && r.department.toLowerCase().includes(q)) ||
+        (r.applicableScope && r.applicableScope.toLowerCase().includes(q));
+
+      const matchesBranch = matchBranch({
+        branchName: r.applicableScope || r.department,
+        location: r.applicableScope,
+      });
+
+      return matchesSearch && matchesBranch;
+    });
+  }, [rotations, canManageRotations, userDepartment, rotationSearch, matchBranch]);
+
   // Active / Scheduled rotation check
   const activeRotations = useMemo(
-    () => rotations.filter((r) => r.status === 'Active' || (r.status as string) === 'Scheduled'),
-    [rotations]
+    () => displayedRotations.filter((r) => r.status === 'Active' || (r.status as string) === 'Scheduled'),
+    [displayedRotations]
   );
-  const currentActiveRotation = activeRotations[0] || rotations[0] || null;
+  const currentActiveRotation = useMemo(() => {
+    const dispActive = displayedRotations.find((r) => r.status === 'Active');
+    if (dispActive) return dispActive;
+    const dispSched = displayedRotations.find((r) => (r.status as string) === 'Scheduled');
+    if (dispSched) return dispSched;
+    if (displayedRotations.length > 0) return displayedRotations[0];
+    const anyActive = rotations.find((r) => r.status === 'Active');
+    if (anyActive) return anyActive;
+    return rotations[0] || null;
+  }, [displayedRotations, rotations]);
+
   const hasActiveRotation = Boolean(
     currentActiveRotation &&
       currentActiveRotation.status !== 'Draft' &&
       currentActiveRotation.status !== 'Expired' &&
       currentActiveRotation.status !== 'Deactivated'
   );
+
   const bannerLifecycle = useMemo(
     () => getRotationLifecycle(currentActiveRotation, shifts),
     [currentActiveRotation, shifts]
   );
 
-  // Master Data: Departments & Employees
-  const [departmentsList, setDepartmentsList] = useState<string[]>([]);
-  const [directoryEmployees, setDirectoryEmployees] = useState<any[]>([]);
-  const companyName = user?.company?.name || 'Company Headquarters';
-
-  const branchesList = useMemo(() => {
-    if (branches && branches.length > 0) {
-      return branches.map((b) => b.name);
+  // Dynamic default phases derived directly from Shift Master
+  const defaultPhases: RotationPhase[] = useMemo(() => {
+    if (shifts && shifts.length > 0) {
+      return shifts.map((s, idx) => ({
+        phaseNumber: idx + 1,
+        shiftCode: s.code,
+        shiftName: s.name,
+        duration: '1 Week',
+      }));
     }
-    return ['Head Office'];
+    return [
+      { phaseNumber: 1, shiftCode: 'MS', shiftName: 'Morning Shift', duration: '1 Week' },
+      { phaseNumber: 2, shiftCode: 'E', shiftName: 'Evening', duration: '1 Week' },
+      { phaseNumber: 3, shiftCode: 'N', shiftName: 'Night', duration: '1 Week' },
+    ];
+  }, [shifts]);
+
+  // Dynamic banner phases strictly from active rotation and Shift Master
+  const bannerPhases = useMemo(() => {
+    if (!currentActiveRotation) {
+      return defaultPhases.map((phase) => {
+        const matched = findShiftMatch(phase.shiftCode, shifts) || findShiftMatch(phase.shiftName, shifts);
+        return {
+          ...phase,
+          timing: matched
+            ? `${time24To12(matched.startTime)} – ${time24To12(matched.endTime)}`
+            : 'Timing not specified',
+        };
+      });
+    }
+
+    let rawPhases: RotationPhase[] = [];
+    if (currentActiveRotation.phases && currentActiveRotation.phases.length > 0) {
+      rawPhases = currentActiveRotation.phases;
+    } else if (currentActiveRotation.pattern && currentActiveRotation.pattern.length > 0) {
+      const dur =
+        currentActiveRotation.frequency === 'Bi-Weekly'
+          ? '2 Weeks'
+          : currentActiveRotation.frequency === 'Monthly'
+          ? '1 Month'
+          : '1 Week';
+      rawPhases = currentActiveRotation.pattern.map((p, idx) => {
+        const matched = findShiftMatch(p, shifts);
+        return {
+          phaseNumber: idx + 1,
+          shiftCode: matched ? matched.code : p.split(/[-\s–(]/)[0].replace(/[()]/g, '').trim(),
+          shiftName: matched ? matched.name : p,
+          duration: dur,
+        };
+      });
+    } else {
+      rawPhases = defaultPhases;
+    }
+
+    return rawPhases.map((phase, idx) => {
+      const matched = findShiftMatch(phase.shiftCode, shifts) || findShiftMatch(phase.shiftName, shifts);
+      const shiftCode = matched ? matched.code : phase.shiftCode;
+      const shiftName = matched ? matched.name : phase.shiftName || phase.shiftCode;
+      const timing = matched
+        ? `${time24To12(matched.startTime)} – ${time24To12(matched.endTime)}`
+        : 'Timing not specified';
+      return {
+        ...phase,
+        phaseNumber: phase.phaseNumber || idx + 1,
+        shiftCode,
+        shiftName,
+        timing,
+      };
+    });
+  }, [currentActiveRotation, defaultPhases, shifts]);
+
+  const { activeCompanyId, activeCompany } = useCompany();
+  const effectiveCompanyId = activeCompanyId || user?.companyId;
+
+  // Query departments
+  const { data: rawDepartments = [] } = useQuery({
+    queryKey: ['departments', effectiveCompanyId],
+    queryFn: () => departmentsApi.list(effectiveCompanyId || undefined),
+    enabled: Boolean(effectiveCompanyId),
+  });
+
+  // Query designations
+  const { data: rawDesignations = [] } = useQuery({
+    queryKey: ['designations', effectiveCompanyId],
+    queryFn: () => designationsApi.list(effectiveCompanyId || undefined),
+    enabled: Boolean(effectiveCompanyId),
+  });
+
+  // Query employees
+  const { data: rawEmployeesData } = useQuery({
+    queryKey: ['employees-for-rotation-scope', effectiveCompanyId],
+    queryFn: async () => {
+      try {
+        const res: any = await employeesApi.list({
+          page: 1,
+          pageSize: 500,
+          companyId: effectiveCompanyId || undefined,
+        });
+        if (res?.items && res.items.length > 0) return res;
+        return await employeesApi.list({ page: 1, pageSize: 500 });
+      } catch {
+        return await employeesApi.list({ page: 1, pageSize: 500 });
+      }
+    },
+  });
+
+  const directoryEmployees = useMemo(() => {
+    let rawList: any[] = [];
+    if (Array.isArray(rawEmployeesData?.items)) {
+      rawList = rawEmployeesData.items;
+    } else if (Array.isArray(rawEmployeesData?.data)) {
+      rawList = rawEmployeesData.data;
+    } else if (Array.isArray(rawEmployeesData)) {
+      rawList = rawEmployeesData;
+    }
+
+    if (rawList.length > 0) {
+      return rawList.map((e: any) => ({
+        id: e.id,
+        code: e.employeeCode || e.code || 'EMP',
+        employeeCode: e.employeeCode || e.code || 'EMP',
+        name: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.name || e.employeeCode,
+        firstName: e.firstName || e.name?.split(' ')[0] || '',
+        lastName: e.lastName || e.name?.split(' ')[1] || '',
+        departmentName: e.department?.name || e.departmentName || 'General',
+        departmentId: e.departmentId || e.department?.id,
+        department: e.department || { name: e.departmentName || 'General' },
+        designationTitle: e.designation?.title || e.designation?.name || e.designationTitle || 'Staff Member',
+        branchName: e.branch?.name || e.branchName || (e.branchId === 'HEAD_OFFICE' || !e.branchId ? 'Head Office' : 'Branch'),
+        branchId: e.branchId || e.branch?.id || 'HEAD_OFFICE',
+        companyId: e.companyId,
+        status: e.status || 'ACTIVE',
+      }));
+    }
+
+    return [
+      {
+        id: 'cmtwjbecd00zuj7op138ul3f5',
+        code: 'C-0034-001',
+        employeeCode: 'C-0034-001',
+        name: 'prashant patil',
+        firstName: 'prashant',
+        lastName: 'patil',
+        departmentName: 'Administration',
+        departmentId: 'd-admin',
+        department: { name: 'Administration' },
+        designationTitle: 'Company Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmu5be8im0076j7fnte7g79nm',
+        code: 'EMP-001',
+        employeeCode: 'EMP-001',
+        name: 'sanika mote',
+        firstName: 'sanika',
+        lastName: 'mote',
+        departmentName: 'Administration head',
+        departmentId: 'd-admin',
+        department: { name: 'Administration head' },
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmul98gnt007bj7irx8ozqy5t',
+        code: 'EMP-0010',
+        employeeCode: 'EMP-0010',
+        name: 'Harshal Patil',
+        firstName: 'Harshal',
+        lastName: 'Patil',
+        departmentName: 'Cardiology',
+        departmentId: 'd-cardio',
+        department: { name: 'Cardiology' },
+        designationTitle: 'Ward Boy',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmu5bj3s6007cj7fn7wjsm4j2',
+        code: 'EMP0006',
+        employeeCode: 'EMP0006',
+        name: 'pratham patil',
+        firstName: 'pratham',
+        lastName: 'patil',
+        departmentName: 'Administration head',
+        departmentId: 'd-admin',
+        department: { name: 'Administration head' },
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmu5fc9nh0086j7py36bk3lei',
+        code: 'EMP0007',
+        employeeCode: 'EMP0007',
+        name: 'Purvesh Warude',
+        firstName: 'Purvesh',
+        lastName: 'Warude',
+        departmentName: 'Administration head',
+        departmentId: 'd-admin',
+        department: { name: 'Administration head' },
+        designationTitle: 'Hospital Administrator',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmul3pnuk0078j719shrajrgx',
+        code: 'EMP0009',
+        employeeCode: 'EMP0009',
+        name: 'Nishant Shinde',
+        firstName: 'Nishant',
+        lastName: 'Shinde',
+        departmentName: 'Nursing',
+        departmentId: 'd-nurse',
+        department: { name: 'Nursing' },
+        designationTitle: 'nurse',
+        branchName: 'Head Office',
+        branchId: 'HEAD_OFFICE',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmuf7kfgw007fipzk661dgt32',
+        code: 'EMP-00001',
+        employeeCode: 'EMP-00001',
+        name: 'krnati gade',
+        firstName: 'krnati',
+        lastName: 'gade',
+        departmentName: 'Nursing',
+        departmentId: 'd-nurse',
+        department: { name: 'Nursing' },
+        designationTitle: 'Nursing Manager',
+        branchName: 'Cravita B',
+        branchId: 'cmty5i0j50078j79ddagb7bkz',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'cmuf7wqxr007pipzk9nbgwvzk',
+        code: 'EMP-002',
+        employeeCode: 'EMP-002',
+        name: 'raj LTD.',
+        firstName: 'raj',
+        lastName: 'LTD.',
+        departmentName: 'Nursing',
+        departmentId: 'd-nurse',
+        department: { name: 'Nursing' },
+        designationTitle: 'nurse',
+        branchName: 'Cravita B',
+        branchId: 'cmty5i0j50078j79ddagb7bkz',
+        status: 'ACTIVE',
+      },
+    ];
+  }, [rawEmployeesData]);
+
+  // Head Office treated as an actual selectable Branch
+  const allSelectableBranches = useMemo(() => {
+    const list: { id: string; name: string }[] = [{ id: 'HEAD_OFFICE', name: 'Head Office' }];
+    branches.forEach((b) => {
+      const bName = b.name.trim();
+      const lower = bName.toLowerCase();
+      if (!lower.includes('head office') && !lower.includes('corporate') && lower !== 'hq') {
+        list.push({ id: b.id, name: b.name });
+      }
+    });
+    return list;
   }, [branches]);
+
+  const isEmployeeActive = (status?: string) => {
+    if (!status) return true;
+    const s = status.trim().toUpperCase();
+    return !['EXITED', 'TERMINATED', 'INACTIVE', 'RESIGNED', 'SUSPENDED', 'LEFT'].includes(s);
+  };
+
+  // Context-aware Branch Filtered Employees (Strictly respects Head Office / Branch context)
+  const branchFilteredEmployees = useMemo(() => {
+    return directoryEmployees.filter((emp) => {
+      if (!isEmployeeActive(emp.status)) return false;
+      if (selectedBranch === 'ALL') return true;
+      if (selectedBranch === 'HEAD_OFFICE') {
+        const bName = (emp.branchName || '').toLowerCase();
+        const bId = emp.branchId;
+        return (
+          bId === 'HEAD_OFFICE' ||
+          !bId ||
+          bId === 'NONE' ||
+          bName.includes('head office') ||
+          bName.includes('corporate') ||
+          bName.includes('hq') ||
+          bName.includes('headquarters') ||
+          bName.includes('main')
+        );
+      }
+      return (
+        emp.branchId === selectedBranch ||
+        (emp.branchName && branches.find((b) => b.id === selectedBranch)?.name === emp.branchName)
+      );
+    });
+  }, [directoryEmployees, selectedBranch, branches]);
+
+  // Filtered Departments respecting Company + Branch context
+  const filteredDepartments = useMemo(() => {
+    const list =
+      rawDepartments && rawDepartments.length > 0
+        ? rawDepartments
+        : [
+            { id: 'd-prod', name: 'Production' },
+            { id: 'd-ops', name: 'Operations & Production' },
+            { id: 'd-qa', name: 'Quality Assurance' },
+            { id: 'd-eng', name: 'Engineering & Maintenance' },
+            { id: 'd-nurse', name: 'Nursing & Patient Care' },
+            { id: 'd-icu', name: 'ICU & Critical Care' },
+            { id: 'd-hr', name: 'Human Resources' },
+            { id: 'd-it', name: 'Information Technology' },
+            { id: 'd-admin', name: 'Administration' },
+            { id: 'd-exec', name: 'Executive Management' },
+          ];
+
+    if (selectedBranch !== 'ALL') {
+      return list.filter((d: any) => {
+        if (!d.branchId) return true;
+        if (selectedBranch === 'HEAD_OFFICE') {
+          return d.branchId === 'HEAD_OFFICE' || !d.branchId;
+        }
+        return d.branchId === selectedBranch;
+      });
+    }
+    return list;
+  }, [rawDepartments, selectedBranch]);
+
+  // Company & Branch Context-Aware Designations
+  const designationsList = useMemo(() => {
+    let rawList: any[] = [];
+    if (Array.isArray(rawDesignations)) {
+      rawList = rawDesignations;
+    } else if (Array.isArray((rawDesignations as any)?.data)) {
+      rawList = (rawDesignations as any).data;
+    } else if (Array.isArray((rawDesignations as any)?.items)) {
+      rawList = (rawDesignations as any).items;
+    }
+
+    if (rawList.length > 0) {
+      const filtered = rawList.filter((d: any) => {
+        if (selectedBranch === 'ALL') return true;
+        if (selectedBranch === 'HEAD_OFFICE') {
+          return !d.branchId || d.branchId === 'HEAD_OFFICE' || d.branchId === 'NONE';
+        }
+        return d.branchId === selectedBranch || !d.branchId;
+      });
+      const sourceList = filtered.length > 0 ? filtered : rawList;
+      return sourceList.map((d: any) => {
+        const titleName = d.title || d.name || d.code || 'Designation';
+        return {
+          id: d.id,
+          name: titleName,
+          title: titleName,
+          code: d.code,
+          branchId: d.branchId,
+          branchName: !d.branchId || d.branchId === 'HEAD_OFFICE' ? 'Head Office' : (d.branch?.name || 'Branch'),
+          departmentName: d.department?.name || '',
+        };
+      });
+    }
+
+    return [
+      { id: 'desig-adm', name: 'Hospital Administrator', title: 'Hospital Administrator', code: 'DESG-HOSPITAL-ADMINISTRATOR' },
+      { id: 'desig-ba', name: 'Branch Administrator', title: 'Branch Administrator', code: 'BA-BR27' },
+      { id: 'desig-wb', name: 'Ward Boy', title: 'Ward Boy', code: 'DESG-WARD-BOY' },
+      { id: 'desig-ca', name: 'Company Administrator', title: 'Company Administrator', code: 'CA-C0034' },
+      { id: 'desig-hr', name: 'HR Manager', title: 'HR Manager', code: 'DESG-C0034-BR27-HR-MANAGER' },
+      { id: 'desig-fam', name: 'Finance & Accounts Manager', title: 'Finance & Accounts Manager', code: 'DESG-C0034-BR27-FINANCE-ACCOUNTS-MANAGER' },
+      { id: 'desig-nurse', name: 'nurse', title: 'nurse', code: 'DESG-C0034-BR27-NURSE' },
+      { id: 'desig-nm', name: 'Nursing Manager', title: 'Nursing Manager', code: 'DESG-C0034-BR27-NURSING-MANAGER' },
+    ];
+  }, [rawDesignations, selectedBranch]);
 
   const employeeGroupsList = [
     'Plant Shift Operations Crew',
     'Machine Operators & Technicians',
     '24x7 Facility & Safety Staff',
     'Quality Assurance Shift Squad',
+    'Factory Workers & Shop Floor',
+    'Clinical & Nursing Staff',
+    'Emergency & Critical Care Staff',
+    'Administrative & Office Staff',
   ];
-
-  useEffect(() => {
-    departmentsApi
-      .list(activeCompanyId)
-      .then((res) => {
-        if (Array.isArray(res) && res.length > 0) {
-          setDepartmentsList(res.map((d: any) => d.name));
-        } else {
-          setDepartmentsList(['Production', 'Operations & Production', 'Quality Assurance', 'Engineering & Maintenance', 'Executive Management']);
-        }
-      })
-      .catch(() => {
-        setDepartmentsList(['Production', 'Operations & Production', 'Quality Assurance', 'Engineering & Maintenance', 'Executive Management']);
-      });
-
-    employeesApi
-      .list({ page: 1, pageSize: 500, companyId: activeCompanyId })
-      .then((res: any) => {
-        if (Array.isArray(res?.items)) {
-          setDirectoryEmployees(res.items);
-        } else if (Array.isArray(res?.data)) {
-          setDirectoryEmployees(res.data);
-        } else if (Array.isArray(res)) {
-          setDirectoryEmployees(res);
-        }
-      })
-      .catch(() => {});
-  }, [activeCompanyId]);
 
   // Modal Multi-Step State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -311,13 +764,13 @@ export function ShiftRotationTab() {
   const [status, setStatus] = useState<'Draft' | 'Active' | 'Paused' | 'Expired' | 'Deactivated'>('Draft');
 
   // Form State - Step 1: Applicability & Personnel
-  const [applicableTo, setApplicableTo] = useState<'Department' | 'Company' | 'Branch' | 'Employee Group' | 'Specific Employees'>('Department');
-  const [department, setDepartment] = useState('Production');
-  const [branch, setBranch] = useState('Pune Manufacturing Plant');
-  const [employeeGroup, setEmployeeGroup] = useState('Plant Shift Operations Crew');
+  const [applicableTo, setApplicableTo] = useState<
+    'Entire Company' | 'Branch' | 'Department' | 'Designation' | 'Employee Group' | 'Specific Employees'
+  >('Branch');
+  const [applicableTarget, setApplicableTarget] = useState<string>('Head Office');
   const [applicableScope, setApplicableScope] = useState<'Entire Department' | 'Specific Personnel'>('Entire Department');
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
-  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
 
   // Form State - Step 1: Effective Dates
   const [effectiveFrom, setEffectiveFrom] = useState('2026-09-14');
@@ -331,75 +784,122 @@ export function ShiftRotationTab() {
   const [firstPhase, setFirstPhase] = useState(1);
 
   // Dynamic Phases Table
-  const defaultPhases: RotationPhase[] = useMemo(
-    () => [
-      { phaseNumber: 1, shiftCode: 'MS', shiftName: 'Morning Shift', duration: '1 Week' },
-      { phaseNumber: 2, shiftCode: 'ES', shiftName: 'Evening Shift', duration: '1 Week' },
-      { phaseNumber: 3, shiftCode: 'NS', shiftName: 'Night Shift', duration: '1 Week' },
-      { phaseNumber: 4, shiftCode: 'GS', shiftName: 'General Shift', duration: '1 Week' },
-    ],
-    []
-  );
   const [phases, setPhases] = useState<RotationPhase[]>(defaultPhases);
 
-  // Auto-calculated Covered Staff Headcount
-  const eligibleDeptEmployees = useMemo(() => {
-    return directoryEmployees.filter((e) => {
-      const isStatusActive = (e.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
-      const isDeptMatch = (e.department?.name || e.departmentName || 'Production').toLowerCase() === department.toLowerCase();
-      return isStatusActive && isDeptMatch;
-    });
-  }, [directoryEmployees, department]);
+  // Handle Scope Change
+  const handleScopeChange = (scope: 'Entire Company' | 'Branch' | 'Department' | 'Designation' | 'Employee Group' | 'Specific Employees') => {
+    setApplicableTo(scope);
+    setSelectedEmployeeIds([]);
+    setEmployeeSearch('');
+    if (scope === 'Entire Company') {
+      setApplicableTarget(activeCompany?.name || user?.company?.name || 'Entire Company');
+    } else if (scope === 'Branch') {
+      const defaultBranch =
+        selectedBranch === 'HEAD_OFFICE' || selectedBranch === 'ALL'
+          ? 'Head Office'
+          : allSelectableBranches.find((b) => b.id === selectedBranch)?.name || allSelectableBranches[0]?.name || 'Head Office';
+      setApplicableTarget(defaultBranch);
+    } else if (scope === 'Department') {
+      setApplicableTarget(filteredDepartments[0]?.name || 'Production');
+    } else if (scope === 'Designation') {
+      const firstDesig = designationsList[0];
+      setApplicableTarget(firstDesig?.name || firstDesig?.title || 'Hospital Administrator');
+    } else if (scope === 'Employee Group') {
+      setApplicableTarget(employeeGroupsList[0]);
+    } else if (scope === 'Specific Employees') {
+      setApplicableTarget('');
+    }
+  };
 
+  // Specific employee toggle
+  const toggleEmployee = (empId: string) => {
+    setSelectedEmployeeIds((prev) => {
+      const next = prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId];
+      const names = next
+        .map((id) => {
+          const emp = branchFilteredEmployees.find((e) => e.id === id);
+          return emp ? `${emp.name} (${emp.code})` : id;
+        })
+        .join(', ');
+      setApplicableTarget(names);
+      return next;
+    });
+  };
+
+  // Filtered employee checklist search
+  const displayedFilteredEmployees = useMemo(() => {
+    if (!employeeSearch.trim()) return branchFilteredEmployees;
+    const q = employeeSearch.toLowerCase();
+    return branchFilteredEmployees.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.code.toLowerCase().includes(q) ||
+        e.departmentName.toLowerCase().includes(q) ||
+        e.designationTitle.toLowerCase().includes(q)
+    );
+  }, [branchFilteredEmployees, employeeSearch]);
+
+  // Covered Personnel live calculation
   const coveredEmployees = useMemo(() => {
     if (applicableTo === 'Specific Employees') {
       return directoryEmployees.filter((e) => selectedEmployeeIds.includes(e.id));
     }
-    if (applicableTo === 'Department') {
-      if (applicableScope === 'Specific Personnel') {
-        return eligibleDeptEmployees.filter((e) => selectedEmployeeIds.includes(e.id));
-      }
-      return eligibleDeptEmployees.length > 0
-        ? eligibleDeptEmployees
-        : [
-            {
-              id: 'cmtr2qzm7006zip185kbklj96',
-              employeeCode: 'EMP-001',
-              name: 'Sudarshan Kale',
-              firstName: 'Sudarshan',
-              lastName: 'Kale',
-              departmentName: 'Production',
-              designationTitle: 'Production Operator',
-            },
-          ];
+    if (applicableTo === 'Entire Company') {
+      return directoryEmployees.filter((e) => isEmployeeActive(e.status));
     }
     if (applicableTo === 'Branch') {
-      const matchBranch = directoryEmployees.filter((e) => {
-        const isStatusActive = (e.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
-        const bName = e.branch?.name || e.branchName || 'Pune Manufacturing Plant';
-        return isStatusActive && bName.toLowerCase().includes(branch.toLowerCase().slice(0, 4));
+      const tgtLower = (applicableTarget || '').toLowerCase().trim();
+      return directoryEmployees.filter((e) => {
+        if (!isEmployeeActive(e.status)) return false;
+        if (tgtLower.includes('head office') || tgtLower === 'hq') {
+          const bName = (e.branchName || '').toLowerCase();
+          return (
+            e.branchId === 'HEAD_OFFICE' ||
+            !e.branchId ||
+            bName.includes('head office') ||
+            bName.includes('corporate') ||
+            bName.includes('main')
+          );
+        }
+        const bName = (e.branchName || '').toLowerCase();
+        return bName.includes(tgtLower.slice(0, 4)) || e.branchId === applicableTarget;
       });
-      return matchBranch.length > 0 ? matchBranch : eligibleDeptEmployees;
+    }
+    if (applicableTo === 'Department') {
+      const tgtLower = (applicableTarget || '').toLowerCase().trim();
+      const branchMatches = branchFilteredEmployees.filter((e) => {
+        if (!isEmployeeActive(e.status)) return false;
+        const dName = (e.departmentName || e.department?.name || '').toLowerCase().trim();
+        return dName === tgtLower || (tgtLower && dName.includes(tgtLower)) || (dName && tgtLower.includes(dName));
+      });
+      if (branchMatches.length > 0) return branchMatches;
+
+      return directoryEmployees.filter((e) => {
+        if (!isEmployeeActive(e.status)) return false;
+        const dName = (e.departmentName || e.department?.name || '').toLowerCase().trim();
+        return dName === tgtLower || (tgtLower && dName.includes(tgtLower)) || (dName && tgtLower.includes(dName));
+      });
+    }
+    if (applicableTo === 'Designation') {
+      const tgtLower = (applicableTarget || '').toLowerCase().trim();
+      const branchMatches = branchFilteredEmployees.filter((e) => {
+        if (!isEmployeeActive(e.status)) return false;
+        const dTitle = (e.designationTitle || e.designation?.title || e.designation?.name || '').toLowerCase().trim();
+        return dTitle === tgtLower || (tgtLower && dTitle.includes(tgtLower)) || (dTitle && tgtLower.includes(dTitle));
+      });
+      if (branchMatches.length > 0) return branchMatches;
+
+      return directoryEmployees.filter((e) => {
+        if (!isEmployeeActive(e.status)) return false;
+        const dTitle = (e.designationTitle || e.designation?.title || e.designation?.name || '').toLowerCase().trim();
+        return dTitle === tgtLower || (tgtLower && dTitle.includes(tgtLower)) || (dTitle && tgtLower.includes(dTitle));
+      });
     }
     if (applicableTo === 'Employee Group') {
-      return eligibleDeptEmployees.length > 0
-        ? eligibleDeptEmployees
-        : [
-            {
-              id: 'cmtr2qzm7006zip185kbklj96',
-              employeeCode: 'EMP-001',
-              name: 'Sudarshan Kale',
-              firstName: 'Sudarshan',
-              lastName: 'Kale',
-              departmentName: 'Production',
-              designationTitle: 'Production Operator',
-            },
-          ];
+      return branchFilteredEmployees.filter((e) => isEmployeeActive(e.status));
     }
-    // Company
-    const allActive = directoryEmployees.filter((e) => (e.status || 'ACTIVE').toUpperCase() === 'ACTIVE');
-    return allActive.length > 0 ? allActive : eligibleDeptEmployees;
-  }, [applicableTo, applicableScope, selectedEmployeeIds, eligibleDeptEmployees, directoryEmployees, branch]);
+    return branchFilteredEmployees;
+  }, [applicableTo, applicableTarget, selectedEmployeeIds, directoryEmployees, branchFilteredEmployees]);
 
   const autoCalculatedHeadcount = useMemo(() => {
     return coveredEmployees.length;
@@ -453,20 +953,22 @@ export function ShiftRotationTab() {
     );
   };
 
-  // Reset form — New rotation ALWAYS starts as Draft per user specification
+  // Reset form — New rotation starts as Draft
   const resetForm = () => {
     setEditingRotationId(null);
     setName('');
     setCode('');
     setDescription('');
     setStatus('Draft');
-    setApplicableTo('Department');
-    setDepartment('Production');
-    setBranch('Pune Manufacturing Plant');
-    setEmployeeGroup('Plant Shift Operations Crew');
+    const defaultBranch =
+      selectedBranch === 'HEAD_OFFICE' || selectedBranch === 'ALL'
+        ? 'Head Office'
+        : allSelectableBranches.find((b) => b.id === selectedBranch)?.name || allSelectableBranches[0]?.name || 'Head Office';
+    setApplicableTo('Branch');
+    setApplicableTarget(defaultBranch);
     setApplicableScope('Entire Department');
     setSelectedEmployeeIds([]);
-    setEmployeeSearchQuery('');
+    setEmployeeSearch('');
     setEffectiveFrom('2026-09-14');
     setEffectiveTo('');
     setFrequency('Weekly');
@@ -480,38 +982,55 @@ export function ShiftRotationTab() {
 
   const handleOpenCreateModal = () => {
     resetForm();
-    setCode(`ROT-PROD-${Math.floor(100 + Math.random() * 900)}`);
+    setCode(`ROT-SHIFT-${Math.floor(100 + Math.random() * 900)}`);
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (rot: RotationCycle) => {
     setEditingRotationId(rot.id);
     setName(rot.name);
-    setCode(rot.code || `ROT-${rot.department.slice(0, 3).toUpperCase()}-01`);
+    setCode(rot.code || `ROT-${(rot.applicableTarget || rot.department || 'GEN').slice(0, 3).toUpperCase()}-01`);
     setDescription(rot.description || '');
     setStatus(rot.status);
-    setApplicableTo(rot.applicableTo || 'Department');
-    setDepartment(rot.department || 'Production');
+    const scopeVal = rot.applicableTo === 'Company' ? 'Entire Company' : (rot.applicableTo || 'Department');
+    setApplicableTo(scopeVal as any);
+    setApplicableTarget(rot.applicableTarget || rot.department || 'Production');
     setApplicableScope((rot.applicableScope as any) || 'Entire Department');
     setSelectedEmployeeIds(rot.selectedEmployeeIds || []);
-    setEffectiveFrom(rot.effectiveFrom || '2026-09-14');
+    setEmployeeSearch('');
+    const initialDate = rot.effectiveFrom || rot.startDate || '2026-09-14';
+    setEffectiveFrom(initialDate);
+    setStartDate(initialDate);
     setEffectiveTo(rot.effectiveTo || '');
     setFrequency(rot.frequency);
-    setStartDate(rot.startDate || '2026-09-14');
     setStartDay(rot.startDay || 'Monday');
     setStartTime(rot.startTime || '08:00 AM');
     setFirstPhase(rot.currentPhase || 1);
 
     if (rot.phases && rot.phases.length > 0) {
-      setPhases(rot.phases);
+      setPhases(
+        rot.phases.map((p, idx) => {
+          const matched = findShiftMatch(p.shiftCode, shifts) || findShiftMatch(p.shiftName, shifts);
+          return {
+            ...p,
+            phaseNumber: p.phaseNumber || idx + 1,
+            shiftCode: matched ? matched.code : p.shiftCode,
+            shiftName: matched ? matched.name : p.shiftName,
+            duration: p.duration || '1 Week',
+          };
+        })
+      );
     } else if (rot.pattern && rot.pattern.length > 0) {
       setPhases(
-        rot.pattern.map((p, idx) => ({
-          phaseNumber: idx + 1,
-          shiftCode: p.split(' ')[0] || 'MS',
-          shiftName: p,
-          duration: '1 Week',
-        }))
+        rot.pattern.map((p, idx) => {
+          const matched = findShiftMatch(p, shifts);
+          return {
+            phaseNumber: idx + 1,
+            shiftCode: matched ? matched.code : p.split(/[-\s–(]/)[0].replace(/[()]/g, '').trim(),
+            shiftName: matched ? matched.name : p,
+            duration: rot.frequency === 'Bi-Weekly' ? '2 Weeks' : rot.frequency === 'Monthly' ? '1 Month' : '1 Week',
+          };
+        })
       );
     }
     setModalStep('config');
@@ -529,35 +1048,44 @@ export function ShiftRotationTab() {
     const finalStatus = targetStatus || status;
     const patternStrings = phases.map((p) => `${p.shiftCode} (${p.shiftName})`);
     const handoverSummary = `${startDay} ${startTime}`;
+    const codePrefix = (applicableTarget || applicableTo || 'GEN').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase();
+
+    // Dynamically calculate next rollover date from start/effective date + cadence
+    const cadenceDays = frequency === 'Bi-Weekly' ? 14 : frequency === 'Monthly' ? 28 : 7;
+    const baseDateStr = effectiveFrom || startDate || '2026-09-14';
+    const baseDt = new Date(`${baseDateStr}T00:00:00`);
+    baseDt.setDate(baseDt.getDate() + (Number(firstPhase) || 1) * cadenceDays);
+    const calculatedNextRollover = `${baseDt.getFullYear()}-${String(baseDt.getMonth() + 1).padStart(2, '0')}-${String(baseDt.getDate()).padStart(2, '0')}`;
 
     const payload: Omit<RotationCycle, 'id'> = {
       name: name.trim(),
-      code: code.trim() || `ROT-${department.slice(0, 3).toUpperCase()}-01`,
+      code: code.trim() || `ROT-${codePrefix}-01`,
       description: description.trim(),
-      department: applicableTo === 'Department' ? department : applicableTo,
+      department: applicableTo === 'Department' ? applicableTarget : (applicableTarget || applicableTo),
       frequency,
       pattern: patternStrings,
       phases,
       handoverDay: handoverSummary,
-      startDate,
+      startDate: startDate || effectiveFrom,
       startDay,
       startTime,
-      effectiveFrom,
+      effectiveFrom: effectiveFrom || startDate,
       effectiveTo: effectiveTo || undefined,
       headcountCovered: autoCalculatedHeadcount,
-      currentPhase: firstPhase,
-      nextRotationDate: '2026-09-21',
+      currentPhase: Number(firstPhase) || 1,
+      nextRotationDate: calculatedNextRollover,
       autoApplyToRoster: true,
       status: finalStatus,
       applicableTo,
-      applicableScope,
+      applicableTarget,
+      applicableScope: applicableTo === 'Department' ? applicableScope : undefined,
       selectedEmployeeIds,
       history: [
         {
           date: new Date().toISOString().split('T')[0],
           action: finalStatus === 'Active' ? 'Activated Rotation Rule' : 'Saved Draft Rule',
           user: user?.name || 'Super Admin',
-          details: `${finalStatus} rule configured for ${applicableTo} covering ${autoCalculatedHeadcount} personnel`,
+          details: `${finalStatus} rule configured for ${applicableTo} (${applicableTarget}) covering ${autoCalculatedHeadcount} personnel`,
         },
       ],
     };
@@ -586,8 +1114,9 @@ export function ShiftRotationTab() {
   const handleStartRotation = async (rot: RotationCycle) => {
     try {
       await startRotation(rot.id);
+      const startDtDisplay = formatDateDMY(rot.effectiveFrom || rot.startDate || '2026-09-14');
       toast.success(
-        `Rotation "${rot.name}" is now Active! Phase 1 (MS) initialized and draft schedule generated in Roster Planner starting 14-09-2026.`
+        `Rotation "${rot.name}" is now Active! Phase 1 initialized and draft schedule generated in Roster Planner starting ${startDtDisplay}.`
       );
     } catch (err) {
       toast.error('Failed to start rotation');
@@ -643,35 +1172,6 @@ export function ShiftRotationTab() {
     toast.success(`Rotation schedule "${rot.name}" removed.`);
   };
 
-  // Filter rotations for regular employees (personal scoping) and branch
-  const userDepartment = user?.employee?.departmentName || 'Production';
-  const displayedRotations = useMemo(() => {
-    let list = rotations;
-    if (!canManageRotations) {
-      list = rotations.filter(
-        (r) =>
-          r.department?.toLowerCase().includes(userDepartment.toLowerCase()) ||
-          userDepartment.toLowerCase().includes(r.department?.toLowerCase())
-      );
-    }
-    return list.filter((r) => {
-      const q = rotationSearch.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        r.name.toLowerCase().includes(q) ||
-        (r.code && r.code.toLowerCase().includes(q)) ||
-        (r.department && r.department.toLowerCase().includes(q)) ||
-        (r.applicableScope && r.applicableScope.toLowerCase().includes(q));
-
-      const matchesBranch = matchBranch({
-        branchName: r.applicableScope || r.department,
-        location: r.applicableScope,
-      });
-
-      return matchesSearch && matchesBranch;
-    });
-  }, [rotations, canManageRotations, userDepartment, rotationSearch, matchBranch]);
-
   return (
     <div className="space-y-5">
       {/* ── 1. Automated Multi-Shift Rotation Banner ── */}
@@ -695,7 +1195,7 @@ export function ShiftRotationTab() {
           ) : currentActiveRotation?.status === 'Scheduled' ? (
             <Badge className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-xs font-semibold px-2.5 py-0.5 flex items-center gap-1.5 shadow-2xs">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              🟠 Rotation Scheduled (Starts 14-Sep-2026)
+              🟠 Rotation Scheduled (Starts {formatDateDMY(bannerLifecycle.startsDate)})
             </Badge>
           ) : currentActiveRotation?.status === 'Paused' ? (
             <Badge className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-xs font-semibold px-2.5 py-0.5 flex items-center gap-1.5 shadow-2xs">
@@ -709,20 +1209,26 @@ export function ShiftRotationTab() {
         </div>
 
         {/* Dynamic Stepper Visual showing active rotation's phases */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
-          {(currentActiveRotation?.phases && currentActiveRotation.phases.length > 0
-            ? currentActiveRotation.phases.slice(0, 4)
-            : defaultPhases
-          ).map((phase, idx) => {
+        <div
+          className={cn(
+            'grid gap-2.5 pt-1',
+            bannerPhases.length === 1 && 'grid-cols-1',
+            bannerPhases.length === 2 && 'grid-cols-1 sm:grid-cols-2',
+            bannerPhases.length === 3 && 'grid-cols-1 sm:grid-cols-3',
+            bannerPhases.length === 4 && 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4',
+            bannerPhases.length > 4 && 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
+          )}
+        >
+          {bannerPhases.map((phase, idx) => {
             const isStarts =
               currentActiveRotation?.status === 'Scheduled' && phase.phaseNumber === 1;
             const isCurrent =
               currentActiveRotation?.status === 'Active' &&
-              (currentActiveRotation.currentPhase || 1) === phase.phaseNumber;
+              bannerLifecycle.currentPhaseNum === phase.phaseNumber;
 
             return (
               <div
-                key={idx}
+                key={phase.phaseNumber || idx}
                 className={cn(
                   'rounded-lg border p-3 shadow-2xs relative transition-all',
                   isCurrent
@@ -741,24 +1247,18 @@ export function ShiftRotationTab() {
                   )}
                   {isStarts && (
                     <Badge className="text-[8px] px-1.5 py-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-medium">
-                      Starts 14-09-2026
+                      Starts {formatDateDMY(bannerLifecycle.startsDate)}
                     </Badge>
                   )}
                 </div>
-                <p className="font-semibold text-xs text-foreground mt-1">
+                <p className="font-semibold text-xs text-foreground mt-1 truncate">
                   {phase.shiftCode} — {phase.shiftName}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {(() => {
-                    if (phase.shiftCode === 'MS') return '08:00 AM – 04:30 PM';
-                    if (phase.shiftCode === 'ES') return '04:00 PM – 12:00 AM';
-                    if (phase.shiftCode === 'NS') return '10:00 PM – 06:30 AM';
-                    if (phase.shiftCode === 'GS') return '09:00 AM – 05:30 PM';
-                    return '08:00 AM – 04:30 PM';
-                  })()}
+                <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                  {phase.timing}
                 </p>
-                {idx < 3 && (
-                  <div className="hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 bg-card rounded-full border p-0.5 text-muted-foreground shadow-xs">
+                {idx < bannerPhases.length - 1 && (
+                  <div className="hidden sm:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 bg-card rounded-full border p-0.5 text-muted-foreground shadow-xs">
                     <ArrowRight className="h-3 w-3" />
                   </div>
                 )}
@@ -868,17 +1368,32 @@ export function ShiftRotationTab() {
 
                       <TableCell>
                         <div className="flex items-center gap-1 text-[10px] font-medium text-foreground flex-wrap">
-                          {(rot.phases && rot.phases.length > 0
-                            ? rot.phases.map((p) => p.shiftCode)
-                            : rot.pattern.map((p) => p.split(' ')[0])
-                          ).map((code, idx, arr) => (
-                            <span key={idx} className="flex items-center gap-1">
-                              <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono font-bold border border-primary/20">
-                                {code}
-                              </span>
-                              {idx < arr.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
-                            </span>
-                          ))}
+                          {(() => {
+                            const rawItems =
+                              rot.phases && rot.phases.length > 0
+                                ? rot.phases.map((p) => p.shiftCode)
+                                : rot.pattern && rot.pattern.length > 0
+                                ? rot.pattern
+                                : [];
+                            return rawItems.map((item, idx, arr) => {
+                              const matched = findShiftMatch(item, shifts);
+                              const code = matched ? matched.code : item.split(/[-\s–(]/)[0].replace(/[()]/g, '').trim();
+                              const timing = matched
+                                ? `${time24To12(matched.startTime)} – ${time24To12(matched.endTime)}`
+                                : '';
+                              return (
+                                <span key={idx} className="flex items-center gap-1">
+                                  <span
+                                    className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono font-bold border border-primary/20 cursor-default"
+                                    title={matched ? `${matched.code}: ${matched.name}${timing ? ` (${timing})` : ''}` : code}
+                                  >
+                                    {code}
+                                  </span>
+                                  {idx < arr.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+                                </span>
+                              );
+                            });
+                          })()}
                         </div>
                       </TableCell>
 
@@ -1102,9 +1617,45 @@ export function ShiftRotationTab() {
         <DialogContent className="sm:max-w-xl">
           {viewingRotation && (() => {
             const rotLife = getRotationLifecycle(viewingRotation, shifts);
-            const viewPhases = viewingRotation.phases && viewingRotation.phases.length > 0
-              ? viewingRotation.phases
-              : defaultPhases;
+            const viewPhases = (() => {
+              if (viewingRotation.phases && viewingRotation.phases.length > 0) {
+                return viewingRotation.phases.map((ph, idx) => {
+                  const matched = findShiftMatch(ph.shiftCode, shifts) || findShiftMatch(ph.shiftName, shifts);
+                  return {
+                    ...ph,
+                    phaseNumber: ph.phaseNumber || idx + 1,
+                    shiftCode: matched ? matched.code : ph.shiftCode,
+                    shiftName: matched ? matched.name : ph.shiftName,
+                    timing: matched
+                      ? `${time24To12(matched.startTime)} – ${time24To12(matched.endTime)}`
+                      : 'Timing not specified',
+                  };
+                });
+              }
+              if (viewingRotation.pattern && viewingRotation.pattern.length > 0) {
+                return viewingRotation.pattern.map((p, idx) => {
+                  const matched = findShiftMatch(p, shifts);
+                  return {
+                    phaseNumber: idx + 1,
+                    shiftCode: matched ? matched.code : p.split(/[-\s–(]/)[0].replace(/[()]/g, '').trim(),
+                    shiftName: matched ? matched.name : p,
+                    duration: viewingRotation.frequency === 'Bi-Weekly' ? '2 Weeks' : viewingRotation.frequency === 'Monthly' ? '1 Month' : '1 Week',
+                    timing: matched
+                      ? `${time24To12(matched.startTime)} – ${time24To12(matched.endTime)}`
+                      : 'Timing not specified',
+                  };
+                });
+              }
+              return defaultPhases.map((ph) => {
+                const matched = findShiftMatch(ph.shiftCode, shifts);
+                return {
+                  ...ph,
+                  timing: matched
+                    ? `${time24To12(matched.startTime)} – ${time24To12(matched.endTime)}`
+                    : 'Timing not specified',
+                };
+              });
+            })();
 
             return (
               <>
@@ -1150,13 +1701,13 @@ export function ShiftRotationTab() {
                     <div>
                       <span className="text-muted-foreground block text-[11px]">Start Date</span>
                       <span className="font-semibold text-foreground mt-0.5 block">
-                        {viewingRotation.startDate || '14-09-2026'}
+                        {formatDateDMY(viewingRotation.startDate || rotLife.startsDate)}
                       </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground block text-[11px]">Next Rollover</span>
                       <span className="font-semibold text-primary mt-0.5 block">
-                        {rotLife.nextRolloverDate}
+                        {formatDateDMY(rotLife.nextRolloverDate)}
                       </span>
                     </div>
                   </div>
@@ -1166,7 +1717,7 @@ export function ShiftRotationTab() {
                     <h5 className="font-semibold text-xs text-foreground mb-2 flex items-center gap-1.5">
                       <RefreshCw className="h-3.5 w-3.5 text-primary" /> Rotation Pattern Progression
                     </h5>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {viewPhases.map((phase) => {
                         const isCurrent = viewingRotation.status === 'Active' && (viewingRotation.currentPhase || 1) === phase.phaseNumber;
                         const isScheduledStart = viewingRotation.status === 'Scheduled' && phase.phaseNumber === 1;
@@ -1192,12 +1743,15 @@ export function ShiftRotationTab() {
                               )}
                               {isScheduledStart && (
                                 <Badge className="text-[8px] px-1 py-0 bg-amber-500/15 text-amber-700 border-amber-500/30">
-                                  Starts 14-09
+                                  Starts {formatDateDMY(rotLife.startsDate)}
                                 </Badge>
                               )}
                             </div>
-                            <p className="font-medium text-foreground mt-1">
+                            <p className="font-medium text-foreground mt-1 truncate">
                               {phase.shiftCode} — {phase.shiftName}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                              {phase.timing}
                             </p>
                           </div>
                         );
@@ -1385,14 +1939,19 @@ export function ShiftRotationTab() {
                 <div className="h-px bg-border/60" />
 
                 {/* 1.2 Applicability & Personnel */}
-                <div className="border rounded-xl p-3.5 bg-muted/20 space-y-3.5">
+                <div className="border rounded-xl p-3.5 bg-muted/20 space-y-3.5 border-border/80">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                       <Building2 className="h-3.5 w-3.5 text-primary" /> Applicability & Personnel
                     </p>
-                    <Badge variant="outline" className="text-[10px] font-mono bg-background text-primary border-primary/30">
-                      {autoCalculatedHeadcount} Eligible Active Personnel
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground bg-background">
+                        Context: {selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : selectedBranch === 'ALL' ? 'All Branches' : assignedBranchName || 'Branch'}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] font-mono bg-background text-primary border-primary/30">
+                        {autoCalculatedHeadcount} Eligible Active Personnel
+                      </Badge>
+                    </div>
                   </div>
 
                   {/* Applicability Type / Applicable To * */}
@@ -1401,81 +1960,104 @@ export function ShiftRotationTab() {
                       <Label className="text-xs font-semibold">Applicable To *</Label>
                       <Select
                         value={applicableTo}
-                        onValueChange={(v: any) => {
-                          setApplicableTo(v);
-                          if (v !== 'Department' && v !== 'Specific Employees') {
-                            setSelectedEmployeeIds([]);
-                          }
-                        }}
+                        onValueChange={(v: any) => handleScopeChange(v)}
                       >
                         <SelectTrigger className="h-8 text-xs bg-background">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Company" className="text-xs">Company</SelectItem>
+                          <SelectItem value="Entire Company" className="text-xs">Entire Company</SelectItem>
                           <SelectItem value="Branch" className="text-xs">Branch</SelectItem>
                           <SelectItem value="Department" className="text-xs">Department</SelectItem>
+                          <SelectItem value="Designation" className="text-xs">Designation</SelectItem>
                           <SelectItem value="Employee Group" className="text-xs">Employee Group</SelectItem>
                           <SelectItem value="Specific Employees" className="text-xs">Specific Employees</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* Dynamic Target based on Applicable To */}
-                    {applicableTo === 'Department' && (
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold">Target Department *</Label>
-                        <Select value={department} onValueChange={setDepartment}>
-                          <SelectTrigger className="h-8 text-xs bg-background">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {departmentsList.map((d) => (
-                              <SelectItem key={d} value={d} className="text-xs">
-                                {d}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {applicableTo === 'Company' && (
+                    {/* Scope 1: Entire Company */}
+                    {applicableTo === 'Entire Company' && (
                       <div className="space-y-1">
                         <Label className="text-xs font-semibold">Target Company</Label>
-                        <Input
-                          readOnly
-                          disabled
-                          value={`${companyName} (All Personnel)`}
-                          className="h-8 text-xs bg-muted text-foreground font-medium cursor-not-allowed truncate"
-                        />
+                        <div className="h-8 px-2.5 rounded-md border border-border/70 bg-muted/40 text-xs flex items-center justify-between">
+                          <span className="font-semibold text-foreground truncate">{activeCompany?.name || user?.company?.name || 'Entire Company'}</span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-primary/10 text-primary">All Branches</Badge>
+                        </div>
+                        <p className="text-[10.5px] text-muted-foreground">Applies universally across all branches, locations, and departments.</p>
                       </div>
                     )}
 
+                    {/* Scope 2: Branch */}
                     {applicableTo === 'Branch' && (
                       <div className="space-y-1">
                         <Label className="text-xs font-semibold">Target Branch *</Label>
-                        <Select value={branch} onValueChange={setBranch}>
+                        <Select value={applicableTarget} onValueChange={(val) => setApplicableTarget(val)}>
                           <SelectTrigger className="h-8 text-xs bg-background">
-                            <SelectValue />
+                            <SelectValue placeholder="Select Branch" />
                           </SelectTrigger>
                           <SelectContent>
-                            {branchesList.map((b) => (
-                              <SelectItem key={b} value={b} className="text-xs">
-                                {b}
+                            {allSelectableBranches.map((b) => (
+                              <SelectItem key={b.id} value={b.name} className="text-xs">
+                                {b.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-[10.5px] text-muted-foreground">Applies to all staff located at {applicableTarget || 'the selected branch'}.</p>
                       </div>
                     )}
 
+                    {/* Scope 3: Department */}
+                    {applicableTo === 'Department' && (
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">Target Department *</Label>
+                        <Select value={applicableTarget} onValueChange={(val) => setApplicableTarget(val)}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue placeholder="Select Department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filteredDepartments.map((dept: any) => (
+                              <SelectItem key={dept.id || dept.name} value={dept.name} className="text-xs">
+                                {dept.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10.5px] text-muted-foreground">Applies to all personnel within this department ({selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : 'Branch Scope'}).</p>
+                      </div>
+                    )}
+
+                    {/* Scope 4: Designation */}
+                    {applicableTo === 'Designation' && (
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">Target Designation *</Label>
+                        <Select value={applicableTarget} onValueChange={(val) => setApplicableTarget(val)}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue placeholder="Select Designation" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {designationsList.map((d: any) => {
+                              const val = d.name || d.title || d.code;
+                              return (
+                                <SelectItem key={d.id || val} value={val} className="text-xs">
+                                  {val} {d.code ? `(${d.code})` : ''}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10.5px] text-muted-foreground">Applies to employees holding this professional designation.</p>
+                      </div>
+                    )}
+
+                    {/* Scope 5: Employee Group */}
                     {applicableTo === 'Employee Group' && (
                       <div className="space-y-1">
                         <Label className="text-xs font-semibold">Target Employee Group *</Label>
-                        <Select value={employeeGroup} onValueChange={setEmployeeGroup}>
+                        <Select value={applicableTarget} onValueChange={(val) => setApplicableTarget(val)}>
                           <SelectTrigger className="h-8 text-xs bg-background">
-                            <SelectValue />
+                            <SelectValue placeholder="Select Employee Group" />
                           </SelectTrigger>
                           <SelectContent>
                             {employeeGroupsList.map((g) => (
@@ -1485,97 +2067,114 @@ export function ShiftRotationTab() {
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-[10.5px] text-muted-foreground">Applies to rotational operations shift personnel in this cohort.</p>
                       </div>
                     )}
                   </div>
 
-                  {/* Sub-Target for Department: Employee Target Scope */}
-                  {applicableTo === 'Department' && (
-                    <div className="space-y-1 pt-0.5">
-                      <Label className="text-xs font-semibold">Employee Target Scope</Label>
-                      <Select
-                        value={applicableScope}
-                        onValueChange={(v: any) => {
-                          setApplicableScope(v);
-                          if (v === 'Entire Department') setSelectedEmployeeIds([]);
-                        }}
-                      >
-                        <SelectTrigger className="h-8 text-xs bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Entire Department" className="text-xs">
-                            Entire Department ({eligibleDeptEmployees.length > 0 ? eligibleDeptEmployees.length : 1} active staff)
-                          </SelectItem>
-                          <SelectItem value="Specific Personnel" className="text-xs">
-                            Specific Personnel (Custom Selection)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Multi-select employee picker for Specific Employees OR Department Specific Personnel */}
-                  {(applicableTo === 'Specific Employees' || (applicableTo === 'Department' && applicableScope === 'Specific Personnel')) && (
-                    <div className="space-y-1.5 pt-1">
+                  {/* Multi-select employee picker for Specific Employees */}
+                  {applicableTo === 'Specific Employees' && (
+                    <div className="space-y-2 pt-2 border-t border-border/60">
                       <div className="flex items-center justify-between">
-                        <Label className="text-xs font-semibold">
-                          Select Personnel ({selectedEmployeeIds.length} selected)
+                        <Label className="text-xs font-semibold flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5 text-primary" />
+                          Select Personnel ({branchFilteredEmployees.length} available in {selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : 'Active Branch'})
                         </Label>
-                        <div className="relative w-48">
-                          <Search className="absolute left-2 top-2 h-3 w-3 text-muted-foreground" />
-                          <Input
-                            type="text"
-                            placeholder="Filter by name/code..."
-                            value={employeeSearchQuery}
-                            onChange={(e) => setEmployeeSearchQuery(e.target.value)}
-                            className="h-7 pl-7 text-[11px] bg-background"
-                          />
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-[10px] font-mono font-semibold">
+                            {selectedEmployeeIds.length} Selected
+                          </Badge>
+                          {selectedEmployeeIds.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px] text-muted-foreground hover:text-destructive px-1.5"
+                              onClick={() => {
+                                setSelectedEmployeeIds([]);
+                                setApplicableTarget('');
+                              }}
+                            >
+                              Clear Selection
+                            </Button>
+                          )}
                         </div>
                       </div>
 
-                      <div className="max-h-36 overflow-y-auto border rounded-lg p-2 bg-background space-y-1.5 text-xs">
-                        {(applicableTo === 'Department' ? eligibleDeptEmployees : directoryEmployees)
-                          .filter((e) => {
-                            if (!employeeSearchQuery.trim()) return true;
-                            const q = employeeSearchQuery.toLowerCase();
+                      {/* Selected Employee Badges Chips */}
+                      {selectedEmployeeIds.length > 0 && (
+                        <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1.5 bg-background rounded-md border border-border/70">
+                          {selectedEmployeeIds.map((id) => {
+                            const emp = branchFilteredEmployees.find((e) => e.id === id);
                             return (
-                              e.employeeCode?.toLowerCase().includes(q) ||
-                              `${e.firstName || ''} ${e.lastName || ''}`.toLowerCase().includes(q) ||
-                              (e.department?.name || e.departmentName || '').toLowerCase().includes(q)
-                            );
-                          })
-                          .map((e) => {
-                            const isChecked = selectedEmployeeIds.includes(e.id);
-                            return (
-                              <label
-                                key={e.id}
-                                className="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 cursor-pointer"
+                              <Badge
+                                key={id}
+                                variant="secondary"
+                                className="text-[10px] px-1.5 py-0.5 gap-1 bg-primary/10 text-primary border border-primary/20 inline-flex items-center"
                               >
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={(ev) => {
-                                      if (ev.target.checked) {
-                                        setSelectedEmployeeIds((prev) => [...prev, e.id]);
-                                      } else {
-                                        setSelectedEmployeeIds((prev) => prev.filter((id) => id !== e.id));
-                                      }
-                                    }}
-                                    className="rounded text-primary focus:ring-primary h-3.5 w-3.5"
-                                  />
-                                  <span className="font-semibold text-foreground">
-                                    {e.firstName} {e.lastName}
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground font-mono">({e.employeeCode})</span>
-                                </div>
-                                <span className="text-[10px] text-muted-foreground">
-                                  {e.department?.name || e.departmentName || 'Production'}
-                                </span>
-                              </label>
+                                <span>{emp?.name || id} ({emp?.code || 'EMP'})</span>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleEmployee(id)}
+                                  className="hover:text-destructive text-muted-foreground ml-0.5"
+                                >
+                                  <X className="h-2.5 w-2.5" />
+                                </button>
+                              </Badge>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {/* Search inside employee selector */}
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          placeholder={`Search ${selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : 'branch'} employees by name, code or department...`}
+                          value={employeeSearch}
+                          onChange={(e) => setEmployeeSearch(e.target.value)}
+                          className="h-7.5 pl-8 text-xs bg-background"
+                        />
+                      </div>
+
+                      {/* Employee Checkbox List */}
+                      <div className="rounded-md border border-border/70 max-h-44 overflow-y-auto divide-y divide-border/50 bg-background">
+                        {displayedFilteredEmployees.length === 0 ? (
+                          <p className="text-center py-4 text-xs text-muted-foreground">
+                            No employees found matching &quot;{employeeSearch}&quot; in {selectedBranch === 'HEAD_OFFICE' ? 'Head Office' : 'this branch'}.
+                          </p>
+                        ) : (
+                          displayedFilteredEmployees.map((emp) => {
+                            const isChecked = selectedEmployeeIds.includes(emp.id);
+                            return (
+                              <label
+                                key={emp.id}
+                                className={`flex items-center justify-between p-2 hover:bg-muted/40 cursor-pointer transition-colors text-xs ${
+                                  isChecked ? 'bg-primary/5' : ''
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    checked={isChecked}
+                                    onCheckedChange={() => toggleEmployee(emp.id)}
+                                  />
+                                  <div>
+                                    <span className="font-semibold text-foreground">{emp.name}</span>
+                                    <span className="font-mono text-[10px] text-muted-foreground ml-1.5 font-normal">
+                                      ({emp.code})
+                                    </span>
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {emp.departmentName} • {emp.designationTitle}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Badge variant="outline" className="text-[9px] font-normal">
+                                  {emp.branchName || 'Head Office'}
+                                </Badge>
+                              </label>
+                            );
+                          })
+                        )}
                       </div>
                     </div>
                   )}
@@ -1583,7 +2182,7 @@ export function ShiftRotationTab() {
                   {/* Auto-calculated Covered Staff Headcount */}
                   <div className="space-y-1 pt-1">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold">Covered Staff</Label>
+                      <Label className="text-xs font-semibold">Covered Personnel</Label>
                       <Badge variant="outline" className="text-[10px] text-primary border-primary/30 font-mono">
                         Auto-Calculated
                       </Badge>
@@ -1594,8 +2193,8 @@ export function ShiftRotationTab() {
                       value={`[ ${autoCalculatedHeadcount} Eligible Active Personnel ]  Auto-Calculated`}
                       className="h-8 text-xs font-mono bg-muted/60 text-foreground font-semibold cursor-not-allowed"
                     />
-                    <p className="text-[10px] text-muted-foreground">
-                      Covered staff is automatically derived from eligible active personnel. Manual typing is restricted.
+                    <p className="text-[10.5px] text-muted-foreground">
+                      Covered personnel is automatically derived from eligible active personnel. Manual typing is restricted.
                     </p>
                   </div>
                 </div>
@@ -1609,7 +2208,10 @@ export function ShiftRotationTab() {
                     <Input
                       type="date"
                       value={effectiveFrom}
-                      onChange={(e) => setEffectiveFrom(e.target.value)}
+                      onChange={(e) => {
+                        setEffectiveFrom(e.target.value);
+                        setStartDate(e.target.value);
+                      }}
                       className="h-8 text-xs font-mono bg-background"
                       required
                     />
@@ -1652,7 +2254,10 @@ export function ShiftRotationTab() {
                     <Input
                       type="date"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setEffectiveFrom(e.target.value);
+                      }}
                       className="h-8 text-xs font-mono bg-background"
                     />
                   </div>

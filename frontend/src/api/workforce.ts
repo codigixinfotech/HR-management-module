@@ -71,6 +71,10 @@ export const shiftRotationsApi = {
     (await apiClient.get<any[]>('/workforce/rotations', { params: { companyId } })).data,
   create: async (payload: any) =>
     (await apiClient.post('/workforce/rotations', payload)).data,
+  update: async (id: string, payload: any) =>
+    (await apiClient.patch(`/workforce/rotations/${id}`, payload)).data,
+  delete: async (id: string) =>
+    (await apiClient.delete(`/workforce/rotations/${id}`)).data,
   start: async (id: string) =>
     (await apiClient.post(`/workforce/rotations/${id}/start`)).data,
   pause: async (id: string) =>

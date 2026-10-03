@@ -152,7 +152,8 @@ export interface RotationCycle {
   nextRotationDate: string;
   autoApplyToRoster: boolean;
   status: 'Active' | 'Paused' | 'Draft' | 'Inactive' | 'Expired' | 'Deactivated';
-  applicableTo?: 'Department' | 'Company' | 'Branch' | 'Employee Group' | 'Specific Employees';
+  applicableTo?: 'Entire Company' | 'Company' | 'Branch' | 'Department' | 'Designation' | 'Employee Group' | 'Specific Employees';
+  applicableTarget?: string;
   applicableScope?: string;
   selectedEmployeeIds?: string[];
   history?: Array<{ date: string; action: string; user: string; details: string }>;
@@ -696,7 +697,8 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
         const tgtOriginal = parseShift(sw.targetShift);
 
         const swapDate = sw.swapDate;
-        const todayStr = '2026-09-11';
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         let statusText = 'Approved – Scheduled';
         let displayStatus = 'Scheduled Swap';
         if (swapDate < todayStr) {
@@ -1039,11 +1041,25 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
       await shiftRotationsApi.create({
         companyId,
         name: rot.name,
+        code: rot.code,
+        description: rot.description,
         department: rot.department,
         frequency: rot.frequency,
         pattern: rot.pattern,
+        phases: rot.phases,
         handoverDay: rot.handoverDay,
+        startDate: rot.startDate,
+        effectiveFrom: rot.effectiveFrom,
+        effectiveTo: rot.effectiveTo,
+        applicableTo: rot.applicableTo,
+        applicableTarget: rot.applicableTarget,
+        applicableScope: rot.applicableScope,
+        selectedEmployeeIds: rot.selectedEmployeeIds,
         headcountCovered: rot.headcountCovered,
+        currentPhase: rot.currentPhase,
+        nextRotationDate: rot.nextRotationDate,
+        autoApplyToRoster: rot.autoApplyToRoster,
+        status: rot.status,
       });
       await get().fetchData();
     } catch (err: any) {
@@ -1057,15 +1073,28 @@ export const useShiftRosterStore = create<ShiftRosterState>()((set, get) => ({
   },
 
   updateRotation: async (id: string, updates: Partial<RotationCycle>) => {
-    set((state) => ({
-      rotations: state.rotations.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    }));
+    try {
+      await shiftRotationsApi.update(id, updates);
+      await get().fetchData();
+    } catch (err: any) {
+      console.error('Error updating rotation in DB:', err);
+      // Fallback local store update
+      set((state) => ({
+        rotations: state.rotations.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+      }));
+    }
   },
 
   deleteRotation: async (id: string) => {
-    set((state) => ({
-      rotations: state.rotations.filter((r) => r.id !== id),
-    }));
+    try {
+      await shiftRotationsApi.delete(id);
+      await get().fetchData();
+    } catch (err: any) {
+      console.error('Error deleting rotation in DB:', err);
+      set((state) => ({
+        rotations: state.rotations.filter((r) => r.id !== id),
+      }));
+    }
   },
 
   startRotation: async (id: string) => {

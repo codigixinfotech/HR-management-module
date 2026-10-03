@@ -33,6 +33,21 @@ import { useShiftRosterStore } from './shiftRosterStore';
 import type { EmployeeRosterRow, RosterCellData } from './shiftRosterStore';
 import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
 import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
+import { findShiftMatch } from './ShiftRotationTab';
+
+function time24To12(time24?: string): string {
+  if (!time24) return '';
+  const trimmed = time24.trim();
+  if (/AM|PM/i.test(trimmed)) return trimmed;
+  const parts = trimmed.split(':');
+  if (parts.length < 2) return trimmed;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1].slice(0, 2);
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+}
 
 // Multi-Week Scheduled Periods
 const SCHEDULED_WEEKS = [
@@ -160,6 +175,14 @@ const SCHEDULED_WEEKS = [
 
 const WEEK_37_DAYS = SCHEDULED_WEEKS[0].days;
 
+export function getSystemTodayYMD(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function RosterPlannerTab() {
   const user = useAuthStore((s) => s.user);
   const canManageRoster = isManagerOrHrOrAdmin(user);
@@ -174,9 +197,17 @@ export function RosterPlannerTab() {
   } = useShiftRosterStore();
 
   const [viewMode, setViewMode] = useState<'Day' | 'Week' | 'Month'>('Week');
-  // Default to Week 40 (28 Sep – 04 Oct 2026) which contains current date 01 Oct 2026
-  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(3);
-  const [activeMonth, setActiveMonth] = useState<'2026-09' | '2026-10'>('2026-10');
+  const todayYMD = useMemo(() => getSystemTodayYMD(), []);
+  // Dynamically default to the week containing system today
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(() => {
+    const today = getSystemTodayYMD();
+    const idx = SCHEDULED_WEEKS.findIndex((w) => w.days.some((d) => d.key === today));
+    return idx >= 0 ? idx : 3;
+  });
+  const [activeMonth, setActiveMonth] = useState<'2026-09' | '2026-10'>(() => {
+    const ym = getSystemTodayYMD().slice(0, 7);
+    return ym === '2026-09' ? '2026-09' : '2026-10';
+  });
   const [selectedDept, setSelectedDept] = useState<string>('ALL');
   const {
     selectedBranch,
@@ -189,7 +220,7 @@ export function RosterPlannerTab() {
   } = useWorkforceBranch();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [deptMasterList, setDeptMasterList] = useState<string[]>([]);
-  const [activeDayKey, setActiveDayKey] = useState<string>('2026-10-01'); // 01 Oct 2026
+  const [activeDayKey, setActiveDayKey] = useState<string>(() => getSystemTodayYMD());
   const [isPublished, setIsPublished] = useState(false);
   const [publishedPeriodKeys, setPublishedPeriodKeys] = useState<string[]>([]);
 
@@ -300,20 +331,30 @@ export function RosterPlannerTab() {
     if (viewMode === 'Day') {
       const allDays = SCHEDULED_WEEKS.flatMap((w) => w.days);
       const found = allDays.find((d) => d.key === activeDayKey);
-      return found ? [found] : [SCHEDULED_WEEKS[0].days[2]];
+      if (found) return [found];
+      const d = new Date(`${activeDayKey}T00:00:00`);
+      const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      return [{
+        key: activeDayKey,
+        label: labels[d.getDay()],
+        dayNum: String(d.getDate()).padStart(2, '0'),
+      }];
     }
     if (viewMode === 'Week') {
       const currentWeek = SCHEDULED_WEEKS[selectedWeekIndex] || SCHEDULED_WEEKS[0];
       return currentWeek.days;
     }
-    // Month View: 30 days of September 2026 or 31 days of October 2026
+    // Month View: days of active month dynamically calculated
     const days: { key: string; label: string; dayNum: string }[] = [];
     const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const totalDaysInMonth = activeMonth === '2026-09' ? 30 : 31;
+    const [yStr, mStr] = activeMonth.split('-');
+    const year = parseInt(yStr, 10);
+    const month = parseInt(mStr, 10);
+    const totalDaysInMonth = new Date(year, month, 0).getDate();
     for (let i = 1; i <= totalDaysInMonth; i++) {
       const dayNum = String(i).padStart(2, '0');
       const key = `${activeMonth}-${dayNum}`;
-      const d = new Date(key);
+      const d = new Date(`${key}T00:00:00`);
       days.push({
         key,
         label: labels[d.getDay()],
@@ -373,11 +414,20 @@ export function RosterPlannerTab() {
   };
 
   const handleToday = () => {
-    setSelectedWeekIndex(3); // Week 40 contains 01 Oct 2026
-    setActiveDayKey('2026-10-01');
-    setActiveMonth('2026-10');
+    const currentToday = getSystemTodayYMD();
+    const weekIdx = SCHEDULED_WEEKS.findIndex((w) => w.days.some((d) => d.key === currentToday));
+    if (weekIdx >= 0) {
+      setSelectedWeekIndex(weekIdx);
+    }
+    setActiveDayKey(currentToday);
+    const ym = currentToday.slice(0, 7);
+    if (ym === '2026-09' || ym === '2026-10') {
+      setActiveMonth(ym as any);
+    }
     setViewMode('Week');
-    toast.success('Navigated to current schedule (01 Oct 2026)');
+    const dayObj = new Date(`${currentToday}T00:00:00`);
+    const dateFormatted = `${String(dayObj.getDate()).padStart(2, '0')}-${dayObj.toLocaleString('en', { month: 'short' })}-${dayObj.getFullYear()}`;
+    toast.success(`Navigated to today's schedule (${dateFormatted})`);
   };
 
   // Open Cell Details / Override modal
@@ -490,11 +540,93 @@ export function RosterPlannerTab() {
   }, [viewMode, selectedWeekIndex, activeDayKey, activeMonth]);
 
   const activeRotationPhase = useMemo(() => {
-    if (viewMode === 'Week') {
-      return SCHEDULED_WEEKS[selectedWeekIndex]?.rotationPhase || 'Phase 1 — MS Morning Shift';
+    const activeRot = rotations.find((r) => r.status === 'Active') || rotations[0];
+    if (!activeRot) return 'Department Baseline / Active Assignments';
+
+    // Build phases dynamically from active rotation and shifts
+    let rotPhases: Array<{ phaseNum: number; code: string; name: string; timing: string }> = [];
+    if (activeRot.phases && activeRot.phases.length > 0) {
+      rotPhases = activeRot.phases.map((ph, idx) => {
+        const matched = findShiftMatch(ph.shiftCode, shifts) || findShiftMatch(ph.shiftName, shifts);
+        return {
+          phaseNum: ph.phaseNumber || idx + 1,
+          code: matched ? matched.code : ph.shiftCode,
+          name: matched ? matched.name : ph.shiftName,
+          timing: matched ? `${time24To12(matched.startTime)} – ${time24To12(matched.endTime)}` : '',
+        };
+      });
+    } else if (activeRot.pattern && activeRot.pattern.length > 0) {
+      rotPhases = activeRot.pattern.map((p, idx) => {
+        const matched = findShiftMatch(p, shifts);
+        return {
+          phaseNum: idx + 1,
+          code: matched ? matched.code : p.split(/[-\s–(]/)[0].replace(/[()]/g, '').trim(),
+          name: matched ? matched.name : p,
+          timing: matched ? `${time24To12(matched.startTime)} – ${time24To12(matched.endTime)}` : '',
+        };
+      });
     }
-    return 'Production 4-Shift Rotation (Weekly Cadence)';
-  }, [viewMode, selectedWeekIndex]);
+
+    if (rotPhases.length === 0) {
+      return 'Department Baseline / Active Assignments';
+    }
+
+    const cadenceDays = activeRot.frequency === 'Bi-Weekly' ? 14 : activeRot.frequency === 'Monthly' ? 28 : 7;
+    const rotStartDate = activeRot.effectiveFrom || activeRot.startDate || '2026-09-14';
+
+    if (viewMode === 'Week') {
+      const weekItem = SCHEDULED_WEEKS[selectedWeekIndex];
+      const weekStartDate = weekItem?.days[0]?.key || '2026-09-14';
+
+      if (weekStartDate < rotStartDate) {
+        return 'Pre-Rotation Baseline / General Shift';
+      }
+
+      const diffDays = Math.floor(
+        (new Date(weekStartDate + 'T00:00:00').getTime() - new Date(rotStartDate + 'T00:00:00').getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+      const cycleWeek = Math.floor(diffDays / cadenceDays);
+      const phaseIdx = cycleWeek % rotPhases.length;
+      const curPhase = rotPhases[phaseIdx] || rotPhases[0];
+
+      return `Phase ${curPhase.phaseNum} — ${curPhase.code} ${curPhase.name}${curPhase.timing ? ` (${curPhase.timing})` : ''}`;
+    }
+
+    if (viewMode === 'Day') {
+      const targetDate = activeDayKey;
+
+      if (targetDate < rotStartDate) {
+        return 'Pre-Rotation Baseline / General Shift';
+      }
+
+      const diffDays = Math.floor(
+        (new Date(targetDate + 'T00:00:00').getTime() - new Date(rotStartDate + 'T00:00:00').getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+      const cycleDay = Math.floor(diffDays / cadenceDays);
+      const phaseIdx = cycleDay % rotPhases.length;
+      const curPhase = rotPhases[phaseIdx] || rotPhases[0];
+
+      return `Phase ${curPhase.phaseNum} — ${curPhase.code} ${curPhase.name}${curPhase.timing ? ` (${curPhase.timing})` : ''}`;
+    }
+
+    // Month View: calculate for current today
+    const today = getSystemTodayYMD();
+    if (today >= rotStartDate) {
+      const diffDays = Math.floor(
+        (new Date(today + 'T00:00:00').getTime() - new Date(rotStartDate + 'T00:00:00').getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+      const cycleMonth = Math.floor(diffDays / cadenceDays);
+      const phaseIdx = cycleMonth % rotPhases.length;
+      const curPhase = rotPhases[phaseIdx] || rotPhases[0];
+
+      return `Phase ${curPhase.phaseNum} — ${curPhase.code} ${curPhase.name}${curPhase.timing ? ` (${curPhase.timing})` : ''}`;
+    }
+
+    return `${activeRot.name} (${activeRot.frequency || 'Weekly'} Cadence)`;
+  }, [viewMode, selectedWeekIndex, activeDayKey, rotations, shifts]);
 
   const isCurrentPeriodPublished = useMemo(() => {
     if (publishedPeriodKeys.includes(activePeriodKey)) return true;
@@ -1188,7 +1320,7 @@ export function RosterPlannerTab() {
                     '12': 'Dec',
                   };
                   const monthLabel = monthNames[monthStr] || 'Oct';
-                  const isToday = day.key === '2026-10-01';
+                  const isToday = day.key === todayYMD;
                   return (
                     <th
                       key={day.key}
@@ -1253,7 +1385,7 @@ export function RosterPlannerTab() {
                     {/* Day Schedule Cells */}
                     {activeDays.map((day) => {
                       const cell = emp.slots[day.key];
-                      const isToday = day.key === '2026-10-01';
+                      const isToday = day.key === todayYMD;
                       const isSwap = Boolean(cell?.isApprovedShiftSwap || cell?.source === 'Shift Swap');
                       return (
                         <td
@@ -1462,18 +1594,28 @@ export function RosterPlannerTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="GS" className="text-xs font-medium">
-                    General Shift (09:00 AM – 05:30 PM)
-                  </SelectItem>
-                  <SelectItem value="MS" className="text-xs font-medium">
-                    Morning Shift (08:00 AM – 04:30 PM)
-                  </SelectItem>
-                  <SelectItem value="ES" className="text-xs font-medium">
-                    Evening Shift (04:00 PM – 12:30 AM)
-                  </SelectItem>
-                  <SelectItem value="NS" className="text-xs font-medium">
-                    Night Shift (10:00 PM – 06:30 AM)
-                  </SelectItem>
+                  {shifts && shifts.length > 0 ? (
+                    shifts.map((s) => (
+                      <SelectItem key={s.id} value={s.code} className="text-xs font-medium">
+                        {s.code} — {s.name} ({time24To12(s.startTime)} – {time24To12(s.endTime)})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="GS" className="text-xs font-medium">
+                        General Shift
+                      </SelectItem>
+                      <SelectItem value="MS" className="text-xs font-medium">
+                        Morning Shift
+                      </SelectItem>
+                      <SelectItem value="ES" className="text-xs font-medium">
+                        Evening Shift
+                      </SelectItem>
+                      <SelectItem value="NS" className="text-xs font-medium">
+                        Night Shift
+                      </SelectItem>
+                    </>
+                  )}
                   <SelectItem value="WO" className="text-xs font-medium">
                     Weekly Off (Rest Day)
                   </SelectItem>
@@ -1550,7 +1692,7 @@ export function RosterPlannerTab() {
                   Active Rotation Rule
                 </span>
                 <p className="text-xs font-semibold text-foreground mt-0.5">
-                  Production 4-Shift Rotation (Weekly Cadence)
+                  {rotations.find((r) => r.status === 'Active')?.name || rotations[0]?.name || 'Department Shift Rotation'}
                 </p>
               </div>
               <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold px-2.5 py-1 w-fit">
