@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Sparkles,
   Layers,
+  Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,9 +22,10 @@ import type { VariableInputRecord } from './types';
 interface VariableInputsTabProps {
   variableRecords: VariableInputRecord[];
   onUpdateRecords: (records: VariableInputRecord[]) => void;
+  onCalculatePayroll?: () => void;
 }
 
-export function VariableInputsTab({ variableRecords, onUpdateRecords }: VariableInputsTabProps) {
+export function VariableInputsTab({ variableRecords, onUpdateRecords, onCalculatePayroll }: VariableInputsTabProps) {
   const handleFieldChange = (recordId: string, field: keyof VariableInputRecord, val: number) => {
     const updated = variableRecords.map((r) => {
       if (r.id === recordId) {
@@ -132,8 +134,16 @@ export function VariableInputsTab({ variableRecords, onUpdateRecords }: Variable
               </TableRow>
             </TableHeader>
             <TableBody>
-              {variableRecords.map((r) => (
-                <TableRow key={r.id} className="hover:bg-muted/20">
+              {variableRecords.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
+                    <Coins className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                    No variable pay or reimbursement records found for this period.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                variableRecords.map((r) => (
+                  <TableRow key={r.id} className="hover:bg-muted/20">
                   <TableCell className="pl-6">
                     <div className="font-semibold text-xs text-foreground">{r.name}</div>
                     <div className="text-[10px] font-mono text-muted-foreground">{r.employeeCode} • {r.department}</div>
@@ -189,11 +199,31 @@ export function VariableInputsTab({ variableRecords, onUpdateRecords }: Variable
                     {r.reimbursementPayout > 0 ? `+₹${r.reimbursementPayout.toLocaleString('en-IN')}` : '₹0'}
                   </TableCell>
                 </TableRow>
-              ))}
+              )))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Guided Workflow Footer */}
+      {onCalculatePayroll && (
+        <Card className="border-indigo-200 dark:border-indigo-900 bg-gradient-to-r from-indigo-50/50 via-card to-purple-50/30 dark:from-indigo-950/20 dark:to-card shadow-2xs">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">Step 3 of 4: All Pre-Run Inputs Confirmed & Ready</p>
+              <p className="text-[11px] text-muted-foreground">
+                Attendance LOP, overtime hours, bonuses, and loan recoveries are locked. Ready to execute calculation engine!
+              </p>
+            </div>
+            <Button
+              onClick={onCalculatePayroll}
+              className="text-xs font-semibold gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white cursor-pointer shadow-xs shrink-0"
+            >
+              <Play className="h-3.5 w-3.5 fill-current" /> Calculate Payroll Engine Now
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

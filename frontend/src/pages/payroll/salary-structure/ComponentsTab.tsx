@@ -337,7 +337,6 @@ export function ComponentsTab({ components, onUpdateComponents, companyId }: Com
                   <SelectItem value="EARNING">Earnings</SelectItem>
                   <SelectItem value="DEDUCTION">Deductions</SelectItem>
                   <SelectItem value="EMPLOYER_CONTRIBUTION">Employer Cost</SelectItem>
-                  <SelectItem value="REIMBURSEMENT">Reimbursements</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -648,7 +647,6 @@ export function ComponentsTab({ components, onUpdateComponents, companyId }: Com
                     <SelectItem value="EARNING">Earning</SelectItem>
                     <SelectItem value="DEDUCTION">Deduction</SelectItem>
                     <SelectItem value="EMPLOYER_CONTRIBUTION">Employer Contribution</SelectItem>
-                    <SelectItem value="REIMBURSEMENT">Reimbursement (Claim)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

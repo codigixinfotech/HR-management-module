@@ -25,9 +25,10 @@ interface PreRunChecklistTabProps {
   checklist: PreRunCheckItem[];
   onResolveCheck: (checkId: string) => void;
   onGoToStructure: () => void;
+  onNext?: () => void;
 }
 
-export function PreRunChecklistTab({ checklist, onResolveCheck, onGoToStructure }: PreRunChecklistTabProps) {
+export function PreRunChecklistTab({ checklist, onResolveCheck, onGoToStructure, onNext }: PreRunChecklistTabProps) {
   const [selectedCheck, setSelectedCheck] = useState<PreRunCheckItem | null>(null);
 
   const criticalIssues = checklist.filter((c) => c.severity === 'CRITICAL' && !c.isResolved);
@@ -115,9 +116,17 @@ export function PreRunChecklistTab({ checklist, onResolveCheck, onGoToStructure 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {checklist.map((item) => {
-                const isCritical = item.severity === 'CRITICAL';
-                const isWarning = item.severity === 'WARNING';
+              {checklist.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs">
+                    <ShieldCheck className="h-8 w-8 mx-auto mb-2 text-emerald-500 opacity-80" />
+                    All pre-run diagnostic checks passed! No system blockers found for this company.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                checklist.map((item) => {
+                  const isCritical = item.severity === 'CRITICAL';
+                  const isWarning = item.severity === 'WARNING';
 
                 return (
                   <TableRow key={item.id} className="hover:bg-muted/20">
@@ -181,7 +190,7 @@ export function PreRunChecklistTab({ checklist, onResolveCheck, onGoToStructure 
                     </TableCell>
                   </TableRow>
                 );
-              })}
+              }))}
             </TableBody>
           </Table>
         </CardContent>
@@ -241,6 +250,24 @@ export function PreRunChecklistTab({ checklist, onResolveCheck, onGoToStructure 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Guided Workflow Footer */}
+      {onNext && (
+        <Card className="border-border/80 shadow-2xs bg-muted/20">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">Step 1 of 4: Diagnostic Checklist Completed</p>
+              <p className="text-[11px] text-muted-foreground">Proceed to review biometric attendance, calendar working days, and unpaid Loss of Pay (LOP) leaves.</p>
+            </div>
+            <Button
+              onClick={onNext}
+              className="text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-xs shrink-0"
+            >
+              Next: Review Attendance & Working Days <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

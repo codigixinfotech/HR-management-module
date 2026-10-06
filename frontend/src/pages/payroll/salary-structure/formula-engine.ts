@@ -196,29 +196,72 @@ export function calculateSalaryBreakdown({
     } else if (item.calculationType === 'FORMULA' && item.formula) {
       const evalRes = evaluateFormula(item.formula, context);
       monthly = Math.round(evalRes.result);
-    } else if (item.calculationType === 'FIXED') {
       monthly = Number(item.calculationValue ?? item.monthlyAmount ?? 0);
     } else if (item.componentCode === 'PF_EE' || item.componentCode === 'PF') {
-      // Employee PF (12% of basic+da, optionally capped at ₹15,000 ceiling = ₹1,800)
-      const pfWage = basicMonthly + daMonthly;
-      const effectiveWage = restrictPfToCeiling ? Math.min(pfWage, 15000) : pfWage;
-      monthly = Math.round(effectiveWage * 0.12);
+      // Dynamic statutory settings or defaults
+      let pfCeiling = 15000;
+      let pfEeRate = 0.12;
+      let isPfActive = true;
+      let restrictCeiling = restrictPfToCeiling;
+      try {
+        const savedStat = localStorage.getItem('company_statutory_settings');
+        if (savedStat) {
+          const parsed = JSON.parse(savedStat);
+          if (parsed?.pf) {
+            pfCeiling = Number(parsed.pf.wageCeiling) || 15000;
+            pfEeRate = (Number(parsed.pf.employeeRate) || 12) / 100;
+            isPfActive = parsed.pf.enabled !== false;
+            if (parsed.pf.restrictToWageCeiling !== undefined) {
+              restrictCeiling = Boolean(parsed.pf.restrictToWageCeiling);
+            }
+          }
+        }
+      } catch {}
+
+      if (!isPfActive) {
+        monthly = 0;
+      } else {
+        const pfWage = basicMonthly + daMonthly;
+        const effectiveWage = restrictCeiling ? Math.min(pfWage, pfCeiling) : pfWage;
+        monthly = Math.round(effectiveWage * pfEeRate);
+      }
     } else if (item.componentCode === 'PF_ER') {
       // Employer PF (3.67% EPF + 8.33% EPS = 12%)
-      const pfWage = basicMonthly + daMonthly;
-      const effectiveWage = restrictPfToCeiling ? Math.min(pfWage, 15000) : pfWage;
-      monthly = Math.round(effectiveWage * 0.12);
+      let pfCeiling = 15000;
+      let pfErRate = 0.12;
+      let isPfActive = true;
+      let restrictCeiling = restrictPfToCeiling;
+      try {
+        const savedStat = localStorage.getItem('company_statutory_settings');
+        if (savedStat) {
+          const parsed = JSON.parse(savedStat);
+          if (parsed?.pf) {
+            pfCeiling = Number(parsed.pf.wageCeiling) || 15000;
+            const epf = Number(parsed.pf.employerEpfRate) || 3.67;
+            const eps = Number(parsed.pf.employerEpsRate) || 8.33;
+            pfErRate = (epf + eps) / 100;
+            isPfActive = parsed.pf.enabled !== false;
+            if (parsed.pf.restrictToWageCeiling !== undefined) {
+              restrictCeiling = Boolean(parsed.pf.restrictToWageCeiling);
+            }
+          }
+        }
+      } catch {}
+
+      if (!isPfActive) {
+        monthly = 0;
+      } else {
+        const pfWage = basicMonthly + daMonthly;
+        const effectiveWage = restrictCeiling ? Math.min(pfWage, pfCeiling) : pfWage;
+        monthly = Math.round(effectiveWage * pfErRate);
+      }
     } else if (item.componentCode === 'ESI_EE' || item.componentCode === 'ESI') {
-      // 0.75% of Gross if Gross <= 21,000
       monthly = 0; // Updated in third pass once gross is estimated
     } else if (item.componentCode === 'ESI_ER') {
-      // 3.25% of Gross if Gross <= 21,000
       monthly = 0;
     } else if (item.componentCode === 'PT' || item.componentCode === 'PROF_TAX') {
-      // Professional Tax (Standard Maharashtra: ₹200/mo, ₹300 Feb)
       monthly = Number(item.calculationValue || 200);
     } else if (item.componentCode === 'GRATUITY') {
-      // 4.81% of Basic ((15/26)/12 = 0.048076)
       monthly = Math.round((basicMonthly * 15) / 26 / 12);
     } else {
       monthly = Number(item.calculationValue || item.monthlyAmount || 0);

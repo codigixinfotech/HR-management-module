@@ -9,6 +9,7 @@ import {
   Percent,
   Sliders,
   Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,9 +23,16 @@ import type { AttendanceLopRecord } from './types';
 interface AttendanceLopTabProps {
   attendanceRecords: AttendanceLopRecord[];
   onUpdateRecords: (records: AttendanceLopRecord[]) => void;
+  onNext?: () => void;
+  periodName?: string;
 }
 
-export function AttendanceLopTab({ attendanceRecords, onUpdateRecords }: AttendanceLopTabProps) {
+export function AttendanceLopTab({
+  attendanceRecords,
+  onUpdateRecords,
+  onNext,
+  periodName = 'Active Cycle',
+}: AttendanceLopTabProps) {
   const [syncSource, setSyncSource] = useState<'AUTO_ATTENDANCE' | 'MANUAL_EXCEL'>('AUTO_ATTENDANCE');
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -52,7 +60,7 @@ export function AttendanceLopTab({ attendanceRecords, onUpdateRecords }: Attenda
     setIsSyncing(true);
     setTimeout(() => {
       setIsSyncing(false);
-      toast.success('Synced live biometric attendance and approved leave balances for September 2026.');
+      toast.success(`Synced live biometric attendance and approved leave balances for ${periodName}.`);
     }, 600);
   };
 
@@ -114,7 +122,7 @@ export function AttendanceLopTab({ attendanceRecords, onUpdateRecords }: Attenda
       <Card className="border-border/80 shadow-2xs overflow-hidden">
         <CardHeader className="bg-muted/30 px-6 py-3.5 border-b border-border/60 flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-xs font-bold text-foreground">September 2026 Working Days Register</CardTitle>
+            <CardTitle className="text-xs font-bold text-foreground">{periodName} Working Days Register</CardTitle>
             <CardDescription className="text-[11px]">
               Total calendar days: 30 • Total LOP deduction days flagged: {totalLopDays} days
             </CardDescription>
@@ -140,8 +148,16 @@ export function AttendanceLopTab({ attendanceRecords, onUpdateRecords }: Attenda
               </TableRow>
             </TableHeader>
             <TableBody>
-              {attendanceRecords.map((r) => (
-                <TableRow key={r.id} className="hover:bg-muted/20">
+              {attendanceRecords.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground text-xs">
+                    <Clock className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                    No attendance & LOP records found for this period. Click "Sync Biometrics" or select a valid run.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                attendanceRecords.map((r) => (
+                  <TableRow key={r.id} className="hover:bg-muted/20">
                   <TableCell className="pl-6">
                     <div className="font-semibold text-xs text-foreground">{r.name}</div>
                     <div className="text-[10px] font-mono text-muted-foreground">{r.employeeCode}</div>
@@ -187,11 +203,31 @@ export function AttendanceLopTab({ attendanceRecords, onUpdateRecords }: Attenda
                     </Badge>
                   </TableCell>
                 </TableRow>
-              ))}
+              )))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Guided Workflow Footer */}
+      {onNext && (
+        <Card className="border-border/80 shadow-2xs bg-muted/20">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">Step 2 of 4: Attendance & LOP Days Confirmed</p>
+              <p className="text-[11px] text-muted-foreground">
+                All employee payable days and pro-rata salary factors are calculated. Proceed to review variable inputs and claims.
+              </p>
+            </div>
+            <Button
+              onClick={onNext}
+              className="text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-xs shrink-0"
+            >
+              Next: Review Variable Pay & Claims <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

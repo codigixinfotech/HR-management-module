@@ -2,7 +2,7 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { PayslipsService } from './payslips.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { getTenantBranchId } from '../../common/utils/tenant-context.util';
+import { getTenantBranchId, getTenantCompanyId } from '../../common/utils/tenant-context.util';
 
 @Controller('payroll/payslips')
 export class PayslipsController {
@@ -14,10 +14,12 @@ export class PayslipsController {
     @CurrentUser() user: CurrentUserPayload,
     @Query('payrollRunId') payrollRunId?: string,
     @Query('employeeId') employeeId?: string,
+    @Query('companyId') queryCompanyId?: string,
     @Query('branchId') branchId?: string,
   ) {
+    const tenantCompanyId = getTenantCompanyId(user, queryCompanyId);
     const tenantBranchId = getTenantBranchId(user, branchId);
-    return this.payslipsService.list(payrollRunId, employeeId, tenantBranchId);
+    return this.payslipsService.list(payrollRunId, employeeId, tenantBranchId, tenantCompanyId);
   }
 
   @Get(':id')

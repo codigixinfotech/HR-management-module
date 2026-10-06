@@ -7,20 +7,61 @@ export class PayslipsService {
 
   private readonly listInclude = {
     employee: {
-      select: { id: true, firstName: true, lastName: true, employeeCode: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeCode: true,
+        dateOfJoining: true,
+        panNumber: true,
+        uanNumber: true,
+        pfMemberId: true,
+        esicNumber: true,
+        bankName: true,
+        bankAccountNumber: true,
+        bankIfscCode: true,
+        department: { select: { id: true, name: true } },
+        designation: { select: { id: true, title: true } },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            pan: true,
+            registeredAddress: true,
+            city: true,
+            state: true,
+            pincode: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    },
+    payrollRun: {
+      select: {
+        id: true,
+        month: true,
+        year: true,
+        status: true,
+        processedAt: true,
+        approvedAt: true,
+        paidAt: true,
+      },
     },
     components: true,
   };
 
-  list(payrollRunId?: string, employeeId?: string, branchId?: string) {
+  list(payrollRunId?: string, employeeId?: string, branchId?: string, companyId?: string) {
     return this.prisma.payslip.findMany({
       where: {
         ...(payrollRunId ? { payrollRunId } : {}),
         ...(employeeId ? { employeeId } : {}),
         ...(branchId ? { employee: { branchId } } : {}),
+        ...(companyId ? { employee: { companyId } } : {}),
       },
       include: this.listInclude,
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -33,3 +74,4 @@ export class PayslipsService {
     return payslip;
   }
 }
+

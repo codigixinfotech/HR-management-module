@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -42,6 +43,12 @@ export class PayrollRunsController {
     return this.payrollRunsService.create(dto);
   }
 
+  @Delete(':id')
+  @Permissions('payroll.write')
+  remove(@Param('id') id: string) {
+    return this.payrollRunsService.remove(id);
+  }
+
   @Post(':id/process')
   @Permissions('payroll.write')
   process(@Param('id') id: string) {
@@ -55,5 +62,29 @@ export class PayrollRunsController {
     @Body() dto: UpdatePayrollRunStatusDto,
   ) {
     return this.payrollRunsService.updateStatus(id, dto);
+  }
+
+  @Get(':id/pre-run-checklist')
+  @Permissions('payroll.read')
+  getDiagnostics(@Param('id') id: string) {
+    return this.payrollRunsService.getDiagnostics(id);
+  }
+
+  @Get(':id/attendance-lop')
+  @Permissions('payroll.read')
+  getAttendanceLop(@Param('id') id: string) {
+    return this.payrollRunsService.getAttendanceLop(id);
+  }
+
+  @Get(':id/variable-inputs')
+  @Permissions('payroll.read')
+  getVariableInputs(@Param('id') id: string) {
+    return this.payrollRunsService.getVariableInputs(id);
+  }
+
+  @Get(':id/fnf-records')
+  @Permissions('payroll.read')
+  getFnfRecords(@Param('id') id: string) {
+    return this.payrollRunsService.getFnfRecords(id);
   }
 }

@@ -3896,15 +3896,36 @@ export default function EmployeeDetailPage() {
             <TabsContent value="salary" className="m-0 space-y-4">
               {(() => {
                 const assignmentItems = activeSalaryAssignment?.details || [];
-                const earnings = assignmentItems.filter((it: any) => (it.salaryComponent?.type || it.type || 'EARNING') === 'EARNING');
-                const deductions = assignmentItems.filter((it: any) => (it.salaryComponent?.type || it.type) === 'DEDUCTION');
+
+                const isEmployerContrib = (it: any) => {
+                  const code = (it.salaryComponent?.code || it.code || '').toUpperCase();
+                  const cat = (it.salaryComponent?.category || it.category || '').toLowerCase();
+                  const type = (it.salaryComponent?.type || it.type || '').toUpperCase();
+                  return code === 'PF_ER' || code === 'ESI_ER' || code === 'GRATUITY' || cat.includes('employer') || type === 'EMPLOYER_CONTRIBUTION';
+                };
+
+                const isEarning = (it: any) => {
+                  const type = (it.salaryComponent?.type || it.type || '').toUpperCase();
+                  return type === 'EARNING' && !isEmployerContrib(it);
+                };
+
+                const isEmployeeDeduction = (it: any) => {
+                  const type = (it.salaryComponent?.type || it.type || '').toUpperCase();
+                  return type === 'DEDUCTION' && !isEmployerContrib(it);
+                };
+
+                const earnings = assignmentItems.filter(isEarning);
+                const employeeDeductions = assignmentItems.filter(isEmployeeDeduction);
+                const employerContributions = assignmentItems.filter(isEmployerContrib);
+
                 const annualCtcValue = Number(activeSalaryAssignment?.annualCtc || employee.annualCtc || 0);
                 const monthlyCtcValue = Number(activeSalaryAssignment?.monthlyCtc || Math.round(annualCtcValue / 12) || 0);
                 const totalEarnings = earnings.length > 0
                   ? earnings.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0)
-                  : Number(employee.grossSalary) || monthlyCtcValue;
-                const totalDeductions = deductions.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0);
-                const netTakeHome = totalEarnings - totalDeductions;
+                  : Number(activeSalaryAssignment?.grossSalary) || Number(employee.grossSalary) || monthlyCtcValue;
+                const totalDeductions = employeeDeductions.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0);
+                const totalEmployerCost = employerContributions.reduce((sum: number, it: any) => sum + (Number(it.monthlyAmount) || 0), 0);
+                const netTakeHome = Number(activeSalaryAssignment?.netSalary) || (totalEarnings - totalDeductions);
                 const hasSalaryConfig = annualCtcValue > 0 || (employee.basicSalary !== undefined && employee.basicSalary !== null && employee.basicSalary > 0);
 
                 return (
@@ -4001,8 +4022,10 @@ export default function EmployeeDetailPage() {
                                   <TableBody className="text-xs">
                                     {assignmentItems.map((item: any, idx: number) => {
                                       const compName = item.salaryComponent?.name || item.name || 'Salary Component';
-                                      const compCode = item.salaryComponent?.code || '';
-                                      const compType = item.salaryComponent?.type || item.type || 'EARNING';
+                                      const compCode = item.salaryComponent?.code || item.code || '';
+                                      const isEr = isEmployerContrib(item);
+                                      const isEeDeduction = isEmployeeDeduction(item);
+                                      const displayType = isEr ? 'EMPLOYER BENEFIT' : isEeDeduction ? 'DEDUCTION' : 'EARNING';
                                       const monthly = Number(item.monthlyAmount || 0);
                                       const annual = Number(item.annualAmount) || monthly * 12;
 
@@ -4012,8 +4035,17 @@ export default function EmployeeDetailPage() {
                                             {compName} {compCode && <span className="text-muted-foreground font-mono text-[10px]">({compCode})</span>}
                                           </TableCell>
                                           <TableCell className="py-2.5 px-3">
-                                            <Badge variant="outline" className={compType === 'EARNING' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold' : 'bg-rose-500/10 text-rose-600 border-rose-500/30 text-[10px] font-bold'}>
-                                              {compType}
+                                            <Badge
+                                              variant="outline"
+                                              className={
+                                                displayType === 'EARNING'
+                                                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold'
+                                                  : displayType === 'EMPLOYER BENEFIT'
+                                                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] font-bold'
+                                                  : 'bg-rose-500/10 text-rose-600 border-rose-500/30 text-[10px] font-bold'
+                                              }
+                                            >
+                                              {displayType}
                                             </Badge>
                                           </TableCell>
                                           <TableCell className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
@@ -4030,24 +4062,34 @@ export default function EmployeeDetailPage() {
                               </div>
 
                               {/* Net Take-Home Breakdown Summary */}
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-gradient-to-r from-emerald-500/5 via-indigo-500/5 to-purple-500/5 rounded-xl border border-border/60">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-gradient-to-r from-emerald-500/5 via-indigo-500/5 to-purple-500/5 rounded-xl border border-border/60">
                                 <div>
                                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Gross Monthly Earnings</span>
-                                  <div className="text-base font-extrabold text-emerald-600 font-mono">
+                                  <div className="text-base font-extrabold text-indigo-600 font-mono">
                                     ₹{totalEarnings.toLocaleString('en-IN')}
                                   </div>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">Basic + Allowances</p>
                                 </div>
                                 <div>
-                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Total Monthly Deductions</span>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Employee Deductions</span>
                                   <div className="text-base font-extrabold text-rose-600 font-mono">
-                                    ₹{totalDeductions.toLocaleString('en-IN')}
+                                    -₹{totalDeductions.toLocaleString('en-IN')}
                                   </div>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">PF & PT Deductions</p>
                                 </div>
-                                <div>
-                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Net Take-Home Salary</span>
-                                  <div className="text-base font-extrabold text-indigo-600 font-mono">
+                                <div className="border-l pl-3 sm:border-l sm:pl-3 border-border/60">
+                                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">Net Take-Home Salary</span>
+                                  <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
                                     ₹{netTakeHome.toLocaleString('en-IN')}
                                   </div>
+                                  <p className="text-[10px] text-emerald-600/80 mt-0.5">Credited to Bank</p>
+                                </div>
+                                <div className="border-l pl-3 sm:border-l sm:pl-3 border-border/60">
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Employer Benefits</span>
+                                  <div className="text-base font-extrabold text-amber-600 font-mono">
+                                    ₹{totalEmployerCost.toLocaleString('en-IN')}
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">PF (ER) & Gratuity (in CTC)</p>
                                 </div>
                               </div>
                             </div>

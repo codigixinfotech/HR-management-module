@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -160,10 +161,12 @@ export function ReviewApprovalTab({ reviewRecords, onUpdateRecords, onApproveRun
             </TableHeader>
             <TableBody>
               {filteredRecords.map((r) => {
-                const statutorySum = r.employeePf + r.employeeEsi + r.professionalTax;
-                const taxLoanSum = r.tds + r.loanEmi;
-                const isPositiveVariance = r.varianceAmount > 0;
-                const isZeroVariance = r.varianceAmount === 0;
+                const statutorySum = (r.employeePf ?? 0) + (r.employeeEsi ?? 0) + (r.professionalTax ?? 0);
+                const taxLoanSum = (r.tds ?? 0) + (r.loanEmi ?? 0);
+                const varianceAmt = r.varianceAmount ?? 0;
+                const variancePct = r.variancePercentage ?? 0;
+                const isPositiveVariance = varianceAmt > 0;
+                const isZeroVariance = varianceAmt === 0;
 
                 return (
                   <TableRow key={r.id} className="hover:bg-muted/20">
@@ -180,11 +183,11 @@ export function ReviewApprovalTab({ reviewRecords, onUpdateRecords, onApproveRun
                     </TableCell>
 
                     <TableCell className="text-center text-xs font-mono">
-                      {r.paidDays} / {r.lopDays > 0 ? <span className="text-rose-600 font-bold">{r.lopDays} LOP</span> : '0'}
+                      {r.paidDays ?? 30} / {(r.lopDays ?? 0) > 0 ? <span className="text-rose-600 font-bold">{r.lopDays} LOP</span> : '0'}
                     </TableCell>
 
                     <TableCell className="text-right font-mono text-xs font-semibold">
-                      ₹{r.grossPay.toLocaleString('en-IN')}
+                      ₹{(r.grossPay ?? 0).toLocaleString('en-IN')}
                     </TableCell>
 
                     <TableCell className="text-right font-mono text-xs text-muted-foreground">
@@ -196,7 +199,7 @@ export function ReviewApprovalTab({ reviewRecords, onUpdateRecords, onApproveRun
                     </TableCell>
 
                     <TableCell className="text-right font-mono text-xs font-bold text-emerald-600">
-                      ₹{r.netPay.toLocaleString('en-IN')}
+                      ₹{(r.netPay ?? 0).toLocaleString('en-IN')}
                     </TableCell>
 
                     {/* MoM Variance */}
@@ -205,11 +208,11 @@ export function ReviewApprovalTab({ reviewRecords, onUpdateRecords, onApproveRun
                         <span className="text-muted-foreground">0.0%</span>
                       ) : isPositiveVariance ? (
                         <span className="text-emerald-600 font-semibold inline-flex items-center gap-0.5">
-                          <TrendingUp className="h-3 w-3" /> +{r.variancePercentage.toFixed(1)}%
+                          <TrendingUp className="h-3 w-3" /> +{variancePct.toFixed(1)}%
                         </span>
                       ) : (
                         <span className="text-rose-600 font-semibold inline-flex items-center gap-0.5">
-                          <TrendingDown className="h-3 w-3" /> {r.variancePercentage.toFixed(1)}%
+                          <TrendingDown className="h-3 w-3" /> {variancePct.toFixed(1)}%
                         </span>
                       )}
                     </TableCell>
@@ -277,12 +280,12 @@ export function ReviewApprovalTab({ reviewRecords, onUpdateRecords, onApproveRun
             <div className="p-3 bg-muted/40 rounded-lg border flex items-center justify-between text-xs">
               <div>
                 <span className="text-muted-foreground">CTC:</span>{' '}
-                <span className="font-bold text-foreground font-mono">₹{selectedEmployee?.annualCtc.toLocaleString('en-IN')}</span>{' '}
-                ({selectedEmployee?.templateCode})
+                <span className="font-bold text-foreground font-mono">₹{(selectedEmployee?.annualCtc ?? 0).toLocaleString('en-IN')}</span>{' '}
+                ({selectedEmployee?.templateCode ?? 'STD'})
               </div>
               <div>
                 <span className="text-muted-foreground">Paid Days:</span>{' '}
-                <span className="font-bold text-foreground">{selectedEmployee?.paidDays} / 30 Days</span>
+                <span className="font-bold text-foreground">{selectedEmployee?.paidDays ?? 30} / 30 Days</span>
               </div>
             </div>
 
@@ -291,20 +294,20 @@ export function ReviewApprovalTab({ reviewRecords, onUpdateRecords, onApproveRun
               <Label className="text-xs font-bold text-emerald-700">Gross Earnings Breakdown</Label>
               <div className="p-3 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-lg border border-emerald-200 dark:border-emerald-900 space-y-1.5">
                 <div className="flex justify-between">
-                  <span>Basic Salary (Pro-rated for {selectedEmployee?.paidDays} days):</span>
-                  <span className="font-mono font-semibold">₹{selectedEmployee?.basicSalary.toLocaleString('en-IN')}</span>
+                  <span>Basic Salary (Pro-rated for {selectedEmployee?.paidDays ?? 30} days):</span>
+                  <span className="font-mono font-semibold">₹{(selectedEmployee?.basicSalary ?? 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>House Rent Allowance (HRA):</span>
-                  <span className="font-mono font-semibold">₹{selectedEmployee?.hra.toLocaleString('en-IN')}</span>
+                  <span className="font-mono font-semibold">₹{(selectedEmployee?.hra ?? 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Special & Other Allowances:</span>
-                  <span className="font-mono font-semibold">₹{selectedEmployee?.allowances.toLocaleString('en-IN')}</span>
+                  <span className="font-mono font-semibold">₹{(selectedEmployee?.allowances ?? 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="pt-1.5 border-t border-emerald-200 flex justify-between font-bold text-emerald-800 dark:text-emerald-300">
                   <span>Total Gross Earnings:</span>
-                  <span className="font-mono">₹{selectedEmployee?.grossPay.toLocaleString('en-IN')}</span>
+                  <span className="font-mono">₹{(selectedEmployee?.grossPay ?? 0).toLocaleString('en-IN')}</span>
                 </div>
               </div>
             </div>
@@ -315,25 +318,25 @@ export function ReviewApprovalTab({ reviewRecords, onUpdateRecords, onApproveRun
               <div className="p-3 bg-rose-50/40 dark:bg-rose-950/20 rounded-lg border border-rose-200 dark:border-rose-900 space-y-1.5">
                 <div className="flex justify-between">
                   <span>Provident Fund (Employee EPF 12%):</span>
-                  <span className="font-mono font-semibold">-₹{selectedEmployee?.employeePf.toLocaleString('en-IN')}</span>
+                  <span className="font-mono font-semibold">-₹{(selectedEmployee?.employeePf ?? 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Professional Tax (PT Slab):</span>
-                  <span className="font-mono font-semibold">-₹{selectedEmployee?.professionalTax.toLocaleString('en-IN')}</span>
+                  <span className="font-mono font-semibold">-₹{(selectedEmployee?.professionalTax ?? 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Income Tax (TDS Monthly Projection):</span>
-                  <span className="font-mono font-semibold">-₹{selectedEmployee?.tds.toLocaleString('en-IN')}</span>
+                  <span className="font-mono font-semibold">-₹{(selectedEmployee?.tds ?? 0).toLocaleString('en-IN')}</span>
                 </div>
-                {Number(selectedEmployee?.loanEmi) > 0 && (
+                {Number(selectedEmployee?.loanEmi ?? 0) > 0 && (
                   <div className="flex justify-between">
                     <span>Company Loan EMI Deduction:</span>
-                    <span className="font-mono font-semibold">-₹{selectedEmployee?.loanEmi.toLocaleString('en-IN')}</span>
+                    <span className="font-mono font-semibold">-₹{(selectedEmployee?.loanEmi ?? 0).toLocaleString('en-IN')}</span>
                   </div>
                 )}
                 <div className="pt-1.5 border-t border-rose-200 flex justify-between font-bold text-rose-800 dark:text-rose-300">
                   <span>Total Deductions:</span>
-                  <span className="font-mono">-₹{selectedEmployee?.totalDeductions.toLocaleString('en-IN')}</span>
+                  <span className="font-mono">-₹{(selectedEmployee?.totalDeductions ?? 0).toLocaleString('en-IN')}</span>
                 </div>
               </div>
             </div>
@@ -342,7 +345,7 @@ export function ReviewApprovalTab({ reviewRecords, onUpdateRecords, onApproveRun
             <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg border border-indigo-200 dark:border-indigo-900 flex justify-between items-center text-xs">
               <span className="font-bold text-indigo-950 dark:text-indigo-200">Net Take-Home Pay (Bank Credit):</span>
               <span className="text-lg font-bold text-indigo-600 font-mono">
-                ₹{selectedEmployee?.netPay.toLocaleString('en-IN')}
+                ₹{(selectedEmployee?.netPay ?? 0).toLocaleString('en-IN')}
               </span>
             </div>
           </div>

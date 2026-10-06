@@ -1032,7 +1032,43 @@ export interface Payslip {
   otherDeductions: number;
   netPay: number;
   createdAt: string;
-  employee?: { id: string; firstName: string; lastName: string; employeeCode: string };
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+    dateOfJoining?: string | null;
+    panNumber?: string | null;
+    uanNumber?: string | null;
+    pfMemberId?: string | null;
+    esicNumber?: string | null;
+    bankName?: string | null;
+    bankAccountNumber?: string | null;
+    bankIfscCode?: string | null;
+    department?: { id: string; name: string } | null;
+    designation?: { id: string; title: string } | null;
+    company?: {
+      id: string;
+      name: string;
+      code: string;
+      pan?: string | null;
+      registeredAddress?: string | null;
+      city?: string | null;
+      state?: string | null;
+      pincode?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    } | null;
+  };
+  payrollRun?: {
+    id: string;
+    month: number;
+    year: number;
+    status: PayrollRunStatus;
+    processedAt?: string | null;
+    approvedAt?: string | null;
+    paidAt?: string | null;
+  } | null;
   components?: PayslipComponent[];
 }
 

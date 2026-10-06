@@ -12,6 +12,14 @@ export type PayrollRunStatus =
   | 'LOCKED'
   | 'PAID';
 
+export interface SalaryCycleConfig {
+  startDay: number; // 1 to 31
+  startMonthOffset: 'PREVIOUS_MONTH' | 'SAME_MONTH';
+  endDay: number; // 1 to 31, or 0 for last day of month
+  payDay: number; // 1 to 31, or 0 for last day of month
+  payMonthOffset: 'SAME_MONTH' | 'NEXT_MONTH';
+}
+
 export interface PayrollRunItem {
   id: string;
   runCode: string;
@@ -26,6 +34,11 @@ export interface PayrollRunItem {
   totalDeductions: number;
   totalNet: number;
   totalEmployerCost: number;
+  startDate?: string;
+  endDate?: string;
+  payDate?: string;
+  cycleScheme?: SalaryCycleScheme;
+  totalCycleDays?: number;
   calculatedAt?: string;
   calculatedBy?: string;
   approvedAt?: string;
@@ -63,6 +76,8 @@ export interface AttendanceLopRecord {
   holidays: number;
   attendanceFinalized: boolean;
   proRataFactor: number; // e.g. 28/30 = 0.933
+  isHeld?: boolean;
+  holdReason?: string;
 }
 
 export interface VariableInputRecord {

@@ -85,8 +85,16 @@ export function FnfSettlementTab({ fnfRecords, onUpdateRecords }: FnfSettlementT
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fnfRecords.map((r) => (
-                <TableRow key={r.id} className="hover:bg-muted/20">
+              {fnfRecords.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground text-xs">
+                    <UserMinus className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                    No employees currently undergoing Full & Final (F&F) settlement for this period.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                fnfRecords.map((r) => (
+                  <TableRow key={r.id} className="hover:bg-muted/20">
                   <TableCell className="pl-6">
                     <div className="font-semibold text-xs text-foreground">{r.name}</div>
                     <div className="text-[10px] font-mono text-muted-foreground">{r.employeeCode} • {r.designation}</div>
@@ -134,7 +142,7 @@ export function FnfSettlementTab({ fnfRecords, onUpdateRecords }: FnfSettlementT
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+              )))}
             </TableBody>
           </Table>
         </CardContent>

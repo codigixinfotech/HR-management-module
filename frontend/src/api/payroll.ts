@@ -53,12 +53,21 @@ export const payrollRunsApi = {
   create: async (payload: { companyId: string; month: number; year: number }) =>
     (await apiClient.post<PayrollRun>('/payroll/runs', payload)).data,
   process: async (id: string) => (await apiClient.post<PayrollRun>(`/payroll/runs/${id}/process`)).data,
+  remove: async (id: string) => (await apiClient.delete<any>(`/payroll/runs/${id}`)).data,
   updateStatus: async (id: string, status: PayrollRunStatus) =>
     (await apiClient.patch<PayrollRun>(`/payroll/runs/${id}/status`, { status })).data,
+  getDiagnostics: async (runId: string) =>
+    (await apiClient.get<any[]>(`/payroll/runs/${runId}/pre-run-checklist`)).data,
+  getAttendanceLop: async (runId: string) =>
+    (await apiClient.get<any[]>(`/payroll/runs/${runId}/attendance-lop`)).data,
+  getVariableInputs: async (runId: string) =>
+    (await apiClient.get<any[]>(`/payroll/runs/${runId}/variable-inputs`)).data,
+  getFnfRecords: async (runId: string) =>
+    (await apiClient.get<any[]>(`/payroll/runs/${runId}/fnf-records`)).data,
 };
 
 export const payslipsApi = {
-  list: async (params: { payrollRunId?: string; employeeId?: string }) =>
+  list: async (params: { payrollRunId?: string; employeeId?: string; companyId?: string }) =>
     (await apiClient.get<Payslip[]>('/payroll/payslips', { params })).data,
   get: async (id: string) => (await apiClient.get<Payslip>(`/payroll/payslips/${id}`)).data,
 };
