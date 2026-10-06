@@ -112,15 +112,26 @@ export function MachineDetailsDrawer({
 
           <div className="flex items-center gap-2">
             {machine && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs shadow-2xs font-medium"
-                onClick={() => setShowQrModal(true)}
-              >
-                <QrCode className="h-3.5 w-3.5 text-primary" />
-                Asset QR
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 shadow-2xs"
+                  onClick={() => setOpen360Modal(true)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 text-indigo-600" />
+                  360° Studio
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs shadow-2xs font-medium"
+                  onClick={() => setShowQrModal(true)}
+                >
+                  <QrCode className="h-3.5 w-3.5 text-primary" />
+                  Asset QR
+                </Button>
+              </>
             )}
             <Button
               variant="ghost"
@@ -278,47 +289,44 @@ export function MachineDetailsDrawer({
                   </div>
                 </div>
 
-                {/* Equipment Photo & 360° View Card (if photo exists) */}
-                {Boolean((machine as any).documentsJson || machine.mainPhoto) && (() => {
+                {/* Equipment Photo & 360° Interactive Studio Card */}
+                {(() => {
                   let parsedDocs: any = {};
                   try {
                     parsedDocs = typeof (machine as any).documentsJson === 'string' ? JSON.parse((machine as any).documentsJson) : (machine as any).documentsJson || {};
                   } catch {
                     parsedDocs = {};
                   }
-                  const photo = parsedDocs?.images?.mainPhoto || machine.mainPhoto;
+                  const photo = parsedDocs?.images?.mainPhoto || machine.mainPhoto || 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=600&q=80';
                   const angles = parsedDocs?.images?.angles || machine.angleImages || {};
 
-                  if (!photo) return null;
-
                   return (
-                    <div className="p-3.5 rounded-xl border bg-card flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
+                    <div className="p-3.5 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50/40 via-white to-slate-50/50 flex items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-3 min-w-0">
                         <img
                           src={photo}
                           alt={machine.machineName}
-                          className="h-16 w-20 object-contain rounded-lg border bg-muted/20 shadow-2xs"
+                          className="h-16 w-20 object-contain rounded-lg border border-slate-200 bg-white shadow-2xs shrink-0"
                         />
-                        <div>
-                          <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                            Equipment Visual Model
-                            <Badge variant="outline" className="text-[10px] font-mono">
-                              {Object.keys(angles).length > 0 ? `${Object.keys(angles).length} Angles` : 'Main Photo'}
+                        <div className="min-w-0 truncate">
+                          <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5 truncate">
+                            360° Equipment Interactive Studio
+                            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-mono shrink-0">
+                              {Object.keys(angles).length > 0 ? `${Object.keys(angles).length} Angles` : 'Studio Model'}
                             </Badge>
                           </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            360° rotational inspection view calibrated for this unit.
+                          <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                            Drag to rotate 360°, inspect all 5 angles, zoom, and review complete QR dossier.
                           </p>
                         </div>
                       </div>
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10 shrink-0"
+                        className="h-8 text-xs font-bold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 shadow-xs"
                         onClick={() => setOpen360Modal(true)}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
-                        View 360°
+                        Launch 360°
                       </Button>
                     </div>
                   );

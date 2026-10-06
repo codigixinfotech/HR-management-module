@@ -12,9 +12,10 @@ import { AddEditLineModal } from './AddEditLineModal';
 import { AssignOperatorModal } from './AssignOperatorModal';
 import { StartMaintenanceModal } from './StartMaintenanceModal';
 import { CompleteMaintenanceModal } from './CompleteMaintenanceModal';
-import { MachineDetailsDrawer } from './MachineDetailsDrawer';
+import { MachineDetailsPageView } from './MachineDetailsPageView';
 import { OperatorDetailsDrawer } from './OperatorDetailsDrawer';
 import { AddOperatorModal } from './AddOperatorModal';
+import { Machine360ViewerModal } from './Machine360ViewerModal';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -105,6 +106,7 @@ function MachineManagementContent({
 
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedOperatorId, setSelectedOperatorId] = useState<string | null>(null);
+  const [viewing360Machine, setViewing360Machine] = useState<Machine | null>(null);
   const [openAddOperator, setOpenAddOperator] = useState(false);
   const [openUomMaster, setOpenUomMaster] = useState(false);
 
@@ -169,7 +171,7 @@ function MachineManagementContent({
         .scanQrToken(qrParam)
         .then((found) => {
           setSelectedMachineId(found.id);
-          toast.success(`Scanned: ${found.machineCode} - ${found.machineName}`);
+          toast.success(`Scanned QR: ${found.machineCode} - ${found.machineName}`);
         })
         .catch((err) => {
           toast.error(err.response?.data?.message || 'Invalid or unrecognized QR token');
@@ -289,6 +291,80 @@ function MachineManagementContent({
       handleRefresh();
     }
   };
+
+  if (selectedMachineId) {
+    return (
+      <div className="space-y-6">
+        <MachineDetailsPageView
+          machineId={selectedMachineId}
+          onBack={() => {
+            setSelectedMachineId(null);
+            setSearchParams((prev) => {
+              prev.delete('qr');
+              prev.delete('machineCode');
+              prev.delete('machineId');
+              return prev;
+            });
+          }}
+          onEditMachine={(m) => {
+            setEditingMachine(m);
+            setOpenAddMachine(true);
+          }}
+          onAssignOperator={(m) => {
+            setAssigningMachine(m);
+            setOpenAssignOperator(true);
+          }}
+          onStartMaintenance={(m) => {
+            setMaintenancingMachine(m);
+            setOpenStartMaintenance(true);
+          }}
+          onMachineUpdated={handleRefresh}
+          companies={companies}
+          branches={branches}
+          departments={departments}
+        />
+
+        <AddEditMachineModal
+          open={openAddMachine}
+          onOpenChange={setOpenAddMachine}
+          machine={editingMachine}
+          companies={companies}
+          branches={branches}
+          departments={departments}
+          productionLines={productionLines}
+          employees={employees}
+          activeCompanyId={companyId}
+          activeBranchId={branchId}
+          onSuccess={handleRefresh}
+        />
+
+        <AssignOperatorModal
+          open={openAssignOperator}
+          onOpenChange={setOpenAssignOperator}
+          preselectedMachine={assigningMachine}
+          machines={machines}
+          productionLines={productionLines}
+          operators={operators}
+          employees={employees}
+          companies={companies}
+          branches={branches}
+          departments={departments}
+          activeCompanyId={companyId}
+          activeBranchId={branchId}
+          onSuccess={handleRefresh}
+        />
+
+        <StartMaintenanceModal
+          open={openStartMaintenance}
+          onOpenChange={setOpenStartMaintenance}
+          preselectedMachine={maintenancingMachine}
+          machines={machines}
+          productionLines={productionLines}
+          onSuccess={handleRefresh}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -451,6 +527,7 @@ function MachineManagementContent({
             setEditingMachine(null);
             setOpenAddMachine(true);
           }}
+          onOpen360={(m) => setSelectedMachineId(m.id)}
           onMachineUpdated={handleRefresh}
         />
       )}
@@ -596,23 +673,6 @@ function MachineManagementContent({
         onSuccess={handleRefresh}
       />
 
-      <MachineDetailsDrawer
-        machineId={selectedMachineId}
-        open={Boolean(selectedMachineId)}
-        onClose={() => setSelectedMachineId(null)}
-        onAssignOperator={(m) => {
-          setSelectedMachineId(null);
-          setAssigningMachine(m);
-          setOpenAssignOperator(true);
-        }}
-        onStartMaintenance={(m) => {
-          setSelectedMachineId(null);
-          setMaintenancingMachine(m);
-          setOpenStartMaintenance(true);
-        }}
-        onMachineUpdated={handleRefresh}
-      />
-
       <OperatorDetailsDrawer
         operatorId={selectedOperatorId}
         open={Boolean(selectedOperatorId)}
@@ -638,6 +698,15 @@ function MachineManagementContent({
       <CapacityUomMasterModal
         open={openUomMaster}
         onOpenChange={setOpenUomMaster}
+      />
+
+      {/* Standalone 360 Interactive Equipment Viewer */}
+      <Machine360ViewerModal
+        open={Boolean(viewing360Machine)}
+        onOpenChange={(open) => {
+          if (!open) setViewing360Machine(null);
+        }}
+        machine={viewing360Machine}
       />
     </div>
   );

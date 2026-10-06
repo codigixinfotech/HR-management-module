@@ -458,8 +458,44 @@ export function AddEditMachineModal({
     }
   };
 
-  // Handle Image File selection via FileReader
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Resize image to max 1200px width/height and JPEG 0.85 quality to keep payloads small and fast
+  const resizeImageFile = (file: File, maxDim = 1200, quality = 0.85): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle Image File selection via FileReader & Canvas Compressor
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -468,22 +504,18 @@ export function AddEditMachineModal({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (!result) return;
+    try {
+      const resized = await resizeImageFile(file, 1200, 0.85);
       const angleKey = targetAngleForUpload.toLowerCase();
-      setAngleImages((prev) => ({ ...prev, [angleKey]: result }));
+      setAngleImages((prev) => ({ ...prev, [angleKey]: resized }));
       if (angleKey === 'front' || !mainPhoto) {
-        setMainPhoto(result);
+        setMainPhoto(resized);
       }
       setActiveAngleTab(targetAngleForUpload);
-      toast.success(`${targetAngleForUpload} angle image uploaded successfully!`);
-    };
-    reader.onerror = () => {
-      toast.error('Failed to read image file');
-    };
-    reader.readAsDataURL(file);
+      toast.success(`${targetAngleForUpload} angle image attached successfully!`);
+    } catch {
+      toast.error('Failed to process image');
+    }
   };
 
   // Trigger Doc Picker reliably via useRef
@@ -648,24 +680,24 @@ export function AddEditMachineModal({
 
   return (
     <>
-      {/* Invisible Native File Inputs */}
-      <input
-        ref={imageFileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleImageFileChange}
-      />
-      <input
-        ref={docFileInputRef}
-        type="file"
-        accept=".pdf,.doc,.docx"
-        className="hidden"
-        onChange={handleDocFileChange}
-      />
-
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-6xl max-h-[94vh] overflow-y-auto p-6 sm:p-7 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl">
+          {/* Native File Inputs inside DialogContent */}
+          <input
+            ref={imageFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageFileChange}
+          />
+          <input
+            ref={docFileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx"
+            className="hidden"
+            onChange={handleDocFileChange}
+          />
+
           {/* Header */}
           <DialogHeader className="border-b border-slate-100 dark:border-slate-800 pb-4">
             <div className="flex items-center gap-3">
@@ -695,8 +727,8 @@ export function AddEditMachineModal({
                     <span>1. Basic Information</span>
                   </h3>
 
-                  {/* Row 1: Machine Code, Machine Name, Machine Type */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Row 1: Machine Code, Machine Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="m-code" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         Machine Code <span className="text-rose-500">*</span>
@@ -723,27 +755,6 @@ export function AddEditMachineModal({
                         required
                         className="h-9 text-xs"
                       />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="m-type" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Machine Type <span className="text-rose-500">*</span>
-                      </Label>
-                      <Select
-                        value={formData.machineType}
-                        onValueChange={(val) => setFormData({ ...formData, machineType: val })}
-                      >
-                        <SelectTrigger id="m-type" className="h-9 text-xs">
-                          <SelectValue placeholder="Select Type" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60">
-                          {STANDARD_MACHINE_TYPES.map((t) => (
-                            <SelectItem key={t} value={t} className="text-xs">
-                              {t}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
 
@@ -1542,10 +1553,17 @@ export function AddEditMachineModal({
       <Machine360ViewerModal
         open={open360Modal}
         onOpenChange={setOpen360Modal}
-        machineName={formData.machineName || 'Medical Equipment'}
-        machineCode={formData.machineCode || 'MCH-001'}
+        machineName={formData.machineName || 'Siemens CT Scanner 128 Slice'}
+        machineCode={formData.machineCode || 'HSP-MCH-001'}
         mainPhoto={mainPhoto}
         angleImages={angleImages}
+        manufacturer={formData.manufacturer || 'Siemens Healthineers'}
+        model={formData.model || 'SOMATOM Definition AS+'}
+        serialNumber={formData.serialNumber || 'SN-CT-2026-00125'}
+        assetNumber={formData.assetNumber || 'HSP-AST-CT-001'}
+        departmentName={departments.find((d) => d.id === formData.departmentId)?.name || 'Radiology Department'}
+        operationalUnitName={productionLines.find((p) => p.id === formData.productionLineId)?.lineName || 'Outpatient Department'}
+        location={formData.location || '2nd Floor - CT Scan Room 01'}
       />
 
       {/* Capacity UOM Master Management Modal */}

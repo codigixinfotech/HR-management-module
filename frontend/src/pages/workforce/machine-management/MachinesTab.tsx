@@ -53,6 +53,7 @@ interface MachinesTabProps {
   onToggleStatus: (machine: Machine) => void;
   onDeleteMachine: (machine: Machine) => void;
   onOpenAddMachine: () => void;
+  onOpen360?: (machine: Machine) => void;
   onMachineUpdated?: (machine: Machine) => void;
 }
 
@@ -81,6 +82,7 @@ export function MachinesTab({
   onToggleStatus,
   onDeleteMachine,
   onOpenAddMachine,
+  onOpen360,
   onMachineUpdated,
 }: MachinesTabProps) {
   const [search, setSearch] = useState('');
@@ -404,6 +406,16 @@ export function MachinesTab({
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                          title="360° Equipment Interactive Viewer"
+                          onClick={() => onOpen360?.(m)}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
                           title="View & Print QR Asset Tag"
                           onClick={() => {
@@ -421,6 +433,10 @@ export function MachinesTab({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-48 text-xs">
+                            <DropdownMenuItem onClick={() => onOpen360?.(m)}>
+                              <RotateCcw className="h-3.5 w-3.5 mr-2 text-indigo-600" />
+                              360° Interactive View
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onViewDetails(m)}>
                               <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
                               View Details
@@ -497,7 +513,13 @@ export function MachinesTab({
       <ScanQrModal
         open={openScanModal}
         onOpenChange={setOpenScanModal}
-        onMachineFound={(m) => onViewDetails(m)}
+        onMachineFound={(m) => {
+          if (onOpen360) {
+            onOpen360(m);
+          } else {
+            onViewDetails(m);
+          }
+        }}
       />
     </div>
   );
