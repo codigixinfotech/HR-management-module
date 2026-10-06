@@ -19,6 +19,8 @@ import {
   UpdateMachineDto,
   UpdateMachineOperatorDto,
   UpdateProductionLineDto,
+  CreateCapacityUomDto,
+  UpdateCapacityUomDto,
 } from './dto/machine-management.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
@@ -67,10 +69,33 @@ export class MachineManagementController {
     });
   }
 
+  @Get('machine-management/maintenance/due')
+  @Permissions('workforce.read')
+  getMaintenanceDueSummary(
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    const scope = getWorkforceTenantScope(user, companyId, branchId);
+    return this.service.getMaintenanceDueSummary(scope.companyId, scope.branchId);
+  }
+
+  @Get('machine-management/scan/:qrToken')
+  @Permissions('workforce.read')
+  getMachineByQrToken(@Param('qrToken') qrToken: string) {
+    return this.service.getMachineByQrToken(qrToken);
+  }
+
   @Get('machines/:id')
   @Permissions('workforce.read')
   getMachineById(@Param('id') id: string) {
     return this.service.getMachineById(id);
+  }
+
+  @Post('machines/:id/regenerate-qr')
+  @Permissions('workforce.write')
+  regenerateQrToken(@Param('id') id: string) {
+    return this.service.regenerateQrToken(id);
   }
 
   @Post('machines')
@@ -192,6 +217,12 @@ export class MachineManagementController {
     return this.service.updateOperator(id, dto);
   }
 
+  @Delete('machine-operators/:id')
+  @Permissions('workforce.write')
+  deleteOperator(@Param('id') id: string) {
+    return this.service.deleteOperator(id);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 5. Machine Allocations
   // ─────────────────────────────────────────────────────────────
@@ -241,6 +272,12 @@ export class MachineManagementController {
     return this.service.cancelAllocation(id);
   }
 
+  @Delete('machine-allocations/:id')
+  @Permissions('workforce.write')
+  deleteAllocation(@Param('id') id: string) {
+    return this.service.deleteAllocation(id);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 6. Machine Maintenance
   // ─────────────────────────────────────────────────────────────
@@ -279,5 +316,58 @@ export class MachineManagementController {
     @Body() dto: CompleteMachineMaintenanceDto,
   ) {
     return this.service.completeMaintenance(id, dto);
+  }
+
+  @Delete('machine-maintenances/:id')
+  @Permissions('workforce.write')
+  deleteMaintenance(@Param('id') id: string) {
+    return this.service.deleteMaintenance(id);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 7. Capacity UOM Master (Database Endpoints)
+  // ─────────────────────────────────────────────────────────────
+  @Get('capacity-uoms')
+  @Permissions('workforce.read')
+  listCapacityUoms(
+    @Query('companyId') companyId?: string,
+    @Query('category') category?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.service.listCapacityUoms(companyId, search, category);
+  }
+
+  @Get('capacity-uoms/:id')
+  @Permissions('workforce.read')
+  getCapacityUomById(@Param('id') id: string) {
+    return this.service.getCapacityUomById(id);
+  }
+
+  @Post('capacity-uoms')
+  @Permissions('workforce.write')
+  createCapacityUom(
+    @Body() dto: CreateCapacityUomDto,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    const scope = getWorkforceTenantScope(user, dto.companyId);
+    return this.service.createCapacityUom({
+      ...dto,
+      companyId: scope.companyId || dto.companyId,
+    });
+  }
+
+  @Patch('capacity-uoms/:id')
+  @Permissions('workforce.write')
+  updateCapacityUom(
+    @Param('id') id: string,
+    @Body() dto: UpdateCapacityUomDto,
+  ) {
+    return this.service.updateCapacityUom(id, dto);
+  }
+
+  @Delete('capacity-uoms/:id')
+  @Permissions('workforce.write')
+  deleteCapacityUom(@Param('id') id: string) {
+    return this.service.deleteCapacityUom(id);
   }
 }

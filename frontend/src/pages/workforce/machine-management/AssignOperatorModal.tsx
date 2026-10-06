@@ -25,7 +25,16 @@ import {
   type MachineOperator,
 } from '@/api/machine-management';
 import type { Company, Branch, Department, Employee } from '@/api/types';
-import { CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
+import { shiftTypesApi } from '@/api/workforce';
+import { CheckCircle2, AlertCircle, XCircle, Clock } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import {
+  formatTime24,
+  formatTime12,
+  isCrossMidnight,
+  calculateShiftDurationHours,
+  normalizeShiftName,
+} from './shiftTimeUtils';
 
 interface AssignOperatorModalProps {
   open: boolean;
@@ -59,6 +68,15 @@ export function AssignOperatorModal({
   onSuccess,
 }: AssignOperatorModalProps) {
   const [submitting, setSubmitting] = useState(false);
+  const [availableShifts, setAvailableShifts] = useState<{
+    id: string;
+    name: string;
+    code?: string;
+    startTime: string;
+    endTime: string;
+    durationHours: number;
+    isNightShift: boolean;
+  }[]>([]);
 
   const [formData, setFormData] = useState({
     companyId: '',
@@ -70,19 +88,82 @@ export function AssignOperatorModal({
     operatorId: '',
     supervisorId: '',
     supervisorName: '',
-    shift: 'Morning (A)',
+    shift: 'Morning Shift',
     allocationDate: new Date().toISOString().slice(0, 10),
-    startTime: '08:00',
-    endTime: '16:30',
+    startTime: '07:00',
+    endTime: '15:00',
     workOrder: '',
     operation: '',
     remarks: '',
   });
 
+  // Load Shift Master definitions dynamically
+  useEffect(() => {
+    if (!open) return;
+    const targetMachine = preselectedMachine || machines[0];
+    const compId = targetMachine?.companyId || activeCompanyId || (companies[0]?.id ?? '');
+
+    if (compId) {
+      shiftTypesApi
+        .list(compId)
+        .then((list) => {
+          if (list && list.length > 0) {
+            const mapped = list.map((s) => {
+              const sTime = formatTime24(s.startTime || '07:00');
+              const eTime = formatTime24(s.endTime || '15:00');
+              const duration = calculateShiftDurationHours(sTime, eTime);
+              const isNight = Boolean(s.isNightShift) || isCrossMidnight(sTime, eTime);
+              return {
+                id: s.id,
+                name: normalizeShiftName(s.name),
+                code: s.code,
+                startTime: sTime,
+                endTime: eTime,
+                durationHours: duration,
+                isNightShift: isNight,
+              };
+            });
+            setAvailableShifts(mapped);
+
+            // Auto-populate shift time from first shift if current shift is default or not in list
+            if (mapped.length > 0) {
+              setFormData((prev) => {
+                const found = mapped.find(
+                  (m) => m.name.toLowerCase() === prev.shift.toLowerCase() || m.id === prev.shift
+                ) || mapped[0];
+                return {
+                  ...prev,
+                  shift: found.name,
+                  startTime: found.startTime,
+                  endTime: found.endTime,
+                };
+              });
+            }
+          } else {
+            const defaults = [
+              { id: 'st-m', name: 'Morning Shift', code: 'MS', startTime: '07:00', endTime: '15:00', durationHours: 8, isNightShift: false },
+              { id: 'st-e', name: 'Evening Shift', code: 'ES', startTime: '15:00', endTime: '23:00', durationHours: 8, isNightShift: false },
+              { id: 'st-n', name: 'Night Shift', code: 'NS', startTime: '23:00', endTime: '07:00', durationHours: 8, isNightShift: true },
+            ];
+            setAvailableShifts(defaults);
+          }
+        })
+        .catch(() => {
+          const defaults = [
+            { id: 'st-m', name: 'Morning Shift', code: 'MS', startTime: '07:00', endTime: '15:00', durationHours: 8, isNightShift: false },
+            { id: 'st-e', name: 'Evening Shift', code: 'ES', startTime: '15:00', endTime: '23:00', durationHours: 8, isNightShift: false },
+            { id: 'st-n', name: 'Night Shift', code: 'NS', startTime: '23:00', endTime: '07:00', durationHours: 8, isNightShift: true },
+          ];
+          setAvailableShifts(defaults);
+        });
+    }
+  }, [open, preselectedMachine, machines, activeCompanyId, companies]);
+
   useEffect(() => {
     if (open) {
       const targetMachine = preselectedMachine || machines[0];
-      setFormData({
+      setFormData((prev) => ({
+        ...prev,
         companyId: targetMachine?.companyId || activeCompanyId || (companies[0]?.id ?? ''),
         branchId: targetMachine?.branchId || (activeBranchId && activeBranchId !== 'HEAD_OFFICE' ? activeBranchId : '') || '',
         departmentId: targetMachine?.departmentId || '',
@@ -92,16 +173,29 @@ export function AssignOperatorModal({
         operatorId: operators.find((o) => o.status === 'Available')?.id || operators[0]?.id || '',
         supervisorId: employees[0]?.id || '',
         supervisorName: employees[0] ? `${employees[0].firstName} ${employees[0].lastName}` : '',
-        shift: 'Morning (A)',
         allocationDate: new Date().toISOString().slice(0, 10),
-        startTime: '08:00',
-        endTime: '16:30',
         workOrder: '',
         operation: '',
         remarks: '',
-      });
+      }));
     }
   }, [open, preselectedMachine, machines, productionLines, operators, employees, activeCompanyId, activeBranchId, companies]);
+
+  const handleShiftSelect = (shiftNameOrId: string) => {
+    const found = availableShifts.find(
+      (s) => s.name === shiftNameOrId || s.id === shiftNameOrId
+    );
+    if (found) {
+      setFormData((prev) => ({
+        ...prev,
+        shift: found.name,
+        startTime: found.startTime,
+        endTime: found.endTime,
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, shift: shiftNameOrId }));
+    }
+  };
 
   const selectedMachine = machines.find((m) => m.id === formData.machineId);
   const selectedOperator = operators.find((o) => o.id === formData.operatorId);
@@ -150,7 +244,7 @@ export function AssignOperatorModal({
       return;
     }
     if (!formData.productionLineId) {
-      toast.error('Please select a production line');
+      toast.error('Please select an operational unit');
       return;
     }
 
@@ -228,7 +322,7 @@ export function AssignOperatorModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="alloc-branch">Branch *</Label>
+                <Label htmlFor="alloc-branch">Branch</Label>
                 <Select
                   value={formData.branchId || 'HEAD_OFFICE'}
                   onValueChange={(val) =>
@@ -240,23 +334,26 @@ export function AssignOperatorModal({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="HEAD_OFFICE">Head Office</SelectItem>
-                    {branches.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
+                    {branches
+                      .filter((b) => !formData.companyId || b.companyId === formData.companyId)
+                      .filter((b) => !b.name?.toLowerCase().includes('head office'))
+                      .map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="alloc-line">Production Line *</Label>
+                <Label htmlFor="alloc-line">Operational Unit *</Label>
                 <Select
                   value={formData.productionLineId}
                   onValueChange={(val) => setFormData({ ...formData, productionLineId: val })}
                 >
                   <SelectTrigger id="alloc-line">
-                    <SelectValue placeholder="Select Production Line" />
+                    <SelectValue placeholder="Select Operational Unit" />
                   </SelectTrigger>
                   <SelectContent>
                     {productionLines.map((pl) => (
@@ -362,26 +459,44 @@ export function AssignOperatorModal({
             </div>
           </div>
 
-          {/* Shift Section */}
+          {/* Shift Section (Unified Shift Master as Single Source of Truth) */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-primary uppercase tracking-wider border-b pb-1">
-              3. Shift Schedule
-            </h3>
+            <div className="flex items-center justify-between border-b pb-1">
+              <h3 className="text-sm font-semibold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="h-4 w-4" />
+                3. Shift Schedule (Shift Master)
+              </h3>
+              {Boolean(formData.startTime && formData.endTime) && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {calculateShiftDurationHours(formData.startTime, formData.endTime)} hrs duration
+                  </Badge>
+                  {isCrossMidnight(formData.startTime, formData.endTime) && (
+                    <Badge variant="secondary" className="text-amber-700 bg-amber-50 border border-amber-300 text-[10px]">
+                      🌙 +1 Day (Cross Midnight)
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="alloc-shift">Shift *</Label>
+              <div className="space-y-1.5 md:col-span-1">
+                <Label htmlFor="alloc-shift">Shift Pattern *</Label>
                 <Select
                   value={formData.shift}
-                  onValueChange={(val) => setFormData({ ...formData, shift: val })}
+                  onValueChange={handleShiftSelect}
                 >
                   <SelectTrigger id="alloc-shift">
-                    <SelectValue />
+                    <SelectValue placeholder="Select Shift from Master" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Morning (A)">Morning (A) — 08:00 to 16:30</SelectItem>
-                    <SelectItem value="Evening (B)">Evening (B) — 16:00 to 00:30</SelectItem>
-                    <SelectItem value="Night (C)">Night (C) — 00:00 to 08:30</SelectItem>
-                    <SelectItem value="General (G)">General (G) — 09:00 to 17:30</SelectItem>
+                    {availableShifts.map((s) => (
+                      <SelectItem key={s.id} value={s.name}>
+                        {s.name} ({formatTime24(s.startTime)} – {formatTime24(s.endTime)}) — {s.durationHours}h
+                        {s.isNightShift ? ' · 🌙 Cross Midnight' : ''}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -398,25 +513,48 @@ export function AssignOperatorModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="alloc-start">Start Time</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="alloc-start">Start Time (24h)</Label>
+                  <span className="text-[10px] text-muted-foreground">{formatTime12(formData.startTime)}</span>
+                </div>
                 <Input
                   id="alloc-start"
                   type="time"
-                  value={formData.startTime}
+                  value={formatTime24(formData.startTime)}
                   onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="alloc-end">End Time</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="alloc-end">End Time (24h)</Label>
+                  <span className="text-[10px] text-muted-foreground">{formatTime12(formData.endTime)}</span>
+                </div>
                 <Input
                   id="alloc-end"
                   type="time"
-                  value={formData.endTime}
+                  value={formatTime24(formData.endTime)}
                   onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
                 />
               </div>
             </div>
+
+            {/* Shift Timing Details Alert / Pill */}
+            {Boolean(formData.startTime && formData.endTime) && (
+              <div className="p-2.5 rounded-lg bg-muted/30 border text-xs flex flex-wrap items-center justify-between gap-2">
+                <span className="text-muted-foreground">
+                  <strong className="text-foreground">{formData.shift}</strong>: {formatTime24(formData.startTime)} to {formatTime24(formData.endTime)} ({formatTime12(formData.startTime)} to {formatTime12(formData.endTime)})
+                </span>
+                <span className="font-medium text-foreground">
+                  Working Hours: {calculateShiftDurationHours(formData.startTime, formData.endTime)} hrs
+                  {isCrossMidnight(formData.startTime, formData.endTime) && (
+                    <span className="text-amber-600 font-semibold ml-1">
+                      (finishes next morning at {formatTime12(formData.endTime)})
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Production & Remarks */}

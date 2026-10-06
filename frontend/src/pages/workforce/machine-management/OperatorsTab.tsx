@@ -8,6 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -26,6 +27,7 @@ import {
   Award,
   ShieldCheck,
   RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import type { MachineOperator } from '@/api/machine-management';
 import type { Branch } from '@/api/types';
@@ -37,6 +39,7 @@ interface OperatorsTabProps {
   onViewOperator: (operator: MachineOperator) => void;
   onAddOperator: () => void;
   onAssignToMachine: (operator: MachineOperator) => void;
+  onDeleteOperator: (operator: MachineOperator) => void;
 }
 
 export function OperatorsTab({
@@ -46,6 +49,7 @@ export function OperatorsTab({
   onViewOperator,
   onAddOperator,
   onAssignToMachine,
+  onDeleteOperator,
 }: OperatorsTabProps) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
@@ -291,6 +295,14 @@ export function OperatorsTab({
                               Assign Machine
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => onDeleteOperator(op)}
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                            Delete Operator
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

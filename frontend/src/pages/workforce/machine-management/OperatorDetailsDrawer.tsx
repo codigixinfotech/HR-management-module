@@ -260,7 +260,7 @@ export function OperatorDetailsDrawer({
                         </span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground block text-[11px]">Production Line</span>
+                        <span className="text-muted-foreground block text-[11px]">Operational Unit</span>
                         <span className="font-medium text-foreground">
                           {operator.currentLineName || 'Main Plant'}
                         </span>

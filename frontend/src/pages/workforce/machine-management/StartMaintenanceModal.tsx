@@ -178,7 +178,7 @@ export function StartMaintenanceModal({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="maint-line">Production Line</Label>
+              <Label htmlFor="maint-line">Operational Unit</Label>
               <Select
                 value={formData.productionLineId || 'none'}
                 onValueChange={(val) =>
@@ -186,10 +186,10 @@ export function StartMaintenanceModal({
                 }
               >
                 <SelectTrigger id="maint-line">
-                  <SelectValue placeholder="Select Production Line" />
+                  <SelectValue placeholder="Select Operational Unit" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">-- Unassigned Line --</SelectItem>
+                  <SelectItem value="none">-- Unassigned Unit --</SelectItem>
                   {productionLines.map((pl) => (
                     <SelectItem key={pl.id} value={pl.id}>
                       {pl.lineCode} - {pl.lineName}

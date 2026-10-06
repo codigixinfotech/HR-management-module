@@ -28,6 +28,7 @@ import {
   RotateCcw,
   Gauge,
   Calendar,
+  Trash2,
 } from 'lucide-react';
 import type {
   MachineAllocation,
@@ -50,6 +51,7 @@ interface AllocationsTabProps {
   onCancelAllocation: (allocation: MachineAllocation) => void;
   onStartMaintenance: (machineId: string) => void;
   onViewMachine: (machineId: string) => void;
+  onDeleteAllocation: (allocation: MachineAllocation) => void;
 }
 
 export function AllocationsTab({
@@ -64,6 +66,7 @@ export function AllocationsTab({
   onCancelAllocation,
   onStartMaintenance,
   onViewMachine,
+  onDeleteAllocation,
 }: AllocationsTabProps) {
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
@@ -135,10 +138,10 @@ export function AllocationsTab({
 
               <Select value={lineFilter} onValueChange={setLineFilter}>
                 <SelectTrigger className="w-[150px] h-9 text-xs">
-                  <SelectValue placeholder="Line" />
+                  <SelectValue placeholder="Operational Unit" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All Lines</SelectItem>
+                  <SelectItem value="ALL">All Units</SelectItem>
                   {productionLines.map((pl) => (
                     <SelectItem key={pl.id} value={pl.id}>
                       {pl.lineCode}
@@ -186,7 +189,7 @@ export function AllocationsTab({
 
               <Button size="sm" className="h-9 gap-1.5 text-xs" onClick={onAssignOperator}>
                 <Plus className="h-3.5 w-3.5" />
-                Assign Line Operator
+                Assign Operator
               </Button>
             </div>
           </div>
@@ -199,7 +202,7 @@ export function AllocationsTab({
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow className="text-xs">
-                <TableHead className="font-semibold text-foreground">Production Line</TableHead>
+                <TableHead className="font-semibold text-foreground">Operational Unit</TableHead>
                 <TableHead className="font-semibold text-foreground">Machine Equipment</TableHead>
                 <TableHead className="font-semibold text-foreground">Assigned Operator</TableHead>
                 <TableHead className="font-semibold text-foreground">Type</TableHead>
@@ -328,6 +331,14 @@ export function AllocationsTab({
                                 </DropdownMenuItem>
                               </>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => onDeleteAllocation(a)}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              Delete Allocation
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>

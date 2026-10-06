@@ -18,8 +18,9 @@ import { AddOperatorModal } from './AddOperatorModal';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Cpu, GitFork, Users, CalendarCheck, Wrench } from 'lucide-react';
+import { Plus, Cpu, GitFork, Users, CalendarCheck, Wrench, Scale } from 'lucide-react';
 import { toast } from 'sonner';
+import { CapacityUomMasterModal } from './CapacityUomMasterModal';
 import {
   machineManagementApi,
   type Machine,
@@ -37,7 +38,7 @@ export default function MachineManagementPage() {
   return (
     <WorkforcePageLayout
       title="Machine Management"
-      description="Manage machines, production lines, operators and maintenance"
+      description="Manage machines, operational units, operators and maintenance"
       badge="Shop Floor Machinery"
       badgeVariant="warning"
       hideMetrics={true}
@@ -105,6 +106,7 @@ function MachineManagementContent({
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedOperatorId, setSelectedOperatorId] = useState<string | null>(null);
   const [openAddOperator, setOpenAddOperator] = useState(false);
+  const [openUomMaster, setOpenUomMaster] = useState(false);
 
   // Load KPIs
   const loadKpis = useCallback(async () => {
@@ -156,6 +158,34 @@ function MachineManagementContent({
     loadData();
   }, [loadKpis, loadData]);
 
+  // Deep link handler for QR scan or direct machine code link
+  useEffect(() => {
+    const qrParam = searchParams.get('qr');
+    const machineCodeParam = searchParams.get('machineCode');
+    const machineIdParam = searchParams.get('machineId');
+
+    if (qrParam) {
+      machineManagementApi
+        .scanQrToken(qrParam)
+        .then((found) => {
+          setSelectedMachineId(found.id);
+          toast.success(`Scanned: ${found.machineCode} - ${found.machineName}`);
+        })
+        .catch((err) => {
+          toast.error(err.response?.data?.message || 'Invalid or unrecognized QR token');
+        });
+    } else if (machineCodeParam && machines.length > 0) {
+      const found = machines.find(
+        (m) => m.machineCode.toLowerCase() === machineCodeParam.toLowerCase()
+      );
+      if (found) {
+        setSelectedMachineId(found.id);
+      }
+    } else if (machineIdParam) {
+      setSelectedMachineId(machineIdParam);
+    }
+  }, [searchParams, machines]);
+
   const handleRefresh = () => {
     loadKpis();
     loadData();
@@ -195,15 +225,68 @@ function MachineManagementContent({
     }
   };
 
-  // Delete production line
+  // Delete operational unit
   const handleDeleteLine = async (line: ProductionLine) => {
-    if (!confirm(`Are you sure you want to delete production line ${line.lineCode}?`)) return;
     try {
+      setProductionLines((prev) => prev.filter((p) => p.id !== line.id));
       await machineManagementApi.deleteProductionLine(line.id);
-      toast.success(`Production Line ${line.lineCode} deleted successfully`);
+      toast.success(`Operational Unit ${line.lineCode} deleted successfully`);
       handleRefresh();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to delete production line');
+      toast.error(err.response?.data?.message || 'Failed to delete operational unit');
+      handleRefresh();
+    }
+  };
+
+  // Delete machine
+  const handleDeleteMachine = async (m: Machine) => {
+    try {
+      setMachines((prev) => prev.filter((item) => item.id !== m.id));
+      await machineManagementApi.deleteMachine(m.id);
+      toast.success(`Machine ${m.machineCode} deleted successfully`);
+      handleRefresh();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to delete machine');
+      handleRefresh();
+    }
+  };
+
+  // Delete operator
+  const handleDeleteOperator = async (op: MachineOperator) => {
+    try {
+      setOperators((prev) => prev.filter((item) => item.id !== op.id));
+      await machineManagementApi.deleteOperator(op.id);
+      toast.success(`Operator ${op.operatorName} deleted successfully`);
+      handleRefresh();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to delete operator');
+      handleRefresh();
+    }
+  };
+
+  // Delete allocation
+  const handleDeleteAllocation = async (a: MachineAllocation) => {
+    try {
+      setAllocations((prev) => prev.filter((item) => item.id !== a.id));
+      await machineManagementApi.deleteAllocation(a.id);
+      toast.success(`Allocation deleted successfully`);
+      handleRefresh();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to delete allocation');
+      handleRefresh();
+    }
+  };
+
+  // Delete maintenance record
+  const handleDeleteMaintenance = async (m: MachineMaintenance) => {
+    try {
+      setMaintenances((prev) => prev.filter((item) => item.id !== m.id));
+      await machineManagementApi.deleteMaintenance(m.id);
+      toast.success(`Maintenance record deleted successfully`);
+      handleRefresh();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to delete maintenance record');
+      handleRefresh();
     }
   };
 
@@ -226,7 +309,7 @@ function MachineManagementContent({
 
             <TabsTrigger value="lines" className="text-xs gap-1.5 px-3 py-1.5">
               <GitFork className="h-3.5 w-3.5 text-purple-600" />
-              <span>Production Lines</span>
+              <span>Operational Units</span>
               <Badge variant="secondary" className="text-[10px] ml-1 px-1.5 py-0">
                 {productionLines.length}
               </Badge>
@@ -275,17 +358,28 @@ function MachineManagementContent({
           )}
 
           {currentTab === 'lines' && (
-            <Button
-              size="sm"
-              className="gap-1.5 shadow-2xs font-medium text-xs"
-              onClick={() => {
-                setEditingLine(null);
-                setOpenAddLine(true);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Production Line
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 shadow-2xs font-medium text-xs border-primary/40 text-primary hover:bg-primary/10"
+                onClick={() => setOpenUomMaster(true)}
+              >
+                <Scale className="h-3.5 w-3.5" />
+                Capacity UOM Master
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1.5 shadow-2xs font-medium text-xs"
+                onClick={() => {
+                  setEditingLine(null);
+                  setOpenAddLine(true);
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Operational Unit
+              </Button>
+            </div>
           )}
 
           {currentTab === 'operators' && (
@@ -352,14 +446,16 @@ function MachineManagementContent({
             setOpenStartMaintenance(true);
           }}
           onToggleStatus={handleToggleMachineStatus}
+          onDeleteMachine={handleDeleteMachine}
           onOpenAddMachine={() => {
             setEditingMachine(null);
             setOpenAddMachine(true);
           }}
+          onMachineUpdated={handleRefresh}
         />
       )}
 
-      {/* Tab 2: Production Lines */}
+      {/* Tab 2: Operational Units */}
       {currentTab === 'lines' && (
         <ProductionLinesTab
           productionLines={productionLines}
@@ -390,6 +486,7 @@ function MachineManagementContent({
             setAssigningMachine(null);
             setOpenAssignOperator(true);
           }}
+          onDeleteOperator={handleDeleteOperator}
         />
       )}
 
@@ -408,6 +505,7 @@ function MachineManagementContent({
           }}
           onCompleteAllocation={handleCompleteAllocation}
           onCancelAllocation={handleCancelAllocation}
+          onDeleteAllocation={handleDeleteAllocation}
           onStartMaintenance={(mId) => {
             const m = machines.find((item) => item.id === mId) || null;
             setMaintenancingMachine(m);
@@ -433,6 +531,7 @@ function MachineManagementContent({
             setOpenCompleteMaintenance(true);
           }}
           onViewMachine={(mId) => setSelectedMachineId(mId)}
+          onDeleteMaintenance={handleDeleteMaintenance}
         />
       )}
 
@@ -454,6 +553,7 @@ function MachineManagementContent({
         open={openAddLine}
         onOpenChange={setOpenAddLine}
         line={editingLine}
+        productionLines={productionLines}
         companies={companies}
         branches={branches}
         departments={departments}
@@ -509,6 +609,7 @@ function MachineManagementContent({
           setMaintenancingMachine(m);
           setOpenStartMaintenance(true);
         }}
+        onMachineUpdated={handleRefresh}
       />
 
       <OperatorDetailsDrawer
@@ -531,6 +632,11 @@ function MachineManagementContent({
         activeCompanyId={companyId}
         activeBranchId={branchId}
         onSuccess={handleRefresh}
+      />
+
+      <CapacityUomMasterModal
+        open={openUomMaster}
+        onOpenChange={setOpenUomMaster}
       />
     </div>
   );

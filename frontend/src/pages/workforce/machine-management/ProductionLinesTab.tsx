@@ -26,9 +26,11 @@ import {
   GitFork,
   Cpu,
   RotateCcw,
+  Scale,
 } from 'lucide-react';
 import type { ProductionLine } from '@/api/machine-management';
 import type { Branch, Department } from '@/api/types';
+import { CapacityUomMasterModal } from './CapacityUomMasterModal';
 
 interface ProductionLinesTabProps {
   productionLines: ProductionLine[];
@@ -53,6 +55,7 @@ export function ProductionLinesTab({
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [openUomMaster, setOpenUomMaster] = useState(false);
 
   const handleReset = () => {
     setSearch('');
@@ -89,7 +92,7 @@ export function ProductionLinesTab({
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search production line name, code, supervisor..."
+                placeholder="Search operational unit name, code, supervisor..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 h-9 text-xs"
@@ -148,23 +151,33 @@ export function ProductionLinesTab({
                 Reset
               </Button>
 
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10 hover:border-primary font-medium"
+                onClick={() => setOpenUomMaster(true)}
+              >
+                <Scale className="h-3.5 w-3.5" />
+                Capacity UOM Master
+              </Button>
+
               <Button size="sm" className="h-9 gap-1.5 text-xs" onClick={onAddLine}>
                 <Plus className="h-3.5 w-3.5" />
-                Add Production Line
+                Add Operational Unit
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Production Lines Table */}
+      {/* Operational Units Table */}
       <Card className="shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow className="text-xs">
-                <TableHead className="font-semibold text-foreground">Line Code</TableHead>
-                <TableHead className="font-semibold text-foreground">Line Name</TableHead>
+                <TableHead className="font-semibold text-foreground">Unit Code</TableHead>
+                <TableHead className="font-semibold text-foreground">Unit Name</TableHead>
                 <TableHead className="font-semibold text-foreground">Department</TableHead>
                 <TableHead className="text-center font-semibold text-foreground">Machines</TableHead>
                 <TableHead className="font-semibold text-foreground">Supervisor</TableHead>
@@ -185,7 +198,7 @@ export function ProductionLinesTab({
               ) : filteredLines.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
-                    <p className="font-medium text-sm">No production lines found</p>
+                    <p className="font-medium text-sm">No operational units found</p>
                     <Button
                       size="sm"
                       variant="outline"
@@ -193,7 +206,7 @@ export function ProductionLinesTab({
                       onClick={onAddLine}
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Add Production Line
+                      Add Operational Unit
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -259,7 +272,7 @@ export function ProductionLinesTab({
                         <DropdownMenuContent align="end" className="w-36 text-xs">
                           <DropdownMenuItem onClick={() => onEditLine(line)}>
                             <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            Edit Line
+                            Edit Unit
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => onDeleteLine(line)}
@@ -278,6 +291,11 @@ export function ProductionLinesTab({
           </Table>
         </div>
       </Card>
+
+      <CapacityUomMasterModal
+        open={openUomMaster}
+        onOpenChange={setOpenUomMaster}
+      />
     </div>
   );
 }

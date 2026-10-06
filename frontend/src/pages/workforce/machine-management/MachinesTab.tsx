@@ -30,10 +30,15 @@ import {
   RotateCcw,
   Plus,
   GitFork,
+  QrCode,
+  ScanLine,
+  Trash2,
 } from 'lucide-react';
 import type { Machine, ProductionLine } from '@/api/machine-management';
 import type { Branch, Department } from '@/api/types';
 import { toast } from 'sonner';
+import { MachineQrModal } from './MachineQrModal';
+import { ScanQrModal } from './ScanQrModal';
 
 interface MachinesTabProps {
   machines: Machine[];
@@ -46,7 +51,9 @@ interface MachinesTabProps {
   onAssignOperator: (machine: Machine) => void;
   onStartMaintenance: (machine: Machine) => void;
   onToggleStatus: (machine: Machine) => void;
+  onDeleteMachine: (machine: Machine) => void;
   onOpenAddMachine: () => void;
+  onMachineUpdated?: (machine: Machine) => void;
 }
 
 const MACHINE_TYPES = [
@@ -72,7 +79,9 @@ export function MachinesTab({
   onAssignOperator,
   onStartMaintenance,
   onToggleStatus,
+  onDeleteMachine,
   onOpenAddMachine,
+  onMachineUpdated,
 }: MachinesTabProps) {
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
@@ -80,6 +89,12 @@ export function MachinesTab({
   const [lineFilter, setLineFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [maintFilter, setMaintFilter] = useState('ALL');
+
+  // QR Modal States
+  const [selectedQrMachine, setSelectedQrMachine] = useState<Machine | null>(null);
+  const [openQrModal, setOpenQrModal] = useState(false);
+  const [openScanModal, setOpenScanModal] = useState(false);
 
   const handleReset = () => {
     setSearch('');
@@ -88,6 +103,7 @@ export function MachinesTab({
     setLineFilter('ALL');
     setTypeFilter('ALL');
     setStatusFilter('ALL');
+    setMaintFilter('ALL');
   };
 
   const filteredMachines = machines.filter((m) => {
@@ -108,6 +124,7 @@ export function MachinesTab({
     const matchesLine = lineFilter === 'ALL' || m.productionLineId === lineFilter;
     const matchesType = typeFilter === 'ALL' || m.machineType === typeFilter;
     const matchesStatus = statusFilter === 'ALL' || m.status === statusFilter;
+    const matchesMaint = maintFilter === 'ALL' || m.maintenanceDueStatus === maintFilter;
 
     return (
       matchesSearch &&
@@ -115,7 +132,8 @@ export function MachinesTab({
       matchesDept &&
       matchesLine &&
       matchesType &&
-      matchesStatus
+      matchesStatus &&
+      matchesMaint
     );
   });
 
@@ -167,13 +185,13 @@ export function MachinesTab({
                 </SelectContent>
               </Select>
 
-              {/* Production Line Filter */}
+              {/* Operational Unit Filter */}
               <Select value={lineFilter} onValueChange={setLineFilter}>
                 <SelectTrigger className="w-[150px] h-9 text-xs">
-                  <SelectValue placeholder="Production Line" />
+                  <SelectValue placeholder="Operational Unit" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All Lines</SelectItem>
+                  <SelectItem value="ALL">All Units</SelectItem>
                   {productionLines.map((pl) => (
                     <SelectItem key={pl.id} value={pl.id}>
                       {pl.lineCode}
@@ -198,7 +216,7 @@ export function MachinesTab({
 
               {/* Status Filter */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
+                <SelectTrigger className="w-[130px] h-9 text-xs">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -209,6 +227,30 @@ export function MachinesTab({
                   <SelectItem value="RETIRED">Retired</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Maintenance Health Filter */}
+              <Select value={maintFilter} onValueChange={setMaintFilter}>
+                <SelectTrigger className="w-[145px] h-9 text-xs">
+                  <SelectValue placeholder="Maintenance" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Maintenance</SelectItem>
+                  <SelectItem value="OVERDUE">🔴 Overdue</SelectItem>
+                  <SelectItem value="DUE_TODAY">🟠 Due Today</SelectItem>
+                  <SelectItem value="UPCOMING">🟡 Upcoming Due</SelectItem>
+                  <SelectItem value="NORMAL">🟢 Healthy</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5"
+                onClick={() => setOpenScanModal(true)}
+              >
+                <ScanLine className="h-3.5 w-3.5" />
+                Scan QR
+              </Button>
 
               <Button
                 variant="outline"
@@ -233,10 +275,11 @@ export function MachinesTab({
                 <TableHead className="font-semibold text-foreground">Machine Code</TableHead>
                 <TableHead className="font-semibold text-foreground">Machine Name</TableHead>
                 <TableHead className="font-semibold text-foreground">Type</TableHead>
-                <TableHead className="font-semibold text-foreground">Production Line</TableHead>
+                <TableHead className="font-semibold text-foreground">Operational Unit</TableHead>
                 <TableHead className="font-semibold text-foreground">Assigned Operator</TableHead>
                 <TableHead className="font-semibold text-foreground">Shift</TableHead>
                 <TableHead className="font-semibold text-foreground">Status</TableHead>
+                <TableHead className="font-semibold text-foreground">Maintenance Health</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -335,49 +378,102 @@ export function MachinesTab({
                         ● {m.status.replace(/_/g, ' ')}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          m.maintenanceDueStatus === 'OVERDUE'
+                            ? 'destructive'
+                            : m.maintenanceDueStatus === 'DUE_TODAY'
+                            ? 'warning'
+                            : m.maintenanceDueStatus === 'UPCOMING'
+                            ? 'outline'
+                            : 'secondary'
+                        }
+                        className="text-[10px] font-medium whitespace-nowrap"
+                        title={`Next Scheduled: ${m.nextMaintenanceDate ? m.nextMaintenanceDate.slice(0, 10) : 'None'}`}
+                      >
+                        {m.maintenanceDueStatus === 'OVERDUE' && '🔴 '}
+                        {m.maintenanceDueStatus === 'DUE_TODAY' && '🟠 '}
+                        {m.maintenanceDueStatus === 'UPCOMING' && '🟡 '}
+                        {m.maintenanceDueStatus === 'NORMAL' && '🟢 '}
+                        {m.maintenanceDueLabel || 'Healthy'}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48 text-xs">
-                          <DropdownMenuItem onClick={() => onViewDetails(m)}>
-                            <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onEditMachine(m)}>
-                            <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            Edit Machine
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onAssignOperator(m)}>
-                            <UserCheck className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                            Assign Operator
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onStartMaintenance(m)}>
-                            <Wrench className="h-3.5 w-3.5 mr-2 text-amber-600" />
-                            Start Maintenance
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => onViewDetails(m)}>
-                            <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            Allocation History
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onViewDetails(m)}>
-                            <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            Maintenance History
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => onToggleStatus(m)}
-                            className="text-muted-foreground"
-                          >
-                            <Power className="h-3.5 w-3.5 mr-2" />
-                            {m.status === 'ACTIVE' ? 'Deactivate' : 'Set Active'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                          title="View & Print QR Asset Tag"
+                          onClick={() => {
+                            setSelectedQrMachine(m);
+                            setOpenQrModal(true);
+                          }}
+                        >
+                          <QrCode className="h-4 w-4" />
+                        </Button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 text-xs">
+                            <DropdownMenuItem onClick={() => onViewDetails(m)}>
+                              <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedQrMachine(m);
+                                setOpenQrModal(true);
+                              }}
+                            >
+                              <QrCode className="h-3.5 w-3.5 mr-2 text-primary" />
+                              Asset QR Tag
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onEditMachine(m)}>
+                              <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              Edit Machine
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onAssignOperator(m)}>
+                              <UserCheck className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                              Assign Operator
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onStartMaintenance(m)}>
+                              <Wrench className="h-3.5 w-3.5 mr-2 text-amber-600" />
+                              Start Maintenance
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => onViewDetails(m)}>
+                              <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              Allocation History
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onViewDetails(m)}>
+                              <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              Maintenance History
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => onToggleStatus(m)}
+                              className="text-muted-foreground"
+                            >
+                              <Power className="h-3.5 w-3.5 mr-2" />
+                              {m.status === 'ACTIVE' ? 'Deactivate' : 'Set Active'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => onDeleteMachine(m)}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              Delete Machine
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -386,6 +482,23 @@ export function MachinesTab({
           </Table>
         </div>
       </Card>
+
+      {/* QR Modals */}
+      <MachineQrModal
+        machine={selectedQrMachine}
+        open={openQrModal}
+        onOpenChange={setOpenQrModal}
+        onMachineUpdated={(updated) => {
+          setSelectedQrMachine(updated);
+          if (onMachineUpdated) onMachineUpdated(updated);
+        }}
+      />
+
+      <ScanQrModal
+        open={openScanModal}
+        onOpenChange={setOpenScanModal}
+        onMachineFound={(m) => onViewDetails(m)}
+      />
     </div>
   );
 }

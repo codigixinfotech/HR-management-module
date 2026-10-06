@@ -33,8 +33,14 @@ export interface Machine {
   powerRating?: number;
   powerUom?: string;
   maintenanceFrequencyDays?: number;
+  maintenanceReminderDays?: number;
+  maintenanceReminderSentAt?: string | null;
   lastMaintenanceDate?: string;
   nextMaintenanceDate?: string;
+  maintenanceDueStatus?: 'NORMAL' | 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE';
+  daysDiff?: number | null;
+  maintenanceDueLabel?: string;
+  qrToken?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'UNDER_MAINTENANCE' | 'RETIRED';
   documentsJson?: any;
   createdAt: string;
@@ -49,6 +55,19 @@ export interface Machine {
   currentAllocationStatus?: string;
   allocations?: MachineAllocation[];
   maintenances?: MachineMaintenance[];
+}
+
+export interface MaintenanceDueSummary {
+  counts: {
+    overdue: number;
+    dueToday: number;
+    upcoming: number;
+    normal: number;
+    totalAlerts: number;
+  };
+  overdue: Machine[];
+  dueToday: Machine[];
+  upcoming: Machine[];
 }
 
 export interface ProductionLine {
@@ -191,6 +210,19 @@ export const machineManagementApi = {
   deleteMachine: async (id: string) =>
     (await apiClient.delete<{ success: boolean; message: string }>(`/workforce/machines/${id}`)).data,
 
+  // QR Scanning & Token
+  scanQrToken: async (qrToken: string) =>
+    (await apiClient.get<Machine>(`/workforce/machine-management/scan/${qrToken}`)).data,
+
+  regenerateQrToken: async (id: string) =>
+    (await apiClient.post<Machine>(`/workforce/machines/${id}/regenerate-qr`)).data,
+
+  // Maintenance Due Summary
+  getMaintenanceDueSummary: async (companyId?: string, branchId?: string) =>
+    (await apiClient.get<MaintenanceDueSummary>('/workforce/machine-management/maintenance/due', {
+      params: { companyId, branchId },
+    })).data,
+
   // Production Lines
   listProductionLines: async (params?: {
     companyId?: string;
@@ -228,6 +260,9 @@ export const machineManagementApi = {
   updateOperator: async (id: string, payload: Partial<MachineOperator>) =>
     (await apiClient.patch<MachineOperator>(`/workforce/machine-operators/${id}`, payload)).data,
 
+  deleteOperator: async (id: string) =>
+    (await apiClient.delete<{ success: boolean; message: string }>(`/workforce/machine-operators/${id}`)).data,
+
   // Allocations
   listAllocations: async (params?: {
     companyId?: string;
@@ -248,6 +283,9 @@ export const machineManagementApi = {
 
   cancelAllocation: async (id: string) =>
     (await apiClient.post<{ success: boolean; message: string }>(`/workforce/machine-allocations/${id}/cancel`)).data,
+
+  deleteAllocation: async (id: string) =>
+    (await apiClient.delete<{ success: boolean; message: string }>(`/workforce/machine-allocations/${id}`)).data,
 
   // Maintenance
   listMaintenances: async (params?: {
@@ -282,4 +320,35 @@ export const machineManagementApi = {
       remarks?: string;
     }
   ) => (await apiClient.post<{ success: boolean; message: string }>(`/workforce/machine-maintenances/${id}/complete`, payload)).data,
+
+  deleteMaintenance: async (id: string) =>
+    (await apiClient.delete<{ success: boolean; message: string }>(`/workforce/machine-maintenances/${id}`)).data,
+};
+
+export interface CapacityUomItem {
+  id: string;
+  companyId?: string | null;
+  name: string;
+  category: string;
+  description?: string | null;
+  isCustom?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const capacityUomApi = {
+  list: async (params?: { companyId?: string; category?: string; search?: string }) =>
+    (await apiClient.get<CapacityUomItem[]>('/workforce/capacity-uoms', { params })).data,
+
+  getById: async (id: string) =>
+    (await apiClient.get<CapacityUomItem>(`/workforce/capacity-uoms/${id}`)).data,
+
+  create: async (payload: { name: string; category?: string; description?: string; companyId?: string }) =>
+    (await apiClient.post<CapacityUomItem>('/workforce/capacity-uoms', payload)).data,
+
+  update: async (id: string, payload: { name?: string; category?: string; description?: string }) =>
+    (await apiClient.patch<CapacityUomItem>(`/workforce/capacity-uoms/${id}`, payload)).data,
+
+  delete: async (id: string) =>
+    (await apiClient.delete<{ success: boolean; message: string }>(`/workforce/capacity-uoms/${id}`)).data,
 };

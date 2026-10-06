@@ -105,6 +105,7 @@ export function AddEditMachineModal({
     powerRating: 25,
     powerUom: 'kW',
     maintenanceFrequencyDays: 30,
+    maintenanceReminderDays: 7,
     lastMaintenanceDate: '',
     nextMaintenanceDate: '',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'UNDER_MAINTENANCE' | 'RETIRED',
@@ -140,6 +141,7 @@ export function AddEditMachineModal({
         powerRating: Number(machine.powerRating) || 25,
         powerUom: machine.powerUom || 'kW',
         maintenanceFrequencyDays: Number(machine.maintenanceFrequencyDays) || 30,
+        maintenanceReminderDays: Number(machine.maintenanceReminderDays) || 7,
         lastMaintenanceDate: machine.lastMaintenanceDate ? machine.lastMaintenanceDate.slice(0, 10) : '',
         nextMaintenanceDate: machine.nextMaintenanceDate ? machine.nextMaintenanceDate.slice(0, 10) : '',
         status: machine.status || 'ACTIVE',
@@ -278,44 +280,6 @@ export function AddEditMachineModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="m-type">Machine Type *</Label>
-                <Select
-                  value={formData.machineType}
-                  onValueChange={(val) => setFormData({ ...formData, machineType: val })}
-                >
-                  <SelectTrigger id="m-type">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MACHINE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="m-category">Machine Category</Label>
-                <Select
-                  value={formData.machineCategory}
-                  onValueChange={(val) => setFormData({ ...formData, machineCategory: val })}
-                >
-                  <SelectTrigger id="m-category">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MACHINE_CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
                 <Label htmlFor="m-manufacturer">Manufacturer</Label>
                 <Input
                   id="m-manufacturer"
@@ -383,7 +347,7 @@ export function AddEditMachineModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="m-branch">Branch *</Label>
+                <Label htmlFor="m-branch">Branch</Label>
                 <Select
                   value={formData.branchId || 'HEAD_OFFICE'}
                   onValueChange={(val) =>
@@ -395,11 +359,14 @@ export function AddEditMachineModal({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="HEAD_OFFICE">Head Office</SelectItem>
-                    {branches.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
+                    {branches
+                      .filter((b) => !formData.companyId || b.companyId === formData.companyId)
+                      .filter((b) => !b.name?.toLowerCase().includes('head office'))
+                      .map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -417,17 +384,19 @@ export function AddEditMachineModal({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">-- None / General --</SelectItem>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
+                    {departments
+                      .filter((d) => !formData.companyId || d.companyId === formData.companyId)
+                      .map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="m-line">Production Line</Label>
+                <Label htmlFor="m-line">Operational Unit</Label>
                 <Select
                   value={formData.productionLineId || 'none'}
                   onValueChange={(val) =>
@@ -435,15 +404,17 @@ export function AddEditMachineModal({
                   }
                 >
                   <SelectTrigger id="m-line">
-                    <SelectValue placeholder="Select Production Line" />
+                    <SelectValue placeholder="Select Operational Unit" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">-- Unassigned Line --</SelectItem>
-                    {productionLines.map((pl) => (
-                      <SelectItem key={pl.id} value={pl.id}>
-                        {pl.lineCode} - {pl.lineName}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="none">-- Unassigned Unit --</SelectItem>
+                    {productionLines
+                      .filter((pl) => !formData.companyId || (pl as any).companyId === formData.companyId)
+                      .map((pl) => (
+                        <SelectItem key={pl.id} value={pl.id}>
+                          {pl.lineCode} - {pl.lineName}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -556,9 +527,9 @@ export function AddEditMachineModal({
             <h3 className="text-sm font-semibold text-primary uppercase tracking-wider border-b pb-1">
               4. Maintenance Planning
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="m-freq">Maintenance Frequency (Days)</Label>
+                <Label htmlFor="m-freq">Frequency (Days)</Label>
                 <Input
                   id="m-freq"
                   type="number"
@@ -566,6 +537,19 @@ export function AddEditMachineModal({
                   value={formData.maintenanceFrequencyDays}
                   onChange={(e) =>
                     setFormData({ ...formData, maintenanceFrequencyDays: Number(e.target.value) })
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="m-reminder-days">Reminder Lead (Days)</Label>
+                <Input
+                  id="m-reminder-days"
+                  type="number"
+                  placeholder="7"
+                  value={formData.maintenanceReminderDays}
+                  onChange={(e) =>
+                    setFormData({ ...formData, maintenanceReminderDays: Number(e.target.value) })
                   }
                 />
               </div>
@@ -583,7 +567,7 @@ export function AddEditMachineModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="m-next-maint">Next Scheduled Maintenance</Label>
+                <Label htmlFor="m-next-maint">Next Due Date</Label>
                 <Input
                   id="m-next-maint"
                   type="date"

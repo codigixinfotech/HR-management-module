@@ -61,9 +61,9 @@ export function MachineManagementKpiCards({ kpis, loading }: MachineManagementKp
 
   const row2 = [
     {
-      title: 'Production Lines',
+      title: 'Operational Units',
       value: kpis ? kpis.productionLines : 0,
-      subtext: 'Configured shop floor bays',
+      subtext: 'Configured operational units',
       icon: GitFork,
       color: 'text-purple-600 dark:text-purple-400',
       bgColor: 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/40',

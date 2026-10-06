@@ -90,9 +90,9 @@ export class CreateMachineDto {
   @IsString()
   machineName!: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  machineType!: string;
+  machineType?: string;
 
   @IsOptional()
   @IsString()
@@ -147,6 +147,10 @@ export class CreateMachineDto {
   maintenanceFrequencyDays?: number;
 
   @IsOptional()
+  @IsNumber()
+  maintenanceReminderDays?: number;
+
+  @IsOptional()
   @IsString()
   lastMaintenanceDate?: string;
 
@@ -160,6 +164,10 @@ export class CreateMachineDto {
 
   @IsOptional()
   documentsJson?: any;
+
+  @IsOptional()
+  @IsString()
+  qrToken?: string;
 }
 
 export class UpdateMachineDto extends PartialType(CreateMachineDto) {}
@@ -369,3 +377,23 @@ export class CompleteMachineMaintenanceDto {
   @IsString()
   remarks?: string;
 }
+
+export class CreateCapacityUomDto {
+  @IsOptional()
+  @IsString()
+  companyId?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+
+export class UpdateCapacityUomDto extends PartialType(CreateCapacityUomDto) {}

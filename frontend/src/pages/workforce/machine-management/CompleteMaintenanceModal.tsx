@@ -133,7 +133,7 @@ export function CompleteMaintenanceModal({
             </div>
             <div>
               <span className="text-muted-foreground block text-[11px] uppercase tracking-wider">
-                Production Line
+                Operational Unit
               </span>
               <span className="font-medium">
                 {maintenance?.lineName || 'Main Shop Floor'}

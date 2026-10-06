@@ -3,7 +3,11 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   CreateMachineAllocationDto,
@@ -15,11 +19,123 @@ import {
   UpdateMachineDto,
   UpdateMachineOperatorDto,
   UpdateProductionLineDto,
+  CreateCapacityUomDto,
+  UpdateCapacityUomDto,
 } from './dto/machine-management.dto';
 
+export type MaintenanceDueStatus = 'NORMAL' | 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE';
+
+export function computeMaintenanceStatus(m: {
+  nextMaintenanceDate?: string | Date | null;
+  maintenanceReminderDays?: number | null;
+}) {
+  if (!m.nextMaintenanceDate) {
+    return {
+      maintenanceDueStatus: 'NORMAL' as MaintenanceDueStatus,
+      daysDiff: null as number | null,
+      maintenanceDueLabel: 'Scheduled',
+    };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const nextDate = new Date(m.nextMaintenanceDate);
+  nextDate.setHours(0, 0, 0, 0);
+
+  const diffMs = nextDate.getTime() - today.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const reminderDays =
+    m.maintenanceReminderDays !== undefined && m.maintenanceReminderDays !== null
+      ? Number(m.maintenanceReminderDays)
+      : 7;
+
+  if (diffDays < 0) {
+    const overdueDays = Math.abs(diffDays);
+    return {
+      maintenanceDueStatus: 'OVERDUE' as MaintenanceDueStatus,
+      daysDiff: -overdueDays,
+      maintenanceDueLabel: `Overdue by ${overdueDays}d`,
+    };
+  } else if (diffDays === 0) {
+    return {
+      maintenanceDueStatus: 'DUE_TODAY' as MaintenanceDueStatus,
+      daysDiff: 0,
+      maintenanceDueLabel: 'Due Today',
+    };
+  } else if (diffDays <= reminderDays) {
+    return {
+      maintenanceDueStatus: 'UPCOMING' as MaintenanceDueStatus,
+      daysDiff: diffDays,
+      maintenanceDueLabel: `Due in ${diffDays}d`,
+    };
+  } else {
+    return {
+      maintenanceDueStatus: 'NORMAL' as MaintenanceDueStatus,
+      daysDiff: diffDays,
+      maintenanceDueLabel: `Due in ${diffDays}d`,
+    };
+  }
+}
+
 @Injectable()
-export class MachineManagementService {
+export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(MachineManagementService.name);
+  private reminderTimer: NodeJS.Timeout | null = null;
+
   constructor(private readonly prisma: PrismaService) {}
+
+  onModuleInit() {
+    this.initCapacityUomTable().catch((err) =>
+      this.logger.error('Failed to init capacity_uom_master table: ' + err.message)
+    );
+
+    // Initial check after 10s
+    setTimeout(() => {
+      this.checkAndDispatchDailyReminders().catch((err) =>
+        this.logger.error('Error during initial maintenance reminder check: ' + err.message)
+      );
+    }, 10000);
+
+    // Schedule daily check every 24 hours
+    this.reminderTimer = setInterval(() => {
+      this.checkAndDispatchDailyReminders().catch((err) =>
+        this.logger.error('Error during scheduled maintenance reminder check: ' + err.message)
+      );
+    }, 24 * 60 * 60 * 1000);
+  }
+
+  onModuleDestroy() {
+    if (this.reminderTimer) {
+      clearInterval(this.reminderTimer);
+      this.reminderTimer = null;
+    }
+  }
+
+  async checkAndDispatchDailyReminders() {
+    try {
+      const dueMachines: any[] = await this.prisma.$queryRawUnsafe(`
+        SELECT id, machineCode, machineName, nextMaintenanceDate, maintenanceReminderDays, maintenanceReminderSentAt
+        FROM machines
+        WHERE status != 'DECOMMISSIONED'
+          AND nextMaintenanceDate IS NOT NULL
+          AND nextMaintenanceDate <= DATE_ADD(CURDATE(), INTERVAL COALESCE(maintenanceReminderDays, 7) DAY)
+          AND (maintenanceReminderSentAt IS NULL OR DATE(maintenanceReminderSentAt) < CURDATE())
+      `);
+
+      if (dueMachines.length > 0) {
+        this.logger.log(`[Maintenance Scheduler] Found ${dueMachines.length} machine(s) requiring preventive maintenance attention.`);
+        for (const m of dueMachines) {
+          await this.prisma.$executeRawUnsafe(
+            'UPDATE machines SET maintenanceReminderSentAt = NOW() WHERE id = ?',
+            m.id
+          );
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`Could not run maintenance reminder check: ${e.message}`);
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────
   // 1. KPI Dashboard
@@ -177,7 +293,13 @@ export class MachineManagementService {
     sql += ' ORDER BY m.machineCode ASC';
 
     const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
-    return rows;
+    return rows.map((r) => {
+      const statusInfo = computeMaintenanceStatus(r);
+      return {
+        ...r,
+        ...statusInfo,
+      };
+    });
   }
 
   async getMachineById(id: string) {
@@ -223,11 +345,57 @@ export class MachineManagementService {
       id
     );
 
+    const statusInfo = computeMaintenanceStatus(machine);
+
     return {
       ...machine,
+      ...statusInfo,
       allocations,
       maintenances,
       currentAllocation: allocations.find((a) => a.status === 'ACTIVE') || null,
+    };
+  }
+
+  async getMachineByQrToken(qrToken: string) {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT id FROM machines WHERE qrToken = ?',
+      qrToken
+    );
+    if (!rows || rows.length === 0) {
+      throw new NotFoundException(`Machine with specified QR code not found`);
+    }
+    return this.getMachineById(rows[0].id);
+  }
+
+  async regenerateQrToken(id: string) {
+    await this.getMachineById(id);
+    const newToken = `qr_${crypto.randomBytes(10).toString('hex')}`;
+    await this.prisma.$executeRawUnsafe(
+      'UPDATE machines SET qrToken = ? WHERE id = ?',
+      newToken,
+      id
+    );
+    return this.getMachineById(id);
+  }
+
+  async getMaintenanceDueSummary(companyId?: string, branchId?: string | null) {
+    const machines = await this.listMachines(companyId, branchId);
+    const overdue = machines.filter((m) => m.maintenanceDueStatus === 'OVERDUE');
+    const dueToday = machines.filter((m) => m.maintenanceDueStatus === 'DUE_TODAY');
+    const upcoming = machines.filter((m) => m.maintenanceDueStatus === 'UPCOMING');
+    const normal = machines.filter((m) => m.maintenanceDueStatus === 'NORMAL');
+
+    return {
+      counts: {
+        overdue: overdue.length,
+        dueToday: dueToday.length,
+        upcoming: upcoming.length,
+        normal: normal.length,
+        totalAlerts: overdue.length + dueToday.length + upcoming.length,
+      },
+      overdue,
+      dueToday,
+      upcoming,
     };
   }
 
@@ -253,14 +421,25 @@ export class MachineManagementService {
       throw new ConflictException(`Machine Code ${dto.machineCode} already exists in this company`);
     }
 
+    const qrToken = dto.qrToken || `qr_${crypto.randomBytes(10).toString('hex')}`;
+    const freq = dto.maintenanceFrequencyDays !== undefined ? Number(dto.maintenanceFrequencyDays) : 30;
+    const reminderDays = dto.maintenanceReminderDays !== undefined ? Number(dto.maintenanceReminderDays) : 7;
+
+    // Auto-calculate nextMaintenanceDate if not provided
+    let nextDate = dto.nextMaintenanceDate;
+    if (!nextDate) {
+      const baseDate = dto.lastMaintenanceDate ? new Date(dto.lastMaintenanceDate) : new Date();
+      nextDate = new Date(baseDate.getTime() + freq * 86400000).toISOString().slice(0, 10);
+    }
+
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO machines (
         id, companyId, branchId, departmentId, productionLineId, machineCode,
         machineName, machineType, machineCategory, manufacturer, model, serialNumber,
         assetNumber, workstation, location, capacity, capacityUom, operatingHours,
-        powerRating, powerUom, maintenanceFrequencyDays, lastMaintenanceDate,
-        nextMaintenanceDate, status, documentsJson
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        powerRating, powerUom, maintenanceFrequencyDays, maintenanceReminderDays,
+        lastMaintenanceDate, nextMaintenanceDate, status, documentsJson, qrToken
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       compId,
       bId,
@@ -268,8 +447,8 @@ export class MachineManagementService {
       dto.productionLineId || null,
       dto.machineCode,
       dto.machineName,
-      dto.machineType,
-      dto.machineCategory || 'Production Machine',
+      dto.machineType || 'General',
+      dto.machineCategory || 'General',
       dto.manufacturer || null,
       dto.model || null,
       dto.serialNumber || null,
@@ -281,11 +460,13 @@ export class MachineManagementService {
       dto.operatingHours || 8,
       dto.powerRating || null,
       dto.powerUom || 'kW',
-      dto.maintenanceFrequencyDays || 30,
+      freq,
+      reminderDays,
       dto.lastMaintenanceDate || null,
-      dto.nextMaintenanceDate || null,
+      nextDate,
       dto.status || 'ACTIVE',
-      dto.documentsJson ? JSON.stringify(dto.documentsJson) : null
+      dto.documentsJson ? JSON.stringify(dto.documentsJson) : null,
+      qrToken
     );
 
     return this.getMachineById(id);
@@ -319,10 +500,12 @@ export class MachineManagementService {
         powerRating = ?,
         powerUom = ?,
         maintenanceFrequencyDays = ?,
+        maintenanceReminderDays = ?,
         lastMaintenanceDate = ?,
         nextMaintenanceDate = ?,
         status = ?,
-        documentsJson = ?
+        documentsJson = ?,
+        qrToken = ?
       WHERE id = ?`,
       bId,
       dto.departmentId !== undefined ? dto.departmentId : existing.departmentId,
@@ -343,10 +526,12 @@ export class MachineManagementService {
       dto.powerRating !== undefined ? dto.powerRating : existing.powerRating,
       dto.powerUom || existing.powerUom,
       dto.maintenanceFrequencyDays !== undefined ? dto.maintenanceFrequencyDays : existing.maintenanceFrequencyDays,
+      dto.maintenanceReminderDays !== undefined ? dto.maintenanceReminderDays : existing.maintenanceReminderDays,
       dto.lastMaintenanceDate !== undefined ? dto.lastMaintenanceDate : existing.lastMaintenanceDate,
       dto.nextMaintenanceDate !== undefined ? dto.nextMaintenanceDate : existing.nextMaintenanceDate,
       dto.status || existing.status,
       dto.documentsJson !== undefined ? JSON.stringify(dto.documentsJson) : existing.documentsJson,
+      dto.qrToken !== undefined ? dto.qrToken : existing.qrToken,
       id
     );
 
@@ -355,9 +540,16 @@ export class MachineManagementService {
 
   async deleteMachine(id: string) {
     await this.getMachineById(id);
+    await this.prisma.$executeRawUnsafe(
+      'UPDATE machine_operators SET currentMachineId = NULL, status = "Available" WHERE currentMachineId = ?',
+      id
+    );
+    await this.prisma.$executeRawUnsafe('DELETE FROM machine_allocations WHERE machineId = ?', id);
+    await this.prisma.$executeRawUnsafe('DELETE FROM machine_maintenances WHERE machineId = ?', id);
     await this.prisma.$executeRawUnsafe('DELETE FROM machines WHERE id = ?', id);
     return { success: true, message: 'Machine deleted successfully' };
   }
+
 
   // ─────────────────────────────────────────────────────────────
   // 3. Production Lines
@@ -504,9 +696,13 @@ export class MachineManagementService {
   }
 
   async deleteProductionLine(id: string) {
+    await this.prisma.$executeRawUnsafe('UPDATE machines SET productionLineId = NULL WHERE productionLineId = ?', id);
+    await this.prisma.$executeRawUnsafe('UPDATE machine_allocations SET productionLineId = NULL WHERE productionLineId = ?', id);
+    await this.prisma.$executeRawUnsafe('UPDATE machine_maintenances SET productionLineId = NULL WHERE productionLineId = ?', id);
     await this.prisma.$executeRawUnsafe('DELETE FROM production_lines WHERE id = ?', id);
     return { success: true, message: 'Production Line deleted successfully' };
   }
+
 
   // ─────────────────────────────────────────────────────────────
   // 4. Machine Operators
@@ -696,7 +892,15 @@ export class MachineManagementService {
     return this.getOperatorById(id);
   }
 
+  async deleteOperator(id: string) {
+    await this.getOperatorById(id);
+    await this.prisma.$executeRawUnsafe('DELETE FROM machine_allocations WHERE operatorId = ?', id);
+    await this.prisma.$executeRawUnsafe('DELETE FROM machine_operators WHERE id = ?', id);
+    return { success: true, message: 'Machine operator deleted successfully' };
+  }
+
   // ─────────────────────────────────────────────────────────────
+
   // 5. Machine Allocations
   // ─────────────────────────────────────────────────────────────
   async listAllocations(
@@ -924,6 +1128,27 @@ export class MachineManagementService {
     return { success: true, message: 'Allocation cancelled' };
   }
 
+  async deleteAllocation(id: string) {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT id, operatorId, status FROM machine_allocations WHERE id = ?',
+      id
+    );
+    if (!rows || rows.length === 0) throw new NotFoundException('Allocation not found');
+    const alloc = rows[0];
+
+    // If active, free the operator
+    if (alloc.status === 'ACTIVE' && alloc.operatorId) {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE machine_operators SET status = 'Available', currentMachineId = NULL, currentShift = NULL WHERE id = ?`,
+        alloc.operatorId
+      );
+    }
+
+    await this.prisma.$executeRawUnsafe('DELETE FROM machine_allocations WHERE id = ?', id);
+    return { success: true, message: 'Allocation deleted successfully' };
+  }
+
+
   // ─────────────────────────────────────────────────────────────
   // 6. Maintenance
   // ─────────────────────────────────────────────────────────────
@@ -1085,19 +1310,224 @@ export class MachineManagementService {
       id
     );
 
-    // Re-activate machine
+    // Re-activate machine & calculate next maintenance date
+    const machineRows: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT id, maintenanceFrequencyDays FROM machines WHERE id = ?',
+      maint.machineId
+    );
+    const freq =
+      machineRows.length > 0 && machineRows[0].maintenanceFrequencyDays
+        ? Number(machineRows[0].maintenanceFrequencyDays)
+        : 30;
+
+    const baseDate = new Date(dto.actualCompletionDate);
+    const calculatedNextMaintenanceDate = new Date(baseDate.getTime() + freq * 86400000)
+      .toISOString()
+      .slice(0, 10);
+
     await this.prisma.$executeRawUnsafe(
       `UPDATE machines SET 
         status = 'ACTIVE',
-        lastMaintenanceDate = ?
+        lastMaintenanceDate = ?,
+        nextMaintenanceDate = ?,
+        maintenanceReminderSentAt = NULL
       WHERE id = ?`,
       dto.actualCompletionDate,
+      calculatedNextMaintenanceDate,
       maint.machineId
     );
 
     return {
       success: true,
-      message: 'Maintenance completed successfully and Machine set back to ACTIVE',
+      nextMaintenanceDate: calculatedNextMaintenanceDate,
+      message: 'Maintenance completed successfully, next maintenance date recalculated, and Machine set back to ACTIVE',
     };
+  }
+
+  async deleteMaintenance(id: string) {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT id, machineId, status FROM machine_maintenances WHERE id = ?',
+      id
+    );
+    if (!rows || rows.length === 0) throw new NotFoundException('Maintenance record not found');
+    const maint = rows[0];
+
+    // If maintenance was in progress, check if there are any other in progress maintenances for this machine
+    if (maint.status === 'In Progress' && maint.machineId) {
+      const otherMaint: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM machine_maintenances WHERE machineId = ? AND status = 'In Progress' AND id != ?`,
+        maint.machineId,
+        id
+      );
+      if (otherMaint.length === 0) {
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE machines SET status = 'ACTIVE' WHERE id = ? AND status = 'UNDER_MAINTENANCE'`,
+          maint.machineId
+        );
+      }
+    }
+
+    await this.prisma.$executeRawUnsafe('DELETE FROM machine_maintenances WHERE id = ?', id);
+    return { success: true, message: 'Maintenance record deleted successfully' };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+
+  // 7. Capacity UOM Master (Database Backed)
+  // ─────────────────────────────────────────────────────────────
+  async initCapacityUomTable() {
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS capacity_uom_master (
+          id VARCHAR(191) PRIMARY KEY,
+          companyId VARCHAR(191) NULL,
+          name VARCHAR(150) NOT NULL,
+          category VARCHAR(100) DEFAULT 'General',
+          description TEXT NULL,
+          isCustom TINYINT(1) DEFAULT 1,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_uom_company (companyId)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+      this.logger.log('Table capacity_uom_master verified/created successfully in MySQL.');
+    } catch (e: any) {
+      this.logger.warn(`Failed to initialize capacity_uom_master table: ${e.message}`);
+    }
+  }
+
+  async listCapacityUoms(companyId?: string, search?: string, category?: string) {
+    await this.initCapacityUomTable();
+    let query = 'SELECT * FROM capacity_uom_master WHERE 1=1';
+    const params: any[] = [];
+
+    if (companyId && companyId !== 'ALL') {
+      query += ' AND (companyId = ? OR companyId IS NULL)';
+      params.push(companyId);
+    }
+
+    if (category && category !== 'ALL') {
+      query += ' AND category = ?';
+      params.push(category);
+    }
+
+    if (search && search.trim()) {
+      query += ' AND (name LIKE ? OR description LIKE ?)';
+      params.push(`%${search.trim()}%`, `%${search.trim()}%`);
+    }
+
+    query += ' ORDER BY name ASC';
+
+    const results: any[] = await this.prisma.$queryRawUnsafe(query, ...params);
+    return results.map((r) => ({
+      ...r,
+      isCustom: Boolean(r.isCustom),
+    }));
+  }
+
+  async getCapacityUomById(id: string) {
+    await this.initCapacityUomTable();
+    const results: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT * FROM capacity_uom_master WHERE id = ?',
+      id
+    );
+    if (!results || results.length === 0) {
+      throw new NotFoundException(`Capacity UOM with ID ${id} not found`);
+    }
+    return {
+      ...results[0],
+      isCustom: Boolean(results[0].isCustom),
+    };
+  }
+
+  async createCapacityUom(dto: CreateCapacityUomDto) {
+    await this.initCapacityUomTable();
+    if (!dto.name || !dto.name.trim()) {
+      throw new BadRequestException('UOM Name is required');
+    }
+
+    // Check duplicate name
+    let checkQuery = 'SELECT id FROM capacity_uom_master WHERE LOWER(name) = LOWER(?)';
+    const checkParams: any[] = [dto.name.trim()];
+    if (dto.companyId) {
+      checkQuery += ' AND (companyId = ? OR companyId IS NULL)';
+      checkParams.push(dto.companyId);
+    }
+    const existing: any[] = await this.prisma.$queryRawUnsafe(checkQuery, ...checkParams);
+    if (existing && existing.length > 0) {
+      throw new ConflictException(`Capacity UOM "${dto.name.trim()}" already exists`);
+    }
+
+    const id = `uom_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const name = dto.name.trim();
+    const category = dto.category?.trim() || 'General';
+    const description = dto.description?.trim() || null;
+    const companyId = dto.companyId || null;
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO capacity_uom_master (id, companyId, name, category, description, isCustom)
+       VALUES (?, ?, ?, ?, ?, 1)`,
+      id,
+      companyId,
+      name,
+      category,
+      description
+    );
+
+    return this.getCapacityUomById(id);
+  }
+
+  async updateCapacityUom(id: string, dto: UpdateCapacityUomDto) {
+    await this.getCapacityUomById(id);
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (dto.name !== undefined) {
+      if (!dto.name.trim()) {
+        throw new BadRequestException('UOM Name cannot be empty');
+      }
+      // Check duplicate
+      const duplicate: any[] = await this.prisma.$queryRawUnsafe(
+        'SELECT id FROM capacity_uom_master WHERE LOWER(name) = LOWER(?) AND id != ?',
+        dto.name.trim(),
+        id
+      );
+      if (duplicate && duplicate.length > 0) {
+        throw new ConflictException(`Capacity UOM "${dto.name.trim()}" already exists`);
+      }
+      updates.push('name = ?');
+      params.push(dto.name.trim());
+    }
+
+    if (dto.category !== undefined) {
+      updates.push('category = ?');
+      params.push(dto.category?.trim() || 'General');
+    }
+
+    if (dto.description !== undefined) {
+      updates.push('description = ?');
+      params.push(dto.description?.trim() || null);
+    }
+
+    if (updates.length > 0) {
+      updates.push('updatedAt = NOW()');
+      params.push(id);
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE capacity_uom_master SET ${updates.join(', ')} WHERE id = ?`,
+        ...params
+      );
+    }
+
+    return this.getCapacityUomById(id);
+  }
+
+  async deleteCapacityUom(id: string) {
+    await this.getCapacityUomById(id);
+    await this.prisma.$executeRawUnsafe(
+      'DELETE FROM capacity_uom_master WHERE id = ?',
+      id
+    );
+    return { success: true, message: `Capacity UOM with ID ${id} deleted successfully` };
   }
 }

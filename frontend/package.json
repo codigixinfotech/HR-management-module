@@ -26,6 +26,7 @@
     "date-fns": "^4.4.0",
     "hr-management-module": "file:..",
     "lucide-react": "^1.28.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.84.0",

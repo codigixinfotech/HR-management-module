@@ -5,6 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -19,6 +26,9 @@ import {
   RotateCcw,
   Plus,
   Calendar,
+  MoreVertical,
+  Eye,
+  Trash2,
 } from 'lucide-react';
 import type {
   MachineMaintenance,
@@ -34,6 +44,7 @@ interface MaintenanceTabProps {
   onStartMaintenance: () => void;
   onCompleteMaintenance: (maintenance: MachineMaintenance) => void;
   onViewMachine: (machineId: string) => void;
+  onDeleteMaintenance: (maintenance: MachineMaintenance) => void;
 }
 
 export function MaintenanceTab({
@@ -44,6 +55,7 @@ export function MaintenanceTab({
   onStartMaintenance,
   onCompleteMaintenance,
   onViewMachine,
+  onDeleteMaintenance,
 }: MaintenanceTabProps) {
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
@@ -77,8 +89,64 @@ export function MaintenanceTab({
     return matchesSearch && matchesBranch && matchesMachine && matchesStatus;
   });
 
+  const overdueMachines = machines.filter((m) => m.maintenanceDueStatus === 'OVERDUE');
+  const dueTodayMachines = machines.filter((m) => m.maintenanceDueStatus === 'DUE_TODAY');
+
   return (
     <div className="space-y-4">
+      {/* Preventive Maintenance Alert Callout */}
+      {(overdueMachines.length > 0 || dueTodayMachines.length > 0) && (
+        <Card className="border-rose-200 bg-rose-50/70 dark:bg-rose-950/20 dark:border-rose-900/50 shadow-xs">
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200 flex items-center gap-2">
+                  <span>Preventive Maintenance Attention Required</span>
+                  <Badge variant="destructive" className="text-[10px] py-0 h-4">
+                    {overdueMachines.length} Overdue
+                  </Badge>
+                  {dueTodayMachines.length > 0 && (
+                    <Badge variant="warning" className="text-[10px] py-0 h-4">
+                      {dueTodayMachines.length} Due Today
+                    </Badge>
+                  )}
+                </h4>
+                <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">
+                  The following machinery has reached or exceeded scheduled service intervals:
+                </p>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[...overdueMachines, ...dueTodayMachines].slice(0, 6).map((m) => (
+                    <Badge
+                      key={m.id}
+                      variant="outline"
+                      className="text-[11px] bg-background/80 cursor-pointer hover:bg-background"
+                      onClick={() => onViewMachine(m.id)}
+                    >
+                      {m.machineCode} ({m.maintenanceDueLabel})
+                    </Badge>
+                  ))}
+                  {[...overdueMachines, ...dueTodayMachines].length > 6 && (
+                    <span className="text-[11px] text-rose-600 font-medium self-center">
+                      +{ [...overdueMachines, ...dueTodayMachines].length - 6 } more
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="text-xs gap-1.5 shrink-0 shadow-2xs self-end sm:self-center font-medium"
+              onClick={onStartMaintenance}
+            >
+              <Wrench className="h-3.5 w-3.5" />
+              Schedule Maintenance
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search & Filters */}
       <Card className="shadow-2xs">
         <CardContent className="p-4 space-y-3">
@@ -166,7 +234,7 @@ export function MaintenanceTab({
             <TableHeader className="bg-muted/40">
               <TableRow className="text-xs">
                 <TableHead className="font-semibold text-foreground">Machine Equipment</TableHead>
-                <TableHead className="font-semibold text-foreground">Production Line</TableHead>
+                <TableHead className="font-semibold text-foreground">Operational Unit</TableHead>
                 <TableHead className="font-semibold text-foreground">Maintenance Type</TableHead>
                 <TableHead className="font-semibold text-foreground">Started</TableHead>
                 <TableHead className="font-semibold text-foreground">Expected Completion</TableHead>
@@ -266,25 +334,45 @@ export function MaintenanceTab({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {m.status === 'In Progress' ? (
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-                          onClick={() => onCompleteMaintenance(m)}
-                        >
-                          <CheckCircle2 className="h-3 w-3" />
-                          Complete
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs text-muted-foreground"
-                          onClick={() => onViewMachine(m.machineId)}
-                        >
-                          View Machine
-                        </Button>
-                      )}
+                      <div className="flex items-center justify-end gap-1.5">
+                        {m.status === 'In Progress' && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                            onClick={() => onCompleteMaintenance(m)}
+                          >
+                            <CheckCircle2 className="h-3 w-3" />
+                            Complete
+                          </Button>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-36 text-xs">
+                            <DropdownMenuItem onClick={() => onViewMachine(m.machineId)}>
+                              <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              View Machine
+                            </DropdownMenuItem>
+                            {m.status === 'In Progress' && (
+                              <DropdownMenuItem onClick={() => onCompleteMaintenance(m)}>
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                                Mark Complete
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => onDeleteMaintenance(m)}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              Delete Record
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
