@@ -18,6 +18,8 @@ import {
   AlertCircle,
   CalendarClock,
   ShieldCheck,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +32,7 @@ import {
   type MachineMaintenance,
 } from '@/api/machine-management';
 import { MachineQrModal } from './MachineQrModal';
+import { Machine360ViewerModal } from './Machine360ViewerModal';
 
 interface MachineDetailsDrawerProps {
   machineId: string | null;
@@ -52,6 +55,7 @@ export function MachineDetailsDrawer({
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [showQrModal, setShowQrModal] = useState(false);
+  const [open360Modal, setOpen360Modal] = useState(false);
 
   useEffect(() => {
     if (machineId && open) {
@@ -274,6 +278,52 @@ export function MachineDetailsDrawer({
                   </div>
                 </div>
 
+                {/* Equipment Photo & 360° View Card (if photo exists) */}
+                {Boolean((machine as any).documentsJson || machine.mainPhoto) && (() => {
+                  let parsedDocs: any = {};
+                  try {
+                    parsedDocs = typeof (machine as any).documentsJson === 'string' ? JSON.parse((machine as any).documentsJson) : (machine as any).documentsJson || {};
+                  } catch {
+                    parsedDocs = {};
+                  }
+                  const photo = parsedDocs?.images?.mainPhoto || machine.mainPhoto;
+                  const angles = parsedDocs?.images?.angles || machine.angleImages || {};
+
+                  if (!photo) return null;
+
+                  return (
+                    <div className="p-3.5 rounded-xl border bg-card flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={photo}
+                          alt={machine.machineName}
+                          className="h-16 w-20 object-contain rounded-lg border bg-muted/20 shadow-2xs"
+                        />
+                        <div>
+                          <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            Equipment Visual Model
+                            <Badge variant="outline" className="text-[10px] font-mono">
+                              {Object.keys(angles).length > 0 ? `${Object.keys(angles).length} Angles` : 'Main Photo'}
+                            </Badge>
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            360° rotational inspection view calibrated for this unit.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10 shrink-0"
+                        onClick={() => setOpen360Modal(true)}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        View 360°
+                      </Button>
+                    </div>
+                  );
+                })()}
+
                 {/* Specs Card */}
                 <div className="p-4 rounded-xl border bg-card space-y-3">
                   <h4 className="text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-1.5">
@@ -346,7 +396,7 @@ export function MachineDetailsDrawer({
                       </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-[11px]">Workstation</span>
+                      <span className="text-muted-foreground block text-[11px]">Room / Installation Area</span>
                       <span className="font-medium text-foreground">
                         {machine.workstation || 'General Floor'}
                       </span>
@@ -680,6 +730,30 @@ export function MachineDetailsDrawer({
           if (onMachineUpdated) onMachineUpdated(updated);
         }}
       />
+
+      {/* 360° Interactive Equipment Viewer Modal */}
+      {machine && (() => {
+        let parsedDocs: any = {};
+        try {
+          parsedDocs = typeof (machine as any).documentsJson === 'string' ? JSON.parse((machine as any).documentsJson) : (machine as any).documentsJson || {};
+        } catch {
+          parsedDocs = {};
+        }
+        const photo = parsedDocs?.images?.mainPhoto || machine.mainPhoto;
+        const angles = parsedDocs?.images?.angles || machine.angleImages || {};
+
+        return (
+          <Machine360ViewerModal
+            open={open360Modal}
+            onOpenChange={setOpen360Modal}
+            machine={machine}
+            machineName={machine.machineName}
+            machineCode={machine.machineCode}
+            mainPhoto={photo}
+            angles={angles}
+          />
+        );
+      })()}
     </div>
   );
 }

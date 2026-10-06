@@ -544,6 +544,7 @@ function MachineManagementContent({
         branches={branches}
         departments={departments}
         productionLines={productionLines}
+        employees={employees}
         activeCompanyId={companyId}
         activeBranchId={branchId}
         onSuccess={handleRefresh}

@@ -37,6 +37,12 @@ export interface Machine {
   maintenanceReminderSentAt?: string | null;
   lastMaintenanceDate?: string;
   nextMaintenanceDate?: string;
+  calibrationFrequencyDays?: number;
+  lastCalibrationDate?: string;
+  nextCalibrationDate?: string;
+  assignedShifts?: string[];
+  mainPhoto?: string;
+  angleImages?: Record<string, string>;
   maintenanceDueStatus?: 'NORMAL' | 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE';
   daysDiff?: number | null;
   maintenanceDueLabel?: string;

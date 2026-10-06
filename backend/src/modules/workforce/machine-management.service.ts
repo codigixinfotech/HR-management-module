@@ -234,73 +234,121 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
       search?: string;
     }
   ) {
-    let sql = `
-      SELECT 
-        m.*,
-        pl.lineName as productionLineName,
-        pl.lineCode as productionLineCode,
-        b.name as branchName,
-        d.name as departmentName,
-        alloc.operatorName as currentOperatorName,
-        alloc.shift as currentShift,
-        alloc.efficiency as currentEfficiency,
-        alloc.status as currentAllocationStatus
-      FROM machines m
-      LEFT JOIN production_lines pl ON pl.id = m.productionLineId
-      LEFT JOIN branches b ON b.id = m.branchId
-      LEFT JOIN departments d ON d.id = m.departmentId
-      LEFT JOIN (
-        SELECT ma.machineId, ma.shift, ma.efficiency, ma.status, mo.operatorName
-        FROM machine_allocations ma
-        JOIN machine_operators mo ON mo.id = ma.operatorId
-        WHERE ma.status = 'ACTIVE'
-      ) alloc ON alloc.machineId = m.id
-      WHERE 1=1
-    `;
+    // Step 1: Build WHERE conditions for machines
+    const conditions: string[] = ['1=1'];
     const params: any[] = [];
 
     if (companyId && companyId !== 'ALL') {
-      sql += ' AND m.companyId = ?';
+      conditions.push('m.companyId = ?');
       params.push(companyId);
     }
     if (branchId && branchId !== 'ALL' && branchId !== 'HEAD_OFFICE' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
-      sql += ' AND m.branchId = ?';
+      conditions.push('m.branchId = ?');
       params.push(branchId);
     }
-
     if (filters?.departmentId && filters.departmentId !== 'ALL') {
-      sql += ' AND m.departmentId = ?';
+      conditions.push('m.departmentId = ?');
       params.push(filters.departmentId);
     }
     if (filters?.productionLineId && filters.productionLineId !== 'ALL') {
-      sql += ' AND m.productionLineId = ?';
+      conditions.push('m.productionLineId = ?');
       params.push(filters.productionLineId);
     }
     if (filters?.machineType && filters.machineType !== 'ALL') {
-      sql += ' AND m.machineType = ?';
+      conditions.push('m.machineType = ?');
       params.push(filters.machineType);
     }
     if (filters?.status && filters.status !== 'ALL') {
-      sql += ' AND m.status = ?';
+      conditions.push('m.status = ?');
       params.push(filters.status);
     }
     if (filters?.search && filters.search.trim()) {
       const q = `%${filters.search.trim()}%`;
-      sql += ' AND (m.machineCode LIKE ? OR m.machineName LIKE ? OR m.serialNumber LIKE ? OR m.manufacturer LIKE ?)';
+      conditions.push('(m.machineCode LIKE ? OR m.machineName LIKE ? OR m.serialNumber LIKE ? OR m.manufacturer LIKE ?)');
       params.push(q, q, q, q);
     }
 
-    sql += ' ORDER BY m.machineCode ASC';
+    const whereClause = conditions.join(' AND ');
+
+    // Step 2: Query machines with simple LEFT JOINs (no correlated subquery)
+    const sql = `
+      SELECT 
+        m.id, m.companyId, m.branchId, m.departmentId, m.productionLineId,
+        m.machineCode, m.machineName, m.machineType, m.machineCategory,
+        m.manufacturer, m.model, m.serialNumber, m.assetNumber,
+        m.workstation, m.location, m.capacity, m.capacityUom,
+        m.operatingHours, m.powerRating, m.powerUom,
+        m.maintenanceFrequencyDays, m.maintenanceReminderDays,
+        m.maintenanceReminderSentAt,
+        m.lastMaintenanceDate, m.nextMaintenanceDate,
+        m.status, m.documentsJson, m.qrToken,
+        m.createdAt, m.updatedAt,
+        pl.lineName as productionLineName,
+        pl.lineCode as productionLineCode,
+        b.name as branchName,
+        d.name as departmentName
+      FROM machines m
+      LEFT JOIN production_lines pl ON pl.id = m.productionLineId
+      LEFT JOIN branches b ON b.id = m.branchId
+      LEFT JOIN departments d ON d.id = m.departmentId
+      WHERE ${whereClause}
+    `;
 
     const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    // Sort in JavaScript to avoid MySQL filesort memory overflow on JSON columns
+    rows.sort((a, b) => (a.machineCode || '').localeCompare(b.machineCode || ''));
+
+    // Step 3: Separately get the active allocation per machine (simple query — no join with sort)
+    const machineIds = rows.map((r) => r.id);
+    const placeholders = machineIds.map(() => '?').join(',');
+
+    let allocMap: Record<string, { operatorName: string; shift: string; efficiency: number | null; status: string }> = {};
+
+    try {
+      const allocSql = `
+        SELECT ma.machineId, ma.shift, ma.efficiency, ma.status, mo.operatorName
+        FROM machine_allocations ma
+        JOIN machine_operators mo ON mo.id = ma.operatorId
+        WHERE ma.machineId IN (${placeholders})
+          AND ma.status = 'ACTIVE'
+        LIMIT 200
+      `;
+      const allocs: any[] = await this.prisma.$queryRawUnsafe(allocSql, ...machineIds);
+      for (const a of allocs) {
+        if (!allocMap[a.machineId]) {
+          allocMap[a.machineId] = {
+            operatorName: a.operatorName,
+            shift: a.shift,
+            efficiency: a.efficiency,
+            status: a.status,
+          };
+        }
+      }
+    } catch (_e) {
+      // Allocation lookup is non-critical — continue without it
+      this.logger.warn('Could not load allocation data for machines: ' + (_e as any).message);
+    }
+
+    // Step 4: Merge and compute maintenance status
     return rows.map((r) => {
+      const alloc = allocMap[r.id];
       const statusInfo = computeMaintenanceStatus(r);
       return {
         ...r,
         ...statusInfo,
+        currentOperatorName: alloc?.operatorName || null,
+        currentShift: alloc?.shift || null,
+        currentEfficiency: alloc?.efficiency || null,
+        currentAllocationStatus: alloc?.status || null,
       };
     });
   }
+
 
   async getMachineById(id: string) {
     const rows: any[] = await this.prisma.$queryRawUnsafe(
