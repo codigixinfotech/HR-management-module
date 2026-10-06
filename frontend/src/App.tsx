@@ -18,6 +18,7 @@ import WorkforcePage from '@/pages/workforce/WorkforcePage';
 import WorkforcePlanningPage from '@/pages/workforce/WorkforcePlanningPage';
 import ShiftPlanningPage from '@/pages/workforce/ShiftPlanningPage';
 import MachineAllocationPage from '@/pages/workforce/MachineAllocationPage';
+import MachineManagementPage from '@/pages/workforce/machine-management/MachineManagementPage';
 import ContractorManagementPage from '@/pages/workforce/ContractorManagementPage';
 import LabourManagementPage from '@/pages/workforce/LabourManagementPage';
 import WorkforceReportsPage from '@/pages/workforce/WorkforceReportsPage';
@@ -170,7 +171,8 @@ export default function App() {
               <Route path="/workforce/my-shift-roster" element={<Navigate to="/workforce/shift-planning" replace />} />
               <Route path="/workforce/shift-types" element={<Navigate to="/workforce/shift-planning?subtab=master" replace />} />
               <Route path="/workforce/shift-roster" element={<Navigate to="/workforce/shift-planning?subtab=roster" replace />} />
-              <Route path="/workforce/machine-allocation" element={<MachineAllocationPage />} />
+              <Route path="/workforce/machine-management" element={<MachineManagementPage />} />
+              <Route path="/workforce/machine-allocation" element={<MachineManagementPage />} />
               <Route path="/workforce/contractors" element={<ContractorManagementPage />} />
               <Route path="/workforce/labour" element={<LabourManagementPage />} />
               <Route path="/workforce/reports" element={<WorkforceReportsPage />} />

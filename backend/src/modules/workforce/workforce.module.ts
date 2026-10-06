@@ -7,6 +7,10 @@ import { ShiftLifecycleController } from './shift-lifecycle.controller';
 import { ShiftLifecycleService } from './shift-lifecycle.service';
 import { WeeklyOffPoliciesController } from './weekly-off-policies.controller';
 import { WeeklyOffPoliciesService } from './weekly-off-policies.service';
+import { MachineManagementController } from './machine-management.controller';
+import { MachineManagementService } from './machine-management.service';
+import { ContractorManagementController } from './contractor-management.controller';
+import { ContractorManagementService } from './contractor-management.service';
 
 @Module({
   controllers: [
@@ -14,18 +18,24 @@ import { WeeklyOffPoliciesService } from './weekly-off-policies.service';
     ShiftAssignmentsController,
     ShiftLifecycleController,
     WeeklyOffPoliciesController,
+    MachineManagementController,
+    ContractorManagementController,
   ],
   providers: [
     ShiftTypesService,
     ShiftAssignmentsService,
     ShiftLifecycleService,
     WeeklyOffPoliciesService,
+    MachineManagementService,
+    ContractorManagementService,
   ],
   exports: [
     ShiftTypesService,
     ShiftAssignmentsService,
     ShiftLifecycleService,
     WeeklyOffPoliciesService,
+    MachineManagementService,
+    ContractorManagementService,
   ],
 })
 export class WorkforceModule {}
