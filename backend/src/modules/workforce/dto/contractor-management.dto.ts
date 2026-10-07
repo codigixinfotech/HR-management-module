@@ -20,6 +20,10 @@ export class CreateContractorVendorDto {
   @IsString()
   branchId?: string | null;
 
+  @IsOptional()
+  @IsString()
+  departmentId?: string | null;
+
   @IsNotEmpty()
   @IsString()
   vendorCode!: string;

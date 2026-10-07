@@ -376,7 +376,7 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
 
     // Allocations history
     const allocations: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT ma.*, mo.operatorName, mo.operatorCode, mo.operatorType
+      `SELECT ma.*, mo.operatorName, mo.operatorCode, mo.operatorType, mo.skill, mo.skillLevel, mo.certification
        FROM machine_allocations ma
        LEFT JOIN machine_operators mo ON mo.id = ma.operatorId
        WHERE ma.machineId = ?
@@ -395,12 +395,45 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
 
     const statusInfo = computeMaintenanceStatus(machine);
 
+    let activeAlloc = allocations.find((a) => a.status === 'ACTIVE') || null;
+    let fallbackOperator: any = null;
+
+    if (!activeAlloc) {
+      try {
+        const opRows: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT id as operatorId, operatorName, operatorCode, operatorType, skill, currentShift as shift
+           FROM machine_operators
+           WHERE currentMachineId = ? AND status = 'Allocated'
+           LIMIT 1`,
+          id
+        );
+        if (opRows && opRows.length > 0) {
+          fallbackOperator = opRows[0];
+        }
+      } catch (_e) {}
+    }
+
+    const opName = activeAlloc?.operatorName || fallbackOperator?.operatorName || null;
+    const opShift = activeAlloc?.shift || fallbackOperator?.shift || null;
+    const opCode = activeAlloc?.operatorCode || fallbackOperator?.operatorCode || null;
+    const opType = activeAlloc?.operatorType || fallbackOperator?.operatorType || null;
+    const opSkill = activeAlloc?.skill || fallbackOperator?.skill || null;
+    const opEfficiency = activeAlloc?.efficiency || null;
+
     return {
       ...machine,
       ...statusInfo,
       allocations,
       maintenances,
-      currentAllocation: allocations.find((a) => a.status === 'ACTIVE') || null,
+      currentAllocation: activeAlloc,
+      currentOperatorName: opName,
+      currentOperatorCode: opCode,
+      currentOperatorType: opType,
+      currentOperatorSkill: opSkill,
+      currentShift: opShift,
+      currentEfficiency: opEfficiency ? `${opEfficiency}%` : null,
+      operatorEfficiency: opEfficiency,
+      operatorStatus: activeAlloc?.status || (fallbackOperator ? 'Allocated' : null),
     };
   }
 
@@ -412,7 +445,16 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
     if (!rows || rows.length === 0) {
       throw new NotFoundException(`Machine with specified QR code not found`);
     }
-    return this.getMachineById(rows[0].id);
+
+    const machineId = rows[0].id;
+    try {
+      await this.prisma.$executeRawUnsafe(
+        'UPDATE machines SET qrScanCount = COALESCE(qrScanCount, 0) + 1, lastQrScannedAt = NOW() WHERE id = ?',
+        machineId
+      );
+    } catch (_e) {}
+
+    return this.getMachineById(machineId);
   }
 
   async regenerateQrToken(id: string) {

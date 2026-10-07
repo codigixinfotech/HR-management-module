@@ -115,6 +115,15 @@ export class ContractorManagementController {
     return this.service.updateVendorStatus(id, body.status, body.reason, user?.userId || user?.email);
   }
 
+  @Delete('vendors/:id')
+  @Permissions('workforce.write')
+  deleteVendor(
+    @Param('id') id: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.service.deleteVendor(id, user?.userId || user?.email);
+  }
+
   @Get('vendors/:id/history')
   @Permissions('workforce.read')
   getVendorHistory(@Param('id') id: string) {
@@ -209,6 +218,15 @@ export class ContractorManagementController {
     return this.service.renewContract(id, dto, user?.userId || user?.email);
   }
 
+  @Delete('contracts/:id')
+  @Permissions('workforce.write')
+  deleteContract(
+    @Param('id') id: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.service.deleteContract(id, user?.userId || user?.email);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 4. Workers
   // ─────────────────────────────────────────────────────────────
@@ -272,6 +290,15 @@ export class ContractorManagementController {
     return this.service.updateWorker(id, dto, user?.userId || user?.email);
   }
 
+  @Delete('workers/:id')
+  @Permissions('workforce.write')
+  deleteWorker(
+    @Param('id') id: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.service.deleteWorker(id, user?.userId || user?.email);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 5. Deployments
   // ─────────────────────────────────────────────────────────────
@@ -333,6 +360,25 @@ export class ContractorManagementController {
     @CurrentUser() user?: CurrentUserPayload,
   ) {
     return this.service.transferDeployment(id, dto, user?.userId || user?.email);
+  }
+
+  @Put('deployments/:id')
+  @Permissions('workforce.write')
+  updateDeployment(
+    @Param('id') id: string,
+    @Body() dto: any,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.service.updateDeployment(id, dto, user?.userId || user?.email);
+  }
+
+  @Delete('deployments/:id')
+  @Permissions('workforce.write')
+  deleteDeployment(
+    @Param('id') id: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.service.deleteDeployment(id, user?.userId || user?.email);
   }
 
   // ─────────────────────────────────────────────────────────────

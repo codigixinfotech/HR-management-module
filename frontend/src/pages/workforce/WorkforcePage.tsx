@@ -27,7 +27,7 @@ export default function WorkforcePage() {
     return <Navigate to="/workforce/contractors" replace />;
   }
   if (requestedTab === 'labour') {
-    return <Navigate to="/workforce/labour" replace />;
+    return <Navigate to="/workforce/contractors?tab=compliance" replace />;
   }
   if (requestedTab === 'reports') {
     return <Navigate to="/workforce/reports" replace />;

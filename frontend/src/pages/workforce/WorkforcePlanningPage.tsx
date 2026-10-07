@@ -146,9 +146,9 @@ export default function WorkforcePlanningPage() {
                 </CardContent>
               </Card>
 
-              {/* Card 5: Labour Management */}
+              {/* Card 5: Labour & Statutory Compliance */}
               <Card
-                onClick={() => navigate('/workforce/labour')}
+                onClick={() => navigate('/workforce/contractors?tab=compliance')}
                 className="group cursor-pointer hover:border-primary/50 hover:shadow-md transition-all duration-200"
               >
                 <CardContent className="p-4 flex items-start gap-3">
@@ -158,12 +158,12 @@ export default function WorkforcePlanningPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold text-foreground group-hover:text-rose-600 transition-colors">
-                        Labour Management
+                        Labour & Statutory Compliance
                       </p>
                       <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Blue-collar muster rolls, wage registers & statutory returns
+                      Statutory muster rolls, wage registers, CLRA & compliance returns
                     </p>
                   </div>
                 </CardContent>

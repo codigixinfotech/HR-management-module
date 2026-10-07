@@ -47,6 +47,8 @@ export interface Machine {
   daysDiff?: number | null;
   maintenanceDueLabel?: string;
   qrToken?: string;
+  qrScanCount?: number;
+  lastQrScannedAt?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'UNDER_MAINTENANCE' | 'RETIRED';
   documentsJson?: any;
   createdAt: string;

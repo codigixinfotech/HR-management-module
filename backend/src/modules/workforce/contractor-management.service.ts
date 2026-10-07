@@ -233,6 +233,7 @@ export class ContractorManagementService {
       SELECT 
         v.*,
         b.name as branch_name,
+        d.name as department_name,
         c.name as company_name,
         (SELECT COUNT(*) FROM contractor_contracts cc WHERE cc.vendor_id = v.id AND cc.status = 'ACTIVE') as active_contracts_count,
         (SELECT COUNT(*) FROM contractor_workers cw WHERE cw.vendor_id = v.id AND cw.status = 'ACTIVE') as total_workers_count,
@@ -242,6 +243,7 @@ export class ContractorManagementService {
         (SELECT MIN(cc.contract_end_date) FROM contractor_contracts cc WHERE cc.vendor_id = v.id AND cc.status = 'ACTIVE' AND cc.contract_end_date >= CURRENT_DATE) as nearest_contract_expiry
       FROM contractor_vendors v
       LEFT JOIN branches b ON b.id = v.branch_id
+      LEFT JOIN departments d ON d.id = v.department_id
       LEFT JOIN companies c ON c.id = v.company_id
       WHERE v.deleted_at IS NULL
     `;
@@ -286,12 +288,14 @@ export class ContractorManagementService {
       `SELECT 
         v.*,
         b.name as branch_name,
+        d.name as department_name,
         c.name as company_name,
         (SELECT COUNT(*) FROM contractor_contracts cc WHERE cc.vendor_id = v.id AND cc.status = 'ACTIVE') as active_contracts_count,
         (SELECT COUNT(*) FROM contractor_workers cw WHERE cw.vendor_id = v.id AND cw.status = 'ACTIVE') as total_workers_count,
         (SELECT COUNT(*) FROM worker_deployments wd WHERE wd.vendor_id = v.id AND wd.status = 'ACTIVE') as deployed_headcount
       FROM contractor_vendors v
       LEFT JOIN branches b ON b.id = v.branch_id
+      LEFT JOIN departments d ON d.id = v.department_id
       LEFT JOIN companies c ON c.id = v.company_id
       WHERE v.id = ? AND v.deleted_at IS NULL`,
       id
@@ -362,7 +366,10 @@ export class ContractorManagementService {
     if (!compId) throw new BadRequestException('Company ID is required');
 
     let bId = dto.branchId !== undefined ? dto.branchId : branchId;
-    if (bId === 'HEAD_OFFICE' || bId === 'NONE' || bId === 'null') bId = null;
+    if (!bId || bId === 'HEAD_OFFICE' || bId === 'ALL' || bId === 'NONE' || bId === 'null') bId = null;
+
+    let dId = dto.departmentId;
+    if (!dId || dId === 'ALL' || dId === 'NONE' || dId === 'null') dId = null;
 
     // Check duplicate vendor_code per company
     const existing: any[] = await this.prisma.$queryRawUnsafe(
@@ -376,15 +383,16 @@ export class ContractorManagementService {
 
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO contractor_vendors (
-        id, company_id, branch_id, vendor_code, legal_name, display_name,
+        id, company_id, branch_id, department_id, vendor_code, legal_name, display_name,
         vendor_type, registration_number, gstin, pan, registered_address,
         city, state, pincode, primary_contact_name, primary_contact_phone,
         primary_contact_email, emergency_contact_name, emergency_contact_phone,
         status, remarks, created_by, updated_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       id,
       compId,
       bId,
+      dId,
       dto.vendorCode,
       dto.legalName,
       dto.displayName || dto.legalName,
@@ -421,12 +429,28 @@ export class ContractorManagementService {
 
   async updateVendor(id: string, dto: UpdateContractorVendorDto, userId?: string) {
     const existing = await this.getVendorById(id);
-    let bId = dto.branchId !== undefined ? dto.branchId : undefined;
-    if (bId === 'HEAD_OFFICE' || bId === 'NONE' || bId === 'null') bId = null;
+    let bId = existing.branch_id;
+    if (dto.branchId !== undefined) {
+      if (!dto.branchId || dto.branchId === 'HEAD_OFFICE' || dto.branchId === 'ALL' || dto.branchId === 'NONE' || dto.branchId === 'null') {
+        bId = null;
+      } else {
+        bId = dto.branchId;
+      }
+    }
+
+    let deptId = existing.department_id;
+    if (dto.departmentId !== undefined) {
+      if (!dto.departmentId || dto.departmentId === 'ALL' || dto.departmentId === 'NONE' || dto.departmentId === 'null') {
+        deptId = null;
+      } else {
+        deptId = dto.departmentId;
+      }
+    }
 
     await this.prisma.$executeRawUnsafe(
       `UPDATE contractor_vendors SET
-        branch_id = COALESCE(?, branch_id),
+        branch_id = ?,
+        department_id = ?,
         legal_name = COALESCE(?, legal_name),
         display_name = COALESCE(?, display_name),
         vendor_type = COALESCE(?, vendor_type),
@@ -448,6 +472,7 @@ export class ContractorManagementService {
         updated_at = NOW()
       WHERE id = ?`,
       bId,
+      deptId,
       dto.legalName,
       dto.displayName,
       dto.vendorType,
@@ -505,6 +530,36 @@ export class ContractorManagementService {
     });
 
     return this.getVendorById(id);
+  }
+
+  async deleteVendor(id: string, userId?: string) {
+    const existing = await this.getVendorById(id);
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE contractor_vendors SET deleted_at = NOW(), status = 'TERMINATED', updated_by = ?, updated_at = NOW() WHERE id = ?`,
+      userId || null,
+      id
+    );
+
+    // Also update any active contracts under this vendor to TERMINATED
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE contractor_contracts SET status = 'TERMINATED', updated_by = ? WHERE vendor_id = ? AND status != 'TERMINATED'`,
+      userId || null,
+      id
+    );
+
+    await this.logHistory({
+      vendorId: id,
+      action: 'VENDOR_DELETED',
+      entityType: 'VENDOR',
+      entityId: id,
+      oldValue: { legalName: existing.legal_name, status: existing.status },
+      newValue: { deleted_at: new Date().toISOString(), status: 'TERMINATED' },
+      reason: 'Vendor deleted',
+      performedBy: userId,
+    });
+
+    return { success: true, message: 'Vendor deleted successfully' };
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -783,6 +838,24 @@ export class ContractorManagementService {
     });
 
     return this.getContractById(id);
+  }
+
+  async deleteContract(id: string, userId?: string) {
+    const existing = await this.getContractById(id);
+    await this.prisma.$executeRawUnsafe(`DELETE FROM worker_deployments WHERE contract_id = ?`, id);
+    await this.prisma.$executeRawUnsafe(`DELETE FROM contractor_workers WHERE contract_id = ?`, id);
+    await this.prisma.$executeRawUnsafe(`DELETE FROM contractor_contracts WHERE id = ?`, id);
+
+    await this.logHistory({
+      vendorId: existing.vendor_id,
+      action: 'CONTRACT_DELETED',
+      entityType: 'CONTRACT',
+      entityId: id,
+      oldValue: { contractNumber: existing.contract_number },
+      reason: 'Contract deleted',
+      performedBy: userId,
+    });
+    return { success: true, message: 'Contract deleted successfully' };
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1068,6 +1141,23 @@ export class ContractorManagementService {
     });
 
     return this.getWorkerById(id);
+  }
+
+  async deleteWorker(id: string, userId?: string) {
+    const existing = await this.getWorkerById(id);
+    await this.prisma.$executeRawUnsafe(`DELETE FROM worker_deployments WHERE worker_id = ?`, id);
+    await this.prisma.$executeRawUnsafe(`DELETE FROM contractor_workers WHERE id = ?`, id);
+
+    await this.logHistory({
+      vendorId: existing.vendor_id,
+      action: 'WORKER_DELETED',
+      entityType: 'WORKER',
+      entityId: id,
+      oldValue: { workerCode: existing.worker_code },
+      reason: 'Worker deleted',
+      performedBy: userId,
+    });
+    return { success: true, message: 'Worker deleted successfully' };
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1441,6 +1531,75 @@ export class ContractorManagementService {
     });
 
     return newDep;
+  }
+
+  async updateDeployment(id: string, dto: any, userId?: string) {
+    const existing = await this.getDeploymentById(id);
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE worker_deployments SET
+        department_id = COALESCE(?, department_id),
+        production_line_id = COALESCE(?, production_line_id),
+        machine_id = COALESCE(?, machine_id),
+        shift_id = COALESCE(?, shift_id),
+        designation = COALESCE(?, designation),
+        deployment_type = COALESCE(?, deployment_type),
+        start_date = COALESCE(?, start_date),
+        end_date = COALESCE(?, end_date),
+        status = COALESCE(?, status),
+        remarks = COALESCE(?, remarks),
+        updated_by = ?,
+        updated_at = NOW()
+      WHERE id = ?`,
+      dto.departmentId !== undefined ? dto.departmentId : existing.department_id,
+      dto.productionLineId !== undefined ? dto.productionLineId : existing.production_line_id,
+      dto.machineId !== undefined ? dto.machineId : existing.machine_id,
+      dto.shiftId !== undefined ? dto.shiftId : existing.shift_id,
+      dto.designation !== undefined ? dto.designation : existing.designation,
+      dto.deploymentType !== undefined ? dto.deploymentType : existing.deployment_type,
+      dto.startDate !== undefined ? dto.startDate : existing.start_date,
+      dto.endDate !== undefined ? dto.endDate : existing.end_date,
+      dto.status !== undefined ? dto.status : existing.status,
+      dto.remarks !== undefined ? dto.remarks : existing.remarks,
+      userId || null,
+      id
+    );
+
+    if (dto.machineId && dto.machineId !== existing.machine_id) {
+      try {
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE machine_allocations SET machineId = ?, updatedAt = NOW() WHERE machineId = ? AND operatorId = ? AND status = 'ACTIVE'`,
+          dto.machineId,
+          existing.machine_id,
+          existing.worker_id
+        );
+      } catch (e) {}
+    }
+
+    return this.getDeploymentById(id);
+  }
+
+  async deleteDeployment(id: string, userId?: string) {
+    const existing = await this.getDeploymentById(id);
+    if (existing.machine_id) {
+      try {
+        await this.prisma.$executeRawUnsafe(
+          `DELETE FROM machine_allocations WHERE machineId = ? AND operatorId = ?`,
+          existing.machine_id,
+          existing.worker_id
+        );
+      } catch (e) {}
+    }
+    await this.prisma.$executeRawUnsafe(`DELETE FROM worker_deployments WHERE id = ?`, id);
+
+    await this.logHistory({
+      vendorId: existing.vendor_id,
+      action: 'DEPLOYMENT_DELETED',
+      entityType: 'DEPLOYMENT',
+      entityId: id,
+      reason: 'Deployment deleted',
+      performedBy: userId,
+    });
+    return { success: true, message: 'Deployment deleted successfully' };
   }
 
   // ─────────────────────────────────────────────────────────────

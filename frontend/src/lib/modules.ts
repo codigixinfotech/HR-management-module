@@ -214,7 +214,6 @@ export const HCM_MODULES: HcmModule[] = [
       { key: 'shift-planning', label: 'Shift Planning & Roster', path: '/workforce/shift-planning' },
       { key: 'machine-management', label: 'Machine Management', path: '/workforce/machine-management' },
       { key: 'contractors', label: 'Contractor Management', path: '/workforce/contractors' },
-      { key: 'labour', label: 'Labour Management', path: '/workforce/labour' },
       { key: 'reports', label: 'Workforce Reports', path: '/workforce/reports' },
     ],
   },

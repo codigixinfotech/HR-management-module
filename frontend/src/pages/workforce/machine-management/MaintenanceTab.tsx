@@ -301,14 +301,14 @@ export function MaintenanceTab({
                         {m.maintenanceType}
                       </Badge>
                     </TableCell>
-                    <TableCell>{m.startDate ? m.startDate.slice(0, 10) : 'N/A'}</TableCell>
+                    <TableCell>{m.startDate ? String(m.startDate).slice(0, 10) : 'N/A'}</TableCell>
                     <TableCell>
                       {m.actualCompletionDate ? (
                         <span className="text-emerald-600 font-medium">
-                          {m.actualCompletionDate.slice(0, 10)} (Done)
+                          {String(m.actualCompletionDate).slice(0, 10)} (Done)
                         </span>
                       ) : m.expectedCompletionDate ? (
-                        <span>{m.expectedCompletionDate.slice(0, 10)}</span>
+                        <span>{String(m.expectedCompletionDate).slice(0, 10)}</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}

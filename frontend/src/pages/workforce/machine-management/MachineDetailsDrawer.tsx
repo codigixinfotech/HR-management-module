@@ -76,6 +76,17 @@ export function MachineDetailsDrawer({
 
   if (!open) return null;
 
+  const activeAllocation =
+    (machine as any)?.currentAllocation ||
+    (machine?.allocations && machine.allocations.find((a: any) => a.status === 'ACTIVE')) ||
+    (machine?.allocations && machine.allocations[0]) ||
+    null;
+
+  const currentOperatorName =
+    machine?.currentOperatorName || activeAllocation?.operatorName || null;
+  const currentShift =
+    machine?.currentShift || activeAllocation?.shift || null;
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
       <div className="w-full max-w-2xl bg-background border-l shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-250">
@@ -122,15 +133,6 @@ export function MachineDetailsDrawer({
                   <RotateCcw className="h-3.5 w-3.5 text-indigo-600" />
                   360° Studio
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs shadow-2xs font-medium"
-                  onClick={() => setShowQrModal(true)}
-                >
-                  <QrCode className="h-3.5 w-3.5 text-primary" />
-                  Asset QR
-                </Button>
               </>
             )}
             <Button
@@ -150,39 +152,15 @@ export function MachineDetailsDrawer({
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Current Operator:</span>
               <span className="font-semibold text-foreground">
-                {machine.currentOperatorName || 'None Assigned'}
+                {currentOperatorName || 'None Assigned'}
               </span>
-              {machine.currentShift && (
+              {currentShift && (
                 <Badge variant="outline" className="text-[10px] py-0 h-4">
-                  {machine.currentShift}
+                  {currentShift}
                 </Badge>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs gap-1.5"
-                onClick={() => {
-                  onAssignOperator(machine);
-                }}
-              >
-                <UserCheck className="h-3.5 w-3.5" />
-                Assign Operator
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-8 text-xs gap-1.5"
-                onClick={() => {
-                  onStartMaintenance(machine);
-                }}
-              >
-                <Wrench className="h-3.5 w-3.5" />
-                Maintenance
-              </Button>
-            </div>
           </div>
         )}
 
@@ -252,7 +230,7 @@ export function MachineDetailsDrawer({
                         Active Operator
                       </span>
                       <span className="font-semibold text-xs text-foreground truncate block">
-                        {machine.currentOperatorName || 'Unassigned'}
+                        {currentOperatorName || 'Unassigned'}
                       </span>
                     </div>
 
@@ -262,7 +240,7 @@ export function MachineDetailsDrawer({
                         Running Shift
                       </span>
                       <span className="font-medium text-xs text-foreground block">
-                        {machine.currentShift || 'None'}
+                        {currentShift || 'None'}
                       </span>
                     </div>
 
@@ -448,7 +426,7 @@ export function MachineDetailsDrawer({
 
               {/* Tab 2: Allocation */}
               <TabsContent value="allocation" className="space-y-4">
-                {machine.currentOperatorName ? (
+                {currentOperatorName ? (
                   <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
@@ -462,13 +440,13 @@ export function MachineDetailsDrawer({
                       <div>
                         <span className="text-muted-foreground block">Assigned Operator</span>
                         <span className="font-semibold text-sm text-foreground">
-                          {machine.currentOperatorName}
+                          {currentOperatorName}
                         </span>
                       </div>
                       <div>
                         <span className="text-muted-foreground block">Current Shift</span>
                         <span className="font-medium text-sm text-foreground">
-                          {machine.currentShift || 'General'}
+                          {currentShift || 'General'}
                         </span>
                       </div>
                       <div>

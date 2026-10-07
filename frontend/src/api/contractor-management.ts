@@ -21,6 +21,7 @@ export interface ContractorVendor {
   id: string;
   company_id: string;
   branch_id?: string | null;
+  department_id?: string | null;
   vendor_code: string;
   legal_name: string;
   display_name?: string | null;
@@ -42,6 +43,7 @@ export interface ContractorVendor {
   created_at: string;
   updated_at: string;
   branch_name?: string;
+  department_name?: string | null;
   company_name?: string;
   active_contracts_count?: number;
   total_workers_count?: number;
@@ -254,6 +256,9 @@ export const contractorApi = {
   updateVendorStatus: (id: string, status: string, reason?: string) =>
     api.patch<ContractorVendor>(`/workforce/contractors/vendors/${id}/status`, { status, reason }),
 
+  deleteVendor: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/workforce/contractors/vendors/${id}`),
+
   getVendorHistory: (id: string) =>
     api.get<ContractorVendorHistory[]>(`/workforce/contractors/vendors/${id}/history`),
 
@@ -282,6 +287,9 @@ export const contractorApi = {
   updateContract: (id: string, data: any) =>
     api.put<ContractorContract>(`/workforce/contractors/contracts/${id}`, data),
 
+  deleteContract: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/workforce/contractors/contracts/${id}`),
+
   renewContract: (id: string, data: { newEndDate: string; maximumHeadcount?: number; billingRate?: number; remarks?: string }) =>
     api.post<ContractorContract>(`/workforce/contractors/contracts/${id}/renew`, data),
 
@@ -306,6 +314,9 @@ export const contractorApi = {
   updateWorker: (id: string, data: any) =>
     api.put<ContractorWorker>(`/workforce/contractors/workers/${id}`, data),
 
+  deleteWorker: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/workforce/contractors/workers/${id}`),
+
   // Deployments
   getDeployments: (params?: {
     companyId?: string;
@@ -324,8 +335,14 @@ export const contractorApi = {
   createDeployment: (data: any) =>
     api.post<WorkerDeployment>('/workforce/contractors/deployments', data),
 
+  updateDeployment: (id: string, data: any) =>
+    api.put<WorkerDeployment>(`/workforce/contractors/deployments/${id}`, data),
+
   completeDeployment: (id: string, remarks?: string) =>
     api.patch<WorkerDeployment>(`/workforce/contractors/deployments/${id}/complete`, { remarks }),
+
+  deleteDeployment: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/workforce/contractors/deployments/${id}`),
 
   transferDeployment: (id: string, data: { transferDate: string; departmentId?: string | null; productionLineId?: string | null; machineId?: string | null; shiftId?: string | null; reason?: string }) =>
     api.patch<WorkerDeployment>(`/workforce/contractors/deployments/${id}/transfer`, data),

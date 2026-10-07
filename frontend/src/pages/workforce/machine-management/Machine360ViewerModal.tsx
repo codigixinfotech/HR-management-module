@@ -1011,13 +1011,13 @@ export function Machine360ViewerModal({
                       <div>
                         <span className="text-[10px] text-slate-400 uppercase font-bold block">Last Serviced</span>
                         <span className="font-semibold text-slate-800">
-                          {machine?.lastMaintenanceDate ? machine.lastMaintenanceDate.slice(0, 10) : '2026-09-15'}
+                          {machine?.lastMaintenanceDate ? String(machine.lastMaintenanceDate).slice(0, 10) : '2026-09-15'}
                         </span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 uppercase font-bold block">Next Due Date</span>
                         <span className="font-semibold text-slate-800">
-                          {machine?.nextMaintenanceDate ? machine.nextMaintenanceDate.slice(0, 10) : '2026-12-15'}
+                          {machine?.nextMaintenanceDate ? String(machine.nextMaintenanceDate).slice(0, 10) : '2026-12-15'}
                         </span>
                       </div>
                       <div>
