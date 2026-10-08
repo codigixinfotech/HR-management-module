@@ -418,7 +418,7 @@ export function ViewWorkerModal({
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
-                <span className="text-[11px] text-muted-foreground block">Production Line</span>
+                <span className="text-[11px] text-muted-foreground block">Operational Unit</span>
                 <span className="font-medium mt-0.5 block">{worker.current_line_name || 'Not Assigned'}</span>
               </div>
               <div>
@@ -519,7 +519,7 @@ export function ViewDeploymentModal({
           {/* Assignment Core */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border rounded-lg p-3 bg-muted/30">
             <div>
-              <span className="text-[11px] text-muted-foreground block">Production Line</span>
+              <span className="text-[11px] text-muted-foreground block">Operational Unit</span>
               <span className="font-semibold text-foreground mt-0.5 block">{deployment.line_name || '—'}</span>
             </div>
             <div>
@@ -536,8 +536,8 @@ export function ViewDeploymentModal({
               </span>
             </div>
             <div>
-              <span className="text-[11px] text-muted-foreground block">Deployment Type</span>
-              <span className="font-medium mt-0.5 block">{deployment.deployment_type?.replace(/_/g, ' ')}</span>
+              <span className="text-[11px] text-muted-foreground block">Department / Function</span>
+              <span className="font-medium mt-0.5 block">{deployment.department_name || 'All Departments (General)'}</span>
             </div>
           </div>
 
@@ -552,8 +552,8 @@ export function ViewDeploymentModal({
               <span className="font-mono font-medium mt-0.5 block">{deployment.contract_number}</span>
             </div>
             <div>
-              <span className="text-[11px] text-muted-foreground block">Plant Branch</span>
-              <span className="font-medium mt-0.5 block">{deployment.branch_name || 'Head Office'}</span>
+              <span className="text-[11px] text-muted-foreground block">Branch Location</span>
+              <span className="font-medium mt-0.5 block">{deployment.branch_name || 'All Branches / Head Office'}</span>
             </div>
           </div>
 

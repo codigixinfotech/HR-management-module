@@ -173,7 +173,7 @@ export default function App() {
               <Route path="/workforce/machine-management" element={<MachineManagementPage />} />
               <Route path="/workforce/machine-allocation" element={<MachineManagementPage />} />
               <Route path="/workforce/contractors" element={<ContractorManagementPage />} />
-              <Route path="/workforce/labour" element={<Navigate to="/workforce/contractors?tab=compliance" replace />} />
+              <Route path="/workforce/labour" element={<Navigate to="/workforce/contractors" replace />} />
               <Route path="/workforce/reports" element={<WorkforceReportsPage />} />
               <Route path="/workforce/:tab" element={<WorkforcePage />} />
 

@@ -9,16 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Plus, Search, Building2, ShieldCheck, FileText, Users, RefreshCw,
+  Plus, Search, Building2, FileText, Users, RefreshCw,
   Pencil, MoreHorizontal, UserCheck, Briefcase, AlertTriangle, Eye,
   CheckCircle2, XCircle, Clock, MapPin, Phone, Mail,
-  HardHat, FileSpreadsheet, Download, AlertCircle, ArrowRight, Trash2,
+  Trash2,
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { contractorApi, type ContractorVendor, type ContractorContract, type ContractorWorker, type WorkerDeployment, type ContractorCompliance } from '@/api/contractor-management';
+import { contractorApi, type ContractorVendor, type ContractorContract, type ContractorWorker, type WorkerDeployment } from '@/api/contractor-management';
 import { useWorkforceBranch } from '@/pages/workforce/WorkforceBranchContext';
 import { WorkforceBranchFilter } from '@/pages/workforce/WorkforceBranchFilter';
 import { ContractorKpiCards } from '@/pages/workforce/contractors/ContractorKpiCards';
@@ -28,16 +28,6 @@ import { AddEditContractModal } from '@/pages/workforce/contractors/AddEditContr
 import { AddEditWorkerModal } from '@/pages/workforce/contractors/AddEditWorkerModal';
 import { AddEditDeploymentModal } from '@/pages/workforce/contractors/AddEditDeploymentModal';
 import { useCompany } from '@/context/CompanyContext';
-
-// ─── Statutory Registers Master ────────────────────────────────────────────────
-const STATUTORY_REGISTERS = [
-  { form: 'Form XVI (Muster Roll)', law: 'Contract Labour (R&A) Act, 1970', frequency: 'Monthly', status: 'COMPLIANT', records: '64 Workers', branch: 'Pune Manufacturing Plant' },
-  { form: 'Form XVII (Register of Wages)', law: 'Payment of Wages Act, 1936', frequency: 'Monthly', status: 'COMPLIANT', records: '₹9,84,000 Disbursed', branch: 'Pune Manufacturing Plant' },
-  { form: 'Form XIX (Wage Slip Issuance)', law: 'Minimum Wages Act, 1948', frequency: 'Monthly', status: 'VERIFIED', records: '100% Digital Slips', branch: 'Head Office' },
-  { form: 'Form XX (Deduction & Fines)', law: 'Statutory Welfare Board', frequency: 'Quarterly', status: 'ZERO_DEFICIT', records: 'Nil Deductions', branch: 'Head Office' },
-  { form: 'Form XXIII (Overtime Register)', law: 'Factories Act, 1948 (Sec 59)', frequency: 'Weekly', status: 'AUDITED', records: '38 OT Hours Logged', branch: 'Pune Manufacturing Plant' },
-  { form: 'Form A (Annual Return)', law: 'National Shops & Establishments Act', frequency: 'Annual', status: 'COMPLIANT', records: '128 Personnel', branch: 'Head Office' },
-];
 
 // ─── Status badge helper ───────────────────────────────────────────────────────
 function StatusBadgeInline({ status }: { status: string }) {
@@ -76,6 +66,17 @@ function fmtDate(d?: string | null) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+export function formatBranchDisplay(branchName?: string | null, branchId?: string | null): string {
+  if (!branchName && (!branchId || branchId === 'ALL')) return 'All Branches';
+  if (branchId === 'HEAD_OFFICE' || branchName?.toLowerCase().includes('head office')) {
+    return 'Head Office';
+  }
+  if (branchName?.toLowerCase().includes('pune head office')) {
+    return 'Head Office';
+  }
+  return branchName || 'All Branches';
+}
+
 // ─── Empty State ──────────────────────────────────────────────────────────────
 function EmptyRow({ colSpan, message }: { colSpan: number; message: string }) {
   return (
@@ -107,16 +108,25 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
     isBranchUser && userAssignedBranchId ? userAssignedBranchId :
     selectedBranch !== 'HEAD_OFFICE' && selectedBranch !== 'ALL' ? selectedBranch : undefined;
 
-  const [tab, setTab] = useState(urlTab || 'vendors');
-  const [complianceSubTab, setComplianceSubTab] = useState<'registers' | 'licenses'>('registers');
+  const initialTab = urlTab && urlTab !== 'compliance' ? urlTab : 'vendors';
+  const [tab, setTab] = useState(initialTab);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   useEffect(() => {
-    if (urlTab && urlTab !== tab) {
-      setTab(urlTab);
+    if (urlTab) {
+      if (urlTab === 'compliance') {
+        setTab('vendors');
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('tab');
+          return next;
+        });
+      } else if (urlTab !== tab) {
+        setTab(urlTab);
+      }
     }
-  }, [urlTab]);
+  }, [urlTab, tab, setSearchParams]);
 
   const handleTabChange = (newTab: string) => {
     setTab(newTab);
@@ -128,25 +138,6 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
       return next;
     });
   };
-
-  const handleExportRegister = (formName: string) => {
-    const csvContent = `data:text/csv;charset=utf-8,Form,Law,Filing Frequency,Compliance Status,Export Date\n"${formName}","Statutory Labour Compliance","Monthly","COMPLIANT","${new Date().toISOString()}"\n`;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${formName.replace(/[^a-zA-Z0-9]/g, '_')}_Report.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success(`Exported statutory record: ${formName}`);
-  };
-
-  const filteredRegisters = STATUTORY_REGISTERS.filter((r) =>
-    matchBranch({
-      branchName: r.branch,
-      location: r.branch,
-    })
-  );
 
   // Vendor modal state
   const [vendorModal, setVendorModal] = useState(false);
@@ -223,17 +214,6 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
     enabled: !!companyId,
   });
 
-  const complianceQuery = useQuery({
-    queryKey: ['contractor-compliance', companyId, branchIdParam, statusFilter, search],
-    queryFn: () => contractorApi.getCompliance({
-      companyId,
-      branchId: branchIdParam,
-      status: statusFilter !== 'ALL' ? statusFilter : undefined,
-      search: search || undefined,
-    }),
-    enabled: !!companyId && tab === 'compliance',
-  });
-
   // ── Mutations ─────────────────────────────────────────────────────────────────
   const updateVendorStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -282,6 +262,9 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
       toast.success('Deployment completed');
       queryClient.invalidateQueries({ queryKey: ['contractor-deployments'] });
       queryClient.invalidateQueries({ queryKey: ['contractor-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['machines'] });
+      queryClient.invalidateQueries({ queryKey: ['machine-operators'] });
+      queryClient.invalidateQueries({ queryKey: ['machine-allocations'] });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to complete deployment'),
   });
@@ -292,19 +275,11 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
       toast.success('Deployment deleted successfully');
       queryClient.invalidateQueries({ queryKey: ['contractor-deployments'] });
       queryClient.invalidateQueries({ queryKey: ['contractor-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['machines'] });
+      queryClient.invalidateQueries({ queryKey: ['machine-operators'] });
+      queryClient.invalidateQueries({ queryKey: ['machine-allocations'] });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to delete deployment'),
-  });
-
-  const verifyComplianceMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      contractorApi.verifyCompliance(id, { status }),
-    onSuccess: () => {
-      toast.success('Compliance record updated');
-      queryClient.invalidateQueries({ queryKey: ['contractor-compliance'] });
-      queryClient.invalidateQueries({ queryKey: ['contractor-dashboard'] });
-    },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to update compliance'),
   });
 
   const onVendorSuccess = useCallback(() => {
@@ -333,20 +308,40 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
   const contractStatusOptions = ['ALL', 'ACTIVE', 'DRAFT', 'EXPIRING', 'EXPIRED', 'SUSPENDED', 'RENEWED', 'TERMINATED'];
   const workerStatusOptions = ['ALL', 'ACTIVE', 'INACTIVE', 'ON_LEAVE', 'EXITED', 'SUSPENDED'];
   const deploymentStatusOptions = ['ALL', 'ACTIVE', 'SCHEDULED', 'COMPLETED', 'TRANSFERRED', 'CANCELLED'];
-  const complianceStatusOptions = ['ALL', 'VALID', 'EXPIRING', 'EXPIRED', 'PENDING_VERIFICATION', 'REJECTED'];
 
   const statusOptions =
     tab === 'vendors' ? vendorStatusOptions :
     tab === 'contracts' ? contractStatusOptions :
     tab === 'workers' ? workerStatusOptions :
-    tab === 'deployments' ? deploymentStatusOptions :
-    complianceStatusOptions;
+    deploymentStatusOptions;
 
-  const vendors: ContractorVendor[] = vendorsQuery.data || [];
-  const contracts: ContractorContract[] = contractsQuery.data || [];
-  const workers: ContractorWorker[] = workersQuery.data || [];
-  const deployments: WorkerDeployment[] = deploymentsQuery.data || [];
-  const compliance: ContractorCompliance[] = complianceQuery.data || [];
+  const allVendorsQuery = useQuery({
+    queryKey: ['contractor-all-vendors-lookup', companyId],
+    queryFn: () => contractorApi.getVendors({ companyId }),
+    enabled: !!companyId,
+  });
+  const allVendors: ContractorVendor[] =
+    allVendorsQuery.data && allVendorsQuery.data.length > 0
+      ? allVendorsQuery.data
+      : (vendorsQuery.data || []);
+
+  const rawVendors: ContractorVendor[] = vendorsQuery.data || [];
+  const rawContracts: ContractorContract[] = contractsQuery.data || [];
+  const rawWorkers: ContractorWorker[] = workersQuery.data || [];
+  const rawDeployments: WorkerDeployment[] = deploymentsQuery.data || [];
+
+  const vendors = rawVendors.filter((v) =>
+    matchBranch({ branchId: v.branch_id, branchName: v.branch_name })
+  );
+  const contracts = rawContracts.filter((c) =>
+    matchBranch({ branchId: c.branch_id, branchName: c.branch_name })
+  );
+  const workers = rawWorkers.filter((w) =>
+    matchBranch({ branchId: w.branch_id, branchName: w.branch_name })
+  );
+  const deployments = rawDeployments.filter((d) =>
+    matchBranch({ branchId: d.branch_id, branchName: d.branch_name })
+  );
 
   return (
     <div className="space-y-4">
@@ -358,28 +353,28 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
 
       {/* Main Card */}
       <Card className="shadow-2xs">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3">
-          <div>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-4 pb-3">
+          <div className="shrink min-w-0 pr-2">
             <CardTitle className="text-base font-semibold">Contractor Management</CardTitle>
-            <CardDescription>
-              Manage staffing vendors, contracts, contractor workers, deployments &amp; statutory compliance
+            <CardDescription className="text-xs truncate sm:whitespace-normal">
+              Manage staffing vendors, contracts, contractor workers &amp; deployments
             </CardDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
             {/* Search */}
-            <div className="relative w-56">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <div className="relative w-32 xl:w-40 shrink-0">
+              <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8 pl-8 text-xs"
+                className="h-8 pl-7 pr-2 text-xs"
               />
             </div>
 
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 text-xs w-32">
+              <SelectTrigger className="h-8 text-xs w-24 shrink-0 px-2">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -399,24 +394,26 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
               onBranchChange={setSelectedBranch}
               branches={branches}
               assignedBranchName={assignedBranchName}
+              triggerClassName="!h-8 !py-0 !px-2"
+              hideLabel={true}
+              className="shrink-0"
             />
 
             {/* Refresh */}
             <Button
               size="sm"
               variant="outline"
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 shrink-0"
               onClick={() => queryClient.invalidateQueries({ queryKey: ['contractor-'] })}
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
 
-            {/* Add Vendor (vendors tab only) */}
             {/* Add Action Buttons */}
             {tab === 'vendors' && (
               <Button
                 size="sm"
-                className="gap-1.5 text-xs h-8"
+                className="gap-1 text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
                 onClick={() => { setEditingVendor(null); setVendorModal(true); }}
               >
                 <Plus className="h-3.5 w-3.5" /> Add Vendor
@@ -425,7 +422,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
             {tab === 'contracts' && (
               <Button
                 size="sm"
-                className="gap-1.5 text-xs h-8"
+                className="gap-1 text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
                 onClick={() => { setEditingContract(null); setContractModalOpen(true); }}
               >
                 <Plus className="h-3.5 w-3.5" /> Add Contract
@@ -434,7 +431,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
             {tab === 'workers' && (
               <Button
                 size="sm"
-                className="gap-1.5 text-xs h-8"
+                className="gap-1 text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
                 onClick={() => { setEditingWorker(null); setWorkerModalOpen(true); }}
               >
                 <Plus className="h-3.5 w-3.5" /> Add Worker
@@ -443,7 +440,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
             {tab === 'deployments' && (
               <Button
                 size="sm"
-                className="gap-1.5 text-xs h-8"
+                className="gap-1 text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
                 onClick={() => { setEditingDeployment(null); setDeploymentModalOpen(true); }}
               >
                 <Plus className="h-3.5 w-3.5" /> Deploy Worker
@@ -454,26 +451,22 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
 
         <CardContent className="pt-0">
           <Tabs value={tab} onValueChange={handleTabChange}>
-            <TabsList className="mb-4 h-8 text-xs">
-              <TabsTrigger value="vendors" className="text-xs gap-1.5">
+            <TabsList className="mb-4 h-9 p-1 inline-flex items-center flex-nowrap overflow-x-auto whitespace-nowrap">
+              <TabsTrigger value="vendors" className="text-xs gap-1.5 whitespace-nowrap shrink-0">
                 <Building2 className="h-3.5 w-3.5" /> Vendors
                 {vendors.length > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{vendors.length}</Badge>}
               </TabsTrigger>
-              <TabsTrigger value="contracts" className="text-xs gap-1.5">
+              <TabsTrigger value="contracts" className="text-xs gap-1.5 whitespace-nowrap shrink-0">
                 <FileText className="h-3.5 w-3.5" /> Contracts
                 {contracts.length > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{contracts.length}</Badge>}
               </TabsTrigger>
-              <TabsTrigger value="workers" className="text-xs gap-1.5">
+              <TabsTrigger value="workers" className="text-xs gap-1.5 whitespace-nowrap shrink-0">
                 <UserCheck className="h-3.5 w-3.5" /> Workers
                 {workers.length > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{workers.length}</Badge>}
               </TabsTrigger>
-              <TabsTrigger value="deployments" className="text-xs gap-1.5">
+              <TabsTrigger value="deployments" className="text-xs gap-1.5 whitespace-nowrap shrink-0">
                 <Briefcase className="h-3.5 w-3.5" /> Deployments
                 {deployments.length > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{deployments.length}</Badge>}
-              </TabsTrigger>
-              <TabsTrigger value="compliance" className="text-xs gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" /> Compliance & Labour Registers
-                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{compliance.length + filteredRegisters.length}</Badge>
               </TabsTrigger>
             </TabsList>
 
@@ -511,7 +504,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
                           <TableCell className="text-xs">
                             <span className="flex items-center gap-1 font-medium">
                               <MapPin className="h-3 w-3 text-muted-foreground" />
-                              {v.branch_name || 'All Branches'}
+                              {formatBranchDisplay(v.branch_name, v.branch_id)}
                             </span>
                             {v.department_name && (
                               <div className="text-[10px] text-muted-foreground pl-4">
@@ -633,7 +626,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
                             {c.scope_of_work}
                           </TableCell>
                           <TableCell className="text-xs">
-                            <span className="font-medium">{c.branch_name || 'All Branches'}</span>
+                            <span className="font-medium">{formatBranchDisplay(c.branch_name, c.branch_id)}</span>
                             {c.department_name && (
                               <div className="text-[10px] text-muted-foreground">{c.department_name}</div>
                             )}
@@ -790,11 +783,11 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
                     <TableRow>
                       <TableHead className="text-xs">Worker</TableHead>
                       <TableHead className="text-xs">Vendor</TableHead>
-                      <TableHead className="text-xs">Production Line</TableHead>
-                      <TableHead className="text-xs">Machine</TableHead>
+                      <TableHead className="text-xs">Operational Unit</TableHead>
+                      <TableHead className="text-xs">Assigned Machine</TableHead>
                       <TableHead className="text-xs">Shift</TableHead>
                       <TableHead className="text-xs">Start Date</TableHead>
-                      <TableHead className="text-xs">Type</TableHead>
+                      <TableHead className="text-xs">Department</TableHead>
                       <TableHead className="text-xs">Status</TableHead>
                       <TableHead className="text-xs w-10"></TableHead>
                     </TableRow>
@@ -814,8 +807,30 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
                             <div className="text-[10px] text-muted-foreground">{d.worker_code}</div>
                           </TableCell>
                           <TableCell className="text-xs">{d.vendor_name || '—'}</TableCell>
-                          <TableCell className="text-xs">{d.line_name || '—'}</TableCell>
-                          <TableCell className="text-xs">{d.machine_name || '—'}</TableCell>
+                          <TableCell className="text-xs">
+                            {d.line_name ? (
+                              <div>
+                                <span className="font-medium text-foreground">{d.line_name}</span>
+                                {d.line_code && (
+                                  <span className="text-[10px] text-muted-foreground block font-mono">{d.line_code}</span>
+                                )}
+                              </div>
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {d.machine_name ? (
+                              <div>
+                                <span className="font-medium text-foreground">{d.machine_name}</span>
+                                {d.machine_code && (
+                                  <span className="text-[10px] text-muted-foreground block font-mono">{d.machine_code}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground italic">None</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div className="text-xs">{d.shift_name || '—'}</div>
                             {d.shift_start_time && (
@@ -823,7 +838,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
                             )}
                           </TableCell>
                           <TableCell className="text-xs">{fmtDate(d.start_date)}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{d.deployment_type}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{d.department_name || 'General'}</TableCell>
                           <TableCell><StatusBadgeInline status={d.status} /></TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -876,247 +891,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
               </div>
             </TabsContent>
 
-            {/* ── COMPLIANCE & LABOUR REGISTERS TAB ───────────────────────────── */}
-            <TabsContent value="compliance" className="space-y-4">
-              {/* Statutory Compliance Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Card className="shadow-2xs border-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/10">
-                  <CardHeader className="pb-1 pt-3 px-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Wage Parity</span>
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    </div>
-                    <CardTitle className="text-base font-bold text-foreground">100% Minimum Wage</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-3.5 pb-3">
-                    <p className="text-[11px] text-muted-foreground">All contractual & permanent shop floor cadres meet state industrial minimum wage rates.</p>
-                  </CardContent>
-                </Card>
 
-                <Card className="shadow-2xs border-blue-500/20 bg-blue-50/30 dark:bg-blue-950/10">
-                  <CardHeader className="pb-1 pt-3 px-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider">Statutory Licenses</span>
-                      <ShieldCheck className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <CardTitle className="text-base font-bold text-foreground">CLRA Form V Active</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-3.5 pb-3">
-                    <p className="text-[11px] text-muted-foreground">Principal Employer registration certificate valid with licensed contractor headcount quota.</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-2xs border-amber-500/20 bg-amber-50/30 dark:bg-amber-950/10">
-                  <CardHeader className="pb-1 pt-3 px-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Overtime Limits</span>
-                      <AlertCircle className="h-4 w-4 text-amber-600" />
-                    </div>
-                    <CardTitle className="text-base font-bold text-foreground">Factories Act Cap 50h</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-3.5 pb-3">
-                    <p className="text-[11px] text-muted-foreground">Daily overtime capped strictly at 2h/day with double standard wage rate compensation.</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* End-to-End Workflow Ribbon */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 overflow-x-auto text-xs">
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Workforce Workflow:</span>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground font-semibold shadow-2xs">Contractor Management</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground">Vendor</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground">Contract</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground">Worker</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground">Compliance Verification</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground">Deployment</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground">Attendance</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground">Wage / OT</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border text-foreground">Statutory Register</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 font-bold">Audit / Report</span>
-                </div>
-              </div>
-
-              {/* Sub-Tabs: 1) Statutory Labour Registers, 2) Agency CLRA Licenses */}
-              <div className="space-y-3 pt-1">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      type="button"
-                      variant={complianceSubTab === 'registers' ? 'default' : 'outline'}
-                      size="sm"
-                      className={`h-7 px-2.5 text-xs rounded-lg gap-1.5 font-medium ${
-                        complianceSubTab === 'registers' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                      onClick={() => setComplianceSubTab('registers')}
-                    >
-                      <FileSpreadsheet className="h-3.5 w-3.5" />
-                      <span>Statutory Labour Registers (Forms XVI, XVII, XIX, XX, XXIII, Form A)</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                        complianceSubTab === 'registers' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {filteredRegisters.length}
-                      </span>
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant={complianceSubTab === 'licenses' ? 'default' : 'outline'}
-                      size="sm"
-                      className={`h-7 px-2.5 text-xs rounded-lg gap-1.5 font-medium ${
-                        complianceSubTab === 'licenses' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                      onClick={() => setComplianceSubTab('licenses')}
-                    >
-                      <ShieldCheck className="h-3.5 w-3.5" />
-                      <span>Staffing Agency CLRA Licenses</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                        complianceSubTab === 'licenses' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {compliance.length}
-                      </span>
-                    </Button>
-                  </div>
-
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs shrink-0 self-start sm:self-auto">
-                    100% Audit Ready
-                  </Badge>
-                </div>
-
-                {/* SubTab 1: Statutory Labour Registers Table */}
-                {complianceSubTab === 'registers' && (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs">Statutory Form & Register</TableHead>
-                          <TableHead className="text-xs">Governing Labour Act</TableHead>
-                          <TableHead className="text-xs">Filing Cycle</TableHead>
-                          <TableHead className="text-xs">Current Records</TableHead>
-                          <TableHead className="text-xs">Compliance State</TableHead>
-                          <TableHead className="text-xs text-right">Export Report</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredRegisters.map((r, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-semibold text-xs text-foreground flex items-center gap-2">
-                              <FileSpreadsheet className="h-3.5 w-3.5 text-muted-foreground" />
-                              {r.form}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{r.law}</TableCell>
-                            <TableCell className="text-xs font-mono">{r.frequency}</TableCell>
-                            <TableCell className="text-xs font-medium text-foreground">{r.records}</TableCell>
-                            <TableCell className="text-xs">
-                              <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 font-semibold border-none">
-                                {r.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-right">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleExportRegister(r.form)}
-                                className="h-7 text-xs gap-1 hover:text-indigo-600"
-                              >
-                                <Download className="h-3 w-3" /> Export
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-
-                {/* SubTab 2: Staffing Agency CLRA Licenses Table */}
-                {complianceSubTab === 'licenses' && (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs">Vendor</TableHead>
-                          <TableHead className="text-xs">Type</TableHead>
-                          <TableHead className="text-xs">License No.</TableHead>
-                          <TableHead className="text-xs">Issuing Authority</TableHead>
-                          <TableHead className="text-xs">Issue Date</TableHead>
-                          <TableHead className="text-xs">Expiry Date</TableHead>
-                          <TableHead className="text-xs">Days Left</TableHead>
-                          <TableHead className="text-xs">Status</TableHead>
-                          <TableHead className="text-xs w-10"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {complianceQuery.isLoading ? (
-                          <EmptyRow colSpan={9} message="Loading compliance records..." />
-                        ) : compliance.length === 0 ? (
-                          <EmptyRow colSpan={9} message="No compliance records found." />
-                        ) : (
-                          compliance.map((c) => (
-                            <TableRow key={c.id}>
-                              <TableCell>
-                                <div className="text-xs font-semibold">{c.vendor_name}</div>
-                                <div className="text-[10px] text-muted-foreground">{c.vendor_code}</div>
-                              </TableCell>
-                              <TableCell className="text-xs font-semibold">{c.compliance_type}</TableCell>
-                              <TableCell className="text-xs font-mono">{c.license_number}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground">{c.issuing_authority || '—'}</TableCell>
-                              <TableCell className="text-xs">{fmtDate(c.issue_date)}</TableCell>
-                              <TableCell className="text-xs">{fmtDate(c.expiry_date)}</TableCell>
-                              <TableCell>
-                                <span className={`text-xs font-mono font-semibold ${
-                                  (c.days_remaining ?? 999) <= 30 ? 'text-rose-600' :
-                                  (c.days_remaining ?? 999) <= 90 ? 'text-amber-600' : 'text-emerald-600'
-                                }`}>
-                                  {c.days_remaining != null ? `${c.days_remaining}d` : '—'}
-                                </span>
-                              </TableCell>
-                              <TableCell><StatusBadgeInline status={c.status} /></TableCell>
-                              <TableCell>
-                                {c.status === 'PENDING_VERIFICATION' && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                        <MoreHorizontal className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem
-                                        className="text-xs gap-1.5 text-emerald-600"
-                                        onClick={() => verifyComplianceMutation.mutate({ id: c.id, status: 'VALID' })}
-                                      >
-                                        <CheckCircle2 className="h-3 w-3" /> Verify
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="text-xs gap-1.5 text-rose-600"
-                                        onClick={() => verifyComplianceMutation.mutate({ id: c.id, status: 'REJECTED' })}
-                                      >
-                                        <XCircle className="h-3 w-3" /> Reject
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
@@ -1154,7 +929,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
         open={contractModalOpen}
         onOpenChange={setContractModalOpen}
         contract={editingContract}
-        vendors={vendors}
+        vendors={allVendors}
         branches={branches}
         companyId={companyId}
         onSuccess={onContractSuccess}
@@ -1183,7 +958,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
         open={workerModalOpen}
         onOpenChange={setWorkerModalOpen}
         worker={editingWorker}
-        vendors={vendors}
+        vendors={allVendors}
         contracts={contracts}
         branches={branches}
         companyId={companyId}
@@ -1217,7 +992,7 @@ export function ContractorManagementTab({ companyId: propCompanyId }: { companyI
         onOpenChange={setDeploymentModalOpen}
         deployment={editingDeployment}
         workers={workers}
-        vendors={vendors}
+        vendors={allVendors}
         contracts={contracts}
         branches={branches}
         companyId={companyId}

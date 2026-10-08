@@ -11,6 +11,8 @@ export interface WorkforceBranchFilterProps {
   branches: Branch[];
   assignedBranchName?: string;
   className?: string;
+  triggerClassName?: string;
+  hideLabel?: boolean;
 }
 
 export function WorkforceBranchFilter({
@@ -21,15 +23,17 @@ export function WorkforceBranchFilter({
   branches,
   assignedBranchName,
   className = '',
+  triggerClassName = '',
+  hideLabel = false,
 }: WorkforceBranchFilterProps) {
   // 1. Super Admin: full branch switching capabilities
   if (isSuperOrCompanyAdmin) {
     return (
       <div className={`relative shrink-0 ${className}`}>
         <Select value={selectedBranch} onValueChange={onBranchChange}>
-          <SelectTrigger className="h-9 px-2.5 text-xs rounded-lg bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0">
+          <SelectTrigger className={`h-9 px-2.5 text-xs rounded-lg bg-background border-border/80 font-medium shadow-2xs hover:bg-muted/40 gap-1.5 w-auto shrink-0 ${triggerClassName}`}>
             <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-muted-foreground text-xs">Branch:</span>
+            {!hideLabel && <span className="text-muted-foreground text-xs">Branch:</span>}
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -59,7 +63,7 @@ export function WorkforceBranchFilter({
         className={`flex items-center gap-1.5 h-9 px-2.5 text-xs rounded-lg bg-muted/50 border border-border/80 font-medium text-foreground shrink-0 ${className}`}
       >
         <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-        <span className="text-muted-foreground text-xs">Branch:</span>
+        {!hideLabel && <span className="text-muted-foreground text-xs">Branch:</span>}
         <span className="font-semibold">{assignedBranchName}</span>
       </div>
     );
@@ -71,7 +75,7 @@ export function WorkforceBranchFilter({
       className={`flex items-center gap-1.5 h-9 px-2.5 text-xs rounded-lg bg-muted/50 border border-border/80 font-medium text-foreground shrink-0 ${className}`}
     >
       <GitFork className="h-3.5 w-3.5 text-primary shrink-0" />
-      <span className="text-muted-foreground text-xs">Branch:</span>
+      {!hideLabel && <span className="text-muted-foreground text-xs">Branch:</span>}
       <span className="font-semibold">Head Office / No Branch</span>
     </div>
   );

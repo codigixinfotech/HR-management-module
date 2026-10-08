@@ -372,45 +372,45 @@ function MachineManagementContent({
       <MachineManagementKpiCards kpis={kpis} loading={loadingKpis} />
 
       {/* Tabs Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
-        <Tabs value={currentTab} onValueChange={setTab} className="w-full sm:w-auto">
-          <TabsList className="grid grid-cols-5 w-full sm:w-auto h-11 bg-muted/60 p-1">
-            <TabsTrigger value="machines" className="text-xs gap-1.5 px-3 py-1.5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-1">
+        <Tabs value={currentTab} onValueChange={setTab} className="w-auto">
+          <TabsList className="h-9 p-1 inline-flex items-center flex-nowrap overflow-x-auto whitespace-nowrap bg-muted/60">
+            <TabsTrigger value="machines" className="text-xs gap-1.5 px-2.5 py-1 whitespace-nowrap shrink-0">
               <Cpu className="h-3.5 w-3.5 text-blue-600" />
               <span>Machines</span>
-              <Badge variant="secondary" className="text-[10px] ml-1 px-1.5 py-0">
+              <Badge variant="secondary" className="text-[10px] ml-0.5 px-1.5 py-0">
                 {machines.length}
               </Badge>
             </TabsTrigger>
 
-            <TabsTrigger value="lines" className="text-xs gap-1.5 px-3 py-1.5">
+            <TabsTrigger value="lines" className="text-xs gap-1.5 px-2.5 py-1 whitespace-nowrap shrink-0">
               <GitFork className="h-3.5 w-3.5 text-purple-600" />
               <span>Operational Units</span>
-              <Badge variant="secondary" className="text-[10px] ml-1 px-1.5 py-0">
+              <Badge variant="secondary" className="text-[10px] ml-0.5 px-1.5 py-0">
                 {productionLines.length}
               </Badge>
             </TabsTrigger>
 
-            <TabsTrigger value="operators" className="text-xs gap-1.5 px-3 py-1.5">
+            <TabsTrigger value="operators" className="text-xs gap-1.5 px-2.5 py-1 whitespace-nowrap shrink-0">
               <Users className="h-3.5 w-3.5 text-teal-600" />
               <span>Operators</span>
-              <Badge variant="secondary" className="text-[10px] ml-1 px-1.5 py-0">
+              <Badge variant="secondary" className="text-[10px] ml-0.5 px-1.5 py-0">
                 {operators.length}
               </Badge>
             </TabsTrigger>
 
-            <TabsTrigger value="allocations" className="text-xs gap-1.5 px-3 py-1.5">
+            <TabsTrigger value="allocations" className="text-xs gap-1.5 px-2.5 py-1 whitespace-nowrap shrink-0">
               <CalendarCheck className="h-3.5 w-3.5 text-indigo-600" />
               <span>Allocations</span>
-              <Badge variant="secondary" className="text-[10px] ml-1 px-1.5 py-0">
+              <Badge variant="secondary" className="text-[10px] ml-0.5 px-1.5 py-0">
                 {allocations.length}
               </Badge>
             </TabsTrigger>
 
-            <TabsTrigger value="maintenance" className="text-xs gap-1.5 px-3 py-1.5">
+            <TabsTrigger value="maintenance" className="text-xs gap-1.5 px-2.5 py-1 whitespace-nowrap shrink-0">
               <Wrench className="h-3.5 w-3.5 text-amber-600" />
               <span>Maintenance</span>
-              <Badge variant="secondary" className="text-[10px] ml-1 px-1.5 py-0">
+              <Badge variant="secondary" className="text-[10px] ml-0.5 px-1.5 py-0">
                 {maintenances.length}
               </Badge>
             </TabsTrigger>
@@ -418,11 +418,11 @@ function MachineManagementContent({
         </Tabs>
 
         {/* Global Quick Action button */}
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
           {currentTab === 'machines' && (
             <Button
               size="sm"
-              className="gap-1.5 shadow-2xs font-medium text-xs"
+              className="gap-1 shadow-2xs font-medium text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
               onClick={() => {
                 setEditingMachine(null);
                 setOpenAddMachine(true);
@@ -434,11 +434,11 @@ function MachineManagementContent({
           )}
 
           {currentTab === 'lines' && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 shadow-2xs font-medium text-xs border-primary/40 text-primary hover:bg-primary/10"
+                className="gap-1 shadow-2xs font-medium text-xs h-8 px-2.5 shrink-0 whitespace-nowrap border-primary/40 text-primary hover:bg-primary/10"
                 onClick={() => setOpenUomMaster(true)}
               >
                 <Scale className="h-3.5 w-3.5" />
@@ -446,7 +446,7 @@ function MachineManagementContent({
               </Button>
               <Button
                 size="sm"
-                className="gap-1.5 shadow-2xs font-medium text-xs"
+                className="gap-1 shadow-2xs font-medium text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
                 onClick={() => {
                   setEditingLine(null);
                   setOpenAddLine(true);
@@ -461,7 +461,7 @@ function MachineManagementContent({
           {currentTab === 'operators' && (
             <Button
               size="sm"
-              className="gap-1.5 shadow-2xs font-medium text-xs"
+              className="gap-1 shadow-2xs font-medium text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
               onClick={() => setOpenAddOperator(true)}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -472,7 +472,7 @@ function MachineManagementContent({
           {currentTab === 'allocations' && (
             <Button
               size="sm"
-              className="gap-1.5 shadow-2xs font-medium text-xs"
+              className="gap-1 shadow-2xs font-medium text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
               onClick={() => {
                 setAssigningMachine(null);
                 setOpenAssignOperator(true);
@@ -487,7 +487,7 @@ function MachineManagementContent({
             <Button
               size="sm"
               variant="destructive"
-              className="gap-1.5 shadow-2xs font-medium text-xs"
+              className="gap-1 shadow-2xs font-medium text-xs h-8 px-2.5 shrink-0 whitespace-nowrap"
               onClick={() => {
                 setMaintenancingMachine(null);
                 setOpenStartMaintenance(true);

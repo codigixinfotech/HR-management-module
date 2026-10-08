@@ -58,6 +58,7 @@ export interface Machine {
   branchName?: string;
   departmentName?: string;
   currentOperatorName?: string;
+  currentOperatorType?: string;
   currentShift?: string;
   currentEfficiency?: string;
   currentAllocationStatus?: string;

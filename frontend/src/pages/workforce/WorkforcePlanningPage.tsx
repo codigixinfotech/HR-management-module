@@ -148,7 +148,7 @@ export default function WorkforcePlanningPage() {
 
               {/* Card 5: Labour & Statutory Compliance */}
               <Card
-                onClick={() => navigate('/workforce/contractors?tab=compliance')}
+                onClick={() => navigate('/workforce/contractors')}
                 className="group cursor-pointer hover:border-primary/50 hover:shadow-md transition-all duration-200"
               >
                 <CardContent className="p-4 flex items-start gap-3">

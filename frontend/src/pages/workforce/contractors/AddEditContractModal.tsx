@@ -80,11 +80,26 @@ export function AddEditContractModal({
     enabled: Boolean(companyId),
   });
 
+  const resolveBranchId = (bId?: string | null, bName?: string | null) => {
+    if (!bId && !bName) return 'ALL';
+    if (
+      bId === 'HEAD_OFFICE' ||
+      bName?.toLowerCase().includes('head office') ||
+      bName?.toLowerCase().includes('head')
+    ) {
+      return 'HEAD_OFFICE';
+    }
+    if (bId && branches.some((b) => b.id === bId)) return bId;
+    const matched = branches.find((b) => b.name?.trim().toLowerCase() === bName?.trim().toLowerCase());
+    if (matched) return matched.id;
+    return 'ALL';
+  };
+
   useEffect(() => {
     if (contract) {
       setFormData({
         vendorId: contract.vendor_id || '',
-        branchId: contract.branch_id || (contract.branch_name?.toLowerCase().includes('head office') ? 'HEAD_OFFICE' : ''),
+        branchId: resolveBranchId(contract.branch_id, contract.branch_name),
         departmentId: contract.department_id || '',
         contractNumber: contract.contract_number || '',
         contractType: contract.contract_type || 'MANPOWER_SUPPLY',
@@ -135,9 +150,17 @@ export function AddEditContractModal({
 
     try {
       setLoading(true);
+      const hoBranch = branches.find((b) => b.name?.toLowerCase().includes('head office') || b.code === 'HO');
+      const branchIdToSend =
+        formData.branchId === 'HEAD_OFFICE'
+          ? (hoBranch?.id || 'HEAD_OFFICE')
+          : formData.branchId && formData.branchId !== 'ALL'
+          ? formData.branchId
+          : null;
+
       const payload: any = {
         vendorId: formData.vendorId,
-        branchId: formData.branchId && formData.branchId !== 'ALL' ? formData.branchId : null,
+        branchId: branchIdToSend,
         departmentId: formData.departmentId && formData.departmentId !== 'ALL' ? formData.departmentId : null,
         contractNumber: formData.contractNumber.trim(),
         contractType: formData.contractType || 'MANPOWER_SUPPLY',
@@ -188,6 +211,11 @@ export function AddEditContractModal({
                   <SelectValue placeholder="Select staffing vendor" />
                 </SelectTrigger>
                 <SelectContent>
+                  {contract?.vendor_id && !vendors.some((v) => v.id === contract.vendor_id) && (
+                    <SelectItem key={contract.vendor_id} value={contract.vendor_id} className="text-xs">
+                      {contract.vendor_name || 'Assigned Vendor'} {contract.vendor_code ? `(${contract.vendor_code})` : ''}
+                    </SelectItem>
+                  )}
                   {vendors.map((v) => (
                     <SelectItem key={v.id} value={v.id} className="text-xs">
                       {v.display_name || v.legal_name} ({v.vendor_code})

@@ -143,7 +143,7 @@ export interface WorkerDeployment {
   machine_id?: string | null;
   shift_id?: string | null;
   designation?: string | null;
-  deployment_type: string;
+  deployment_type?: string;
   start_date: string;
   end_date?: string | null;
   status: 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'TRANSFERRED' | 'CANCELLED';

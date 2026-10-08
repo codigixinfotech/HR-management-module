@@ -68,6 +68,26 @@ export class ContractorManagementService {
     }
   }
 
+  private async resolveBranchId(bId: string | null | undefined, compId?: string): Promise<string | null> {
+    if (!bId || bId === 'ALL' || bId === 'NONE' || bId === 'null') return null;
+    if (bId === 'HEAD_OFFICE') {
+      if (compId) {
+        const hoBranch = await this.prisma.branch.findFirst({
+          where: {
+            companyId: compId,
+            OR: [
+              { code: 'HO' },
+              { name: { contains: 'Head Office' } },
+            ],
+          },
+        });
+        if (hoBranch) return hoBranch.id;
+      }
+      return null;
+    }
+    return bId;
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 1. Dashboard KPIs (100% database-driven)
   // ─────────────────────────────────────────────────────────────
@@ -232,7 +252,11 @@ export class ContractorManagementService {
     let sql = `
       SELECT 
         v.*,
-        b.name as branch_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND v.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         d.name as department_name,
         c.name as company_name,
         (SELECT COUNT(*) FROM contractor_contracts cc WHERE cc.vendor_id = v.id AND cc.status = 'ACTIVE') as active_contracts_count,
@@ -253,7 +277,9 @@ export class ContractorManagementService {
       sql += ` AND v.company_id = ?`;
       params.push(companyId);
     }
-    if (branchId && branchId !== 'ALL' && branchId !== 'HEAD_OFFICE' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
+    if (branchId === 'HEAD_OFFICE') {
+      sql += ` AND (b.name LIKE '%Head Office%' OR b.code = 'HO' OR v.branch_id = 'HEAD_OFFICE')`;
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
       sql += ` AND v.branch_id = ?`;
       params.push(branchId);
     }
@@ -287,7 +313,11 @@ export class ContractorManagementService {
     const rows: any[] = await this.prisma.$queryRawUnsafe(
       `SELECT 
         v.*,
-        b.name as branch_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND v.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         d.name as department_name,
         c.name as company_name,
         (SELECT COUNT(*) FROM contractor_contracts cc WHERE cc.vendor_id = v.id AND cc.status = 'ACTIVE') as active_contracts_count,
@@ -365,8 +395,7 @@ export class ContractorManagementService {
     }
     if (!compId) throw new BadRequestException('Company ID is required');
 
-    let bId = dto.branchId !== undefined ? dto.branchId : branchId;
-    if (!bId || bId === 'HEAD_OFFICE' || bId === 'ALL' || bId === 'NONE' || bId === 'null') bId = null;
+    let bId = await this.resolveBranchId(dto.branchId !== undefined ? dto.branchId : branchId, compId);
 
     let dId = dto.departmentId;
     if (!dId || dId === 'ALL' || dId === 'NONE' || dId === 'null') dId = null;
@@ -431,11 +460,7 @@ export class ContractorManagementService {
     const existing = await this.getVendorById(id);
     let bId = existing.branch_id;
     if (dto.branchId !== undefined) {
-      if (!dto.branchId || dto.branchId === 'HEAD_OFFICE' || dto.branchId === 'ALL' || dto.branchId === 'NONE' || dto.branchId === 'null') {
-        bId = null;
-      } else {
-        bId = dto.branchId;
-      }
+      bId = await this.resolveBranchId(dto.branchId, existing.company_id);
     }
 
     let deptId = existing.department_id;
@@ -581,7 +606,11 @@ export class ContractorManagementService {
         v.legal_name as vendor_name,
         v.vendor_code as vendor_code,
         d.name as department_name,
-        b.name as branch_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND cc.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         (SELECT COUNT(*) FROM worker_deployments wd WHERE wd.contract_id = cc.id AND wd.status = 'ACTIVE') as deployed_headcount,
         (SELECT COUNT(*) FROM contractor_workers cw WHERE cw.contract_id = cc.id AND cw.status = 'ACTIVE') as workers_enrolled
       FROM contractor_contracts cc
@@ -596,7 +625,9 @@ export class ContractorManagementService {
       sql += ` AND cc.company_id = ?`;
       params.push(companyId);
     }
-    if (branchId && branchId !== 'ALL' && branchId !== 'HEAD_OFFICE' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
+    if (branchId === 'HEAD_OFFICE') {
+      sql += ` AND (b.name LIKE '%Head Office%' OR b.code = 'HO' OR cc.branch_id = 'HEAD_OFFICE')`;
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
       sql += ` AND cc.branch_id = ?`;
       params.push(branchId);
     }
@@ -642,7 +673,11 @@ export class ContractorManagementService {
         v.legal_name as vendor_name,
         v.vendor_code as vendor_code,
         d.name as department_name,
-        b.name as branch_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND cc.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         (SELECT COUNT(*) FROM worker_deployments wd WHERE wd.contract_id = cc.id AND wd.status = 'ACTIVE') as deployed_headcount
       FROM contractor_contracts cc
       JOIN contractor_vendors v ON v.id = cc.vendor_id
@@ -676,8 +711,7 @@ export class ContractorManagementService {
     }
     if (!compId) throw new BadRequestException('Company ID is required');
 
-    let bId = dto.branchId !== undefined ? dto.branchId : branchId;
-    if (bId === 'HEAD_OFFICE' || bId === 'NONE' || bId === 'null') bId = null;
+    let bId = await this.resolveBranchId(dto.branchId !== undefined ? dto.branchId : branchId, compId);
 
     // Validate dates
     if (new Date(dto.contractEndDate) < new Date(dto.contractStartDate)) {
@@ -745,18 +779,25 @@ export class ContractorManagementService {
       }
     }
 
-    let bId = dto.branchId !== undefined ? dto.branchId : undefined;
-    if (bId === 'HEAD_OFFICE' || bId === 'NONE' || bId === 'null') bId = null;
+    let bId = existing.branch_id;
+    if (dto.branchId !== undefined) {
+      bId = await this.resolveBranchId(dto.branchId, existing.company_id);
+    }
+    let dId = existing.department_id;
+    if (dto.departmentId !== undefined) {
+      dId = (dto.departmentId === 'ALL' || dto.departmentId === 'NONE' || dto.departmentId === 'null') ? null : dto.departmentId;
+    }
 
     await this.prisma.$executeRawUnsafe(
       `UPDATE contractor_contracts SET
-        branch_id = COALESCE(?, branch_id),
+        branch_id = ?,
+        department_id = ?,
+        vendor_id = COALESCE(?, vendor_id),
         contract_number = COALESCE(?, contract_number),
         contract_start_date = COALESCE(?, contract_start_date),
         contract_end_date = COALESCE(?, contract_end_date),
         contract_type = COALESCE(?, contract_type),
         scope_of_work = COALESCE(?, scope_of_work),
-        department_id = COALESCE(?, department_id),
         maximum_headcount = COALESCE(?, maximum_headcount),
         billing_type = COALESCE(?, billing_type),
         billing_rate = COALESCE(?, billing_rate),
@@ -769,12 +810,13 @@ export class ContractorManagementService {
         updated_at = NOW()
       WHERE id = ?`,
       bId,
+      dId,
+      dto.vendorId,
       dto.contractNumber,
       dto.contractStartDate,
       dto.contractEndDate,
       dto.contractType,
       dto.scopeOfWork,
-      dto.departmentId,
       dto.maximumHeadcount,
       dto.billingType,
       dto.billingRate,
@@ -880,7 +922,11 @@ export class ContractorManagementService {
         v.vendor_code as vendor_code,
         cc.contract_number as contract_number,
         d.name as department_name,
-        b.name as branch_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND cw.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         wd.id as current_deployment_id,
         wd.start_date as deployment_start_date,
         wd.production_line_id,
@@ -906,7 +952,9 @@ export class ContractorManagementService {
       sql += ` AND cw.company_id = ?`;
       params.push(companyId);
     }
-    if (branchId && branchId !== 'ALL' && branchId !== 'HEAD_OFFICE' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
+    if (branchId === 'HEAD_OFFICE') {
+      sql += ` AND (b.name LIKE '%Head Office%' OR b.code = 'HO' OR cw.branch_id = 'HEAD_OFFICE')`;
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
       sql += ` AND cw.branch_id = ?`;
       params.push(branchId);
     }
@@ -951,7 +999,11 @@ export class ContractorManagementService {
         v.vendor_code as vendor_code,
         cc.contract_number as contract_number,
         d.name as department_name,
-        b.name as branch_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND cw.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         wd.id as current_deployment_id,
         wd.start_date as deployment_start_date,
         wd.production_line_id,
@@ -1007,8 +1059,7 @@ export class ContractorManagementService {
     }
     if (!compId) throw new BadRequestException('Company ID is required');
 
-    let bId = dto.branchId !== undefined ? dto.branchId : branchId;
-    if (bId === 'HEAD_OFFICE' || bId === 'NONE' || bId === 'null') bId = null;
+    let bId = await this.resolveBranchId(dto.branchId !== undefined ? dto.branchId : branchId, compId);
 
     // Check duplicate worker_code per company
     const existing: any[] = await this.prisma.$queryRawUnsafe(
@@ -1078,12 +1129,14 @@ export class ContractorManagementService {
 
   async updateWorker(id: string, dto: UpdateContractorWorkerDto, userId?: string) {
     const existing = await this.getWorkerById(id);
-    let bId = dto.branchId !== undefined ? dto.branchId : undefined;
-    if (bId === 'HEAD_OFFICE' || bId === 'NONE' || bId === 'null') bId = null;
+    let bId = existing.branch_id;
+    if (dto.branchId !== undefined) {
+      bId = await this.resolveBranchId(dto.branchId, existing.company_id);
+    }
 
     await this.prisma.$executeRawUnsafe(
       `UPDATE contractor_workers SET
-        branch_id = COALESCE(?, branch_id),
+        branch_id = ?,
         contract_id = COALESCE(?, contract_id),
         first_name = COALESCE(?, first_name),
         middle_name = COALESCE(?, middle_name),
@@ -1186,12 +1239,16 @@ export class ContractorManagementService {
         v.vendor_code as vendor_code,
         cc.contract_number,
         d.name as department_name,
-        b.name as branch_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND wd.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         pl.lineName as line_name,
         pl.lineCode as line_code,
         m.machineName as machine_name,
         m.machineCode as machine_code,
-        st.name as shift_name,
+        COALESCE(st.name, wd.shift_id, 'General Shift') as shift_name,
         st.code as shift_code,
         st.startTime as shift_start_time,
         st.endTime as shift_end_time
@@ -1212,7 +1269,9 @@ export class ContractorManagementService {
       sql += ` AND wd.company_id = ?`;
       params.push(companyId);
     }
-    if (branchId && branchId !== 'ALL' && branchId !== 'HEAD_OFFICE' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
+    if (branchId === 'HEAD_OFFICE') {
+      sql += ` AND (b.name LIKE '%Head Office%' OR b.code = 'HO' OR wd.branch_id = 'HEAD_OFFICE')`;
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
       sql += ` AND wd.branch_id = ?`;
       params.push(branchId);
     }
@@ -1258,13 +1317,21 @@ export class ContractorManagementService {
         cw.last_name,
         v.legal_name as vendor_name,
         cc.contract_number,
+        d.name as department_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND wd.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         pl.lineName as line_name,
         m.machineName as machine_name,
-        st.name as shift_name
+        COALESCE(st.name, wd.shift_id, 'General Shift') as shift_name
       FROM worker_deployments wd
       JOIN contractor_workers cw ON cw.id = wd.worker_id
       JOIN contractor_vendors v ON v.id = wd.vendor_id
       JOIN contractor_contracts cc ON cc.id = wd.contract_id
+      LEFT JOIN departments d ON d.id = wd.department_id
+      LEFT JOIN branches b ON b.id = wd.branch_id
       LEFT JOIN production_lines pl ON pl.id = wd.production_line_id
       LEFT JOIN machines m ON m.id = wd.machine_id
       LEFT JOIN shift_types st ON st.id = wd.shift_id
@@ -1287,8 +1354,7 @@ export class ContractorManagementService {
     }
     if (!compId) throw new BadRequestException('Company ID is required');
 
-    let bId = dto.branchId !== undefined ? dto.branchId : branchId;
-    if (bId === 'HEAD_OFFICE' || bId === 'NONE' || bId === 'null') bId = null;
+    let bId = await this.resolveBranchId(dto.branchId !== undefined ? dto.branchId : branchId, compId);
 
     // 1. Worker validation
     const worker = await this.getWorkerById(dto.workerId);
@@ -1363,6 +1429,28 @@ export class ContractorManagementService {
       }
     }
 
+    // Resolve shiftId / shiftName
+    let resolvedShiftId = dto.shiftId || null;
+    let resolvedShiftName = dto.shiftName || 'General Shift';
+    if (!resolvedShiftId && dto.shiftName) {
+      try {
+        const sRows: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT id, name FROM shift_types WHERE (id = ? OR name = ? OR code = ?) LIMIT 1`,
+          dto.shiftName,
+          dto.shiftName,
+          dto.shiftName
+        );
+        if (sRows.length > 0) {
+          resolvedShiftId = sRows[0].id;
+          resolvedShiftName = sRows[0].name || resolvedShiftName;
+        } else {
+          resolvedShiftId = dto.shiftName;
+        }
+      } catch (_e) {
+        resolvedShiftId = dto.shiftName;
+      }
+    }
+
     // Insert deployment record
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO worker_deployments (
@@ -1380,9 +1468,9 @@ export class ContractorManagementService {
       dto.departmentId || null,
       dto.productionLineId || null,
       dto.machineId || null,
-      dto.shiftId || null,
-      dto.designation || worker.designation || 'Deployed Worker',
-      dto.deploymentType || 'PLANT_FLOOR',
+      resolvedShiftId,
+      dto.designation || worker.designation || 'Machine Operator',
+      dto.deploymentType || 'MACHINE_OPERATOR',
       dto.startDate,
       dto.endDate || null,
       dto.remarks || null,
@@ -1391,32 +1479,21 @@ export class ContractorManagementService {
     );
 
     // INTEGRATION WITH MACHINE MANAGEMENT:
-    // If assigned to a machine, also sync with machine_allocations!
+    // If assigned to a machine, sync operator and allocation records!
     if (dto.machineId) {
-      try {
-        const allocId = `alloc-cw-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-        await this.prisma.$executeRawUnsafe(
-          `INSERT INTO machine_allocations (
-            id, machineId, productionLineId, operatorId, shift,
-            allocationDate, startTime, endTime, workOrder, operation,
-            status, efficiency, notes, createdBy, createdAt, updatedAt
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 95.0, ?, ?, NOW(), NOW())`,
-          allocId,
-          dto.machineId,
-          dto.productionLineId || null,
-          dto.workerId, // mapped to contractor worker
-          'General Shift',
-          dto.startDate,
-          '08:00',
-          '17:00',
-          `WO-CW-${dto.workerId.slice(-4)}`,
-          'Contract Labour Deployment',
-          `Deployed via Contractor Vendor: ${vendor.legal_name}`,
-          userId || 'System'
-        );
-      } catch (allocErr) {
-        console.warn('Machine allocation sync notice:', allocErr);
-      }
+      await this.syncMachineOperatorAndAllocation({
+        workerId: dto.workerId,
+        vendorId: dto.vendorId,
+        companyId: compId,
+        branchId: bId,
+        departmentId: dto.departmentId || null,
+        productionLineId: dto.productionLineId || null,
+        machineId: dto.machineId,
+        shiftName: resolvedShiftName,
+        startDate: dto.startDate,
+        status: 'ACTIVE',
+        userId,
+      });
     }
 
     await this.logHistory({
@@ -1451,17 +1528,17 @@ export class ContractorManagementService {
       id
     );
 
-    // If linked to a machine, mark machine allocation completed as well
+    // If linked to a machine, mark machine operator and allocation completed as well
     if (dep.machine_id) {
-      try {
-        await this.prisma.$executeRawUnsafe(
-          `UPDATE machine_allocations SET status = 'COMPLETED', updatedAt = NOW() WHERE machineId = ? AND operatorId = ? AND status = 'ACTIVE'`,
-          dep.machine_id,
-          dep.worker_id
-        );
-      } catch (mErr) {
-        console.warn('Failed to update machine allocation on completion:', mErr);
-      }
+      await this.syncMachineOperatorAndAllocation({
+        workerId: dep.worker_id,
+        vendorId: dep.vendor_id,
+        companyId: dep.company_id,
+        branchId: dep.branch_id,
+        machineId: dep.machine_id,
+        status: 'COMPLETED',
+        userId,
+      });
     }
 
     await this.logHistory({
@@ -1496,6 +1573,19 @@ export class ContractorManagementService {
       userId || null,
       id
     );
+
+    // Release previous machine allocation if any
+    if (dep.machine_id) {
+      await this.syncMachineOperatorAndAllocation({
+        workerId: dep.worker_id,
+        vendorId: dep.vendor_id,
+        companyId: dep.company_id,
+        branchId: dep.branch_id,
+        machineId: dep.machine_id,
+        status: 'COMPLETED',
+        userId,
+      });
+    }
 
     // 2. Create new deployment
     const newDep = await this.createDeployment(
@@ -1535,6 +1625,29 @@ export class ContractorManagementService {
 
   async updateDeployment(id: string, dto: any, userId?: string) {
     const existing = await this.getDeploymentById(id);
+
+    // Resolve shiftId / shiftName if shift changed
+    let resolvedShiftId = dto.shiftId !== undefined ? dto.shiftId : existing.shift_id;
+    let resolvedShiftName = dto.shiftName || existing.shift_name || 'General Shift';
+    if (dto.shiftName && (!dto.shiftId || dto.shiftId === existing.shift_id)) {
+      try {
+        const sRows: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT id, name FROM shift_types WHERE (id = ? OR name = ? OR code = ?) LIMIT 1`,
+          dto.shiftName,
+          dto.shiftName,
+          dto.shiftName
+        );
+        if (sRows.length > 0) {
+          resolvedShiftId = sRows[0].id;
+          resolvedShiftName = sRows[0].name || resolvedShiftName;
+        } else {
+          resolvedShiftId = dto.shiftName;
+        }
+      } catch (_e) {
+        resolvedShiftId = dto.shiftName;
+      }
+    }
+
     await this.prisma.$executeRawUnsafe(
       `UPDATE worker_deployments SET
         department_id = COALESCE(?, department_id),
@@ -1553,7 +1666,7 @@ export class ContractorManagementService {
       dto.departmentId !== undefined ? dto.departmentId : existing.department_id,
       dto.productionLineId !== undefined ? dto.productionLineId : existing.production_line_id,
       dto.machineId !== undefined ? dto.machineId : existing.machine_id,
-      dto.shiftId !== undefined ? dto.shiftId : existing.shift_id,
+      resolvedShiftId,
       dto.designation !== undefined ? dto.designation : existing.designation,
       dto.deploymentType !== undefined ? dto.deploymentType : existing.deployment_type,
       dto.startDate !== undefined ? dto.startDate : existing.start_date,
@@ -1564,16 +1677,24 @@ export class ContractorManagementService {
       id
     );
 
-    if (dto.machineId && dto.machineId !== existing.machine_id) {
-      try {
-        await this.prisma.$executeRawUnsafe(
-          `UPDATE machine_allocations SET machineId = ?, updatedAt = NOW() WHERE machineId = ? AND operatorId = ? AND status = 'ACTIVE'`,
-          dto.machineId,
-          existing.machine_id,
-          existing.worker_id
-        );
-      } catch (e) {}
-    }
+    // Synchronize with Machine Management (Operator & Allocation)
+    const effectiveMachineId = dto.machineId !== undefined ? dto.machineId : existing.machine_id;
+    const effectiveStatus = dto.status !== undefined ? dto.status : existing.status;
+    const effectiveLineId = dto.productionLineId !== undefined ? dto.productionLineId : existing.production_line_id;
+
+    await this.syncMachineOperatorAndAllocation({
+      workerId: existing.worker_id,
+      vendorId: existing.vendor_id,
+      companyId: existing.company_id,
+      branchId: existing.branch_id,
+      departmentId: dto.departmentId !== undefined ? dto.departmentId : existing.department_id,
+      productionLineId: effectiveLineId,
+      machineId: effectiveMachineId,
+      shiftName: resolvedShiftName,
+      startDate: dto.startDate || existing.start_date,
+      status: effectiveStatus,
+      userId,
+    });
 
     return this.getDeploymentById(id);
   }
@@ -1581,13 +1702,15 @@ export class ContractorManagementService {
   async deleteDeployment(id: string, userId?: string) {
     const existing = await this.getDeploymentById(id);
     if (existing.machine_id) {
-      try {
-        await this.prisma.$executeRawUnsafe(
-          `DELETE FROM machine_allocations WHERE machineId = ? AND operatorId = ?`,
-          existing.machine_id,
-          existing.worker_id
-        );
-      } catch (e) {}
+      await this.syncMachineOperatorAndAllocation({
+        workerId: existing.worker_id,
+        vendorId: existing.vendor_id,
+        companyId: existing.company_id,
+        branchId: existing.branch_id,
+        machineId: existing.machine_id,
+        status: 'COMPLETED',
+        userId,
+      });
     }
     await this.prisma.$executeRawUnsafe(`DELETE FROM worker_deployments WHERE id = ?`, id);
 
@@ -1600,6 +1723,186 @@ export class ContractorManagementService {
       performedBy: userId,
     });
     return { success: true, message: 'Deployment deleted successfully' };
+  }
+
+  private async syncMachineOperatorAndAllocation(params: {
+    workerId: string;
+    vendorId: string;
+    companyId: string;
+    branchId?: string | null;
+    departmentId?: string | null;
+    productionLineId?: string | null;
+    machineId?: string | null;
+    shiftName?: string | null;
+    startDate?: string | null;
+    status: string;
+    userId?: string;
+  }) {
+    try {
+      const {
+        workerId,
+        vendorId,
+        companyId,
+        branchId,
+        departmentId,
+        productionLineId,
+        machineId,
+        shiftName,
+        startDate,
+        status,
+      } = params;
+
+      // 1. Get worker and vendor details
+      const workerRows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id, worker_code, first_name, last_name, skill, skill_level, designation FROM contractor_workers WHERE id = ?`,
+        workerId
+      );
+      if (workerRows.length === 0) return;
+      const worker = workerRows[0];
+      const workerName = [worker.first_name, worker.last_name].filter(Boolean).join(' ') || worker.worker_code;
+
+      let vendorName = 'Contractor Vendor';
+      const vendorRows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id, legal_name, display_name FROM contractor_vendors WHERE id = ?`,
+        vendorId
+      );
+      if (vendorRows.length > 0) {
+        vendorName = vendorRows[0].legal_name || vendorRows[0].display_name || vendorName;
+      }
+
+      // 2. Find or Upsert Machine Operator record for this Contractor Worker
+      const opRows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM machine_operators WHERE employeeId = ? OR operatorCode = ? LIMIT 1`,
+        workerId,
+        worker.worker_code
+      );
+
+      let operatorId: string;
+      const opStatus = status === 'ACTIVE' && machineId ? 'Allocated' : 'Available';
+      const curMachineId = status === 'ACTIVE' && machineId ? machineId : null;
+      const curShift = status === 'ACTIVE' && machineId ? shiftName || 'General Shift' : null;
+
+      if (opRows.length > 0) {
+        operatorId = opRows[0].id;
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE machine_operators SET
+            operatorName = ?,
+            operatorType = 'Contractor',
+            skill = ?,
+            skillLevel = ?,
+            contractorAgency = ?,
+            status = ?,
+            currentMachineId = ?,
+            currentShift = ?,
+            branchId = COALESCE(?, branchId),
+            updatedAt = NOW()
+          WHERE id = ?`,
+          workerName,
+          worker.skill || 'Machine Operator',
+          worker.skill_level || 'Semi-Skilled',
+          vendorName,
+          opStatus,
+          curMachineId,
+          curShift,
+          branchId || null,
+          operatorId
+        );
+      } else {
+        operatorId = `mo-cw-${worker.id}`;
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO machine_operators (
+            id, companyId, branchId, employeeId, operatorType,
+            operatorName, operatorCode, department, skill, skillLevel,
+            contractorAgency, contractorComplianceStatus, status,
+            currentMachineId, currentShift, createdAt, updatedAt
+          ) VALUES (?, ?, ?, ?, 'Contractor', ?, ?, ?, ?, ?, ?, 'VALID', ?, ?, ?, NOW(), NOW())`,
+          operatorId,
+          companyId,
+          branchId || null,
+          worker.id,
+          workerName,
+          worker.worker_code,
+          departmentId || 'Plant Floor',
+          worker.skill || 'Machine Operator',
+          worker.skill_level || 'Semi-Skilled',
+          vendorName,
+          opStatus,
+          curMachineId,
+          curShift
+        );
+      }
+
+      // 3. Sync machine_allocations
+      if (status === 'ACTIVE' && machineId) {
+        // Complete any older active allocations for this operator or machine
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE machine_allocations SET status = 'COMPLETED', updatedAt = NOW() WHERE (operatorId = ? OR machineId = ?) AND status = 'ACTIVE'`,
+          operatorId,
+          machineId
+        );
+
+        // Resolve production line if not provided
+        let resolvedLineId = productionLineId;
+        if (!resolvedLineId) {
+          const machRows: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT productionLineId FROM machines WHERE id = ?`,
+            machineId
+          );
+          if (machRows.length > 0 && machRows[0].productionLineId) {
+            resolvedLineId = machRows[0].productionLineId;
+          }
+        }
+
+        if (resolvedLineId) {
+          try {
+            await this.prisma.$executeRawUnsafe(
+              `UPDATE machines SET productionLineId = ? WHERE id = ? AND (productionLineId IS NULL OR productionLineId = '')`,
+              resolvedLineId,
+              machineId
+            );
+          } catch (_mErr) {}
+        }
+
+        const allocId = `alloc-cw-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO machine_allocations (
+            id, companyId, branchId, productionLineId, machineId, operatorId,
+            operatorType, supervisorId, supervisorName, shift, allocationDate,
+            startTime, endTime, workOrder, operation, efficiency, status, remarks,
+            createdAt, updatedAt
+          ) VALUES (?, ?, ?, ?, ?, ?, 'Contractor', NULL, NULL, ?, ?, '08:00', '17:00', ?, 'Contract Labour Deployment', 96.0, 'ACTIVE', ?, NOW(), NOW())`,
+          allocId,
+          companyId,
+          branchId || null,
+          resolvedLineId || 'GENERAL_LINE',
+          machineId,
+          operatorId,
+          shiftName || 'General Shift',
+          startDate || new Date().toISOString().slice(0, 10),
+          `WO-CW-${worker.worker_code}`,
+          `Deployed via Contractor: ${vendorName}`
+        );
+      } else {
+        // If deployment is COMPLETED, CANCELLED, or unassigned from machine, complete active allocations
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE machine_allocations SET status = 'COMPLETED', updatedAt = NOW() WHERE (operatorId = ? OR operatorId = ?) AND status = 'ACTIVE'`,
+          operatorId,
+          workerId
+        );
+        if (machineId) {
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE machine_allocations SET status = 'COMPLETED', updatedAt = NOW() WHERE machineId = ? AND status = 'ACTIVE'`,
+            machineId
+          );
+        }
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE machine_operators SET status = 'Available', currentMachineId = NULL, currentShift = NULL, updatedAt = NOW() WHERE id = ?`,
+          operatorId
+        );
+      }
+    } catch (err) {
+      console.error('Error syncing machine operator and allocation:', err);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1622,7 +1925,11 @@ export class ContractorManagementService {
         v.legal_name as vendor_name,
         v.vendor_code as vendor_code,
         cnt.contract_number,
-        b.name as branch_name,
+        CASE 
+          WHEN b.name LIKE '%Pune Head Office%' OR b.name = 'Pune Head Office' THEN 'Head Office'
+          WHEN b.name IS NULL AND cc.branch_id = 'HEAD_OFFICE' THEN 'Head Office'
+          ELSE b.name 
+        END as branch_name,
         DATEDIFF(cc.expiry_date, CURRENT_DATE) as days_remaining,
         CASE
           WHEN cc.expiry_date < CURRENT_DATE THEN 'EXPIRED'
@@ -1641,7 +1948,9 @@ export class ContractorManagementService {
       sql += ` AND cc.company_id = ?`;
       params.push(companyId);
     }
-    if (branchId && branchId !== 'ALL' && branchId !== 'HEAD_OFFICE' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
+    if (branchId === 'HEAD_OFFICE') {
+      sql += ` AND (b.name LIKE '%Head Office%' OR b.code = 'HO' OR cc.branch_id = 'HEAD_OFFICE')`;
+    } else if (branchId && branchId !== 'ALL' && branchId !== 'NONE' && branchId !== 'null' && branchId !== 'undefined') {
       sql += ` AND cc.branch_id = ?`;
       params.push(branchId);
     }
@@ -1704,8 +2013,7 @@ export class ContractorManagementService {
     }
     if (!compId) throw new BadRequestException('Company ID is required');
 
-    let bId = dto.branchId !== undefined ? dto.branchId : branchId;
-    if (bId === 'HEAD_OFFICE' || bId === 'NONE' || bId === 'null') bId = null;
+    let bId = await this.resolveBranchId(dto.branchId !== undefined ? dto.branchId : branchId, compId);
 
     // Determine status based on dates
     const expiry = new Date(dto.expiryDate);

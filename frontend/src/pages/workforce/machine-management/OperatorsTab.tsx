@@ -86,73 +86,66 @@ export function OperatorsTab({
     <div className="space-y-4">
       {/* Search & Filters */}
       <Card className="shadow-2xs">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <CardContent className="p-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search operator name, code, skill, certification..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-9 text-xs"
+                className="pl-8 h-8 text-xs"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Workforce Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Types</SelectItem>
-                  <SelectItem value="Employee">Employee</SelectItem>
-                  <SelectItem value="Contractor">Contractor</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[115px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Workforce Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Types</SelectItem>
+                <SelectItem value="Employee">Employee</SelectItem>
+                <SelectItem value="Contractor">Contractor</SelectItem>
+              </SelectContent>
+            </Select>
 
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Branches</SelectItem>
-                  <SelectItem value="HEAD_OFFICE">Head Office</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-[110px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Branches</SelectItem>
+                <SelectItem value="HEAD_OFFICE">Head Office</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Status</SelectItem>
-                  <SelectItem value="Available">Available</SelectItem>
-                  <SelectItem value="Allocated">Allocated</SelectItem>
-                  <SelectItem value="On Leave">On Leave</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[110px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Status</SelectItem>
+                <SelectItem value="Available">Available</SelectItem>
+                <SelectItem value="Allocated">Allocated</SelectItem>
+                <SelectItem value="On Leave">On Leave</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 px-2.5 text-xs text-muted-foreground"
-                onClick={handleReset}
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                Reset
-              </Button>
-
-              <Button size="sm" className="h-9 gap-1.5 text-xs" onClick={onAddOperator}>
-                <Plus className="h-3.5 w-3.5" />
-                Add Operator
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground shrink-0 gap-1"
+              onClick={handleReset}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </Button>
           </div>
         </CardContent>
       </Card>

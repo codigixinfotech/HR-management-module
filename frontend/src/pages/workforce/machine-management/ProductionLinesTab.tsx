@@ -87,85 +87,78 @@ export function ProductionLinesTab({
     <div className="space-y-4">
       {/* Header & Filter Controls */}
       <Card className="shadow-2xs">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <CardContent className="p-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search operational unit name, code, supervisor..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-9 text-xs"
+                className="pl-8 h-8 text-xs"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Branches</SelectItem>
-                  <SelectItem value="HEAD_OFFICE">Head Office</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-[110px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Branches</SelectItem>
+                <SelectItem value="HEAD_OFFICE">Head Office</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <Select value={deptFilter} onValueChange={setDeptFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Depts</SelectItem>
-                  {departments.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={deptFilter} onValueChange={setDeptFilter}>
+              <SelectTrigger className="w-[105px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Depts</SelectItem>
+                {departments.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[120px] h-9 text-xs">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Status</SelectItem>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[105px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Status</SelectItem>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="INACTIVE">Inactive</SelectItem>
+                <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+              </SelectContent>
+            </Select>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 px-2.5 text-xs text-muted-foreground"
-                onClick={handleReset}
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                Reset
-              </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground shrink-0 gap-1"
+              onClick={handleReset}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </Button>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10 hover:border-primary font-medium"
-                onClick={() => setOpenUomMaster(true)}
-              >
-                <Scale className="h-3.5 w-3.5" />
-                Capacity UOM Master
-              </Button>
-
-              <Button size="sm" className="h-9 gap-1.5 text-xs" onClick={onAddLine}>
-                <Plus className="h-3.5 w-3.5" />
-                Add Operational Unit
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 gap-1 text-xs border-primary/40 text-primary hover:bg-primary/10 hover:border-primary font-medium shrink-0"
+              onClick={() => setOpenUomMaster(true)}
+            >
+              <Scale className="h-3.5 w-3.5" />
+              Capacity UOM
+            </Button>
           </div>
         </CardContent>
       </Card>

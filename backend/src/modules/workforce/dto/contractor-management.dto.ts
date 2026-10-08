@@ -347,6 +347,10 @@ export class CreateWorkerDeploymentDto {
 
   @IsOptional()
   @IsString()
+  shiftName?: string;
+
+  @IsOptional()
+  @IsString()
   designation?: string;
 
   @IsOptional()
@@ -360,6 +364,10 @@ export class CreateWorkerDeploymentDto {
   @IsOptional()
   @IsString()
   endDate?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
 
   @IsOptional()
   @IsString()

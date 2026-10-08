@@ -143,127 +143,126 @@ export function MachinesTab({
     <div className="space-y-4">
       {/* Search & Filter Bar */}
       <Card className="shadow-2xs">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <CardContent className="p-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search machine code, name, serial number..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-9 text-xs"
+                className="pl-8 h-8 text-xs"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Branch Filter */}
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Branches</SelectItem>
-                  <SelectItem value="HEAD_OFFICE">Head Office</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Branch Filter */}
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-[110px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Branches</SelectItem>
+                <SelectItem value="HEAD_OFFICE">Head Office</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              {/* Department Filter */}
-              <Select value={deptFilter} onValueChange={setDeptFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Depts</SelectItem>
-                  {departments.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Department Filter */}
+            <Select value={deptFilter} onValueChange={setDeptFilter}>
+              <SelectTrigger className="w-[100px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Depts</SelectItem>
+                {departments.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              {/* Operational Unit Filter */}
-              <Select value={lineFilter} onValueChange={setLineFilter}>
-                <SelectTrigger className="w-[150px] h-9 text-xs">
-                  <SelectValue placeholder="Operational Unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Units</SelectItem>
-                  {productionLines.map((pl) => (
-                    <SelectItem key={pl.id} value={pl.id}>
-                      {pl.lineCode}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Operational Unit Filter */}
+            <Select value={lineFilter} onValueChange={setLineFilter}>
+              <SelectTrigger className="w-[110px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Operational Unit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Units</SelectItem>
+                {productionLines.map((pl) => (
+                  <SelectItem key={pl.id} value={pl.id}>
+                    {pl.lineCode}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              {/* Machine Type Filter */}
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[130px] h-9 text-xs">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MACHINE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t === 'ALL' ? 'All Types' : t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Machine Type Filter */}
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[100px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {MACHINE_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t === 'ALL' ? 'All Types' : t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              {/* Status Filter */}
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[130px] h-9 text-xs">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Status</SelectItem>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="UNDER_MAINTENANCE">Under Maint.</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  <SelectItem value="RETIRED">Retired</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[105px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Status</SelectItem>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="UNDER_MAINTENANCE">Under Maint.</SelectItem>
+                <SelectItem value="INACTIVE">Inactive</SelectItem>
+                <SelectItem value="RETIRED">Retired</SelectItem>
+              </SelectContent>
+            </Select>
 
-              {/* Maintenance Health Filter */}
-              <Select value={maintFilter} onValueChange={setMaintFilter}>
-                <SelectTrigger className="w-[145px] h-9 text-xs">
-                  <SelectValue placeholder="Maintenance" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Maintenance</SelectItem>
-                  <SelectItem value="OVERDUE">🔴 Overdue</SelectItem>
-                  <SelectItem value="DUE_TODAY">🟠 Due Today</SelectItem>
-                  <SelectItem value="UPCOMING">🟡 Upcoming Due</SelectItem>
-                  <SelectItem value="NORMAL">🟢 Healthy</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Maintenance Health Filter */}
+            <Select value={maintFilter} onValueChange={setMaintFilter}>
+              <SelectTrigger className="w-[125px] h-8 text-xs px-2 shrink-0">
+                <SelectValue placeholder="Maintenance" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Maintenance</SelectItem>
+                <SelectItem value="OVERDUE">🔴 Overdue</SelectItem>
+                <SelectItem value="DUE_TODAY">🟠 Due Today</SelectItem>
+                <SelectItem value="UPCOMING">🟡 Upcoming Due</SelectItem>
+                <SelectItem value="NORMAL">🟢 Healthy</SelectItem>
+              </SelectContent>
+            </Select>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 gap-1.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5"
-                onClick={() => setOpenScanModal(true)}
-              >
-                <ScanLine className="h-3.5 w-3.5" />
-                Scan QR
-              </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 gap-1 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 shrink-0"
+              onClick={() => setOpenScanModal(true)}
+            >
+              <ScanLine className="h-3.5 w-3.5" />
+              Scan QR
+            </Button>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 px-2.5 text-xs text-muted-foreground"
-                onClick={handleReset}
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                Reset
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground shrink-0 gap-1"
+              onClick={handleReset}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -348,10 +347,20 @@ export function MachinesTab({
                     <TableCell>
                       {m.currentOperatorName ? (
                         <div className="flex items-center gap-1.5">
-                          <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                          <span className="font-medium text-foreground">
-                            {m.currentOperatorName}
-                          </span>
+                          <div className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium text-foreground">
+                              {m.currentOperatorName}
+                            </span>
+                            {m.currentOperatorType === 'Contractor' && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] px-1 py-0 h-4 border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700 font-normal"
+                              >
+                                Contractor
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <span className="text-muted-foreground italic">Unallocated</span>
@@ -367,18 +376,19 @@ export function MachinesTab({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          m.status === 'ACTIVE'
-                            ? 'success'
-                            : m.status === 'UNDER_MAINTENANCE'
-                            ? 'warning'
-                            : 'secondary'
-                        }
-                        className="text-[11px] capitalize font-medium"
-                      >
-                        ● {m.status.replace(/_/g, ' ')}
-                      </Badge>
+                      {m.status === 'UNDER_MAINTENANCE' ? (
+                        <Badge variant="warning" className="text-[11px] font-medium">
+                          ● Under Maintenance
+                        </Badge>
+                      ) : m.currentOperatorName || m.currentAllocationStatus === 'ACTIVE' ? (
+                        <Badge variant="success" className="text-[11px] font-medium">
+                          ● Allocated
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[11px] font-medium">
+                          ● Available
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge
