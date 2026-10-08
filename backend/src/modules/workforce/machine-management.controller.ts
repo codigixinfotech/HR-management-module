@@ -156,6 +156,15 @@ export class MachineManagementController {
     return this.service.switchPowerStatus(id, body.status);
   }
 
+  @Get('machines/:id/activity-logs')
+  @Permissions('workforce.read')
+  getMachineActivityLogs(
+    @Param('id') id: string,
+    @Query('date') date?: string,
+  ) {
+    return this.service.getMachineActivityLogs(id, date);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 3. Production Lines
   // ─────────────────────────────────────────────────────────────

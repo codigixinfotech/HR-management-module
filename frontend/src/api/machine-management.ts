@@ -64,6 +64,54 @@ export interface Machine {
   currentAllocationStatus?: string;
   allocations?: MachineAllocation[];
   maintenances?: MachineMaintenance[];
+  activityLogs?: MachineActivityLog[];
+  dailyActivitySummary?: MachineDailySummary | null;
+}
+
+export interface MachineActivityLog {
+  id: string;
+  machineId: string;
+  companyId?: string | null;
+  branchId?: string | null;
+  logDate: string;
+  startTime: string;
+  endTime?: string | null;
+  durationMinutes?: number | null;
+  eventType: string;
+  eventLabel: string;
+  status: string;
+  operatorId?: string | null;
+  operatorName?: string | null;
+  shift?: string | null;
+  operationalUnit?: string | null;
+  reason?: string | null;
+  remarks?: string | null;
+  actionBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MachineDailySummary {
+  runningMinutes: number;
+  runningFormatted: string;
+  idleMinutes: number;
+  idleFormatted: string;
+  breakdownMinutes: number;
+  breakdownFormatted: string;
+  maintenanceMinutes: number;
+  maintenanceFormatted: string;
+  offlineMinutes: number;
+  offlineFormatted: string;
+  totalMinutes: number;
+  totalFormatted: string;
+  utilizationPercentage: number;
+}
+
+export interface MachineActivityResponse {
+  machineId: string;
+  date: string;
+  logs: MachineActivityLog[];
+  summary: MachineDailySummary;
 }
 
 export interface MaintenanceDueSummary {
@@ -230,6 +278,10 @@ export const machineManagementApi = {
 
   switchPowerStatus: async (id: string, status: 'OFFLINE' | 'ACTIVE') =>
     (await apiClient.post<{ success: boolean; message: string; machineId: string; status: string }>(`/workforce/machines/${id}/power-switch`, { status })).data,
+
+  // Day-wise Activity Logs & Downtime
+  getActivityLogs: async (machineId: string, date?: string) =>
+    (await apiClient.get<MachineActivityResponse>(`/workforce/machines/${machineId}/activity-logs`, { params: { date } })).data,
 
   // QR Scanning & Token
   scanQrToken: async (qrToken: string) =>

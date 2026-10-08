@@ -22,6 +22,7 @@ interface WorkforcePageLayoutProps {
   badge?: string;
   badgeVariant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info' | 'primary';
   actions?: React.ReactNode;
+  metrics?: React.ReactNode;
   hideMetrics?: boolean;
   children: (context: WorkforceLayoutContext) => React.ReactNode;
 }
@@ -32,6 +33,7 @@ function WorkforcePageLayoutInner({
   badge,
   badgeVariant,
   actions,
+  metrics,
   hideMetrics,
   effectiveCompanyId,
   selectableCompanies,
@@ -90,39 +92,9 @@ function WorkforcePageLayoutInner({
         }
       />
 
-      {/* Metrics */}
-      {!hideMetrics && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard
-            icon={Factory}
-            label="Total Plant Workforce"
-            value="128 Workers"
-            hint="64 Contractual / 64 Permanent"
-            accent="warning"
-          />
-          <StatCard
-            icon={Wrench}
-            label="Machine Line Utilization"
-            value="96.2%"
-            hint="3 Production Lines Active"
-            accent="success"
-          />
-          <StatCard
-            icon={Users}
-            label="Active Staffing Vendors"
-            value="3 Agencies"
-            hint="64 Sub-contracted Staff"
-            accent="info"
-          />
-          <StatCard
-            icon={ShieldCheck}
-            label="Compliance SLA Score"
-            value="100% Verified"
-            hint="CLRA License Active"
-            accent="primary"
-          />
-        </div>
-      )}
+      {/* Dynamic Metrics */}
+      {metrics}
+
 
       <div>
         {children({

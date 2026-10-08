@@ -17,11 +17,12 @@ export interface StatCardProps {
   hint?: string;
   accent?: keyof typeof ACCENTS;
   className?: string;
+  onClick?: () => void;
 }
 
-export function StatCard({ icon: Icon, label, value, hint, accent = 'primary', className }: StatCardProps) {
+export function StatCard({ icon: Icon, label, value, hint, accent = 'primary', className, onClick }: StatCardProps) {
   return (
-    <Card className={cn('transition-shadow hover:shadow-md', className)}>
+    <Card className={cn('transition-shadow hover:shadow-md', onClick && 'cursor-pointer hover:border-primary/50', className)} onClick={onClick}>
       <CardContent className="flex items-start justify-between gap-3 p-5">
         <div className="min-w-0 space-y-1">
           <p className="text-xs font-medium text-muted-foreground">{label}</p>

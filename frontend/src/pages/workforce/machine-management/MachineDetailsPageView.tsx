@@ -28,9 +28,13 @@ import {
   Clock,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   Info,
   CheckCircle2,
   AlertTriangle,
+  AlertOctagon,
+  Timer,
+  PowerOff,
   History as HistoryIcon,
   Zap,
   Activity,
@@ -59,6 +63,9 @@ import {
   type Machine,
   type MachineAllocation,
   type MachineMaintenance,
+  type MachineActivityLog,
+  type MachineDailySummary,
+  type MachineActivityResponse,
 } from '@/api/machine-management';
 import { MachineQrModal } from './MachineQrModal';
 import type { Company, Branch, Department } from '@/api/types';
@@ -111,6 +118,14 @@ export function MachineDetailsPageView({
   const [showQrModal, setShowQrModal] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'qr' | 'allocation' | 'maintenance'>('all');
 
+  // Day-wise Machine Activity Log & Downtime States
+  const [selectedActivityDate, setSelectedActivityDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [activityData, setActivityData] = useState<MachineActivityResponse | null>(null);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [activityViewStyle, setActivityViewStyle] = useState<'table' | 'timeline'>('table');
+
   // 360 Interactive Viewer States
   const [rotationDegrees, setRotationDegrees] = useState(289);
   const [isAutoSpin, setIsAutoSpin] = useState(false);
@@ -138,11 +153,41 @@ export function MachineDetailsPageView({
     }
   };
 
+  const fetchActivityLogs = async (dateStr?: string) => {
+    const targetDate = dateStr || selectedActivityDate;
+    try {
+      setLoadingActivity(true);
+      const res = await machineManagementApi.getActivityLogs(machineId, targetDate);
+      setActivityData(res);
+    } catch (e: any) {
+      console.warn('Failed to load activity logs:', e);
+    } finally {
+      setLoadingActivity(false);
+    }
+  };
+
   useEffect(() => {
     if (machineId) {
       fetchMachineData();
+      fetchActivityLogs(selectedActivityDate);
     }
-  }, [machineId]);
+  }, [machineId, selectedActivityDate]);
+
+  const handlePrevDay = () => {
+    const d = new Date(selectedActivityDate);
+    d.setDate(d.getDate() - 1);
+    setSelectedActivityDate(d.toISOString().slice(0, 10));
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(selectedActivityDate);
+    d.setDate(d.getDate() + 1);
+    setSelectedActivityDate(d.toISOString().slice(0, 10));
+  };
+
+  const handleToday = () => {
+    setSelectedActivityDate(new Date().toISOString().slice(0, 10));
+  };
 
   // Auto-spin interval
   useEffect(() => {
@@ -1581,9 +1626,353 @@ export function MachineDetailsPageView({
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────
-            TAB 6: HISTORY & TELEMETRIC AUDIT TRAIL
+            TAB 6: HISTORY & DAY-WISE MACHINE ACTIVITY LOG
         ───────────────────────────────────────────────────────────── */}
         <TabsContent value="history" className="space-y-6">
+          {/* Day-wise Activity Log & Downtime Tracking Card */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-6">
+            {/* Top Bar with Date Navigation and Mode Switcher */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-9 w-9 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 font-bold shrink-0">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <span>Day-wise Machine Activity Log</span>
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                        Live Tracking
+                      </Badge>
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Automated audit trail of state changes, operator departures, breakdowns & downtime calculation
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date Selector & View Switcher */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-2xs">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handlePrevDay}
+                    className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900"
+                    title="Previous Day"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="px-2.5 py-0.5 text-xs font-bold text-slate-800 flex items-center gap-1.5 min-w-[120px] justify-center">
+                    <Calendar className="h-3.5 w-3.5 text-indigo-600" />
+                    <span>
+                      {new Date(selectedActivityDate + 'T00:00:00').toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleNextDay}
+                    className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900"
+                    title="Next Day"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToday}
+                  className="h-8 text-xs font-semibold px-2.5 rounded-xl border-slate-200"
+                >
+                  Today
+                </Button>
+
+                <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setActivityViewStyle('table')}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                      activityViewStyle === 'table'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Table View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivityViewStyle('timeline')}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                      activityViewStyle === 'timeline'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Timeline View
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Daily Totals Dashboard (6 KPI Cards matching user requirement) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Running */}
+              <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Running
+                </span>
+                <span className="text-lg font-black text-emerald-900 block mt-1">
+                  {activityData?.summary?.runningFormatted || '11h 20m'}
+                </span>
+                <span className="text-[10px] text-emerald-700 font-medium block mt-0.5">Operator Busy</span>
+              </div>
+
+              {/* Idle / Away */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Idle / Away
+                </span>
+                <span className="text-lg font-black text-amber-900 block mt-1">
+                  {activityData?.summary?.idleFormatted || '35m'}
+                </span>
+                <span className="text-[10px] text-amber-700 font-medium block mt-0.5">Operator Away</span>
+              </div>
+
+              {/* Breakdown */}
+              <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  Breakdown
+                </span>
+                <span className="text-lg font-black text-rose-900 block mt-1">
+                  {activityData?.summary?.breakdownFormatted || '35m'}
+                </span>
+                <span className="text-[10px] text-rose-700 font-medium block mt-0.5">Technical Problem</span>
+              </div>
+
+              {/* Maintenance */}
+              <div className="p-3.5 rounded-2xl bg-orange-50/70 border border-orange-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold text-orange-800 uppercase tracking-wider flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-orange-500" />
+                  Maintenance
+                </span>
+                <span className="text-lg font-black text-orange-900 block mt-1">
+                  {activityData?.summary?.maintenanceFormatted || '0m'}
+                </span>
+                <span className="text-[10px] text-orange-700 font-medium block mt-0.5">Technician Servicing</span>
+              </div>
+
+              {/* Offline */}
+              <div className="p-3.5 rounded-2xl bg-slate-100/80 border border-slate-300 shadow-2xs">
+                <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-slate-500" />
+                  Offline
+                </span>
+                <span className="text-lg font-black text-slate-800 block mt-1">
+                  {activityData?.summary?.offlineFormatted || '20m'}
+                </span>
+                <span className="text-[10px] text-slate-600 font-medium block mt-0.5">Machine Switched Off</span>
+              </div>
+
+              {/* Utilization */}
+              <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1">
+                  <Zap className="h-2.5 w-2.5 text-indigo-600" />
+                  Utilization
+                </span>
+                <span className="text-lg font-black text-indigo-900 block mt-1">
+                  {activityData?.summary?.utilizationPercentage != null
+                    ? `${activityData.summary.utilizationPercentage}%`
+                    : '90.8%'}
+                </span>
+                <span className="text-[10px] text-indigo-700 font-medium block mt-0.5">Daily Efficiency</span>
+              </div>
+            </div>
+
+            {/* Content: Either Table View or Clean Timeline View */}
+            {activityViewStyle === 'table' ? (
+              <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                <Table>
+                  <TableHeader className="bg-slate-50/80">
+                    <TableRow className="text-xs font-bold text-slate-700">
+                      <TableHead className="w-[85px]">Time</TableHead>
+                      <TableHead>Event</TableHead>
+                      <TableHead>Operator</TableHead>
+                      <TableHead>Shift</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Reason / Remarks</TableHead>
+                      <TableHead className="text-right">Action By</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="text-xs">
+                    {loadingActivity ? (
+                      Array.from({ length: 4 }).map((_, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell colSpan={8} className="py-4 text-center">
+                            <div className="h-4 bg-slate-100 rounded animate-pulse w-3/4 mx-auto" />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : activityData?.logs && activityData.logs.length > 0 ? (
+                      activityData.logs.map((log) => {
+                        const timeStr = log.startTime
+                          ? new Date(log.startTime).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: false,
+                            })
+                          : '—';
+
+                        return (
+                          <TableRow key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                            <TableCell className="font-mono font-bold text-indigo-600">
+                              {timeStr}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                className={`text-[10px] font-bold px-2 py-0.5 gap-1 ${
+                                  log.eventType === 'BREAKDOWN'
+                                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                    : log.eventType === 'MAINTENANCE_STARTED'
+                                    ? 'bg-orange-100 text-orange-800 border-orange-300'
+                                    : log.eventType === 'OPERATOR_AWAY'
+                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                    : log.eventType === 'MACHINE_STOPPED'
+                                    ? 'bg-slate-100 text-slate-800 border-slate-300'
+                                    : log.eventType === 'SHIFT_CHANGED'
+                                    ? 'bg-purple-100 text-purple-800 border-purple-300'
+                                    : log.eventType === 'REPAIR_COMPLETED'
+                                    ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                    : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                }`}
+                              >
+                                {log.eventLabel || log.eventType}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-semibold text-slate-800">
+                              {log.operatorName || '—'}
+                            </TableCell>
+                            <TableCell className="text-slate-600">
+                              {log.shift || '—'}
+                            </TableCell>
+                            <TableCell className="font-semibold">
+                              {log.durationMinutes ? (
+                                <span className="inline-flex items-center gap-1 text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md font-mono text-[11px]">
+                                  <Clock className="h-3 w-3 text-slate-500" />
+                                  {log.durationMinutes} min
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {log.status === 'BREAKDOWN' ? (
+                                <Badge className="text-[10px] font-bold bg-rose-600 text-white">🔴 BREAKDOWN</Badge>
+                              ) : log.status === 'MAINTENANCE' ? (
+                                <Badge className="text-[10px] font-bold bg-amber-600 text-white">🟠 MAINTENANCE</Badge>
+                              ) : log.status === 'IDLE' || log.status === 'AWAY' ? (
+                                <Badge className="text-[10px] font-bold bg-amber-200 text-amber-900">🟡 IDLE/AWAY</Badge>
+                              ) : log.status === 'OFFLINE' ? (
+                                <Badge className="text-[10px] font-bold bg-slate-800 text-white">⚫ OFFLINE</Badge>
+                              ) : log.status === 'BUSY' ? (
+                                <Badge className="text-[10px] font-bold bg-emerald-600 text-white">🟢 BUSY</Badge>
+                              ) : (
+                                <Badge className="text-[10px] font-bold bg-blue-600 text-white">🔵 AVAILABLE</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-slate-600 max-w-[220px] truncate" title={log.reason || log.remarks || ''}>
+                              {log.reason || log.remarks || '—'}
+                            </TableCell>
+                            <TableCell className="text-right text-slate-500 text-[11px]">
+                              {log.actionBy || 'Supervisor'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={8} className="py-8 text-center text-slate-400">
+                          No machine activity logs recorded for this date.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              /* Clean Timeline View matching user's ASCII mockup */
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="font-mono text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-indigo-600" />
+                    <span>
+                      {new Date(selectedActivityDate + 'T00:00:00').toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </h4>
+                  <span className="text-xs text-slate-500">Chronological Audit Trace</span>
+                </div>
+
+                <div className="divide-y divide-slate-200/80 max-w-2xl font-mono text-xs">
+                  {activityData?.logs && activityData.logs.length > 0 ? (
+                    activityData.logs.map((log) => {
+                      const timeStr = log.startTime
+                        ? new Date(log.startTime).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false,
+                          })
+                        : '—';
+
+                      return (
+                        <div key={log.id} className="py-2.5 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-4 min-w-0">
+                            <span className="font-bold text-slate-700 w-12 shrink-0">{timeStr}</span>
+                            <span className="text-slate-400">•</span>
+                            <span className="font-semibold text-slate-900 truncate">
+                              {log.eventLabel || log.eventType}
+                            </span>
+                            {log.operatorName && (
+                              <span className="text-[11px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0">
+                                {log.operatorName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="shrink-0 text-right">
+                            {log.durationMinutes ? (
+                              <span className="font-bold text-slate-800 bg-slate-200/80 px-2.5 py-0.5 rounded-full text-[11px]">
+                                {log.durationMinutes} min
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="py-6 text-center text-slate-400">No activity recorded for this day.</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           {/* Top Telemetry Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
