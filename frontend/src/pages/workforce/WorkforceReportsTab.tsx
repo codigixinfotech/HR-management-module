@@ -228,6 +228,28 @@ export function WorkforceReportsTab({
       const available = Math.max(0, lineMachines.length - allocated - inMaint);
       const utilizationPct = lineMachines.length > 0 ? Math.round((allocated / lineMachines.length) * 100) : 0;
 
+      // Equipment list under this operational unit with live status
+      const equipmentList = lineMachines.map((m) => {
+        const activeAlloc = allocations.find(
+          (a) => a.machineId === m.id && (a.status === 'ACTIVE' || a.status === 'Allocated')
+        );
+        const isAlloc = isMachineAllocated(m);
+        const isDown = m.status === 'UNDER_MAINTENANCE' || activeAlloc?.status === 'INTERRUPTED';
+
+        let statusLabel: 'BUSY' | 'AVAILABLE' | 'BREAKDOWN' = 'AVAILABLE';
+        if (isDown) statusLabel = 'BREAKDOWN';
+        else if (isAlloc) statusLabel = 'BUSY';
+
+        return {
+          id: m.id,
+          code: m.machineCode,
+          name: m.machineName,
+          operator: m.currentOperatorName || activeAlloc?.operatorName || 'Unallocated',
+          shift: m.currentShift || activeAlloc?.shift || '—',
+          status: statusLabel,
+        };
+      });
+
       return {
         id: line.id,
         name: line.lineName || line.lineCode,
@@ -237,6 +259,7 @@ export function WorkforceReportsTab({
         inMaint,
         available,
         utilizationPct,
+        machines: equipmentList,
       };
     });
   }, [productionLines, machines, allocations]);
@@ -340,17 +363,20 @@ export function WorkforceReportsTab({
       const activeAlloc = allocations.find((a) => a.machineId === m.id && (a.status === 'ACTIVE' || a.status === 'Allocated'));
       const hasOperator = Boolean(m.currentOperatorName || activeAlloc?.operatorName);
       const isAllocated = isMachineAllocated(m);
+      const isBreakdown = m.status === 'UNDER_MAINTENANCE' || activeAlloc?.status === 'INTERRUPTED';
 
       const operatorName = m.currentOperatorName || activeAlloc?.operatorName || null;
       const operatorType = m.currentOperatorType || activeAlloc?.operatorType || (hasOperator ? 'Employee' : null);
       const shift = m.currentShift || activeAlloc?.shift || (isAllocated ? 'Morning Shift' : null);
       const efficiency = activeAlloc?.efficiency || m.currentEfficiency || (isAllocated ? '96.2%' : null);
 
-      let status = 'Available';
-      if (m.status === 'UNDER_MAINTENANCE') {
-        status = 'Under Maintenance';
+      let status: 'BUSY' | 'AVAILABLE' | 'BREAKDOWN' = 'AVAILABLE';
+      if (isBreakdown) {
+        status = 'BREAKDOWN';
       } else if (isAllocated) {
-        status = 'Allocated';
+        status = 'BUSY';
+      } else {
+        status = 'AVAILABLE';
       }
 
       return {
@@ -383,9 +409,9 @@ export function WorkforceReportsTab({
 
       const matchStatus =
         statusFilter === 'ALL' ||
-        (statusFilter === 'Allocated' && row.status === 'Allocated') ||
-        (statusFilter === 'Available' && row.status === 'Available') ||
-        (statusFilter === 'Under Maintenance' && row.status === 'Under Maintenance');
+        (statusFilter === 'BUSY' && row.status === 'BUSY') ||
+        (statusFilter === 'AVAILABLE' && row.status === 'AVAILABLE') ||
+        (statusFilter === 'BREAKDOWN' && row.status === 'BREAKDOWN');
 
       const matchOpType =
         operatorTypeFilter === 'ALL' ||
@@ -789,6 +815,41 @@ export function WorkforceReportsTab({
                         <span>{line.available} idle / standby</span>
                         <span>{line.inMaint > 0 ? `${line.inMaint} in maintenance` : 'No maintenance downtime'}</span>
                       </div>
+
+                      {/* Machine-Level Allocation Display */}
+                      {line.machines && line.machines.length > 0 && (
+                        <div className="mt-2.5 pt-2 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {line.machines.map((eq) => (
+                            <div
+                              key={eq.id}
+                              className="flex items-center justify-between p-2 rounded-md bg-card border border-border/60 text-xs hover:border-primary/40 transition-colors"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <Cpu className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <div className="truncate">
+                                  <span className="font-mono font-semibold text-foreground">{eq.code}</span>
+                                  <span className="text-muted-foreground text-[11px] ml-1.5 truncate">
+                                    {eq.operator} {eq.shift !== '—' ? `| ${eq.shift}` : ''}
+                                  </span>
+                                </div>
+                              </div>
+                              {eq.status === 'BREAKDOWN' ? (
+                                <Badge className="text-[9.5px] font-bold bg-rose-600 hover:bg-rose-600 text-white shrink-0 py-0.5">
+                                  🔴 BREAKDOWN
+                                </Badge>
+                              ) : eq.status === 'BUSY' ? (
+                                <Badge className="text-[9.5px] font-bold bg-emerald-600 hover:bg-emerald-600 text-white shrink-0 py-0.5">
+                                  🟢 BUSY
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9.5px] font-bold border-emerald-500 text-emerald-600 dark:text-emerald-400 shrink-0 py-0.5">
+                                  🟢 AVAILABLE
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -952,14 +1013,14 @@ export function WorkforceReportsTab({
 
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 w-32 text-xs">
+              <SelectTrigger className="h-8 w-36 text-xs">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL" className="text-xs">All Status</SelectItem>
-                <SelectItem value="Allocated" className="text-xs">Allocated</SelectItem>
-                <SelectItem value="Available" className="text-xs">Available</SelectItem>
-                <SelectItem value="Under Maintenance" className="text-xs">Under Maintenance</SelectItem>
+                <SelectItem value="BUSY" className="text-xs">🟢 BUSY</SelectItem>
+                <SelectItem value="AVAILABLE" className="text-xs">🟢 AVAILABLE</SelectItem>
+                <SelectItem value="BREAKDOWN" className="text-xs">🔴 BREAKDOWN</SelectItem>
               </SelectContent>
             </Select>
 
@@ -1129,18 +1190,17 @@ export function WorkforceReportsTab({
 
                       {/* Allocation Status */}
                       <TableCell className="text-xs text-right py-3">
-                        {row.status === 'Allocated' ? (
-                          <Badge variant="success" className="text-[10px] font-medium gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Allocated
+                        {row.status === 'BREAKDOWN' ? (
+                          <Badge className="text-[10px] font-bold bg-rose-600 hover:bg-rose-600 text-white gap-1 py-0.5">
+                            🔴 BREAKDOWN
                           </Badge>
-                        ) : row.status === 'Under Maintenance' ? (
-                          <Badge variant="warning" className="text-[10px] font-medium">
-                            Under Maint
+                        ) : row.status === 'BUSY' ? (
+                          <Badge className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-600 text-white gap-1 py-0.5">
+                            🟢 BUSY
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal">
-                            Available
+                          <Badge variant="outline" className="text-[10px] font-bold border-emerald-500 text-emerald-600 dark:text-emerald-400 gap-1 py-0.5">
+                            🟢 AVAILABLE
                           </Badge>
                         )}
                       </TableCell>

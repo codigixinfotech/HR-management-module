@@ -507,6 +507,7 @@ function MachineManagementContent({
           productionLines={productionLines}
           branches={branches}
           departments={departments}
+          allocations={allocations}
           loading={loadingData}
           onViewDetails={(m) => setSelectedMachineId(m.id)}
           onEditMachine={(m) => {
@@ -556,6 +557,9 @@ function MachineManagementContent({
         <OperatorsTab
           operators={operators}
           branches={branches}
+          machines={machines}
+          productionLines={productionLines}
+          allocations={allocations}
           loading={loadingData}
           onViewOperator={(op) => setSelectedOperatorId(op.id)}
           onAddOperator={() => setOpenAddOperator(true)}

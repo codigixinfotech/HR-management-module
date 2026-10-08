@@ -28,13 +28,18 @@ import {
   ShieldCheck,
   RotateCcw,
   Trash2,
+  GitFork,
+  Cpu,
 } from 'lucide-react';
-import type { MachineOperator } from '@/api/machine-management';
+import type { MachineOperator, Machine, ProductionLine, MachineAllocation } from '@/api/machine-management';
 import type { Branch } from '@/api/types';
 
 interface OperatorsTabProps {
   operators: MachineOperator[];
   branches: Branch[];
+  machines?: Machine[];
+  productionLines?: ProductionLine[];
+  allocations?: MachineAllocation[];
   loading: boolean;
   onViewOperator: (operator: MachineOperator) => void;
   onAddOperator: () => void;
@@ -45,6 +50,9 @@ interface OperatorsTabProps {
 export function OperatorsTab({
   operators,
   branches,
+  machines = [],
+  productionLines = [],
+  allocations = [],
   loading,
   onViewOperator,
   onAddOperator,
@@ -157,12 +165,10 @@ export function OperatorsTab({
             <TableHeader className="bg-muted/40">
               <TableRow className="text-xs">
                 <TableHead className="font-semibold text-foreground">Operator</TableHead>
-                <TableHead className="font-semibold text-foreground">Code</TableHead>
                 <TableHead className="font-semibold text-foreground">Type</TableHead>
-                <TableHead className="font-semibold text-foreground">Department</TableHead>
-                <TableHead className="font-semibold text-foreground">Skill & Specialization</TableHead>
-                <TableHead className="font-semibold text-foreground">Certification</TableHead>
+                <TableHead className="font-semibold text-foreground">Operational Unit</TableHead>
                 <TableHead className="font-semibold text-foreground">Current Machine</TableHead>
+                <TableHead className="font-semibold text-foreground">Current Shift</TableHead>
                 <TableHead className="font-semibold text-foreground">Status</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
               </TableRow>
@@ -171,14 +177,14 @@ export function OperatorsTab({
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={9} className="py-4 text-center">
+                    <TableCell colSpan={7} className="py-4 text-center">
                       <div className="h-5 bg-muted animate-pulse rounded w-3/4 mx-auto" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : filteredOperators.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     <p className="font-medium text-sm">No machine operators found</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Mark employees or contract workers as eligible machine operators.
@@ -195,81 +201,140 @@ export function OperatorsTab({
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredOperators.map((op) => (
-                  <TableRow
-                    key={op.id}
-                    className="hover:bg-muted/30 transition-colors cursor-pointer"
-                    onClick={() => onViewOperator(op)}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                          {op.operatorName.charAt(0)}
+                filteredOperators.map((op) => {
+                  const activeMachine = machines.find(
+                    (m) => m.id === op.currentMachineId || m.currentOperatorName === op.operatorName
+                  );
+                  const activeAlloc = allocations.find(
+                    (a) =>
+                      (a.operatorId === op.id || a.operatorName === op.operatorName) &&
+                      (a.status === 'ACTIVE' || a.status === 'Allocated')
+                  );
+
+                  const opUnitName =
+                    op.currentLineName ||
+                    activeMachine?.productionLineName ||
+                    activeAlloc?.lineName ||
+                    null;
+
+                  const currentMachineCode =
+                    op.currentMachineCode || activeMachine?.machineCode || activeAlloc?.machineCode || null;
+                  const currentMachineName =
+                    op.currentMachineName || activeMachine?.machineName || activeAlloc?.machineName || null;
+
+                  const currentShift =
+                    op.currentShift || activeMachine?.currentShift || activeAlloc?.shift || null;
+
+                  const isMachineBreakdown =
+                    activeMachine?.status === 'UNDER_MAINTENANCE' || activeAlloc?.status === 'INTERRUPTED';
+                  const isWorking =
+                    !isMachineBreakdown &&
+                    Boolean(
+                      op.status === 'Allocated' ||
+                        op.currentMachineId ||
+                        activeAlloc ||
+                        activeMachine?.currentOperatorName === op.operatorName
+                    );
+
+                  return (
+                    <TableRow
+                      key={op.id}
+                      className="hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => onViewOperator(op)}
+                    >
+                      {/* Operator Column */}
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                            {op.operatorName.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-foreground">{op.operatorName}</p>
+                            <p className="text-[11px] text-muted-foreground font-mono">
+                              {op.operatorCode} {op.contractorAgency ? `• ${op.contractorAgency}` : ''}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-foreground">{op.operatorName}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {op.contractorAgency || 'In-house Employee'}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono font-medium text-primary">
-                      {op.operatorCode}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={op.operatorType === 'Employee' ? 'default' : 'secondary'}
-                        className="text-[10px]"
-                      >
-                        {op.operatorType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{op.department || 'Production'}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-foreground">{op.skill}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          Level: {op.skillLevel || 'Expert'}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                        <span className="font-medium truncate max-w-[140px]" title={op.certification || ''}>
-                          {op.certification || 'Valid License'}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {op.currentMachineCode ? (
-                        <div>
-                          <span className="font-mono font-semibold text-primary">
-                            {op.currentMachineCode}
+                      </TableCell>
+
+                      {/* Type Column */}
+                      <TableCell>
+                        {op.operatorType === 'Contractor' ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[9.5px] px-2 py-0.5 border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700 font-normal"
+                          >
+                            Contractor
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-[9.5px] px-2 py-0.5 border-indigo-300 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-700 font-normal"
+                          >
+                            Permanent
+                          </Badge>
+                        )}
+                      </TableCell>
+
+                      {/* Operational Unit Column */}
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <GitFork className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="font-medium text-foreground">
+                            {opUnitName || <span className="text-muted-foreground italic font-normal">—</span>}
                           </span>
-                          <span className="block text-[10px] text-muted-foreground truncate max-w-[130px]">
-                            {op.currentMachineName}
-                          </span>
                         </div>
-                      ) : (
-                        <span className="text-muted-foreground italic">None Assigned</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          op.status === 'Available'
-                            ? 'success'
-                            : op.status === 'Allocated'
-                            ? 'default'
-                            : 'secondary'
-                        }
-                        className="text-[11px]"
-                      >
-                        {op.status}
-                      </Badge>
-                    </TableCell>
+                      </TableCell>
+
+                      {/* Current Machine Column */}
+                      <TableCell>
+                        {currentMachineCode ? (
+                          <div>
+                            <span className="font-mono font-semibold text-primary">
+                              {currentMachineCode}
+                            </span>
+                            {currentMachineName && (
+                              <span className="block text-[10.5px] text-muted-foreground truncate max-w-[140px]">
+                                {currentMachineName}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic">—</span>
+                        )}
+                      </TableCell>
+
+                      {/* Current Shift Column */}
+                      <TableCell>
+                        {currentShift ? (
+                          <Badge variant="secondary" className="text-[10px] font-medium">
+                            {currentShift}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+
+                      {/* Status Column */}
+                      <TableCell>
+                        {isMachineBreakdown ? (
+                          <Badge className="text-[10px] font-bold bg-rose-600 hover:bg-rose-600 text-white gap-1 py-0.5">
+                            🔴 Blocked
+                          </Badge>
+                        ) : isWorking ? (
+                          <Badge className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-600 text-white gap-1 py-0.5">
+                            🟢 Working
+                          </Badge>
+                        ) : op.status === 'On Leave' ? (
+                          <Badge variant="warning" className="text-[10px] font-semibold gap-1">
+                            🟡 On Leave
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] font-semibold gap-1 text-muted-foreground border-muted-foreground/30">
+                            ⚪ Available
+                          </Badge>
+                        )}
+                      </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -300,7 +365,8 @@ export function OperatorsTab({
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>

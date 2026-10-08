@@ -54,6 +54,36 @@ interface AllocationsTabProps {
   onDeleteAllocation: (allocation: MachineAllocation) => void;
 }
 
+function formatAllocationDate(dateStr?: string): string {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function isToday(dateStr?: string): boolean {
+  if (!dateStr) return false;
+  try {
+    const d = new Date(dateStr);
+    const today = new Date();
+    return (
+      d.getDate() === today.getDate() &&
+      d.getMonth() === today.getMonth() &&
+      d.getFullYear() === today.getFullYear()
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function AllocationsTab({
   allocations,
   productionLines,
@@ -195,6 +225,7 @@ export function AllocationsTab({
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow className="text-xs">
+                <TableHead className="font-semibold text-foreground">Date</TableHead>
                 <TableHead className="font-semibold text-foreground">Operational Unit</TableHead>
                 <TableHead className="font-semibold text-foreground">Machine Equipment</TableHead>
                 <TableHead className="font-semibold text-foreground">Assigned Operator</TableHead>
@@ -209,14 +240,14 @@ export function AllocationsTab({
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={8} className="py-4 text-center">
+                    <TableCell colSpan={9} className="py-4 text-center">
                       <div className="h-5 bg-muted animate-pulse rounded w-3/4 mx-auto" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : filteredAllocations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     <p className="font-medium text-sm">No machine allocations found</p>
                     <Button
                       size="sm"
@@ -232,6 +263,23 @@ export function AllocationsTab({
               ) : (
                 filteredAllocations.map((a) => (
                   <TableRow key={a.id} className="hover:bg-muted/30 transition-colors">
+                    {/* Date Column */}
+                    <TableCell>
+                      <div className="flex items-center gap-1.5 whitespace-nowrap text-xs">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <div>
+                          <span className="font-medium text-foreground block">
+                            {formatAllocationDate(a.allocationDate)}
+                          </span>
+                          {isToday(a.allocationDate) && (
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block leading-tight">
+                              Today
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+
                     <TableCell>
                       <span className="font-medium text-foreground">
                         {a.lineName || 'Main Factory Line'}

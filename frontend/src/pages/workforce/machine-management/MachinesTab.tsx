@@ -33,18 +33,26 @@ import {
   QrCode,
   ScanLine,
   Trash2,
+  AlertOctagon,
+  CalendarCheck,
 } from 'lucide-react';
-import type { Machine, ProductionLine } from '@/api/machine-management';
+import type { Machine, ProductionLine, MachineAllocation } from '@/api/machine-management';
 import type { Branch, Department } from '@/api/types';
 import { toast } from 'sonner';
 import { MachineQrModal } from './MachineQrModal';
 import { ScanQrModal } from './ScanQrModal';
+import { ReportBreakdownModal } from './ReportBreakdownModal';
+import {
+  MachineShiftAllocationsModal,
+  isCurrentShiftWindow,
+} from './MachineShiftAllocationsModal';
 
 interface MachinesTabProps {
   machines: Machine[];
   productionLines: ProductionLine[];
   branches: Branch[];
   departments: Department[];
+  allocations?: MachineAllocation[];
   loading: boolean;
   onViewDetails: (machine: Machine) => void;
   onEditMachine: (machine: Machine) => void;
@@ -74,6 +82,7 @@ export function MachinesTab({
   productionLines,
   branches,
   departments,
+  allocations = [],
   loading,
   onViewDetails,
   onEditMachine,
@@ -97,6 +106,14 @@ export function MachinesTab({
   const [selectedQrMachine, setSelectedQrMachine] = useState<Machine | null>(null);
   const [openQrModal, setOpenQrModal] = useState(false);
   const [openScanModal, setOpenScanModal] = useState(false);
+
+  // Breakdown Modal States
+  const [selectedBreakdownMachine, setSelectedBreakdownMachine] = useState<Machine | null>(null);
+  const [openBreakdownModal, setOpenBreakdownModal] = useState(false);
+
+  // Shift-wise Allocations Modal States
+  const [selectedAllocMachine, setSelectedAllocMachine] = useState<Machine | null>(null);
+  const [openAllocModal, setOpenAllocModal] = useState(false);
 
   const handleReset = () => {
     setSearch('');
@@ -273,14 +290,12 @@ export function MachinesTab({
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow className="text-xs">
-                <TableHead className="font-semibold text-foreground">Machine Code</TableHead>
-                <TableHead className="font-semibold text-foreground">Machine Name</TableHead>
-                <TableHead className="font-semibold text-foreground">Type</TableHead>
+                <TableHead className="font-semibold text-foreground">Machine</TableHead>
                 <TableHead className="font-semibold text-foreground">Operational Unit</TableHead>
-                <TableHead className="font-semibold text-foreground">Assigned Operator</TableHead>
-                <TableHead className="font-semibold text-foreground">Shift</TableHead>
+                <TableHead className="font-semibold text-foreground">Current Operator</TableHead>
+                <TableHead className="font-semibold text-foreground">Current Shift</TableHead>
                 <TableHead className="font-semibold text-foreground">Status</TableHead>
-                <TableHead className="font-semibold text-foreground">Maintenance Health</TableHead>
+                <TableHead className="font-semibold text-foreground">Maintenance</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -288,14 +303,14 @@ export function MachinesTab({
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={8} className="py-4 text-center">
+                    <TableCell colSpan={7} className="py-4 text-center">
                       <div className="h-5 bg-muted animate-pulse rounded w-3/4 mx-auto" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : filteredMachines.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     <p className="font-medium text-sm">No machines found</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Try adjusting filters or add a new machine to the registry.
@@ -312,197 +327,265 @@ export function MachinesTab({
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredMachines.map((m) => (
-                  <TableRow
-                    key={m.id}
-                    className="hover:bg-muted/30 transition-colors cursor-pointer"
-                    onClick={() => onViewDetails(m)}
-                  >
-                    <TableCell className="font-mono font-semibold text-primary">
-                      {m.machineCode}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-foreground">{m.machineName}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {m.manufacturer || m.model ? `${m.manufacturer || ''} ${m.model || ''}`.trim() : m.workstation || 'Standard Rig'}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[11px] font-normal">
-                        {m.machineType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <GitFork className="h-3 w-3 text-muted-foreground" />
-                        <span className="font-medium">
-                          {m.productionLineName || (
-                            <span className="text-muted-foreground italic">Unassigned</span>
-                          )}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {m.currentOperatorName ? (
+                filteredMachines.map((m) => {
+                  const machineAllocs = (allocations || []).filter((a) => a.machineId === m.id);
+                  const activeShiftAlloc =
+                    machineAllocs.find(
+                      (a) =>
+                        isCurrentShiftWindow(a.shift) &&
+                        (a.status === 'ACTIVE' || a.status === 'INTERRUPTED')
+                    ) ||
+                    machineAllocs.find((a) => isCurrentShiftWindow(a.shift)) ||
+                    machineAllocs.find((a) => a.status === 'ACTIVE') ||
+                    machineAllocs[0];
+
+                  const displayOperator = activeShiftAlloc?.operatorName || m.currentOperatorName;
+                  const displayType = activeShiftAlloc?.operatorType || m.currentOperatorType;
+                  const displayShift = activeShiftAlloc?.shift || m.currentShift;
+
+                  return (
+                    <TableRow
+                      key={m.id}
+                      className="hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setSelectedAllocMachine(m);
+                        setOpenAllocModal(true);
+                      }}
+                    >
+                      {/* Machine Column */}
+                      <TableCell>
+                        <div className="font-mono font-semibold text-primary">{m.machineCode}</div>
+                        <div className="font-medium text-foreground text-xs">{m.machineName}</div>
+                        <span className="text-[10.5px] text-muted-foreground">{m.machineType}</span>
+                      </TableCell>
+
+                      {/* Operational Unit Column */}
+                      <TableCell>
                         <div className="flex items-center gap-1.5">
-                          <div className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium text-foreground">
-                              {m.currentOperatorName}
-                            </span>
-                            {m.currentOperatorType === 'Contractor' && (
+                          <GitFork className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="font-medium">
+                            {m.productionLineName || (
+                              <span className="text-muted-foreground italic">Unassigned</span>
+                            )}
+                          </span>
+                        </div>
+                        {m.productionLineCode && (
+                          <span className="text-[10px] text-muted-foreground font-mono ml-4.5">
+                            {m.productionLineCode}
+                          </span>
+                        )}
+                      </TableCell>
+
+                      {/* Current Operator Column */}
+                      <TableCell>
+                        {displayOperator ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="font-medium text-foreground">{displayOperator}</span>
+                            {displayType === 'Contractor' ? (
                               <Badge
                                 variant="outline"
                                 className="text-[9px] px-1 py-0 h-4 border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700 font-normal"
                               >
                                 Contractor
                               </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] px-1 py-0 h-4 border-indigo-300 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-700 font-normal"
+                              >
+                                Permanent
+                              </Badge>
                             )}
                           </div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground italic">Unallocated</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {m.currentShift ? (
-                        <Badge variant="secondary" className="text-[10px]">
-                          {m.currentShift}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {m.status === 'UNDER_MAINTENANCE' ? (
-                        <Badge variant="warning" className="text-[11px] font-medium">
-                          ● Under Maintenance
-                        </Badge>
-                      ) : m.currentOperatorName || m.currentAllocationStatus === 'ACTIVE' ? (
-                        <Badge variant="success" className="text-[11px] font-medium">
-                          ● Allocated
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[11px] font-medium">
-                          ● Available
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          m.maintenanceDueStatus === 'OVERDUE'
-                            ? 'destructive'
+                        ) : (
+                          <span className="text-muted-foreground italic">—</span>
+                        )}
+                      </TableCell>
+
+                      {/* Current Shift Column */}
+                      <TableCell>
+                        {displayShift ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="secondary" className="text-[10px] font-medium">
+                              {displayShift}
+                            </Badge>
+                            {machineAllocs.length > 1 && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] font-mono cursor-pointer hover:bg-muted text-muted-foreground border-dashed"
+                                title="Click to view all shift-wise allocations"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAllocMachine(m);
+                                  setOpenAllocModal(true);
+                                }}
+                              >
+                                +{machineAllocs.length} shifts
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+
+                      {/* Status Column: BUSY / AVAILABLE / BREAKDOWN */}
+                      <TableCell>
+                        {m.status === 'UNDER_MAINTENANCE' ? (
+                          <Badge className="text-[10px] font-bold bg-rose-600 hover:bg-rose-600 text-white gap-1 py-0.5">
+                            🔴 BREAKDOWN
+                          </Badge>
+                        ) : displayOperator || m.currentAllocationStatus === 'ACTIVE' ? (
+                          <Badge className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-600 text-white gap-1 py-0.5">
+                            🟢 BUSY
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] font-bold border-emerald-500 text-emerald-600 dark:text-emerald-400 gap-1 py-0.5">
+                            🟢 AVAILABLE
+                          </Badge>
+                        )}
+                      </TableCell>
+
+                      {/* Maintenance Column */}
+                      <TableCell>
+                        <Badge
+                          variant={
+                            m.status === 'UNDER_MAINTENANCE' || m.maintenanceDueStatus === 'OVERDUE'
+                              ? 'destructive'
+                              : m.maintenanceDueStatus === 'DUE_TODAY'
+                              ? 'warning'
+                              : m.maintenanceDueStatus === 'UPCOMING'
+                              ? 'outline'
+                              : 'secondary'
+                          }
+                          className="text-[10px] font-medium whitespace-nowrap"
+                          title={`Next Scheduled: ${m.nextMaintenanceDate ? m.nextMaintenanceDate.slice(0, 10) : 'None'}`}
+                        >
+                          {m.status === 'UNDER_MAINTENANCE'
+                            ? '🔴 Repair'
+                            : m.maintenanceDueStatus === 'OVERDUE'
+                            ? '🔴 Overdue'
                             : m.maintenanceDueStatus === 'DUE_TODAY'
-                            ? 'warning'
+                            ? '🟠 Due Today'
                             : m.maintenanceDueStatus === 'UPCOMING'
-                            ? 'outline'
-                            : 'secondary'
-                        }
-                        className="text-[10px] font-medium whitespace-nowrap"
-                        title={`Next Scheduled: ${m.nextMaintenanceDate ? m.nextMaintenanceDate.slice(0, 10) : 'None'}`}
-                      >
-                        {m.maintenanceDueStatus === 'OVERDUE' && '🔴 '}
-                        {m.maintenanceDueStatus === 'DUE_TODAY' && '🟠 '}
-                        {m.maintenanceDueStatus === 'UPCOMING' && '🟡 '}
-                        {m.maintenanceDueStatus === 'NORMAL' && '🟢 '}
-                        {m.maintenanceDueLabel || 'Healthy'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                          title="360° Equipment Interactive Viewer"
-                          onClick={() => onOpen360?.(m)}
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                        </Button>
+                            ? '🟡 Upcoming'
+                            : '🟢 Healthy'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                            title="360° Equipment Interactive Viewer"
+                            onClick={() => onOpen360?.(m)}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                          title="View & Print QR Asset Tag"
-                          onClick={() => {
-                            setSelectedQrMachine(m);
-                            setOpenQrModal(true);
-                          }}
-                        >
-                          <QrCode className="h-4 w-4" />
-                        </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                            title="View & Print QR Asset Tag"
+                            onClick={() => {
+                              setSelectedQrMachine(m);
+                              setOpenQrModal(true);
+                            }}
+                          >
+                            <QrCode className="h-4 w-4" />
+                          </Button>
 
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48 text-xs">
-                            <DropdownMenuItem onClick={() => onOpen360?.(m)}>
-                              <RotateCcw className="h-3.5 w-3.5 mr-2 text-indigo-600" />
-                              360° Interactive View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onViewDetails(m)}>
-                              <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedQrMachine(m);
-                                setOpenQrModal(true);
-                              }}
-                            >
-                              <QrCode className="h-3.5 w-3.5 mr-2 text-primary" />
-                              Asset QR Tag
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onEditMachine(m)}>
-                              <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                              Edit Machine
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onAssignOperator(m)}>
-                              <UserCheck className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                              Assign Operator
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onStartMaintenance(m)}>
-                              <Wrench className="h-3.5 w-3.5 mr-2 text-amber-600" />
-                              Start Maintenance
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => onViewDetails(m)}>
-                              <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                              Allocation History
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onViewDetails(m)}>
-                              <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                              Maintenance History
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => onToggleStatus(m)}
-                              className="text-muted-foreground"
-                            >
-                              <Power className="h-3.5 w-3.5 mr-2" />
-                              {m.status === 'ACTIVE' ? 'Deactivate' : 'Set Active'}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => onDeleteMachine(m)}
-                              className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-2" />
-                              Delete Machine
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52 text-xs">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedAllocMachine(m);
+                                  setOpenAllocModal(true);
+                                }}
+                                className="font-medium cursor-pointer"
+                              >
+                                <CalendarCheck className="h-3.5 w-3.5 mr-2 text-indigo-600" />
+                                View Allocations {machineAllocs.length > 0 ? `(${machineAllocs.length})` : ''}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onViewDetails(m)}>
+                                <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onOpen360?.(m)}>
+                                <RotateCcw className="h-3.5 w-3.5 mr-2 text-indigo-600" />
+                                360° Interactive View
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedQrMachine(m);
+                                  setOpenQrModal(true);
+                                }}
+                              >
+                                <QrCode className="h-3.5 w-3.5 mr-2 text-primary" />
+                                Asset QR Tag
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onEditMachine(m)}>
+                                <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                Edit Machine
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onAssignOperator(m)}>
+                                <UserCheck className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                                Assign Operator
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onStartMaintenance(m)}>
+                                <Wrench className="h-3.5 w-3.5 mr-2 text-amber-600" />
+                                Start Maintenance
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedBreakdownMachine(m);
+                                  setOpenBreakdownModal(true);
+                                }}
+                                className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium cursor-pointer"
+                              >
+                                <AlertOctagon className="h-3.5 w-3.5 mr-2 text-rose-600" />
+                                Report Breakdown
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => onViewDetails(m)}>
+                                <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                Allocation History
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onViewDetails(m)}>
+                                <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                Maintenance History
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => onToggleStatus(m)}
+                                className="text-muted-foreground"
+                              >
+                                <Power className="h-3.5 w-3.5 mr-2" />
+                                {m.status === 'ACTIVE' ? 'Deactivate' : 'Set Active'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => onDeleteMachine(m)}
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                Delete Machine
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -529,6 +612,30 @@ export function MachinesTab({
           } else {
             onViewDetails(m);
           }
+        }}
+      />
+
+      {/* Report Breakdown Modal */}
+      <ReportBreakdownModal
+        machine={selectedBreakdownMachine}
+        open={openBreakdownModal}
+        onOpenChange={setOpenBreakdownModal}
+        onSuccess={() => {
+          if (onMachineUpdated) onMachineUpdated();
+        }}
+      />
+
+      {/* Shift-wise Allocations Modal */}
+      <MachineShiftAllocationsModal
+        machine={selectedAllocMachine}
+        open={openAllocModal}
+        onOpenChange={setOpenAllocModal}
+        allocations={allocations || []}
+        onAssignNewShift={(mach) => {
+          onAssignOperator(mach);
+        }}
+        onViewDetails={(mach) => {
+          onViewDetails(mach);
         }}
       />
     </div>

@@ -163,11 +163,13 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
       ...params
     );
 
-    // Allocated machines count (machines with ACTIVE allocation)
+    // Allocated machines count (machines with ACTIVE allocation and currently operating)
     const allocatedResult: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT COUNT(DISTINCT machineId) as allocatedCount 
-       FROM machine_allocations 
-       ${whereClause} AND status = 'ACTIVE'`,
+      `SELECT COUNT(DISTINCT ma.machineId) as allocatedCount 
+       FROM machine_allocations ma
+       JOIN machines m ON m.id = ma.machineId
+       ${whereClause.replace(/companyId/g, 'ma.companyId').replace(/branchId/g, 'ma.branchId')} 
+       AND ma.status = 'ACTIVE' AND m.status = 'ACTIVE'`,
       ...params
     );
 
@@ -313,24 +315,71 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
     > = {};
 
     try {
+      const currentHour = new Date().getHours();
+      let currentShiftAliases: string[] = [];
+      if (currentHour >= 6 && currentHour < 14) {
+        currentShiftAliases = ['morning', 'first', 'shift 1', 'shift-1', 'general'];
+      } else if (currentHour >= 14 && currentHour < 22) {
+        currentShiftAliases = ['evening', 'afternoon', 'second', 'shift 2', 'shift-2'];
+      } else {
+        currentShiftAliases = ['night', 'third', 'shift 3', 'shift-3'];
+      }
+
+      // Query active and interrupted allocations (interrupted allocations retain operator & shift during breakdown)
       const allocSql = `
-        SELECT ma.machineId, ma.shift, ma.efficiency, ma.status, mo.operatorName, mo.operatorType
+        SELECT ma.id, ma.machineId, ma.shift, ma.efficiency, ma.status, mo.operatorName, mo.operatorType
         FROM machine_allocations ma
         JOIN machine_operators mo ON mo.id = ma.operatorId
         WHERE ma.machineId IN (${placeholders})
-          AND ma.status = 'ACTIVE'
-        LIMIT 200
+          AND ma.status IN ('ACTIVE', 'INTERRUPTED')
+        ORDER BY ma.allocationDate DESC, ma.createdAt DESC
+        LIMIT 500
       `;
       const allocs: any[] = await this.prisma.$queryRawUnsafe(allocSql, ...machineIds);
+
+      // Group allocations by machine
+      const allocsByMachine: Record<string, any[]> = {};
       for (const a of allocs) {
-        if (!allocMap[a.machineId]) {
-          allocMap[a.machineId] = {
-            operatorName: a.operatorName,
-            operatorType: a.operatorType || 'Employee',
-            shift: a.shift,
-            efficiency: a.efficiency,
-            status: a.status,
-          };
+        if (!allocsByMachine[a.machineId]) allocsByMachine[a.machineId] = [];
+        allocsByMachine[a.machineId].push(a);
+      }
+
+      for (const mId of machineIds) {
+        const mAllocs = allocsByMachine[mId] || [];
+        if (mAllocs.length > 0) {
+          // Priority 1: Active allocation matching ongoing shift window
+          let chosen = mAllocs.find(
+            (a) =>
+              a.status === 'ACTIVE' &&
+              currentShiftAliases.some((alias) => (a.shift || '').toLowerCase().includes(alias))
+          );
+
+          // Priority 2: Any allocation matching ongoing shift window (e.g. INTERRUPTED during breakdown)
+          if (!chosen) {
+            chosen = mAllocs.find((a) =>
+              currentShiftAliases.some((alias) => (a.shift || '').toLowerCase().includes(alias))
+            );
+          }
+
+          // Priority 3: Any ACTIVE allocation on this machine
+          if (!chosen) {
+            chosen = mAllocs.find((a) => a.status === 'ACTIVE');
+          }
+
+          // Priority 4: Most recent allocation (e.g. INTERRUPTED)
+          if (!chosen) {
+            chosen = mAllocs[0];
+          }
+
+          if (chosen) {
+            allocMap[mId] = {
+              operatorName: chosen.operatorName,
+              operatorType: chosen.operatorType || 'Employee',
+              shift: chosen.shift,
+              efficiency: chosen.efficiency,
+              status: chosen.status,
+            };
+          }
         }
       }
 
@@ -342,7 +391,7 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
           SELECT mo.currentMachineId as machineId, mo.currentShift as shift, mo.operatorName, mo.operatorType, mo.status
           FROM machine_operators mo
           WHERE mo.currentMachineId IN (${remPlaceholders})
-            AND mo.status = 'Allocated'
+            AND mo.status IN ('Allocated', 'Blocked')
           LIMIT 200
         `;
         const directOps: any[] = await this.prisma.$queryRawUnsafe(opSql, ...remainingMachineIds);
@@ -353,7 +402,7 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
               operatorType: op.operatorType || 'Employee',
               shift: op.shift || 'General Shift',
               efficiency: 96.0,
-              status: 'ACTIVE',
+              status: op.status === 'Blocked' ? 'INTERRUPTED' : 'ACTIVE',
             };
           }
         }
@@ -1355,14 +1404,14 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
     let interruptedAllocationId: string | null = null;
     if (activeAlloc.length > 0) {
       interruptedAllocationId = activeAlloc[0].id;
-      // Mark active allocation as INTERRUPTED
+      // Mark active allocation as INTERRUPTED (preserve record without deleting)
       await this.prisma.$executeRawUnsafe(
         `UPDATE machine_allocations SET status = 'INTERRUPTED' WHERE id = ?`,
         interruptedAllocationId
       );
-      // Free operator to available
+      // Mark operator as Blocked while preserving allocation history
       await this.prisma.$executeRawUnsafe(
-        `UPDATE machine_operators SET status = 'Available', currentMachineId = NULL, currentShift = NULL WHERE id = ?`,
+        `UPDATE machine_operators SET status = 'Blocked' WHERE id = ?`,
         activeAlloc[0].operatorId
       );
     }
@@ -1456,6 +1505,31 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
       calculatedNextMaintenanceDate,
       maint.machineId
     );
+
+    // Resume interrupted allocation and operator if one existed
+    const maintDetails: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT interruptedAllocationId FROM machine_maintenances WHERE id = ?',
+      id
+    );
+    const interruptedAllocId = maintDetails.length > 0 ? maintDetails[0].interruptedAllocationId : null;
+    if (interruptedAllocId) {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE machine_allocations SET status = 'ACTIVE' WHERE id = ?`,
+        interruptedAllocId
+      );
+      const allocRows: any[] = await this.prisma.$queryRawUnsafe(
+        'SELECT operatorId, shift FROM machine_allocations WHERE id = ?',
+        interruptedAllocId
+      );
+      if (allocRows.length > 0 && allocRows[0].operatorId) {
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE machine_operators SET status = 'Allocated', currentMachineId = ?, currentShift = ? WHERE id = ?`,
+          maint.machineId,
+          allocRows[0].shift,
+          allocRows[0].operatorId
+        );
+      }
+    }
 
     return {
       success: true,
