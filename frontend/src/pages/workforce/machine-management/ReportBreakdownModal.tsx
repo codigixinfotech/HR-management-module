@@ -84,16 +84,10 @@ export function ReportBreakdownModal({
 
     try {
       setSubmitting(true);
-      await machineManagementApi.startMaintenance({
-        companyId: machine.companyId,
-        branchId: machine.branchId,
-        machineId: machine.id,
-        productionLineId: machine.productionLineId || undefined,
-        maintenanceType: 'Breakdown',
-        priority: 'Critical',
+      await machineManagementApi.reportBreakdown(machine.id, {
         reason: finalReason,
-        startDate: breakdownDateTime.slice(0, 10),
-        technicianName: technicianName || 'Shop Floor Maintenance Lead',
+        breakdownDateTime,
+        technicianName: technicianName || undefined,
         remarks: [
           remarks.trim(),
           `Reported Date/Time: ${breakdownDateTime}`,
@@ -126,7 +120,7 @@ export function ReportBreakdownModal({
           <p className="text-xs text-muted-foreground mt-0.5">
             Logging a breakdown immediately changes machine status to{' '}
             <span className="font-semibold text-rose-600 dark:text-rose-400">🔴 BREAKDOWN</span> and
-            blocks the active operator allocation until repair is completed.
+            interrupts active operator allocation. Maintenance service will only start when explicitly initiated by a technician.
           </p>
         </DialogHeader>
 

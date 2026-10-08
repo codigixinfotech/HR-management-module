@@ -123,6 +123,39 @@ export class MachineManagementController {
     return this.service.deleteMachine(id);
   }
 
+  @Post('machines/:id/report-breakdown')
+  @Permissions('workforce.write')
+  reportBreakdown(
+    @Param('id') id: string,
+    @Body() dto: { reason: string; breakdownDateTime?: string; remarks?: string; technicianName?: string },
+  ) {
+    return this.service.reportBreakdown(id, dto);
+  }
+
+  @Post('machines/:id/mark-away')
+  @Permissions('workforce.write')
+  markOperatorAway(
+    @Param('id') id: string,
+    @Body() dto: { reason?: string; awayTime?: string },
+  ) {
+    return this.service.markOperatorAway(id, dto);
+  }
+
+  @Post('machines/:id/resume-work')
+  @Permissions('workforce.write')
+  resumeOperatorWork(@Param('id') id: string) {
+    return this.service.resumeOperatorWork(id);
+  }
+
+  @Post('machines/:id/power-switch')
+  @Permissions('workforce.write')
+  switchPowerStatus(
+    @Param('id') id: string,
+    @Body() body: { status: 'OFFLINE' | 'ACTIVE' },
+  ) {
+    return this.service.switchPowerStatus(id, body.status);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 3. Production Lines
   // ─────────────────────────────────────────────────────────────

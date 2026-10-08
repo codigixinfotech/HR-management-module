@@ -1439,9 +1439,9 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
       interruptedAllocationId
     );
 
-    // Update machine status to UNDER_MAINTENANCE
+    // Update machine status to MAINTENANCE (Technician is actively servicing it)
     await this.prisma.$executeRawUnsafe(
-      `UPDATE machines SET status = 'UNDER_MAINTENANCE' WHERE id = ?`,
+      `UPDATE machines SET status = 'MAINTENANCE' WHERE id = ?`,
       dto.machineId
     );
 
@@ -1450,7 +1450,135 @@ export class MachineManagementService implements OnModuleInit, OnModuleDestroy {
       machineId: dto.machineId,
       status: 'In Progress',
       interruptedAllocationId,
-      message: 'Maintenance started successfully. Machine set to UNDER_MAINTENANCE.',
+      message: 'Maintenance started successfully. Machine set to MAINTENANCE.',
+    };
+  }
+
+  async reportBreakdown(id: string, dto: { reason: string; breakdownDateTime?: string; remarks?: string; technicianName?: string }) {
+    const machineRows: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT id, machineName, machineCode FROM machines WHERE id = ?',
+      id
+    );
+    if (machineRows.length === 0) throw new NotFoundException('Machine not found');
+
+    // 1. Mark active allocation as INTERRUPTED (keep record for history)
+    const activeAlloc: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT id, operatorId FROM machine_allocations WHERE machineId = ? AND status = 'ACTIVE'`,
+      id
+    );
+
+    let interruptedAllocationId: string | null = null;
+    if (activeAlloc.length > 0) {
+      interruptedAllocationId = activeAlloc[0].id;
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE machine_allocations SET status = 'INTERRUPTED' WHERE id = ?`,
+        interruptedAllocationId
+      );
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE machine_operators SET status = 'Blocked' WHERE id = ?`,
+        activeAlloc[0].operatorId
+      );
+    }
+
+    // 2. Set machine status strictly to 'BREAKDOWN' — DO NOT create or move to Maintenance
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE machines SET status = 'BREAKDOWN' WHERE id = ?`,
+      id
+    );
+
+    return {
+      success: true,
+      machineId: id,
+      status: 'BREAKDOWN',
+      interruptedAllocationId,
+      message: 'Breakdown reported successfully. Machine set to BREAKDOWN (Maintenance record not created).',
+    };
+  }
+
+  async markOperatorAway(id: string, _dto?: { reason?: string; awayTime?: string }) {
+    const machineRows: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT id, machineName, machineCode FROM machines WHERE id = ?',
+      id
+    );
+    if (machineRows.length === 0) throw new NotFoundException('Machine not found');
+
+    // Find active operator on machine
+    const activeAlloc: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT id, operatorId FROM machine_allocations WHERE machineId = ? AND status = 'ACTIVE'`,
+      id
+    );
+
+    if (activeAlloc.length > 0 && activeAlloc[0].operatorId) {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE machine_operators SET status = 'Away' WHERE id = ?`,
+        activeAlloc[0].operatorId
+      );
+    }
+
+    // Machine is IDLE while operator is temporarily away
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE machines SET status = 'IDLE' WHERE id = ?`,
+      id
+    );
+
+    return {
+      success: true,
+      machineId: id,
+      status: 'IDLE',
+      message: 'Operator marked as temporarily away. Machine set to IDLE.',
+    };
+  }
+
+  async resumeOperatorWork(id: string) {
+    const machineRows: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT id, machineName, machineCode FROM machines WHERE id = ?',
+      id
+    );
+    if (machineRows.length === 0) throw new NotFoundException('Machine not found');
+
+    const activeAlloc: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT id, operatorId FROM machine_allocations WHERE machineId = ? AND status = 'ACTIVE'`,
+      id
+    );
+
+    if (activeAlloc.length > 0 && activeAlloc[0].operatorId) {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE machine_operators SET status = 'Allocated' WHERE id = ?`,
+        activeAlloc[0].operatorId
+      );
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE machines SET status = 'ACTIVE' WHERE id = ?`,
+      id
+    );
+
+    return {
+      success: true,
+      machineId: id,
+      status: 'ACTIVE',
+      message: 'Operator resumed work. Machine is ACTIVE (BUSY).',
+    };
+  }
+
+  async switchPowerStatus(id: string, status: 'OFFLINE' | 'ACTIVE') {
+    const machineRows: any[] = await this.prisma.$queryRawUnsafe(
+      'SELECT id FROM machines WHERE id = ?',
+      id
+    );
+    if (machineRows.length === 0) throw new NotFoundException('Machine not found');
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE machines SET status = ? WHERE id = ?`,
+      status,
+      id
+    );
+
+    return {
+      success: true,
+      machineId: id,
+      status,
+      message: status === 'OFFLINE' ? 'Machine switched OFFLINE.' : 'Machine switched ONLINE (ACTIVE).',
     };
   }
 

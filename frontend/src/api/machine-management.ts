@@ -219,6 +219,18 @@ export const machineManagementApi = {
   deleteMachine: async (id: string) =>
     (await apiClient.delete<{ success: boolean; message: string }>(`/workforce/machines/${id}`)).data,
 
+  reportBreakdown: async (id: string, payload: { reason: string; breakdownDateTime?: string; remarks?: string; technicianName?: string }) =>
+    (await apiClient.post<{ success: boolean; message: string; machineId: string; status: string }>(`/workforce/machines/${id}/report-breakdown`, payload)).data,
+
+  markOperatorAway: async (id: string, payload?: { reason?: string; awayTime?: string }) =>
+    (await apiClient.post<{ success: boolean; message: string; machineId: string; status: string }>(`/workforce/machines/${id}/mark-away`, payload || {})).data,
+
+  resumeOperatorWork: async (id: string) =>
+    (await apiClient.post<{ success: boolean; message: string; machineId: string; status: string }>(`/workforce/machines/${id}/resume-work`)).data,
+
+  switchPowerStatus: async (id: string, status: 'OFFLINE' | 'ACTIVE') =>
+    (await apiClient.post<{ success: boolean; message: string; machineId: string; status: string }>(`/workforce/machines/${id}/power-switch`, { status })).data,
+
   // QR Scanning & Token
   scanQrToken: async (qrToken: string) =>
     (await apiClient.get<Machine>(`/workforce/machine-management/scan/${qrToken}`)).data,

@@ -35,8 +35,15 @@ import {
   Trash2,
   AlertOctagon,
   CalendarCheck,
+  UserX,
+  Play,
 } from 'lucide-react';
-import type { Machine, ProductionLine, MachineAllocation } from '@/api/machine-management';
+import {
+  machineManagementApi,
+  type Machine,
+  type ProductionLine,
+  type MachineAllocation,
+} from '@/api/machine-management';
 import type { Branch, Department } from '@/api/types';
 import { toast } from 'sonner';
 import { MachineQrModal } from './MachineQrModal';
@@ -115,6 +122,37 @@ export function MachinesTab({
   const [selectedAllocMachine, setSelectedAllocMachine] = useState<Machine | null>(null);
   const [openAllocModal, setOpenAllocModal] = useState(false);
 
+  const handleMarkOperatorAway = async (m: Machine) => {
+    try {
+      await machineManagementApi.markOperatorAway(m.id, { reason: 'Operator stepped away' });
+      toast.info(`Machine ${m.machineCode}: Operator marked Away. Machine set to IDLE.`);
+      onMachineUpdated?.();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to update operator status');
+    }
+  };
+
+  const handleResumeWork = async (m: Machine) => {
+    try {
+      await machineManagementApi.resumeOperatorWork(m.id);
+      toast.success(`Machine ${m.machineCode}: Operator resumed. Machine set to BUSY.`);
+      onMachineUpdated?.();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to resume operator work');
+    }
+  };
+
+  const handleSwitchPower = async (m: Machine) => {
+    const nextPower = m.status === 'OFFLINE' ? 'ACTIVE' : 'OFFLINE';
+    try {
+      await machineManagementApi.switchPowerStatus(m.id, nextPower);
+      toast.success(`Machine ${m.machineCode} switched ${nextPower === 'OFFLINE' ? 'OFFLINE' : 'ONLINE'}.`);
+      onMachineUpdated?.();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to switch power');
+    }
+  };
+
   const handleReset = () => {
     setSearch('');
     setBranchFilter('ALL');
@@ -142,7 +180,36 @@ export function MachinesTab({
     const matchesDept = deptFilter === 'ALL' || m.departmentId === deptFilter;
     const matchesLine = lineFilter === 'ALL' || m.productionLineId === lineFilter;
     const matchesType = typeFilter === 'ALL' || m.machineType === typeFilter;
-    const matchesStatus = statusFilter === 'ALL' || m.status === statusFilter;
+
+    const isBusy = (Boolean(m.currentOperatorName) || m.currentAllocationStatus === 'ACTIVE') &&
+      m.status !== 'BREAKDOWN' &&
+      m.status !== 'MAINTENANCE' &&
+      m.status !== 'UNDER_MAINTENANCE' &&
+      m.status !== 'IDLE' &&
+      m.status !== 'AWAY' &&
+      m.status !== 'OFFLINE' &&
+      m.status !== 'INACTIVE';
+
+    const isAvailable = !m.currentOperatorName &&
+      m.currentAllocationStatus !== 'ACTIVE' &&
+      m.status !== 'BREAKDOWN' &&
+      m.status !== 'MAINTENANCE' &&
+      m.status !== 'UNDER_MAINTENANCE' &&
+      m.status !== 'IDLE' &&
+      m.status !== 'AWAY' &&
+      m.status !== 'OFFLINE' &&
+      m.status !== 'INACTIVE';
+
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'BUSY' && isBusy) ||
+      (statusFilter === 'AVAILABLE' && isAvailable) ||
+      (statusFilter === 'BREAKDOWN' && m.status === 'BREAKDOWN') ||
+      (statusFilter === 'MAINTENANCE' && (m.status === 'MAINTENANCE' || m.status === 'UNDER_MAINTENANCE')) ||
+      (statusFilter === 'IDLE' && (m.status === 'IDLE' || m.status === 'AWAY')) ||
+      (statusFilter === 'OFFLINE' && (m.status === 'OFFLINE' || m.status === 'INACTIVE')) ||
+      m.status === statusFilter;
+
     const matchesMaint = maintFilter === 'ALL' || m.maintenanceDueStatus === maintFilter;
 
     return (
@@ -235,15 +302,17 @@ export function MachinesTab({
 
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[105px] h-8 text-xs px-2 shrink-0">
+              <SelectTrigger className="w-[125px] h-8 text-xs px-2 shrink-0">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Status</SelectItem>
-                <SelectItem value="ACTIVE">Active</SelectItem>
-                <SelectItem value="UNDER_MAINTENANCE">Under Maint.</SelectItem>
-                <SelectItem value="INACTIVE">Inactive</SelectItem>
-                <SelectItem value="RETIRED">Retired</SelectItem>
+                <SelectItem value="BUSY">🟢 Busy</SelectItem>
+                <SelectItem value="AVAILABLE">🔵 Available</SelectItem>
+                <SelectItem value="IDLE">🟡 Idle / Away</SelectItem>
+                <SelectItem value="BREAKDOWN">🔴 Breakdown</SelectItem>
+                <SelectItem value="MAINTENANCE">🟠 Maintenance</SelectItem>
+                <SelectItem value="OFFLINE">⚫ Offline</SelectItem>
               </SelectContent>
             </Select>
 
@@ -430,48 +499,67 @@ export function MachinesTab({
                         )}
                       </TableCell>
 
-                      {/* Status Column: BUSY / AVAILABLE / BREAKDOWN */}
+                      {/* Status Column: 6 Distinct Operational Statuses */}
                       <TableCell>
-                        {m.status === 'UNDER_MAINTENANCE' ? (
-                          <Badge className="text-[10px] font-bold bg-rose-600 hover:bg-rose-600 text-white gap-1 py-0.5">
+                        {m.status === 'BREAKDOWN' ? (
+                          <Badge className="text-[10px] font-bold bg-rose-600 hover:bg-rose-600 text-white gap-1 py-0.5 whitespace-nowrap">
                             🔴 BREAKDOWN
                           </Badge>
+                        ) : m.status === 'MAINTENANCE' || m.status === 'UNDER_MAINTENANCE' ? (
+                          <Badge className="text-[10px] font-bold bg-amber-600 hover:bg-amber-600 text-white gap-1 py-0.5 whitespace-nowrap">
+                            🟠 MAINTENANCE
+                          </Badge>
+                        ) : m.status === 'IDLE' || m.status === 'AWAY' ? (
+                          <Badge className="text-[10px] font-bold bg-amber-100 hover:bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700 gap-1 py-0.5 whitespace-nowrap">
+                            🟡 IDLE/AWAY
+                          </Badge>
+                        ) : m.status === 'OFFLINE' || m.status === 'INACTIVE' ? (
+                          <Badge className="text-[10px] font-bold bg-slate-800 hover:bg-slate-800 text-slate-100 dark:bg-slate-700 dark:text-slate-200 gap-1 py-0.5 whitespace-nowrap">
+                            ⚫ OFFLINE
+                          </Badge>
                         ) : displayOperator || m.currentAllocationStatus === 'ACTIVE' ? (
-                          <Badge className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-600 text-white gap-1 py-0.5">
+                          <Badge className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-600 text-white gap-1 py-0.5 whitespace-nowrap">
                             🟢 BUSY
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] font-bold border-emerald-500 text-emerald-600 dark:text-emerald-400 gap-1 py-0.5">
-                            🟢 AVAILABLE
+                          <Badge className="text-[10px] font-bold bg-blue-600 hover:bg-blue-600 text-white gap-1 py-0.5 whitespace-nowrap">
+                            🔵 AVAILABLE
                           </Badge>
                         )}
                       </TableCell>
 
-                      {/* Maintenance Column */}
+                      {/* Maintenance Column: Servicing when technician working, else scheduled calibration health */}
                       <TableCell>
-                        <Badge
-                          variant={
-                            m.status === 'UNDER_MAINTENANCE' || m.maintenanceDueStatus === 'OVERDUE'
-                              ? 'destructive'
+                        {m.status === 'MAINTENANCE' || m.status === 'UNDER_MAINTENANCE' ? (
+                          <Badge
+                            className="text-[10px] font-medium whitespace-nowrap bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700"
+                            title="Technician is actively servicing this machine"
+                          >
+                            🟠 Servicing
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant={
+                              m.maintenanceDueStatus === 'OVERDUE'
+                                ? 'destructive'
+                                : m.maintenanceDueStatus === 'DUE_TODAY'
+                                ? 'warning'
+                                : m.maintenanceDueStatus === 'UPCOMING'
+                                ? 'outline'
+                                : 'secondary'
+                            }
+                            className="text-[10px] font-medium whitespace-nowrap"
+                            title={`Next Scheduled: ${m.nextMaintenanceDate ? m.nextMaintenanceDate.slice(0, 10) : 'None'}`}
+                          >
+                            {m.maintenanceDueStatus === 'OVERDUE'
+                              ? '🔴 Overdue'
                               : m.maintenanceDueStatus === 'DUE_TODAY'
-                              ? 'warning'
+                              ? '🟠 Due Today'
                               : m.maintenanceDueStatus === 'UPCOMING'
-                              ? 'outline'
-                              : 'secondary'
-                          }
-                          className="text-[10px] font-medium whitespace-nowrap"
-                          title={`Next Scheduled: ${m.nextMaintenanceDate ? m.nextMaintenanceDate.slice(0, 10) : 'None'}`}
-                        >
-                          {m.status === 'UNDER_MAINTENANCE'
-                            ? '🔴 Repair'
-                            : m.maintenanceDueStatus === 'OVERDUE'
-                            ? '🔴 Overdue'
-                            : m.maintenanceDueStatus === 'DUE_TODAY'
-                            ? '🟠 Due Today'
-                            : m.maintenanceDueStatus === 'UPCOMING'
-                            ? '🟡 Upcoming'
-                            : '🟢 Healthy'}
-                        </Badge>
+                              ? '🟡 Upcoming'
+                              : '🟢 Healthy'}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
@@ -504,7 +592,7 @@ export function MachinesTab({
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-52 text-xs">
+                            <DropdownMenuContent align="end" className="w-56 text-xs">
                               <DropdownMenuItem
                                 onClick={() => {
                                   setSelectedAllocMachine(m);
@@ -540,36 +628,69 @@ export function MachinesTab({
                                 <UserCheck className="h-3.5 w-3.5 mr-2 text-blue-600" />
                                 Assign Operator
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => onStartMaintenance(m)}>
-                                <Wrench className="h-3.5 w-3.5 mr-2 text-amber-600" />
-                                Start Maintenance
-                              </DropdownMenuItem>
+
+                              {/* Operator Away / Idle Flow */}
+                              {(displayOperator || m.currentAllocationStatus === 'ACTIVE') &&
+                                m.status !== 'BREAKDOWN' &&
+                                m.status !== 'MAINTENANCE' &&
+                                m.status !== 'UNDER_MAINTENANCE' &&
+                                m.status !== 'OFFLINE' &&
+                                m.status !== 'IDLE' &&
+                                m.status !== 'AWAY' && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleMarkOperatorAway(m)}
+                                    className="cursor-pointer text-amber-700 dark:text-amber-400 font-medium"
+                                  >
+                                    <UserX className="h-3.5 w-3.5 mr-2 text-amber-600" />
+                                    Mark Operator Away (Idle)
+                                  </DropdownMenuItem>
+                                )}
+
+                              {/* Resume Work Flow */}
+                              {(m.status === 'IDLE' || m.status === 'AWAY') && (
+                                <DropdownMenuItem
+                                  onClick={() => handleResumeWork(m)}
+                                  className="cursor-pointer text-emerald-700 dark:text-emerald-400 font-medium"
+                                >
+                                  <Play className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                                  Resume Operator Work (Busy)
+                                </DropdownMenuItem>
+                              )}
+
+                              {/* Start Maintenance Flow (Only when technician begins service) */}
+                              {m.status !== 'MAINTENANCE' && m.status !== 'UNDER_MAINTENANCE' && (
+                                <DropdownMenuItem
+                                  onClick={() => onStartMaintenance(m)}
+                                  className="cursor-pointer text-amber-600 font-medium"
+                                >
+                                  <Wrench className="h-3.5 w-3.5 mr-2 text-amber-600" />
+                                  {m.status === 'BREAKDOWN' ? 'Start Service / Maintenance' : 'Start Maintenance'}
+                                </DropdownMenuItem>
+                              )}
+
+                              {/* Report Breakdown Flow (Does NOT start maintenance) */}
+                              {m.status !== 'BREAKDOWN' &&
+                                m.status !== 'MAINTENANCE' &&
+                                m.status !== 'UNDER_MAINTENANCE' && (
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setSelectedBreakdownMachine(m);
+                                      setOpenBreakdownModal(true);
+                                    }}
+                                    className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium cursor-pointer"
+                                  >
+                                    <AlertOctagon className="h-3.5 w-3.5 mr-2 text-rose-600" />
+                                    Report Breakdown
+                                  </DropdownMenuItem>
+                                )}
+
+                              {/* Power Switch Flow (Switched OFF / ON) */}
                               <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedBreakdownMachine(m);
-                                  setOpenBreakdownModal(true);
-                                }}
-                                className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium cursor-pointer"
-                              >
-                                <AlertOctagon className="h-3.5 w-3.5 mr-2 text-rose-600" />
-                                Report Breakdown
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => onViewDetails(m)}>
-                                <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                                Allocation History
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => onViewDetails(m)}>
-                                <History className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                                Maintenance History
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => onToggleStatus(m)}
-                                className="text-muted-foreground"
+                                onClick={() => handleSwitchPower(m)}
+                                className="cursor-pointer text-muted-foreground"
                               >
                                 <Power className="h-3.5 w-3.5 mr-2" />
-                                {m.status === 'ACTIVE' ? 'Deactivate' : 'Set Active'}
+                                {m.status === 'OFFLINE' ? 'Switch Power ON (Online)' : 'Switch Power OFF (Offline)'}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
